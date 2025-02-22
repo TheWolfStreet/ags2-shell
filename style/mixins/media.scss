@@ -1,0 +1,51 @@
+@use "sass:color";
+
+@mixin media() {
+  @include widget;
+  padding: $padding;
+
+  .cover-art {
+    @if $shadows {
+      box-shadow: 2px 2px 2px 0 $shadow-color;
+    }
+
+    min-width: 100px;
+    min-height: 100px;
+    background-size: contain;
+    background-position: center;
+    border-radius: $radius * 0.8;
+    margin-right: $padding;
+  }
+
+  .title {
+    @include spacing(.5);
+    font-weight: bold;
+  }
+
+  button {
+    @include button($flat: true);
+    padding: $padding * .5;
+
+    &.play-pause {
+      margin: 0 ($spacing * .5);
+    }
+
+    icon {
+      font-size: 1.2em;
+    }
+  }
+
+  .artist {
+    color: color.scale($fg, $alpha: -20%);
+    font-size: .9em;
+  }
+
+  scale {
+    @include slider($width: .5em, $slider: false, $gradient: linear-gradient($fg, $fg));
+    margin-bottom: $padding * .5;
+
+    trough {
+      border: none;
+    }
+  }
+}

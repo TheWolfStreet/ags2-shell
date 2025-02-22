@@ -1,0 +1,27 @@
+@use "sass:color";
+
+window.indicator {
+  progress {
+    background-color: $primary-bg;
+    color: $primary-fg;
+  }
+
+
+
+  .audio-state {
+    border {
+      all: unset;
+    }
+
+    box {
+      @include floating-widget;
+
+      icon {
+        margin: $spacing;
+        padding: $popover-padding;
+        font-size: 58px;
+        color: color.scale($fg, $alpha: -10%)
+      }
+    }
+  }
+}

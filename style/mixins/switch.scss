@@ -1,0 +1,15 @@
+@mixin switch {
+  switch:checked {
+    background-color: $primary-bg;
+  }
+
+  slider {
+    border-radius: $radius;
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  slider:checked {
+    background-color: $primary-fg;
+  }
+}

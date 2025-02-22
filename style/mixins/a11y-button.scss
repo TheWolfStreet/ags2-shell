@@ -1,0 +1,41 @@
+@import './button';
+
+@mixin accs-button($reactive: true) {
+  @include unset;
+  color: $fg;
+
+  >:not(window) {
+    border-radius: $radius;
+    transition: $transition;
+
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+
+  @if $reactive {
+
+    &:focus>:not(window),
+    &.focused>:not(window) {
+      @include button-focus;
+    }
+
+    &:hover>:not(window) {
+      @include button-hover;
+    }
+
+    &:active,
+    &.active,
+    &.on,
+    &:checked {
+      >:not(window) {
+        @include button-active;
+      }
+
+      &:hover>:not(window) {
+        box-shadow: inset 0 0 0 $border-width $border-color,
+          inset 0 0 0 99px $hover-bg;
+      }
+    }
+  }
+}

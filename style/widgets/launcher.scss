@@ -1,0 +1,149 @@
+@use "sass:math";
+@use "sass:color";
+
+window#launcher .launcher {
+  @include floating_widget;
+
+  .quicklaunch {
+    @include spacing;
+
+    button {
+      @include button($flat: true);
+
+      icon {
+        font-size: 4.23em;
+      }
+
+      padding: $padding;
+    }
+  }
+
+  entry {
+    @include button;
+    padding: $padding;
+    margin: $spacing;
+
+    selection {
+      color: color.mix($fg, $bg, 50%);
+      background-color: transparent;
+    }
+
+    label,
+    icon {
+      color: $fg;
+    }
+  }
+
+  icon.spinner {
+    color: $primary-bg;
+    margin-right: $spacing;
+  }
+
+  separator {
+    margin: 4pt 0;
+    background-color: $popover-border-color;
+  }
+
+  button.app-item {
+    @include button($flat: true, $reactive: false);
+
+    >box {
+      @include spacing(0.5);
+    }
+
+    transition: $transition;
+    padding: $padding;
+
+    label {
+      transition: $transition;
+
+      &.title {
+        color: $fg;
+      }
+
+      &.description {
+        color: color.scale($fg, $alpha: -30%);
+      }
+    }
+
+    icon {
+      font-size: 4.23em;
+      transition: $transition;
+    }
+
+    &:hover,
+    &:focus {
+      .title {
+        color: $primary-bg;
+      }
+
+      .description {
+        color: color.scale($primary-bg, $alpha: -40%);
+      }
+
+      icon {
+        -gtk-icon-shadow: 2px 2px $primary-bg;
+      }
+    }
+
+    &:active {
+      background-color: color.scale($primary-bg, $alpha: -50%);
+      border-radius: $radius;
+      box-shadow: inset 0 0 0 $border-width $border-color;
+
+      .title {
+        color: $fg;
+      }
+    }
+  }
+
+  button.help,
+  button.nix-item {
+    @include button($flat: true, $reactive: false);
+    padding: 0 ($padding * .5);
+
+    label {
+      transition: $transition;
+      color: $fg;
+    }
+
+    .name {
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+
+    .description {
+      color: color.scale($fg, $alpha: -30%)
+    }
+
+    &:hover,
+    &:focus {
+      label {
+        text-shadow: $text-shadow;
+      }
+
+      .name,
+      .version {
+        color: $primary-bg;
+      }
+
+      .description {
+        color: color.scale($primary-bg, $alpha: -30%)
+      }
+    }
+  }
+
+  button.sh-item {
+    @include button($flat: true, $reactive: false);
+    padding: 0 ($padding * .5);
+
+    transition: $transition;
+    color: $fg;
+
+    &:hover,
+    &:focus {
+      color: $primary-bg;
+      text-shadow: $text-shadow;
+    }
+  }
+}

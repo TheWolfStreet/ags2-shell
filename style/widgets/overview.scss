@@ -1,0 +1,35 @@
+window#overview .overview {
+  @include floating-widget;
+  @include spacing;
+
+  .active {
+    border: $border-width solid $primary-bg;
+    border-radius: $popover-radius;
+  }
+
+  .workspace {
+    >eventbox {
+      @include widget;
+      border-radius: if($radius ==0, 0, $radius + $padding);
+
+      &:hover {
+        background-color: $hover-bg;
+      }
+
+      &:drop(active) {
+        border-color: $primary-bg;
+      }
+    }
+  }
+
+  .client {
+    @include button;
+    border-radius: $radius;
+    margin: $padding;
+
+    &.hidden {
+      @include hidden;
+      transition: 0;
+    }
+  }
+}

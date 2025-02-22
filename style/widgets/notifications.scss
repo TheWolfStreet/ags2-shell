@@ -1,0 +1,97 @@
+@use "sass:color";
+
+@mixin notification() {
+  &.critical {
+    box-shadow: inset 0 0 .5em 0 $error-bg;
+  }
+
+  &:hover button.close-button {
+    @include button-hover;
+    background-color: transparentize($error-bg, .5);
+  }
+
+  .header {
+    margin-bottom: $spacing * .5;
+
+    .time {
+      color: transparentize($fg, .2);
+    }
+
+    .app-icon {
+      border-radius: $radius*0.8;
+      margin-right: $spacing / 2;
+      font-size: 1.5em;
+    }
+
+    &.icon {
+      border: $border;
+    }
+
+    .app-name {
+      margin-right: $spacing;
+      letter-spacing: -0.50pt;
+      font-size: 0.9em;
+      color: $fg;
+    }
+  }
+
+  .content {
+    .summary {
+      margin-right: $spacing;
+      color: $fg;
+      font-weight: bold;
+    }
+
+    .body {
+      color: transparentize($fg, .2);
+    }
+
+    .icon {
+      border-radius: $radius*0.8;
+      margin-right: $spacing;
+
+      &.icon {
+        border: $border;
+      }
+    }
+  }
+
+  .actions {
+    @include spacing(0.8);
+    margin-top: $spacing;
+
+    button {
+      @include button;
+      border-radius: $radius*0.8;
+      font-size: 1.2em;
+      padding: $padding * 0.7;
+    }
+  }
+
+  button.close-button {
+    @include button($flat: true);
+    margin-left: $spacing / 2;
+    border-radius: $radius*0.8;
+    min-width: 1.2em;
+    min-height: 1.2em;
+
+    &:active {
+      background-image: none;
+    }
+  }
+}
+
+window.notifications {
+  @include unset;
+
+  .notification {
+    @include notification;
+    @include floating-widget;
+    margin-bottom: 0;
+    border-radius: $radius;
+
+    .description {
+      min-width: 350px;
+    }
+  }
+}
