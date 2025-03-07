@@ -3,7 +3,7 @@ import { App } from "astal/gtk3"
 
 import { ensureDir } from "./utils"
 
-App.instanceName = "ags-main"
+App.instanceName = "ags2-shell"
 
 export const env = {
 	clock: Variable(GLib.DateTime.new_now_local()),

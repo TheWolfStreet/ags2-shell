@@ -35,7 +35,6 @@ export async function notify({
 	id?: number
 	appName?: string
 	appIcon?: string
-	attachedImage?: string
 	actions?: Record<string, string>
 	body?: string
 	summary?: string
@@ -49,12 +48,11 @@ export async function notify({
 		if (id !== undefined) args.push(`-r ${id}`)
 		if (appName) args.push(`-a "${appName}"`)
 		if (appIcon) args.push(`-i "${appIcon}"`)
-		if (attachedImage) args.push(`--icon=attachment://"${attachedImage}"`)
 		if (urgency) args.push(`-u ${urgency}`)
 		if (timeout) args.push(`-t ${timeout}`)
 		if (hints) {
 			Object.entries(hints).forEach(([key, value]) => {
-				args.push(`-h="${key}=${value}"`)
+				args.push(`-h ${key}:${value}`)
 			})
 		}
 		if (summary) args.push(`"${summary}"`)

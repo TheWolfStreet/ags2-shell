@@ -126,7 +126,7 @@ export function PendingNotifications() {
 }
 
 export const ScreenRecord = () =>
-	<PanelButton className="recorder" visible={bind(scr, "recording")} onClick={() => scr.stop()}>
+	<PanelButton className="recorder" visible={bind(scr, "recording")} onClick={() => scr.stopRecord()}>
 		<box className="horizontal">
 			<icon icon={icons.recorder.recording} />
 			<label label={bind(scr, "timer").as(duration)} />

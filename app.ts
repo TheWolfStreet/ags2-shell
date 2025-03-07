@@ -23,7 +23,7 @@ function forMonitors(widgets: ((monitor: Gdk.Monitor) => void)[]) {
 	})
 
 	// App.connect("monitor-removed", (_s, monitor) => {
-	// TODO: Deal with the mirror problem
+	// FIXME: Deal with the mirror problem
 	// })
 }
 
@@ -40,7 +40,9 @@ App.start({
 
 	requestHandler(request: string, _: (response: any) => void) {
 		if (request == "shutdown") powermenu.action("shutdown")
-		if (request == "record") scr.recording ? scr.stop() : scr.start()
-		if (request == "record-area") scr.recording ? scr.stop() : scr.start(true)
+		if (request == "record") scr.recording ? scr.stopRecord() : scr.startRecord()
+		if (request == "record-area") scr.recording ? scr.stopRecord() : scr.startRecord(true)
+		if (request == "screenshot") scr.screenshot()
+		if (request == "screenshot-area") scr.screenshot(true)
 	},
 })
