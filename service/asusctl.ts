@@ -2,6 +2,7 @@ import { GObject, property, register } from "astal"
 
 import { sh, bashSync } from "../lib/utils"
 import { hypr } from "../lib/services"
+import options from "../options"
 
 type Profile = "Performance" | "Balanced" | "Quiet"
 type Mode = "Hybrid" | "Integrated"
@@ -81,8 +82,8 @@ export default class Asusctl extends GObject.Object {
 
 		this.connect("notify::profile", () => {
 			const monitorConfig = this.#profile === "Quiet"
-				? "keyword monitor eDP-1,1920x1200@70,0x0,1"
-				: "keyword monitor eDP-1,1920x1200@144,0x0,1"
+				? `keyword monitor eDP-1,1920x1200@${options.asus.bat_hz.get()},0x0,1`
+				: `keyword monitor eDP-1,1920x1200@${options.asus.ac_hz.get()},0x0,1`
 
 			hypr.message_async(monitorConfig, null)
 		})

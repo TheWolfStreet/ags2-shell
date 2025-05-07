@@ -11,17 +11,17 @@ const { TOP, RIGHT } = Astal.WindowAnchor
 const { START, CENTER, END } = Gtk.Align
 const { SLIDE_DOWN } = Gtk.RevealerTransitionType
 
-const isIcon = (icon: string) =>
-	!!Astal.Icon.lookup_icon(icon)
+function isIcon(icon: string) {
+	return !!Astal.Icon.lookup_icon(icon)
+}
 
-const fileExists = (path: string) =>
-	GLib.file_test(path, GLib.FileTest.EXISTS)
+function fileExists(path: string) { return GLib.file_test(path, GLib.FileTest.EXISTS) }
 
-const time = (time: number, format = "%H:%M") => GLib.DateTime
-	.new_from_unix_local(time)
-	.format(format)!
+function formatTime(time: number, format: string = "%H:%M"): string {
+	return GLib.DateTime.new_from_unix_local(time).format(format) ?? ""
+}
 
-const urgency = (n: Notifd.Notification) => {
+function urgency(n: Notifd.Notification) {
 	const { LOW, NORMAL, CRITICAL } = Notifd.Urgency
 	switch (n.urgency) {
 		case LOW: return "low"
@@ -74,7 +74,7 @@ export function Notification(props: Props) {
 						className="time"
 						halign={END}
 						hexpand
-						label={time(n.time)}
+						label={formatTime(n.time)}
 					/>
 					<button className="close-button" onClicked={() => n.dismiss()}>
 						<icon icon="window-close-symbolic" useFallback />
@@ -138,8 +138,8 @@ export function Notification(props: Props) {
 	)
 }
 
-const AnimatedNotification = (props: Props) =>
-	<revealer transitionDuration={options.transition.get()} transitionType={SLIDE_DOWN}
+function AnimatedNotification(props: Props) {
+	return (<revealer transitionDuration={options.transition.get()} transitionType={SLIDE_DOWN}
 		setup={self => timeout(options.transition.get(), () => {
 			if (!self.in_destruction()) {
 				self.revealChild = true
@@ -148,6 +148,8 @@ const AnimatedNotification = (props: Props) =>
 	>
 		<Notification {...props} />
 	</revealer>
+	)
+}
 
 export function NotificationList({ persistent: persistent }: { persistent?: boolean }) {
 	const map = new Map<number, ReturnType<typeof AnimatedNotification>>()

@@ -6,6 +6,7 @@ import Wallpaper from "./Wallpaper"
 
 import icons from "../../../lib/icons"
 import options from "../../../options"
+import { asusctl } from "../../../lib/services"
 
 const {
 	autotheme: at,
@@ -16,6 +17,7 @@ const {
 	overview: ov,
 	powermenu: pm,
 	hyprland: h,
+	asus: s,
 } = options
 
 const {
@@ -62,7 +64,7 @@ export default [
 		Group("Theme",
 			Row({ opt: shadows, title: "Shadows" }),
 			Row({ opt: blurOnLight, title: "Enable blur on light theme", type: "boolean" }),
-			Row({ opt: blur, title: "Blur", note: "0 to disable", max: 70 }),
+			Row({ opt: blur, title: "Blur", note: "Set to 0 to disable", max: 70 }),
 			Row({ opt: widget.opacity, title: "Widget Opacity", max: 100 }),
 			Row({ opt: border.opacity, title: "Border Opacity", max: 100 }),
 			Row({ opt: border.width, title: "Border Width", max: 100 }),
@@ -85,7 +87,7 @@ export default [
 			Row({ opt: b.launcher.icon.icon, title: "Icon" }),
 		),
 		Group("Workspaces",
-			Row({ opt: b.workspaces.count, title: "Number of Workspaces", note: "0 to make it dynamic" }),
+			Row({ opt: b.workspaces.count, title: "Number of Workspaces", note: "Set to 0 to make it dynamic" }),
 		),
 		Group("Taskbar",
 			Row({ opt: b.taskbar.exclusive, title: "Exclusive to workspaces" }),
@@ -106,11 +108,15 @@ export default [
 		),
 		Group("Overview",
 			Row({ opt: ov.scale, title: "Scale", max: 100 }),
-			Row({ opt: ov.workspaces, title: "Workspaces", max: 11, note: "set this to 0 to make it dynamic" }),
+			Row({ opt: ov.workspaces, title: "Workspaces", max: 11, note: "Set to 0 to make it dynamic" }),
 		),
 		Group("Powermenu",
 			Row({ opt: pm.layout, title: "Layout", type: "enum", enums: ["box", "line"] }),
 			Row({ opt: pm.labels, title: "Show Labels" }),
+		),
+		Group("ASUS", asusctl.available,
+			Row({ opt: s.ac_hz, min: 60, title: "Screen Refresh Rate (AC)", note: "Minimum is 60HZ to avoid breakage" }),
+			Row({ opt: s.bat_hz, min: 60, title: "Screen Refresh Rate (Battery)", note: "Minimum is 60HZ to avoid breakage" }),
 		),
 	),
 ] as const

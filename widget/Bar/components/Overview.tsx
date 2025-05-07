@@ -13,7 +13,7 @@ import options from "../../../options"
 const target = [Gtk.TargetEntry.new("text/plain", Gtk.TargetFlags.SAME_APP, 0)]
 const { CENTER } = Gtk.Align
 
-const scale = (size: number) => (options.overview.scale.get() / 100) * size
+function scale(size: number) { (options.overview.scale.get() / 100) * size }
 
 export function Workspaces() {
 	const labels = (ws: number) =>
@@ -53,71 +53,75 @@ export function Workspaces() {
 	)
 }
 
-const size = (id: number) => {
+function size(id: number) {
 	const def = { h: 1080, w: 1920 }
 	const ws = hypr.get_workspace(id)
-	if (ws === null || typeof ws === "undefined") return def
 
+	if (ws === null || typeof ws === "undefined") return def
 	const mon = hypr.get_monitor(ws.monitor.id)
+
 	return mon ? { h: mon.height, w: mon.width } : def
 }
 
-const Window = ({ address, size: [w, h], class: c, title }: any) =>
-	<button
-		className="client"
-		name={address}
-		tooltipText={`${title}`}
-		onDragDataGet={(_w, _c, data) => {
-			data.set_text(address, address.length)
-		}}
-		onDragBegin={(self, _a, _b) => {
-			self.toggleClassName("hidden", true)
-		}}
-		onDragEnd={self => {
-			self.toggleClassName("hidden", false)
-		}}
-		setup={self => {
-			self.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, target, Gdk.DragAction.COPY)
-		}}
-		onClick={(_: Widget.Button, event: Astal.ClickEvent) => {
-			const client = hypr.get_client(address)
-			const { BUTTON_PRIMARY, BUTTON_MIDDLE, BUTTON_SECONDARY } = Gdk
+function Window({ address, size: [w, h], class: c, title }: any) {
+	return (
+		<button
+			className="client"
+			name={address}
+			tooltipText={`${title}`}
+			onDragDataGet={(_w, _c, data) => {
+				data.set_text(address, address.length)
+			}}
+			onDragBegin={(self, _a, _b) => {
+				self.toggleClassName("hidden", true)
+			}}
+			onDragEnd={self => {
+				self.toggleClassName("hidden", false)
+			}}
+			setup={self => {
+				self.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, target, Gdk.DragAction.COPY)
+			}}
+			onClick={(_: Widget.Button, event: Astal.ClickEvent) => {
+				const client = hypr.get_client(address)
+				const { BUTTON_PRIMARY, BUTTON_MIDDLE, BUTTON_SECONDARY } = Gdk
 
-			if (client && event.release) {
-				switch (event.button) {
-					case BUTTON_PRIMARY:
-						toggleWindow("overview")
-						client.focus()
-						break
-					case BUTTON_SECONDARY:
-						client.focus()
-						hypr.message_async(`dispatch fullscreen`, null)
-						break
-					case BUTTON_MIDDLE:
-						client.kill()
-						break
-					default:
-						break
+				if (client && event.release) {
+					switch (event.button) {
+						case BUTTON_PRIMARY:
+							toggleWindow("overview")
+							client.focus()
+							break
+						case BUTTON_SECONDARY:
+							client.focus()
+							hypr.message_async(`dispatch fullscreen`, null)
+							break
+						case BUTTON_MIDDLE:
+							client.kill()
+							break
+						default:
+							break
+					}
 				}
-			}
-		}}
-		onKeyPressEvent={(_, event: Gdk.Event) => {
-			const client = hypr.get_client(address)
-			if (client && event.get_keyval()[1] === Gdk.KEY_Return) {
-				toggleWindow("overview")
-				client.focus()
-			}
-		}}
-	>
-		<icon
-			icon={c}
-			useFallback
-			css={options.overview.scale((v) => `
+			}}
+			onKeyPressEvent={(_, event: Gdk.Event) => {
+				const client = hypr.get_client(address)
+				if (client && event.get_keyval()[1] === Gdk.KEY_Return) {
+					toggleWindow("overview")
+					client.focus()
+				}
+			}}
+		>
+			<icon
+				icon={c}
+				useFallback
+				css={options.overview.scale((v) => `
                 min-width: ${(v / 100) * w}px;
                 min-height: ${(v / 100) * h}px;
       `)}
-		/>
-	</button >
+			/>
+		</button >
+	)
+}
 
 function Workspace(id: number) {
 	const fixed = <Fixed /> as Gtk.Fixed
@@ -186,39 +190,42 @@ function Workspace(id: number) {
 	)
 }
 
-const entry = (ws: number) =>
-	<box className="overview horizontal"
-		setup={self => {
-			if (ws > 0)
-				return
-
-			self.hook(hypr, "workspace-removed", (_, id) => {
-				if (id === undefined)
+function Entry(ws: number) {
+	return (
+		<box className="overview horizontal"
+			setup={self => {
+				if (ws > 0)
 					return
 
-				self.get_children().filter(c => c.name == id).forEach(c => c.destroy())
-			})
+				self.hook(hypr, "workspace-removed", (_, id) => {
+					if (id === undefined)
+						return
 
-			self.hook(hypr, "workspace-added", (_, id) => {
-				if (id === undefined)
-					return
+					self.get_children().filter(c => c.name == id).forEach(c => c.destroy())
+				})
 
-				self.children = [...self.children, Workspace(Number(id))]
-					.sort((a, b) => Number(a.name) - Number(b.name))
-			})
-		}}
-	>
-		{ws > 0
-			? range(ws).map(Workspace)
-			: hypr.workspaces
-				.map(({ id }) => Workspace(id))
-				.sort((a, b) => Number(a.name) - Number(b.name))}
-	</box>
+				self.hook(hypr, "workspace-added", (_, id) => {
+					if (id === undefined)
+						return
+
+					self.children = [...self.children, Workspace(Number(id))]
+						.sort((a, b) => Number(a.name) - Number(b.name))
+				})
+			}}
+		>
+			{ws > 0
+				? range(ws).map(Workspace)
+				: hypr.workspaces
+					.map(({ id }) => Workspace(id))
+					.sort((a, b) => Number(a.name) - Number(b.name))}
+		</box>
+	)
+}
 
 export default () =>
 	<PopupWindow
 		name={"overview"}
 		layout={"center"}
 	>
-		{options.overview.workspaces(entry)}
+		{options.overview.workspaces(Entry)}
 	</PopupWindow>

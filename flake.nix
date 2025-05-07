@@ -63,7 +63,11 @@
 
     devShells.${system} = {
       default = pkgs.mkShell {
-        buildInputs = commonPackages;
+        buildInputs =
+          commonPackages
+          ++ [
+            pkgs.vtsls
+          ];
       };
     };
   };

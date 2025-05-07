@@ -13,61 +13,61 @@ import options from "../../../options"
 
 const { CENTER } = Gtk.Align
 
-const IconAppItem = ({ app }: { app: Apps.Application }) => (
-	<button onClicked={() => {
-		toggleWindow("launcher")
-		launchApp(app)
-	}}
-		tooltipText={app.name}
-		hexpand
-	>
-		<icon icon={icon(app.iconName, icons.fallback.executable)} useFallback />
-	</button>
-)
-
-const AppItem = ({ app }: { app: Apps.Application }) =>
-	<revealer name={app.name} vexpand={false} hexpand={false}>
-		<box vertical>
-			<Separator />
-			<button
-				className="app-item"
-				onClicked={() => {
-					toggleWindow("launcher")
-					launchApp(app)
-				}}>
-				<box>
-					<icon icon={app.iconName || app.entry} useFallback />
-					<box valign={CENTER} vertical>
-						<label
-							className="title"
-							hexpand
-							truncate
-							xalign={0}
-							label={app.name}
-						/>
-						{app.description && (
-							<label
-								className="description"
-								hexpand
-								wrap
-								maxWidthChars={30}
-								justify={Gtk.Justification.LEFT}
-								valign={CENTER}
-								xalign={0}
-								label={app.description}
-							/>
-						)}
-					</box>
-				</box>
-			</button>
-		</box>
-	</revealer>
-
 function match(name: string, query: string) {
 	return name.match(new RegExp(query, 'i'))
 }
 
 function Entries({ text }: { text: Variable<string> }) {
+	const IconAppItem = ({ app }: { app: Apps.Application }) => (
+		<button onClicked={() => {
+			toggleWindow("launcher")
+			launchApp(app)
+		}}
+			tooltipText={app.name}
+			hexpand
+		>
+			<icon icon={icon(app.iconName, icons.fallback.executable)} useFallback />
+		</button>
+	)
+
+	const AppItem = ({ app }: { app: Apps.Application }) =>
+		<revealer name={app.name} vexpand={false} hexpand={false}>
+			<box vertical>
+				<Separator />
+				<button
+					className="app-item"
+					onClicked={() => {
+						toggleWindow("launcher")
+						launchApp(app)
+					}}>
+					<box>
+						<icon icon={app.iconName || app.entry} useFallback />
+						<box valign={CENTER} vertical>
+							<label
+								className="title"
+								hexpand
+								truncate
+								xalign={0}
+								label={app.name}
+							/>
+							{app.description && (
+								<label
+									className="description"
+									hexpand
+									wrap
+									maxWidthChars={30}
+									justify={Gtk.Justification.LEFT}
+									valign={CENTER}
+									xalign={0}
+									label={app.description}
+								/>
+							)}
+						</box>
+					</box>
+				</button>
+			</box>
+		</revealer>
+
 	const list = <box vertical>
 		{bind(apps, "apps").as(a => a.list.map(app => (<AppItem app={app} />)))}
 	</box> as Gtk.Box
@@ -142,7 +142,6 @@ export const LauncherBtn = () =>
 			<icon icon={options.bar.launcher.icon.icon()} useFallback />
 		</box>
 	</PanelButton>
-
 
 export default function Launcher() {
 	const text = Variable("")

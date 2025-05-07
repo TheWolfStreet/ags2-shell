@@ -29,42 +29,44 @@ function collectOpts(obj: { [x: string]: any }) {
 	return opts
 }
 
-const Header = () => {
-	return <centerbox className="header">
-		<button
-			className="reset"
-			onClicked={options.reset}
-			sensitive={checkDefault(collectOpts(options))}
-			halign={START}
-			valign={START}
-			tooltipText="Reset"
-		>
-			<icon icon={icons.ui.refresh} useFallback />
-		</button>
+function Header() {
+	return (
+		<centerbox className="header">
+			<button
+				className="reset"
+				onClicked={options.reset}
+				sensitive={checkDefault(collectOpts(options))}
+				halign={START}
+				valign={START}
+				tooltipText="Reset"
+			>
+				<icon icon={icons.ui.refresh} useFallback />
+			</button>
 
-		<box className="pager horizontal">
-			{layout.map(({ attr: { name, icon } }) => (
-				<button
-					halign={0}
-					className={current(v => v === name ? "active" : "")}
-					onClicked={() => current.set(name)}
-				>
-					<box>
-						<icon icon={icon} useFallback />
-						<label label={name} />
-					</box>
-				</button>
-			))}
-		</box>
-		<button
-			className="close"
-			halign={END}
-			valign={START}
-			onClick={() => App.get_window("settings-dialog")?.close()}
-		>
-			<icon icon={icons.ui.close} useFallback />
-		</button>
-	</centerbox>
+			<box className="pager horizontal">
+				{layout.map(({ attr: { name, icon } }) => (
+					<button
+						halign={0}
+						className={current(v => v === name ? "active" : "")}
+						onClicked={() => current.set(name)}
+					>
+						<box>
+							<icon icon={icon} useFallback />
+							<label label={name} />
+						</box>
+					</button>
+				))}
+			</box>
+			<button
+				className="close"
+				halign={END}
+				valign={START}
+				onClick={() => App.get_window("settings-dialog")?.close()}
+			>
+				<icon icon={icons.ui.close} useFallback />
+			</button>
+		</centerbox>
+	)
 }
 
 export default () =>

@@ -114,6 +114,11 @@ const options = mkOptions({
 		labels: opt(true),
 	},
 
+	asus: {
+		ac_hz: opt(144),
+		bat_hz: opt(60)
+	},
+
 	quicksettings: {
 		width: opt(380),
 		position: opt<"left" | "center" | "right">("right"),

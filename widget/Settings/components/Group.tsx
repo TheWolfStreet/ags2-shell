@@ -8,9 +8,20 @@ import { checkDefault } from "../../../lib/utils"
 
 const { START, END } = Gtk.Align
 
-export default function <T>(title: string, ...rows: ReturnType<typeof Row<T>>[]) {
+export default function <T>(
+	title: string,
+	visible: boolean | ReturnType<typeof Row<T>> = true,
+	...rows: ReturnType<typeof Row<T>>[]
+): void {
+	let isVisible = true;
+
+	if (typeof visible === "boolean") {
+		isVisible = visible;
+	} else {
+		rows.unshift(visible);
+	}
 	return (
-		<box className="group" vertical>
+		<box className="group" vertical visible={visible}>
 			<box>
 				<label
 					halign={START}

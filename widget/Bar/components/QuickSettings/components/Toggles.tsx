@@ -19,28 +19,34 @@ const { NEVER } = Gtk.PolicyType
 
 const { scheme } = options.theme
 
-const VolumeIndicator = ({ device }: { device: Audio.Endpoint | undefined }) =>
-	<button valign={CENTER} onClick={() => device?.set_mute(!device?.get_mute())}>
-		<icon
-			icon={device && bind(device, "volumeIcon")}
-			tooltipText={device && bind(device, "volume").as(v => `Volume: ${Math.floor((v ?? 0) * 100)}%`)}
-			useFallback
-		/>
-	</button>
+function VolumeIndicator({ device }: { device: Audio.Endpoint | undefined }) {
+	return (
+		<button valign={CENTER} onClick={() => device?.set_mute(!device?.get_mute())}>
+			<icon
+				icon={device && bind(device, "volumeIcon")}
+				tooltipText={device && bind(device, "volume").as(v => `Volume: ${Math.floor((v ?? 0) * 100)}%`)}
+				useFallback
+			/>
+		</button>
+	)
+}
 
-const VolumeSlider = ({ device }: { device: Audio.Endpoint | undefined }) =>
-	<slider
-		hexpand
-		draw_value={false}
-		onDragged={({ value, dragging }) => {
-			if (dragging) {
-				device?.set_volume(value)
-				device?.set_mute(false)
-			}
-		}}
-		value={device && bind(device, "volume")}
-		className={device && bind(device, "mute").as(v => v ? "muted" : "")}
-	/>
+function VolumeSlider({ device }: { device: Audio.Endpoint | undefined }) {
+	return (
+		<slider
+			hexpand
+			draw_value={false}
+			onDragged={({ value, dragging }) => {
+				if (dragging) {
+					device?.set_volume(value)
+					device?.set_mute(false)
+				}
+			}}
+			value={device && bind(device, "volume")}
+			className={device && bind(device, "mute").as(v => v ? "muted" : "")}
+		/>
+	)
+}
 
 export function Volume() {
 	const speaker = audio?.default_speaker
@@ -50,6 +56,7 @@ export function Volume() {
 
 	const hasAudioStream = (audio && bind(audio, "endpoints").as((a) =>
 		a.filter((item) => item.get_media_class() === AUDIO_STREAM).length > 0)) ?? false
+
 	return (
 		<box className="volume">
 			<VolumeIndicator device={speaker} />
@@ -75,118 +82,134 @@ export function Microphone() {
 	)
 }
 
-const MixerItem = (endpoint: Audio.Endpoint) =>
-	<box hexpand className="mixer-item horizontal">
-		<icon
-			icon={bind(endpoint, "icon")}
-			tooltipText={bind(endpoint, "name").as((n) => n || "")}
-			useFallback
-		/>
-		<box vertical>
-			<label
-				xalign={0}
-				truncate
-				maxWidthChars={28}
-				label={bind(endpoint, "description").as((d) => d || "")}
-			/>
-			<slider
-				hexpand
-				drawValue={false}
-				value={bind(endpoint, "volume")}
-				onDragged={({ value }) => (endpoint.volume = value)}
-			/>
-		</box>
-	</box>
-
-const Settings = ({ callback: callback }: { callback: () => void }) =>
-	<button onClick={callback} hexpand>
-		<box className="settings">
-			<icon icon={icons.ui.settings} useFallback />
-			<label label={"Settings"} />
-		</box>
-	</button>
-
-const SinkItem = (endpoint: Audio.Endpoint) =>
-	<button hexpand onClick={() => (endpoint?.set_is_default(true))}>
-		<box className="sink-item">
+function MixerItem(endpoint: Audio.Endpoint) {
+	return (
+		<box hexpand className="mixer-item horizontal">
 			<icon
 				icon={bind(endpoint, "icon")}
-				tooltipText={bind(endpoint, "name")}
+				tooltipText={bind(endpoint, "name").as((n) => n || "")}
 				useFallback
 			/>
-			<label label={(endpoint.description || "").split(" ").slice(0, 4).join(" ")} />
-			<icon
-				icon={icons.ui.tick}
-				hexpand
-				halign={END}
-				visible={(audio && bind(audio.defaultSpeaker, "description").as(s => s === endpoint.description)) ?? undefined}
-				useFallback
-			/>
-		</box>
-	</button>
-
-export const AppMixer = () =>
-	<Menu name="app-mixer" title="App Mixer" icon={icons.audio.mixer} child={
-		<box vertical>
 			<box vertical>
-				{audio && bind(audio, "endpoints").as((a) => a.filter((item) => item.get_media_class() === AUDIO_STREAM).map(MixerItem))}
+				<label
+					xalign={0}
+					truncate
+					maxWidthChars={28}
+					label={bind(endpoint, "description").as((d) => d || "")}
+				/>
+				<slider
+					hexpand
+					drawValue={false}
+					value={bind(endpoint, "volume")}
+					onDragged={({ value }) => (endpoint.volume = value)}
+				/>
 			</box>
-			<Separator />
-			<Settings callback={() => dependencies("pavucontrol") && execAsync("pavucontrol")} />
 		</box>
-	}
-	/>
+	)
+}
 
-export const SinkSelector = () =>
-	<Menu name="device-selector" title="Device Selector" icon={icons.audio.type.headset} child={
-		<box vertical>
-			<box vertical>
-				{audio && bind(audio, "endpoints").as((a) => a.filter((item) => item.get_media_class() === AUDIO_SPEAKER).map(SinkItem))}
+function Settings({ callback: callback }: { callback: () => void }) {
+	return (
+		<button onClick={callback} hexpand>
+			<box className="settings">
+				<icon icon={icons.ui.settings} useFallback />
+				<label label={"Settings"} />
 			</box>
-			<Separator />
-			<Settings callback={() => dependencies("pavucontrol") && execAsync("pavucontrol")} />
-		</box>
-	}
-	/>
+		</button>
+	)
+}
+
+function SinkItem(endpoint: Audio.Endpoint) {
+	return (
+		<button hexpand onClick={() => (endpoint?.set_is_default(true))}>
+			<box className="sink-item">
+				<icon
+					icon={bind(endpoint, "icon")}
+					tooltipText={bind(endpoint, "name")}
+					useFallback
+				/>
+				<label label={(endpoint.description || "").split(" ").slice(0, 4).join(" ")} />
+				<icon
+					icon={icons.ui.tick}
+					hexpand
+					halign={END}
+					visible={(audio && bind(audio.defaultSpeaker, "description").as(s => s === endpoint.description)) ?? undefined}
+					useFallback
+				/>
+			</box>
+		</button>
+	)
+}
+
+export function AppMixer() {
+	return (
+		<Menu name="app-mixer" title="App Mixer" icon={icons.audio.mixer} child={
+			<box vertical>
+				<box vertical>
+					{audio && bind(audio, "endpoints").as((a) => a.filter((item) => item.get_media_class() === AUDIO_STREAM).map(MixerItem))}
+				</box>
+				<Separator />
+				<Settings callback={() => dependencies("pavucontrol") && execAsync("pavucontrol")} />
+			</box>
+		}
+		/>
+	)
+}
+
+export function SinkSelector() {
+	return (
+		<Menu name="device-selector" title="Device Selector" icon={icons.audio.type.headset} child={
+			<box vertical>
+				<box vertical>
+					{audio && bind(audio, "endpoints").as((a) => a.filter((item) => item.get_media_class() === AUDIO_SPEAKER).map(SinkItem))}
+				</box>
+				<Separator />
+				<Settings callback={() => dependencies("pavucontrol") && execAsync("pavucontrol")} />
+			</box>
+		}
+		/>
+	)
+}
 
 function AsusProfileToggle() {
 	const asusprof = bind(asusctl, "profile")
-	return (<ArrowToggleButton
-		name="asusctl-profile"
-		icon={asusprof.as(p => icons.asusctl.profile[p])}
-		label={asusprof}
-		connection={bind(asusctl, "profile").as(p => p != "Balanced")}
-		activate={() => asusctl.profile = "Quiet"}
-		deactivate={() => asusctl.profile = "Balanced"}
-		activateOnArrow={false}
-	/>)
+	return (
+		<ArrowToggleButton
+			name="asusctl-profile"
+			icon={asusprof.as(p => icons.asusctl.profile[p])}
+			label={asusprof}
+			connection={bind(asusctl, "profile").as(p => p != "Balanced")}
+			activate={() => asusctl.profile = "Quiet"}
+			deactivate={() => asusctl.profile = "Balanced"}
+		/>)
 }
 
 function AsusProfileSelector() {
 	const asusprof = bind(asusctl, "profile")
-	return (<Menu
-		name="asusctl-profile"
-		icon={asusprof.as((p) => icons.asusctl.profile[p])}
-		title="Profile Selector"
-		child={
-			<box vertical hexpand>
-				<box vertical>
+	return (
+		<Menu
+			name="asusctl-profile"
+			icon={asusprof.as((p) => icons.asusctl.profile[p])}
+			title="Profile Selector"
+			child={
+				<box vertical hexpand>
 					<box vertical>
-						{asusctl.profiles.map((prof) => (
-							<button on_clicked={() => asusctl.profile = prof}>
-								<box>
-									<icon icon={icons.asusctl.profile[prof]} />
-									<label label={prof} />
-								</box>
-							</button>
-						))}
+						<box vertical>
+							{asusctl.profiles.map((prof) => (
+								<button on_clicked={() => asusctl.profile = prof}>
+									<box>
+										<icon icon={icons.asusctl.profile[prof]} />
+										<label label={prof} />
+									</box>
+								</button>
+							))}
+						</box>
 					</box>
+					<Separator />
+					<Settings callback={() => launchApp("rog-control-center")} />
 				</box>
-				<Separator />
-				<Settings callback={() => launchApp("rog-control-center")} />
-			</box>
-		}
-	/>)
+			}
+		/>)
 }
 
 function pretty(str: string) {
@@ -199,15 +222,15 @@ function pretty(str: string) {
 function PowerProfileToggle() {
 	const profile = bind(pp, "activeProfile")
 	const profiles = pp.get_profiles().map((p) => p.profile)
-	return (<ArrowToggleButton
-		name="asusctl-profile"
-		icon={profile.as(p => icons.powerprofile[p as keyof typeof icons.powerprofile])}
-		label={profile.as(pretty)}
-		connection={profile.as(p => p !== profiles[1])}
-		activate={() => (pp.set_active_profile(profiles[0]))}
-		deactivate={() => (pp.set_active_profile(profiles[1]))}
-		activateOnArrow={false}
-	/>)
+	return (
+		<ArrowToggleButton
+			name="asusctl-profile"
+			icon={profile.as(p => icons.powerprofile[p as keyof typeof icons.powerprofile])}
+			label={profile.as(pretty)}
+			connection={profile.as(p => p !== profiles[1])}
+			activate={() => (pp.set_active_profile(profiles[0]))}
+			deactivate={() => (pp.set_active_profile(profiles[1]))}
+		/>)
 }
 
 function PowerProfileSelector() {
@@ -238,11 +261,42 @@ function PowerProfileSelector() {
 		/>)
 }
 
+function ProviderMissingToggle() {
+	return (
+		<ArrowToggleButton
+			name="missing-profile"
+			icon={icons.missing}
+			label={"Provider Missing"}
+		/>)
+}
+
+function ProviderMissingSelector() {
+	return (
+		<Menu
+			name="missing-profile"
+			icon={icons.missing}
+			title="Install asusctl or powerprofiles daemon"
+			child={
+				< box >
+					<box vertical hexpand>
+						<box vertical className="placeholder vertical"
+						>
+							<icon icon={icons.missing} useFallback />
+							<label label="No power profile provider installed" />
+						</box>
+					</box>
+				</box >
+			}
+		/>)
+}
+
 export function BtToggle() {
 	const powered = bind(bt, "isPowered")
 	const connected = bind(bt, "isConnected")
+	const adapters = bind(bt, "adapters")
 
-	const label = Variable.derive([powered, connected], (p, c) => {
+	const label = Variable.derive([powered, connected, adapters], (p, c) => {
+		if (adapters.get().length == 0) return "No Adapter"
 		if (!p) return "Disabled"
 		if (c) return bt.devices.filter(d => d.connected).at(0)?.name
 		return "Not Connected"
@@ -261,7 +315,6 @@ export function BtToggle() {
 }
 
 function BtDevice(device: Bluetooth.Device) {
-	// TODO: Add battery levels when the library will update to include it
 	const connecting = bind(device, "connecting")
 	const percentage = bind(device, "battery_percentage")
 	const { BUTTON_PRIMARY, BUTTON_SECONDARY } = Gdk
@@ -281,7 +334,7 @@ function BtDevice(device: Bluetooth.Device) {
 			<box>
 				<icon icon={bind(device, "icon").as(i => i + "-symbolic")} />
 				<label label={bind(device, "name")} />
-				<label visible={percentage.as(v => v != undefined)} label={percentage.as(v => `${v * 100}%`)} />
+				<label visible={percentage.as(v => v != undefined)} label={percentage.as(v => ` ${v * 100}%`.replace(/-/g, ''))} />
 				<box hexpand />
 				<Spinner active={connecting} visible={connecting} />
 			</box>
@@ -376,20 +429,6 @@ export function WifiToggle() {
 	)
 }
 
-const WifiNetwork = ({ ap }: { ap: Network.AccessPoint }) =>
-	<button onClick={() => dependencies("nmcli") && execAsync(`nmcli device wifi connect ${ap.bssid}`)}>
-		<box>
-			<icon icon={bind(ap, "iconName")} />
-			<label label={bind(ap, "ssid").as(v => v || "Hidden network")} />
-			<icon
-				icon={icons.ui.tick}
-				hexpand
-				halign={END}
-				visible={bind(net.wifi, "activeAccessPoint").as(v => v?.bssid === ap.bssid)}
-			/>
-		</box>
-	</button>
-
 export function WifiSelector() {
 	const wifi = net.wifi
 	if (!wifi) return <box visible={false} />
@@ -408,6 +447,20 @@ export function WifiSelector() {
 				<label label={"Searching for wifi networks..."} />
 			</box>
 		</revealer>
+
+	const WifiNetwork = ({ ap }: { ap: Network.AccessPoint }) =>
+		<button onClick={() => dependencies("nmcli") && execAsync(`nmcli device wifi connect ${ap.bssid}`)}>
+			<box>
+				<icon icon={bind(ap, "iconName")} />
+				<label label={bind(ap, "ssid").as(v => v || "Hidden network")} />
+				<icon
+					icon={icons.ui.tick}
+					hexpand
+					halign={END}
+					visible={bind(net.wifi, "activeAccessPoint").as(v => v?.bssid === ap.bssid)}
+				/>
+			</box>
+		</button>
 
 	return (
 		<Menu
@@ -432,16 +485,19 @@ export function WifiSelector() {
 	)
 }
 
-export const DarkModeToggle = () =>
-	<SimpleToggleButton
-		icon={scheme(s => icons.color[s])}
-		label={scheme(s => s === "dark" ? "Dark" : "Light")}
-		toggle={() => {
-			const invert = scheme.get() === "dark" ? "light" : "dark"
-			scheme.set(invert)
-		}}
-		connection={scheme(s => s === "dark")}
-	/>
+export function DarkModeToggle() {
+	return (
+		<SimpleToggleButton
+			icon={scheme(s => icons.color[s])}
+			label={scheme(s => s === "dark" ? "Dark" : "Light")}
+			toggle={() => {
+				const invert = scheme.get() === "dark" ? "light" : "dark"
+				scheme.set(invert)
+			}}
+			connection={scheme(s => s === "dark")}
+		/>
+	)
+}
 
 export function DNDToggle() {
 	const dnd = bind(notifd, "dontDisturb")
@@ -456,25 +512,27 @@ export function DNDToggle() {
 }
 
 export const ProfileToggle = asusctl.available
-	? AsusProfileToggle
-	: PowerProfileToggle
+	? AsusProfileToggle : pp.available ? PowerProfileToggle : ProviderMissingToggle
+
 
 export const ProfileSelector = asusctl.available
-	? AsusProfileSelector
-	: PowerProfileSelector
+	? AsusProfileSelector : pp.available ? PowerProfileSelector : ProviderMissingSelector
 
-export const ProjectToggle = () =>
-	<ArrowToggleButton
-		name="mirror"
-		icon={icons.ui.projector}
-		label={"Mirror"}
-		activate={() => opened.set("mirror")}
-		activateOnArrow={false}
-		connection={opened().as(v => v == "mirror")}
-	/>
+export function MirrorToggle() {
+	return (
+		<ArrowToggleButton
+			name="mirror"
+			icon={icons.ui.projector}
+			label={"Mirror"}
+			activate={() => opened.set("mirror")}
+			activateOnArrow={false}
+			connection={opened().as(v => v == "mirror")}
+		/>
+	)
+}
 
 function DisplayDevice({ monitor, update }: { monitor: Hyprland.Monitor, update: () => void }) {
-	// @ts-ignore: A hacky way of utilizing the existing type
+	// @ts-ignore: NOTE: A hacky way of utilizing the existing type
 	const mirrored = monitor.mirrorOf == "none"
 	return (
 		<button
@@ -491,7 +549,7 @@ function DisplayDevice({ monitor, update }: { monitor: Hyprland.Monitor, update:
 	)
 }
 
-export function ProjectSelector() {
+export function MirrorSelector() {
 	function getMonitors() {
 		try {
 			return (JSON.parse(exec("hyprctl monitors all -j")) as Hyprland.Monitor[]).filter(m => m.id !== 0)

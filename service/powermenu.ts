@@ -30,8 +30,8 @@ export default class PowerMenu extends GObject.Object {
 			logout: [logout.get(), "Log Out"],
 			shutdown: [shutdown.get(), "Shutdown"],
 		}[action]
+
 		this.notify("title")
-		this.notify("cmd")
 		if (App.get_window("powermenu")?.visible) {
 			toggleWindow("powermenu")
 		}

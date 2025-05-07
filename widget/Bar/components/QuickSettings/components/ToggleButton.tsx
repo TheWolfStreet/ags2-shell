@@ -64,44 +64,52 @@ type ArrowToggleButtonProps = {
 	activate?: () => void
 	deactivate?: () => void
 	activateOnArrow?: boolean
-	connection: Binding<boolean>
+	connection?: Binding<boolean>
 }
 
-export const ArrowToggleButton = ({
+export function ArrowToggleButton({
 	name,
 	icon,
 	label,
 	activate,
 	deactivate,
-	activateOnArrow = true,
+	activateOnArrow = false,
 	connection
-}: ArrowToggleButtonProps) =>
-	<box
-		className="toggle-button"
-		setup={self => { initHook(self, connection, () => self.toggleClassName("active", connection.get())) }}
-	>
-		<button
-			onClicked={() => {
-				if (connection.get()) {
-					deactivate?.()
-					if (opened.get() === name) {
-						opened.set("")
-					}
-				} else {
-					activate?.()
+}: ArrowToggleButtonProps) {
+	return (
+		<box
+			className="toggle-button"
+			setup={self => {
+				if (connection) {
+					initHook(self, connection, () =>
+						self.toggleClassName("active", connection.get()))
 				}
 			}}
 		>
-			<box className="horizontal" hexpand>
-				<icon className="icon" icon={icon} useFallback />
-				<label className="label" maxWidthChars={12} truncate label={label} />
-			</box>
-		</button>
-		<Arrow
-			name={name}
-			activate={activateOnArrow && activate}
-		/>
-	</box>
+			<button
+				onClicked={() => {
+					if (connection?.get()) {
+						deactivate?.()
+						if (opened.get() === name) {
+							opened.set("")
+						}
+					} else {
+						activate?.()
+					}
+				}}
+			>
+				<box className="horizontal" hexpand>
+					<icon className="icon" icon={icon} useFallback />
+					<label className="label" maxWidthChars={12} truncate label={label} />
+				</box>
+			</button>
+			<Arrow
+				name={name}
+				activate={activateOnArrow && activate}
+			/>
+		</box>
+	)
+}
 
 type MenuProps = Widget.BoxProps & {
 	name: string
@@ -111,24 +119,27 @@ type MenuProps = Widget.BoxProps & {
 	child?: JSX.Element
 }
 
-export const Menu = ({ name, icon, title, headerChild, child }: MenuProps) =>
-	<revealer
-		transitionType={SLIDE_DOWN}
-		revealChild={opened((n: string) => {
-			return n === name
-		})}
-		vexpand={false} hexpand={false}
-	>
-		<box className={`menu ${name}`} vertical>
-			<box className="title-box">
-				<icon className="icon" icon={icon} useFallback />
-				<label className="title" truncate label={title} />
-				{headerChild}
+export function Menu({ name, icon, title, headerChild, child }: MenuProps) {
+	return (
+		<revealer
+			transitionType={SLIDE_DOWN}
+			revealChild={opened((n: string) => {
+				return n === name
+			})}
+			vexpand={false} hexpand={false}
+		>
+			<box className={`menu ${name}`} vertical>
+				<box className="title-box">
+					<icon className="icon" icon={icon} useFallback />
+					<label className="title" truncate label={title} />
+					{headerChild}
+				</box>
+				<Separator />
+				<box className="content vertical" vertical vexpand hexpand child={child} />
 			</box>
-			<Separator />
-			<box className="content vertical" vertical vexpand hexpand child={child} />
-		</box>
-	</revealer>
+		</revealer>
+	)
+}
 
 type SimpleToggleButtonProps = {
 	icon: string | Binding<string>
@@ -137,19 +148,22 @@ type SimpleToggleButtonProps = {
 	connection: Binding<boolean>
 }
 
-export const SimpleToggleButton = ({
+export function SimpleToggleButton({
 	icon,
 	label,
 	toggle,
 	connection
-}: SimpleToggleButtonProps) =>
-	<button
-		onClicked={toggle}
-		className="simple-toggle"
-		setup={self => { initHook(self, connection, () => self.toggleClassName("active", connection.get())) }}
-	>
-		<box className="horizontal">
-			<icon icon={icon} useFallback />
-			<label maxWidthChars={10} truncate label={label} />
-		</box>
-	</button>
+}: SimpleToggleButtonProps) {
+	return (
+		<button
+			onClicked={toggle}
+			className="simple-toggle"
+			setup={self => { initHook(self, connection, () => self.toggleClassName("active", connection.get())) }}
+		>
+			<box className="horizontal">
+				<icon icon={icon} useFallback />
+				<label maxWidthChars={10} truncate label={label} />
+			</box>
+		</button>
+	)
+}
