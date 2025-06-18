@@ -12,7 +12,7 @@ Check out and support his latest project **[Marble Shell](https://marble-shell.p
 ## ⚠ Known Issues
 - Duplicate top bar when mirroring or demirroring a screen.
 - Lack of user-friendly feedback when a Bluetooth adapter is locked.
-- Wi-Fi menu simply does not work when the adapter is in monitor mode due to the absence of dynamic binding.
+- Wi-Fi menu simply does not show up when the adapter is in monitor mode due to the absence of dynamic binding.
 - Launcher's app list may not automatically update after installing new apps (a relaunch bind is recommended).
 - The launcher retract animation does not activate during toggle, but works as expected when the launcher loses focus or when the Escape key is pressed.
 
@@ -65,6 +65,7 @@ flake.nix:
   };
 }
 ```
+
 In a home manager file:
 ```nix
 {
@@ -77,6 +78,7 @@ pkgs,
     enable = true;
     # WARNING: Do not use submodules, nix flakes won't see them, use subtrees
     configDir = ../ags2-shell; # Path to this repository
+    # And a few expected things in the environment like bash and which
     extraPackages = with pkgs; [
       dart-sass # Reapplying styles on settings change
       brightnessctl # Setting brightness
@@ -84,10 +86,10 @@ pkgs,
       which # Dependency checking
       # Recording and screenshot functionality
       libnotify # "Recording saved" or "Screenshot taken" notifications
-      wayshot # Screenshot
-      wf-recorder # Recording
+      wayshot # Screenshot software
+      wf-recorder # Recording software
       swappy # Edit screenshot button
-      slurp # Define areas
+      slurp # Area selector
       #---
       libheif # Converting heif wallpapers for swww
       wl-clipboard # Copying colors from the colorpicker
@@ -95,7 +97,8 @@ pkgs,
       pavucontrol # Audio control
       networkmanager # Network control
       gtk3 # GUI (gjs)
-      inputs.matugen.packages.${system}.default # Dynamic color generation from wallpaper
+      fd # For searching .scss files
+      inputs.matugen.packages.${system}.default # Dynamic color generation based on wallpaper colors
       # Astal libs
       inputs.ags.packages.${pkgs.system}.apps
       inputs.ags.packages.${pkgs.system}.battery
@@ -109,11 +112,83 @@ pkgs,
       inputs.ags.packages.${pkgs.system}.bluetooth
       inputs.ags.packages.${pkgs.system}.auth
       inputs.ags.packages.${pkgs.system}.powerprofiles
-      inputs.apple-fonts.packages.${pkgs.system}.sf-pro-nerd # Default font
     ];
-  };
+	};
 }
 ```
+
+## Recommended GTK settings (Home Manager)
+```nix
+{
+  inputs,
+  config,
+  pkgs,
+  ...
+}: let
+  theme = {
+    name = "adw-gtk3-dark";
+    package = pkgs.adw-gtk3;
+  };
+  font = {
+    name = "SF Pro Display Nerd Font";
+    size = 11;
+    package = inputs.apple-fonts.packages.${pkgs.system}.sf-pro-nerd;
+  };
+  cursorTheme = {
+    name = "Qogir";
+    size = 24;
+    package = pkgs.qogir-icon-theme;
+  };
+  iconTheme = {
+    name = "WhiteSur";
+    package = pkgs.whitesur-icon-theme;
+  };
+in {
+  home = {
+    packages = [
+      theme.package
+      font.package
+      cursorTheme.package
+      iconTheme.package
+    ];
+    sessionVariables = {
+      XCURSOR_THEME = cursorTheme.name;
+      XCURSOR_SIZE = "${toString cursorTheme.size}";
+    };
+    pointerCursor =
+      cursorTheme
+      // {
+        gtk.enable = true;
+      };
+  };
+
+  fonts.fontconfig.enable = true;
+
+  gtk = {
+    inherit iconTheme cursorTheme;
+    theme.name = theme.name;
+    enable = true;
+  };
+
+  qt = {
+    platformTheme.name = "gtk3";
+  };
+
+  home.file.".local/share/flatpak/overrides/global".text = let
+    dirs = [
+      "/nix/store:ro"
+      "/run/current-system/sw/share/X11/fonts:ro"
+      "xdg-config/gtk-3.0:ro"
+      "xdg-config/gtk-4.0:ro"
+      "${config.xdg.dataHome}/icons:ro"
+    ];
+  in ''
+    [Context]
+    filesystems=${builtins.concatStringsSep ";" dirs}
+  '';
+}
+```
+
 
 ## Hyprland (Home Manager)
 To integrate with Hyprland, add the following to your configuration:
@@ -122,7 +197,7 @@ To integrate with Hyprland, add the following to your configuration:
 wayland.windowManager.hyprland = {
   settings = {
     exec-once = [
-      # WARNING: If you use a bundle use ags2-shell instead of ags run
+      # WARNING: If a bundle is used, use ags2-shell instead of ags run
       "ags run"
     ];
 
@@ -131,7 +206,7 @@ wayland.windowManager.hyprland = {
     in
     [
       # Restart AGS shell (recommended if the launcher's app list doesn't update)
-      # WARNING: If you use a bundle use ags2-shell instead of ags run
+      # WARNING: If a bundle is used, use ags2-shell instead of ags run
       "CTRL ALT, Delete,   ${e} quit; ags run"
       # Open the application launcher
       "SUPER, R,           ${e} toggle launcher"

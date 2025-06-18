@@ -244,7 +244,6 @@ export function getFavoriteApps(): string[] {
 	}
 }
 
-
 export function notificationBlacklisted(notification?: number | Notifd.Notification) {
 	if (typeof notification === "number") {
 		var notif = notifd.get_notification(notification)

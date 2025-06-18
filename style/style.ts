@@ -1,6 +1,6 @@
 /* eslint-disable max-len */
 import { App } from "astal/gtk3"
-import { writeFile } from "astal"
+import { writeFile, GLib } from "astal"
 import { type Opt } from "../lib/option"
 import options from "../options"
 import { bash, dependencies } from "../lib/utils"
@@ -27,9 +27,32 @@ const {
 	border,
 } = options.theme
 
-const config_dir = `/home/${env.username}/.config/ags/`
 
-const pop_over_padding_mul = 1.6
+const configDir = (() => {
+	const url = import.meta.url;
+
+	const devDir = GLib.getenv('AGS2SHELL_DEV');
+	if (devDir) {
+		if (GLib.file_test(devDir, GLib.FileTest.IS_DIR))
+			return devDir;
+	}
+
+	if (url.startsWith('file://')) {
+		const dir = GLib.path_get_dirname(GLib.uri_unescape_string(url.slice(7), null));
+		const nixShared = GLib.build_filenamev([dir, '..', 'share']);
+		if (GLib.file_test(nixShared, GLib.FileTest.IS_DIR)) {
+			return nixShared;
+		}
+	}
+
+	const cfg = GLib.build_filenamev([GLib.get_user_config_dir(), 'ags']);
+	if (GLib.file_test(cfg, GLib.FileTest.IS_DIR))
+		return cfg;
+
+	return '';
+})();
+
+const popoverPaddingMul = 1.6
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const t = (dark: Opt<any> | string, light: Opt<any> | string) => scheme.get() === "dark"
@@ -76,7 +99,7 @@ const variables = () => [
 	$("box-shadow", t("2pt 2pt 2pt 0 $shadow-color, inset 0 0 0 $border-width $border-color", "none")),
 
 	$("popover-border-color", `transparentize(${t(dark.border, light.border)}, ${Math.max(((border.opacity.get() - 1) / 100), 0)})`),
-	$("popover-padding", `$padding * ${pop_over_padding_mul}`),
+	$("popover-padding", `$padding * ${popoverPaddingMul}`),
 	$("popover-radius", radius.get() === 0 ? "0" : "$radius + $popover-padding"),
 
 	$("font-size", `${options.font.size}pt`),
@@ -95,7 +118,7 @@ export async function resetCss() {
 		const scss = `${env.paths.tmp}/main.scss`
 		const css = `${env.paths.tmp}/main.css`
 
-		const fd = await bash(`fd ".scss" ${config_dir}`)
+		const fd = await bash(`fd ".scss" ${configDir}`)
 		const files = fd.split(/\s+/)
 
 		const imports = [

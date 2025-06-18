@@ -1,4 +1,4 @@
-import { execAsync, Gio, GLib } from "astal"
+import { Gio, execAsync } from "astal"
 
 import { bash } from "./utils"
 import options from "../options"
@@ -27,39 +27,40 @@ async function updateGtkMode() {
 }
 
 async function tmux() {
-	const hex = scheme.get() === "dark" ? dark.primary.bg.get() : light.primary.bg.get()
-	if (await bash("which tmux").catch(() => false)) {
-		await bash(`tmux set -g @main_accent "${hex}"`)
+	const hex =
+		scheme.get() === "dark" ? dark.primary.bg.get() : light.primary.bg.get();
 
-		const sessions = await bash(`tmux list-sessions -F "#S"`).catch(() => "")
-		if (sessions) {
-			sessions
-				.split("\n")
-				.filter(Boolean)
-				.forEach(session => {
-					bash(`tmux set-option -t ${session} @main_accent "${hex}"`)
-				});
-		}
+	await bash(`tmux set -g @main_accent "${hex}"`).catch(() => { });
+
+	const rawSessions = await bash(`tmux list-sessions -F "#S"`).catch(() => "");
+	if (!rawSessions) return;
+
+	const sessions = rawSessions.split("\n").filter(Boolean);
+	for (const session of sessions) {
+		bash(`tmux set-option -t ${session} @main_accent "${hex}"`).catch(() => { });
 	}
 }
 
-export default function init() {
+export default async function init() {
+	gtk();
+	scheme.subscribe(gtk);
 
-	gtk()
-	scheme.subscribe(gtk)
+	// TODO: Better make it a toggleable feature
+	let tmuxPresent = await execAsync("which tmux").then(() => true).catch(() => false);
+	if (tmuxPresent) {
+		tmux();
+		options.theme.dark.primary.bg.subscribe(tmux);
+		options.theme.light.primary.bg.subscribe(tmux);
+		options.theme.scheme.subscribe(tmux);
+	}
 
-	tmux()
-	options.theme.dark.primary.bg.subscribe(tmux)
-	options.theme.light.primary.bg.subscribe(tmux)
-	options.theme.scheme.subscribe(tmux)
+	updateGtkMode();
+	options.handler(["theme.scheme", "autotheme"], () => updateGtkMode());
+	wp.connect("notify::wallpaper", updateGtkMode);
 
-	updateGtkMode()
-	options.handler(["theme.scheme", "autotheme"], () => updateGtkMode())
-	wp.connect("notify::wallpaper", updateGtkMode)
-
-	hyprinit()
-	matugen()
-	setupBatteryState()
-	setupDateMenu()
-	setupQuickSettings()
+	hyprinit();
+	matugen();
+	setupBatteryState();
+	setupDateMenu();
+	setupQuickSettings();
 }

@@ -3,7 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    apple-fonts.url = "github:Lyndeno/apple-fonts.nix";
     matugen.url = "github:InioX/matugen?ref=v2.2.0";
     ags = {
       url = "github:aylur/ags";
@@ -13,14 +12,13 @@
 
   outputs = {
     nixpkgs,
-    apple-fonts,
     matugen,
     ags,
     ...
   }: let
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
-
+    # And a few expected things in the environment like bash and which
     commonPackages = with pkgs; [
       dart-sass
       brightnessctl
@@ -37,6 +35,7 @@
       pavucontrol
       networkmanager
       gtk3
+      fd
       matugen.packages.${system}.default
       ags.packages.${pkgs.system}.apps
       ags.packages.${pkgs.system}.battery
@@ -49,7 +48,6 @@
       ags.packages.${pkgs.system}.bluetooth
       ags.packages.${pkgs.system}.auth
       ags.packages.${pkgs.system}.powerprofiles
-      apple-fonts.packages.${pkgs.system}.sf-pro-nerd
     ];
   in {
     packages.${system}.default = ags.lib.bundle {
@@ -66,8 +64,17 @@
         buildInputs =
           commonPackages
           ++ [
+            pkgs.gobject-introspection
+            pkgs.glib
+            pkgs.gvfs
+            pkgs.ags
             pkgs.vtsls
           ];
+
+        shellHook = ''
+          export GIO_EXTRA_MODULES=${pkgs.gvfs}/lib/gio/modules
+          export AGS2SHELL_DEV=$PWD
+        '';
       };
     };
   };
