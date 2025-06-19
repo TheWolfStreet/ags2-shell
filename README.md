@@ -30,7 +30,7 @@ flake.nix:
       url = "github:Aylur/ags";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
+    apple-fonts.url = "github:Lyndeno/apple-fonts.nix";
     ags2-shell = {
       url = "github:TheWolfStreet/ags2-shell";
     };
