@@ -2,7 +2,7 @@
 
 ![Demonstration](README.png)
 
-A port of Aylur's AGS shell from AGS v1 to AGS v2, with a subset of features. Tightly coupled with Hyprland.
+A port of Aylur's AGS shell from AGS v1 to AGS v2, with a subset of features and slight tweaks. Tightly coupled with Hyprland.
 
 ## Acknowledgments
 Special thanks to [Aylur](https://github.com/Aylur) for the original [AGS v1 shell](https://github.com/Aylur/dotfiles/tree/18b83b2d2c6ef2b9045edefe49a66959f93b358a), [Astal](https://github.com/Aylur/Astal), and the [AGS CLI](https://github.com/Aylur/ags).
@@ -18,6 +18,7 @@ Check out and support his latest project **[Marble Shell](https://marble-shell.p
 
 ## 📌 Planned Improvements
 - GTK4 rewrite
+- Decoupling from adw-gtk3-dark theme (styles)
 
 ## Installation on NixOS
 ### As a bundled package
@@ -36,7 +37,8 @@ flake.nix:
   };
 }
 ```
-Then use packages
+
+Then use packages:
 ```nix
 { config, pkgs, inputs, ... }:
 
@@ -49,8 +51,7 @@ Then use packages
 }
 ```
 
-Then, configure hyprland as described in the "Hyprland (Home Manager)" section down below.
-
+Next, set up Hyprland as outlined in the "Hyprland (Home Manager)" section below
 ### Home Manager
 flake.nix:
 ```nix
@@ -66,7 +67,7 @@ flake.nix:
 }
 ```
 
-In a home manager file:
+In a Home Manager file:
 ```nix
 {
 inputs,
@@ -117,6 +118,7 @@ pkgs,
 }
 ```
 
+Apply the recommended gtk settings to match the appearance shown in the example screenshot:
 ## Recommended GTK settings (Home Manager)
 ```nix
 {
@@ -192,7 +194,6 @@ in {
 
 ## Hyprland (Home Manager)
 To integrate with Hyprland, add the following to your configuration:
-
 ```nix
 wayland.windowManager.hyprland = {
   settings = {
@@ -250,7 +251,7 @@ wayland.windowManager.hyprland = {
 ```
 
 ## Hyprlock (Home Manager)
-A complementary hyprlock config (optional)
+A complementary Hyprlock config (optional):
 ```nix
 programs.hyprlock = {
   enable = true;
