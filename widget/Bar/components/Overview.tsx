@@ -132,12 +132,18 @@ function Workspace(id: number) {
 			return
 
 		fixed.get_children().forEach((ch) => ch.destroy())
-
-		JSON.parse(json).filter(({ workspace }: { workspace: Hyprland.Workspace }) => workspace.id === id)
+		JSON.parse(json)
+			.filter((c: any) => c.mapped && c.workspace?.id === id)
 			.forEach((c: any) => {
-				const x = c.at[0] - (hypr.get_monitor(c.monitor)?.x || 0)
-				const y = c.at[1] - (hypr.get_monitor(c.monitor)?.y || 0)
-				c.mapped && fixed.put(Window(c), scale(x), scale(y))
+				const monitor = hypr.get_monitor(0)
+				if (!monitor)
+					return
+
+				// FIXME: This isn't returning a correct position from the monitor
+				const local_x = c.at[0] - monitor.x / 100
+				const local_y = c.at[1] - monitor.y / 100
+
+				fixed.put(Window(c), scale(local_x), scale(local_y))
 			})
 	}
 

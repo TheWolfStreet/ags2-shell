@@ -210,9 +210,9 @@ function AppItem({ address }: { address: string }) {
 }
 
 function sortItems<T extends { name: string }>(arr: (T | null)[]) {
-	const valid_items = arr.filter(item => item !== null && item !== undefined) as T[]
+	const validItems = arr.filter(item => item !== null && item !== undefined) as T[]
 
-	return valid_items.sort((a, b) => {
+	return validItems.sort((a, b) => {
 		const aclient = hypr.get_client(a.name)
 		const bclient = hypr.get_client(b.name)
 
