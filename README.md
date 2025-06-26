@@ -114,7 +114,7 @@ pkgs,
       inputs.ags.packages.${pkgs.system}.auth
       inputs.ags.packages.${pkgs.system}.powerprofiles
     ];
-	};
+  };
 }
 ```
 
