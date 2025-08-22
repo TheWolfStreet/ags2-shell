@@ -1,0 +1,36 @@
+import app from "ags/gtk4/app"
+import { createPoll, } from "ags/time"
+
+import GLib from "gi://GLib"
+
+app.instanceName = "ags2-shell"
+
+export const env = {
+	username: GLib.get_user_name(),
+
+	clock: createPoll<GLib.DateTime>(
+		GLib.DateTime.new_now_local(),
+		1000,
+		() => GLib.DateTime.new_now_local()
+	),
+
+	uptime: createPoll<number>(
+		0,
+		60_000,
+		"cat /proc/uptime",
+		(line) => Math.round(parseInt(line.split(".")[0], 10) / 60)
+	),
+
+	paths: {
+		home: GLib.get_home_dir(),
+		avatar: `/var/lib/AccountsService/icons/${GLib.get_user_name()}`,
+		cfg: `${GLib.get_user_config_dir()}/ags`,
+		cache: `${GLib.get_user_cache_dir()}/${app.instanceName}`,
+		tmp: `${GLib.get_tmp_dir()}/${app.instanceName}`,
+	},
+
+	distro: {
+		id: GLib.get_os_info("ID"),
+		logo: GLib.get_os_info("LOGO"),
+	},
+}

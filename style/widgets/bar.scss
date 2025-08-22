@@ -1,57 +1,19 @@
 @use 'sass:color';
 
-$bar-spacing: $spacing * .3;
-
-@mixin panel-button($reactive: true) {
-  @include accs-button($reactive);
-
-  >:not(window) {
-    border-radius: $radius;
-    margin: $bar-spacing;
-    padding: $padding * 0.4 $padding * 0.8;
-    font-weight: bold;
-  }
-}
-
-.placeholder {
-  @include spacing(0.5);
-  padding: $padding * 2;
-
-  icon {
-    color: color.scale($fg, $alpha: -30%);
-    font-size: 5.636em;
-    margin-bottom: 0.1em;
-  }
-
-  label {
-    color: color.scale($fg, $alpha: -30%);
-    font-size: 1.25em;
-  }
-}
-
 .bar {
   transition: $transition;
   background-color: $bg;
 
-  .panel-button {
-    @include panel-button;
-  }
+  .panel-button { @include panel-button; }
 
   .launcher {
     @include spacing;
 
-    .colored {
-      color: color.scale($primary-bg, $alpha: -20%);
-    }
+    .colored { color: color.scale($primary-bg, $alpha: -20%); }
 
-    &:hover .colored {
-      color: $primary-bg;
-    }
-
+    &:hover .colored { color: $primary-bg; }
     &:active .colored,
-    &.active .colored {
-      color: $primary-fg;
-    }
+    &.active .colored { color: $primary-fg; }
   }
 
   .workspaces {
@@ -59,10 +21,10 @@ $bar-spacing: $spacing * .3;
       font-size: 0;
       min-width: 5pt;
       min-height: 5pt;
-      border-radius: $radius*.6;
+      border-radius: $radius * 0.6;
       box-shadow: inset 0 0 0 $border-width $border-color;
-      margin: 0 $padding * .5;
-      transition: $transition* .5;
+      margin: 0 $padding * 0.5;
+      transition: $transition * 0.5;
       background-color: color.scale($fg, $alpha: -80%);
 
       &.occupied {
@@ -78,25 +40,17 @@ $bar-spacing: $spacing * .3;
       }
     }
 
-    &.active,
-    &:active {
+    &.active, &:active {
       label {
         background-color: color.scale($primary-fg, $alpha: -30%);
 
-        &.occupied {
-          background-color: color.scale($primary-fg, $alpha: -15%);
-        }
-
-        &.active {
-          background-color: $primary-fg;
-        }
+        &.occupied { background-color: color.scale($primary-fg, $alpha: -15%); }
+        &.active { background-color: $primary-fg; }
       }
     }
   }
 
-  .media box {
-    @include spacing(.5);
-  }
+  .media box { @include spacing(0.5); }
 
   .taskbar .indicator.active {
     background-color: $primary-bg;
@@ -107,51 +61,19 @@ $bar-spacing: $spacing * .3;
   }
 
   .recorder {
-    .horizontal {
-      @include spacing(.5);
-    }
+    .horizontal { @include spacing(0.5); }
 
-    icon {
-      color: color.scale($error-bg, $alpha: -30%);
-    }
+    image { color: color.scale($error-bg, $alpha: -30%); }
 
-    &:hover icon {
-      color: color.scale($error-bg, $alpha: -15%);
-    }
-
-    &:active icon {
-      color: $primary-fg;
-    }
+    &:hover icon { color: color.scale($error-bg, $alpha: -15%); }
+    &:active icon { color: $primary-fg; }
   }
 
-  .quicksettings box {
-    @include spacing(2, $spacing: $padding * .5);
-  }
+  .quicksettings box { @include spacing(2, $spacing: $padding * 0.5); }
 
   .quicksettings:not(.active):not(:active) {
-    .bluetooth {
+    .bluetooth-connected {
       color: $primary-bg;
-
-      .indicator {
-        background-color: $primary-bg;
-        border-radius: $radius;
-        min-height: 2pt;
-        min-width: 2pt;
-        margin-top: 2pt;
-        margin-left: 8pt;
-      }
-    }
-  }
-
-  .battery {
-    @include panel-button($reactive: false);
-
-    &.low icon {
-      color: $error-bg
-    }
-
-    &:active icon {
-      color: $primary-fg
     }
   }
 }
@@ -160,17 +82,14 @@ $bar-spacing: $spacing * .3;
   background-color: transparent;
 
   .panel-button {
-    &:hover>* {
+    &:hover > * {
       box-shadow: 1px 1px 3px 0 $shadow-color, inset 0 0 0 $border-width $border-color;
       background-color: $bg;
     }
 
     &:not(:hover):not(.active) {
-
-      label,
-      icon {
+      label, image {
         text-shadow: $text-shadow;
-        -gtk-icon-shadow: $text-shadow;
       }
     }
   }

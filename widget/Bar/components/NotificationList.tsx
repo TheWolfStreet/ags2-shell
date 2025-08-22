@@ -1,24 +1,23 @@
-import { Accessor, createState, For, onCleanup } from "ags"
+import { Accessor, createState } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import { timeout } from "ags/time"
-
 import AstalNotifd from "gi://AstalNotifd"
+
 import GLib from "gi://GLib"
 
-import { notifd } from "$lib/services"
 import icons from "$lib/icons"
 import { lookupIcon } from "$lib/utils"
+import { notifd } from "$lib/services"
 
 import options from "options"
+import { timeout } from "ags/time"
 
 const { TOP, RIGHT } = Astal.WindowAnchor
 const { START, CENTER, END } = Gtk.Align
 const { SLIDE_DOWN } = Gtk.RevealerTransitionType
 const { VERTICAL } = Gtk.Orientation
-const { EXCLUSIVE } = Astal.Exclusivity
 
 function isIcon(icon: string) {
-	return !!lookupIcon(icon, undefined)
+	return !!lookupIcon(icon)
 }
 
 function fileExists(path: string) { return GLib.file_test(path, GLib.FileTest.EXISTS) }
@@ -37,22 +36,25 @@ function urgency(n: AstalNotifd.Notification) {
 	}
 }
 
-type NotificationProps = {
+type Props = {
 	$?(self: Gtk.EventControllerMotion): void
 	onLeave?(self: Gtk.EventControllerMotion): void
 	notification: AstalNotifd.Notification
 	css?: string | Accessor<string>
 }
 
-export function Notification({ notification: n, onLeave, $, css }: NotificationProps) {
-	const [reveal, set_reveal] = createState(false)
-	const actions = n.get_actions()
+export function Notification(props: Props) {
+	const { notification: n, onLeave, $, css } = props
+	const [revealActions, set_revealActions] = createState(false)
 
 	return (
 		<Gtk.EventControllerMotion
 			$={$}
-			onEnter={() => set_reveal(true)}
-			onLeave={() => set_reveal(false)}
+			onEnter={() => set_revealActions(true)}
+			onLeave={(self) => {
+				set_revealActions(false)
+				onLeave && onLeave(self)
+			}}
 		>
 			<box
 				class={`notification ${urgency(n)}`}
@@ -107,7 +109,6 @@ export function Notification({ notification: n, onLeave, $, css }: NotificationP
 						<label
 							class="summary"
 							halign={START}
-							wrap
 							maxWidthChars={20}
 							label={n.summary}
 						/>
@@ -122,19 +123,17 @@ export function Notification({ notification: n, onLeave, $, css }: NotificationP
 					</box>
 				</box>
 				{n.get_actions().length > 0 && <revealer
-					revealChild={reveal}
+					revealChild={revealActions}
 					transitionType={SLIDE_DOWN}
 				>
 					<box class="actions horizontal">
-						<For each={createState(actions)[0]}>
-							{(action: AstalNotifd.Action) => (
-								<button
-									hexpand
-									onClicked={() => n.invoke(action.id)}>
-									<label label={action.label} halign={CENTER} hexpand />
-								</button>
-							)}
-						</For>
+						{n.get_actions().map(({ label, id }) => (
+							<button
+								hexpand
+								onClicked={() => n.invoke(id)}>
+								<label label={label} halign={CENTER} hexpand />
+							</button>
+						))}
 					</box>
 				</revealer>}
 			</box>
@@ -142,7 +141,7 @@ export function Notification({ notification: n, onLeave, $, css }: NotificationP
 	)
 }
 
-function AnimatedNotification(props: NotificationProps) {
+function AnimatedNotification(props: Props) {
 	return (<revealer transitionDuration={options.transition.get()} transitionType={SLIDE_DOWN}
 		$={self => timeout(options.transition.get(), () => {
 			if (!self.in_destruction()) {
@@ -164,7 +163,7 @@ export function NotificationList({ persistent: persistent }: { persistent?: bool
 			notif.reveal_child = false
 			map.delete(id)
 			timeout(options.transition.get(), () => {
-				notif.unparent()
+				notif.run_dispose()
 			})
 		}
 	}
@@ -173,48 +172,37 @@ export function NotificationList({ persistent: persistent }: { persistent?: bool
 		<box
 			orientation={VERTICAL}
 			$={self => {
-				const resolvedID = notifd.connect("resolved", (_, id) => remove(id))
+				notifd.connect("resolved", (_, id) => remove(id))
+				notifd.connect("notified", (_, id) => {
+					if (id !== undefined) {
+						map.has(id) && remove(id)
+						const notif = notifd.get_notification(id)
 
-				const notifiedID = notifd.connect("notified", (_, id) => {
-					if (id === undefined) return
+						if (options.notifications.blacklist.get().includes(notif.appName || notif.desktopEntry) || !persistent && notifd.dontDisturb) {
+							return
+						}
 
-					if (map.has(id)) remove(id)
-					const notif = notifd.get_notification(id)
-
-					if (options.notifications.blacklist.get().includes(notif.appName || notif.desktopEntry) ||
-						(!persistent && notifd.dontDisturb)) {
-						return
+						const animated = <AnimatedNotification css={options.notifications.width.as(w => `min-width: ${w}px;`)} notification={notif} />
+						map.set(id, animated)
+						self.children = [animated, ...self.children]
+						if (!persistent) {
+							timeout(options.notifications.dismiss.get(), () => {
+								remove(id)
+							})
+						}
 					}
-
-					const animated = <AnimatedNotification
-						css={options.notifications.width.as((w: number) => `min-width: ${w}px;`)}
-						notification={notif}
-					/>
-
-					map.set(id, animated)
-					self.children = [animated, ...self.children]
-
-					if (!persistent) {
-						timeout(options.notifications.dismiss.get(), () => remove(id))
-					}
-				})
-
-				onCleanup(() => {
-					notifd.disconnect(resolvedID)
-					notifd.disconnect(notifiedID)
 				})
 			}}
 		>
-			{persistent === true &&
+			{persistent == true &&
 				notifd.notifications
-					.filter(n => !options.notifications.blacklist.get().includes(n.appName || n.desktopEntry))
-					.map(n => {
+					.filter(n => !options.notifications.blacklist.get().includes(n.appName || n.desktopEntry)).map(n => {
 						const animated = <AnimatedNotification notification={n} />
 						map.set(n.id, animated)
 						return animated
 					})
 			}
-		</box>
+		</box >
 	)
 }
 
@@ -222,10 +210,11 @@ export default (gdkmonitor: Gdk.Monitor) =>
 	<window
 		class="notifications"
 		gdkmonitor={gdkmonitor}
-		exclusivity={EXCLUSIVE}
+		exclusivity={Astal.Exclusivity.EXCLUSIVE}
 		anchor={TOP | RIGHT}
 	>
 		<box orientation={VERTICAL}>
 			<NotificationList />
 		</box>
 	</window>
+

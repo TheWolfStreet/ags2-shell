@@ -1,58 +1,108 @@
-import Apps from "gi://AstalApps"
-import { bind, Variable } from "astal"
-import { Astal, Gtk } from "astal/gtk3"
+import { Accessor, createBinding, createComputed, createState, For } from "ags"
+import { Astal, Gtk, Gdk } from "ags/gtk4"
+import AstalApps from "gi://AstalApps"
 
-import { Separator } from "../../GtkWidgets"
-import PopupWindow from "../../PopupWindow"
+import { Placeholder } from "widget/shared/Placeholder"
+import PopupWindow from "widget/shared/PopupWindow"
 import PanelButton from "./PanelButton"
 
-import { icon, launchApp, onWindowToggle, toggleWindow } from "../../../lib/utils"
-import icons from "../../../lib/icons"
-import { apps } from "../../../lib/services"
-import options from "../../../options"
+import { apps } from "$lib/services"
+import { toggleWindow } from "$lib/utils"
 
-const { CENTER } = Gtk.Align
+import options from "options"
+import icons from "$lib/icons"
+import app from "ags/gtk4/app"
 
-function match(name: string, query: string) {
-	return name.match(new RegExp(query, 'i'))
-}
+const { VERTICAL } = Gtk.Orientation
+const { CENTER, END } = Gtk.Align
 
-function Entries({ text }: { text: Variable<string> }) {
-	const IconAppItem = ({ app }: { app: Apps.Application }) => (
-		<button onClicked={() => {
-			toggleWindow("launcher")
-			launchApp(app)
-		}}
-			tooltipText={app.name}
-			hexpand
+export const Launcher = () =>
+	<PanelButton
+		name="launcher"
+		onClicked={() => toggleWindow("launcher")}
+		$={() => app.add_window(AppLauncher() as Gtk.Window)}
+	>
+		<box class="launcher horizontal">
+			<image iconName={options.bar.launcher.icon.get()} useFallback />
+		</box>
+	</PanelButton>
+
+function AppLauncher() {
+	let win: Astal.Window
+	let entry: Gtk.Entry
+	let content: Gtk.Box
+	let text: Accessor<string> = createState("")[0]
+
+	const [list, set_list] = createState<Array<AstalApps.Application>>([])
+
+	function search(text: string) {
+		if (text === "") {
+			set_list([])
+			return
+		}
+
+		const matched = apps.list.fuzzy_query(text)
+		set_list(matched)
+	}
+
+	function launch(app?: AstalApps.Application) {
+		if (app) {
+			win.hide()
+			app.launch()
+		}
+	}
+
+	function onKey(_ctrl: Gtk.EventControllerKey, keyval: number, _code: number, mod: number) {
+		if (mod === Gdk.ModifierType.ALT_MASK) {
+			for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9] as const) {
+				if (keyval === Gdk[`KEY_${i}`])
+					return launch(list.get()[i - 1])
+			}
+		}
+	}
+
+	function Favorites() {
+		const [favs, _] = createState(apps.favorites);
+		const reveal = createComputed([list.as(v => v.length != 0), text.as(v => v.length != 0)], (hasEntries, hasText) => !hasEntries && !hasText)
+		return (
+			<revealer revealChild={reveal}>
+				<box orientation={VERTICAL}>
+					<Gtk.Separator />
+					<box class="quicklaunch horizontal">
+						<For each={favs}>
+							{(app: AstalApps.Application) =>
+								app ? (
+									<button tooltipText={app.name} onClicked={() => launch(app)} hexpand>
+										<image iconName={app.iconName} pixelSize={64} />
+									</button>
+								) : (
+									<box />
+								)
+							}
+						</For>
+					</box>
+				</box>
+			</revealer>
+		)
+	}
+
+	const AppEntry = ({ app, index }: { app: AstalApps.Application, index: Accessor<number> }) =>
+		<revealer
+			name={app.name}
+			transitionType={Gtk.RevealerTransitionType.SLIDE_UP}
+			visible={true}
+			revealChild={true}
 		>
-			<icon icon={icon(app.iconName, icons.fallback.executable)} useFallback />
-		</button>
-	)
-
-	const AppItem = ({ app }: { app: Apps.Application }) =>
-		<revealer name={app.name} vexpand={false} hexpand={false}>
-			<box vertical>
-				<Separator />
-				<button
-					className="app-item"
-					onClicked={() => {
-						toggleWindow("launcher")
-						launchApp(app)
-					}}>
+			<box orientation={VERTICAL}>
+				<Gtk.Separator />
+				<button class="app-item" onClicked={() => launch(app)}>
 					<box>
-						<icon icon={app.iconName || app.entry} useFallback />
-						<box valign={CENTER} vertical>
-							<label
-								className="title"
-								hexpand
-								truncate
-								xalign={0}
-								label={app.name}
-							/>
+						<image iconName={app.iconName || app.entry} pixelSize={64} />
+						<box valign={CENTER} orientation={VERTICAL}>
+							<label class="title" hexpand xalign={0} label={app.name} />
 							{app.description && (
 								<label
-									className="description"
+									class="description"
 									hexpand
 									wrap
 									maxWidthChars={30}
@@ -63,113 +113,63 @@ function Entries({ text }: { text: Variable<string> }) {
 								/>
 							)}
 						</box>
+						<label class="launch-hint" hexpand halign={END} label={index.as(i => `󰘳${i + 1}`)} />
 					</box>
 				</button>
 			</box>
 		</revealer>
 
-	const list = <box vertical>
-		{bind(apps, "apps").as(a => a.list.map(app => (<AppItem app={app} />)))}
-	</box> as Gtk.Box
-	const notFound = Variable(false)
+	const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
+	const { NORMAL } = Astal.Exclusivity
+	const { ON_DEMAND } = Astal.Keymode
 
-	text.subscribe(() => {
-		const query = text.get()
-		const visibleCount = list.get_children().filter(i => i instanceof Gtk.Revealer).reduce((i, item: Gtk.Revealer) => {
-			if (!query || i >= options.launcher.apps.max.get()) {
-				item.revealChild = false
-				return i
-			}
-			if (match(item.name, query)) {
-				item.revealChild = true
-				return ++i
-			}
-			item.revealChild = false
-			return i
-		}, 0)
-		notFound.set(query.length > 0 && !visibleCount)
-	})
-
-	const Placeholder = () =>
-		<revealer
-			halign={CENTER}
-			className="placeholder vertical"
-			revealChild={notFound()}
-		>
-			<box vertical>
-				<icon icon={icons.ui.search} useFallback />
-				<label label="No results found" />
-			</box>
-		</revealer>
-
-	const Favorites = () =>
-		<revealer revealChild={text(v => !v.length)}
-			visible={options.launcher.apps.favorites().as(f => f.length > 0)}
-		>
-			<box vertical>
-				<Separator />
-				<box className="quicklaunch horizontal">
-					{options.launcher.apps.favorites().as(favs =>
-						favs.map(fs => {
-							const entry = apps.apps.fuzzy_query(fs)[0]
-							return entry ? <IconAppItem app={entry} /> : <box />
-						})
-					)}
-				</box>
-			</box>
-		</revealer>
-
-	return (
-		<box vertical>
-			<Placeholder />
-			<Favorites />
-			{list}
-		</box>
-	)
-}
-
-export const LauncherBtn = () =>
-	<PanelButton
-		name="launcher"
-		onClick={() => toggleWindow("launcher")}
-		setup={self => {
-			onWindowToggle(self, "launcher", (w) => {
-				self.toggleClassName("active", w.visible)
-			})
-		}}
-	>
-		<box className="launcher horizontal">
-			<icon icon={options.bar.launcher.icon.icon()} useFallback />
-		</box>
-	</PanelButton>
-
-export default function Launcher() {
-	const text = Variable("")
-
-	const entry = <entry
-		placeholderText="Search"
-		primaryIconName={icons.ui.search}
-		text={text()}
-		onChanged={self => text.set(self.text)}
-	/>
 	return (
 		<PopupWindow
-			name="launcher"
-			layout="top"
-			exclusivity={Astal.Exclusivity.NORMAL}
-			keymode={Astal.Keymode.ON_DEMAND}
-			onShow={() => {
-				text.set("")
-				entry.grab_focus()
-			}}>
+			name={"launcher"}
+			anchor={TOP | BOTTOM | LEFT | RIGHT}
+			exclusivity={NORMAL}
+			keymode={ON_DEMAND}
+			layout="top-center"
+			onKey={onKey}
+			$={w => {
+				win = w
+			}}
+			onNotifyVisible={w => {
+				if (w.visible) {
+					entry.set_text("")
+					entry.grab_focus()
+				}
+			}}
+		>
 			<box
-				className="launcher"
-				vertical
-				css={options.launcher.margin(v => `margin-top: ${v}pt;`)}
+				class="launcher"
+				orientation={VERTICAL}
+				$={b => content = b}
+				css={options.launcher.margin.as((m: any) => `margin-top: ${m}pt;`)}
 			>
-				{entry}
-				<Entries text={text} />
+				<entry
+					$={(e) => {
+						entry = e
+						text = createBinding(entry, "text")
+					}}
+					placeholderText="Search"
+					primaryIconName="system-search-symbolic"
+					onNotifyText={e => search(e.text)}
+				/>
+				<revealer
+					halign={CENTER}
+					transitionType={Gtk.RevealerTransitionType.SLIDE_DOWN}
+					revealChild={createComputed([list.as(v => v.length != 0), text.as(v => v.length != 0)], (hasEntries, hasText) => !hasEntries && hasText)}
+				>
+					<Placeholder iconName={icons.ui.search} label={"No results found"} />
+				</revealer >
+				<Favorites />
+				<box orientation={VERTICAL}>
+					<For each={list}>
+						{(app, index) => <AppEntry app={app} index={index} />}
+					</For>
+				</box>
 			</box>
 		</PopupWindow>
-	)
+	) as Gtk.Window
 }

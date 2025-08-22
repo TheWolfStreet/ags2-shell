@@ -1,13 +1,30 @@
+import app from "ags/gtk4/app"
+import { CCProps } from "ags"
+import { exec, execAsync } from "ags/process"
+
 import Apps from "gi://AstalApps"
 import Notifd from "gi://AstalNotifd"
-import { exec, execAsync, Variable, Gio, GLib } from "astal"
-import { App, Gtk } from "astal/gtk3"
-import { Subscribable, Connectable } from "astal/binding"
+import Gtk from "gi://Gtk"
+import GLib from "gi://GLib"
+import Gio from "gi://Gio"
 
 import icons, { substitutes } from "./icons"
-import { Opt } from "./option"
-import { hypr, notifd } from "./services"
 import options from "../options"
+import { hypr, notifd } from "$lib/services"
+import { Opt } from "./option"
+import { Gdk } from "ags/gtk4"
+
+export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
+
+export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) {
+	if (enable === undefined)
+		enable = !widget.has_css_class(name)
+
+	if (enable)
+		widget.add_css_class(name)
+	else
+		widget.remove_css_class(name)
+}
 
 export function duration(length: number) {
 	const hours = Math.floor(length / 3600);
@@ -24,7 +41,7 @@ export async function notify({
 	id,
 	appName = "",
 	appIcon = "",
-	attachedImage = "",
+	// attachedImage = "",
 	actions = {},
 	body = "",
 	summary = "",
@@ -76,8 +93,9 @@ export async function notify({
 	}
 }
 
-export function toggleWindow(name: string, hide?: boolean) {
-	const win = App.get_window(name)
+export function toggleWindow(name: string | undefined, hide: boolean = true) {
+	if (name == undefined) return
+	const win = app.get_window(name)
 	if (win?.visible) {
 		hide ? win.hide() : win.close()
 	} else {
@@ -85,85 +103,71 @@ export function toggleWindow(name: string, hide?: boolean) {
 	}
 }
 
-export function onWindowToggle(self: any, name: string, callback: (w: Gtk.Window) => void) {
-	self.hook(App, "window-toggled", (_: any, w: Gtk.Window) => {
-		if (w.name == name) {
-			callback(w)
+export function onWindowToggle(name: string, callback: (w: Gtk.Window) => void) {
+	app.connect("window-toggled", (_: any, w: Gtk.Window) => {
+		if (w.name === name) {
+			callback(w);
+		}
+	});
+}
+
+
+export function checkDefault(opts: Opt<any>[]) {
+	return opts.some(opt => {
+		try {
+			return JSON.stringify(opt.get()) !== JSON.stringify(opt.get_default())
+		} catch {
+			return opt.get() !== opt.get_default()
 		}
 	})
-}
-
-export function initHook(
-	self: any,
-	object: Connectable,
-	signal: string,
-	callback: (...args: any[]) => void
-): void
-
-export function initHook(
-	self: any,
-	object: Subscribable,
-	callback: (...args: any[]) => void
-): void
-
-export function initHook(
-	self: any,
-	object: Connectable | Subscribable,
-	signalOrCallback: string | ((...args: any[]) => void),
-	callback?: (...args: any[]) => void
-): void {
-	if ('hook' in self && typeof signalOrCallback === 'string' && callback) {
-		callback()
-		self.hook(object, signalOrCallback, callback)
-	} else if ('hook' in self && typeof signalOrCallback === 'function') {
-		signalOrCallback()
-		self.hook(object, signalOrCallback)
-	} else {
-		throw new Error('Invalid arguments')
-	}
-}
-
-export function checkDefault(opts: Opt[]) {
-	const changes = opts.map((opt) => {
-		return Variable.derive([opt], (value) => value !== opt.initial)
-	})
-
-	const any_changed = Variable.derive(changes, (...change_flags) => change_flags.some(changed => changed))
-
-	return any_changed()
 }
 
 export function range(length: number, start = 1) {
 	return Array.from({ length }, (_, i) => i + start)
 }
 
-export function lookUpIcon(name?: string, size = 16) {
-	if (!name)
-		return null
+export function lookupIcon(name: string, size = 16) {
+	if (!name) return null;
 
-	return Gtk.IconTheme.get_default().lookup_icon(
-		name,
+	const display = Gdk.Display.get_default();
+	if (!display) return null;
+
+	const iconTheme = Gtk.IconTheme.get_for_display(display);
+	const textDir = Gtk.Widget.get_default_direction();
+
+	const monitors = display.get_monitors();
+	const n_monitors = monitors.get_n_items();
+	const monitor = n_monitors > 0 ? monitors.get_item(0) as Gdk.Monitor : null;
+	const scale = monitor ? monitor.get_scale_factor() : 1;
+	const icon = Gio.ThemedIcon.new(name);
+
+	const info = iconTheme.lookup_by_gicon(
+		icon,
 		size,
-		Gtk.IconLookupFlags.USE_BUILTIN,
-	)
+		Gtk.IconLookupFlags.FORCE_SYMBOLIC,
+		textDir,
+		scale
+	);
+
+	return info.get_icon_name()
 }
 
-export function ensureDir(path: string) {
+export function ensurePath(path: string) {
 	if (!GLib.file_test(path, GLib.FileTest.EXISTS))
 		Gio.File.new_for_path(path).make_directory_with_parents(null)
 }
 
-export function icon(name: string | null, fallback = icons.missing) {
+export function icon(name: string | null, fallback = icons.missing): string {
 	if (!name)
 		return fallback || ""
 
 	if (GLib.file_test(name, GLib.FileTest.EXISTS))
 		return name
 
-	const icon = (substitutes[name as keyof typeof substitutes] || name)
-	if (lookUpIcon(icon))
-		return icon
-	return fallback
+	// @ts-ignore: Valid keys
+	const resolved = substitutes[name] || name
+	const found = lookupIcon(resolved)
+	return found || fallback
 }
 
 export function dependencies(...bins: string[]) {
@@ -207,7 +211,7 @@ export function bashSync(strings: TemplateStringsArray | string, ...values: unkn
 }
 
 export async function sh(cmd: string | string[]) {
-	return execAsync(cmd).catch(err => {
+	return execAsync(cmd).catch((err: any) => {
 		console.error(typeof cmd === "string" ? cmd : cmd.join(" "), err)
 		return ""
 	})
@@ -228,33 +232,15 @@ export function launchApp(app: Apps.Application | string) {
 	hypr.message_async(`dispatch exec ${exe}`, null)
 }
 
-export function getFavoriteApps(): string[] {
-	try {
-		const output = bashSync("dconf read /org/gnome/shell/favorite-apps", { encoding: "utf-8" })
-		const favorites = JSON.parse(output.replace(/'/g, '"'))
+export function notificationBlacklisted(input?: number | Notifd.Notification): boolean {
+	const notif = typeof input === "number"
+		? notifd.get_notification(input)
+		: input
 
-		if (Array.isArray(favorites) && favorites.every(item => typeof item === "string")) {
-			return favorites.map(item => item.replace(/\.desktop$/, ""))
-		} else {
-			throw new Error("Unexpected format: dconf output is not a valid array of strings.")
-		}
-	} catch (error) {
-		console.error("Failed to read favorite apps from dconf:", error)
-		return []
-	}
-}
+	if (!notif) return false
 
-export function notificationBlacklisted(notification?: number | Notifd.Notification) {
-	if (typeof notification === "number") {
-		var notif = notifd.get_notification(notification)
-	} else if (notification) {
-		notif = notification
-	} else {
-		throw new Error("Either 'id' or 'notification' must be provided.")
-	}
+	const blacklist = options.notifications.blacklist.get()
+	const name = notif.appName || notif.desktopEntry
 
-	if (options.notifications.blacklist.get().includes(notif.appName || notif.desktopEntry)) {
-		return true
-	}
-	return false
+	return blacklist.includes(name)
 }

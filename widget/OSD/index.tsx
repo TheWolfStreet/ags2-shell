@@ -1,90 +1,73 @@
-import Cairo10 from "gi://cairo"
-import { timeout, Variable } from "astal"
-import { App, Gtk, Gdk, Astal } from "astal/gtk3"
-import { AspectFrame, ProgressBar } from "../GtkWidgets"
+import app from "ags/gtk4/app"
+import { Gtk } from "ags/gtk4"
+import { createState } from "ags"
+import { timeout } from "ags/time"
 
-import { audio, brightness } from "../../lib/services"
-import options from "../../options"
+import PopupWindow from "widget/shared/PopupWindow"
 
-const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
-const { CENTER, END } = Gtk.Align
-const { SLIDE_UP } = Gtk.RevealerTransitionType
+import { audio, brightness } from "$lib/services"
 
-function OSDProgress() {
-	const visible = Variable(false)
-	const iconName = Variable("")
-	const value = Variable(0)
+import options from "options"
 
-	const spkr = audio?.get_default_speaker()
-	const mic = audio?.get_default_microphone()
+export default function OSD() {
+	const [reveal, set_reveal] = createState(false)
+	const [icon, set_icon] = createState("")
+	const [value, set_value] = createState(0)
 
 	let count = 0
-	function show(v: number, icon: string) {
-		visible.set(true)
-		value.set(v)
-		iconName.set(icon)
+
+	function show(v: number, i: string) {
+		set_reveal(true)
+		set_value(v)
+		set_icon(i)
 		count++
 		timeout(options.notifications.dismiss.get() / 3, () => {
 			count--
-			if (count === 0) visible.set(false)
+			if (count === 0) set_reveal(false)
 		})
 	}
 
+	const spkr = audio.get_default_speaker()
+	const mic = audio.get_default_microphone()
+
+	// TODO: yeah, i know
+	// for some reason they fire events on app run
+	timeout(500, () => {
+		brightness.connect("notify::display", () =>
+			show(brightness.display, brightness.iconName)
+		)
+		brightness.connect("notify::kbd", () =>
+			show(brightness.kbd, brightness.kbdIcon)
+		)
+		spkr.connect("notify::volume", () =>
+			show(spkr.volume, spkr.volumeIcon)
+		)
+		spkr.connect("notify::mute", () =>
+			show(spkr.volume, spkr.volumeIcon)
+		)
+		mic.connect("notify::volume", () =>
+			show(mic.volume, mic.volumeIcon)
+		)
+		mic.connect("notify::mute", () =>
+			show(mic.volume, mic.volumeIcon)
+		)
+	})
+
+	const { VERTICAL } = Gtk.Orientation
+
 	return (
-		<revealer
-			setup={self => {
-				self.hook(brightness, "notify::display", () =>
-					show(brightness.display, brightness.displayIcon)
-				)
-
-				self.hook(brightness, "notify::kbd", () =>
-					show(brightness.kbd, brightness.kbdIcon)
-				)
-				if (spkr) {
-					self.hook(spkr, "notify::volume", () =>
-						show(spkr.volume, spkr.volumeIcon)
-					)
-					self.hook(spkr, "notify::mute", () => {
-						show(spkr.volume, spkr.volumeIcon)
-					}
-					)
-				}
-				if (mic) {
-					self.hook(mic, "notify::volume", () =>
-						show(mic.volume, mic.volumeIcon)
-					)
-
-					self.hook(mic, "notify::mute", () =>
-						show(mic.volume, mic.volumeIcon)
-					)
-				}
-			}
-			}
-			revealChild={visible()}
-			transitionType={SLIDE_UP}
+		<PopupWindow
+			name="osd"
+			application={app}
+			visible={reveal}
+			layout="bottom-center"
 		>
-			<AspectFrame className="audio-state" obeyChild={false} ratio={1}>
-				<box vertical>
-					<icon icon={iconName()} useFallback />
-					<ProgressBar fraction={value()} />
+			<Gtk.AspectFrame obeyChild={false} ratio={1}>
+				<box orientation={VERTICAL}>
+					<image iconName={icon} useFallback pixelSize={64} />
+					<Gtk.ProgressBar fraction={value} />
 				</box>
-			</AspectFrame>
-		</revealer>
+			</Gtk.AspectFrame>
+		</PopupWindow>
 	)
 }
-
-export default (monitor: Gdk.Monitor) =>
-	<window
-		name={`indicator${monitor}`}
-		className="indicator"
-		gdkmonitor={monitor}
-		clickThrough
-		application={App}
-		layer={Astal.Layer.OVERLAY}
-		setup={self => self.input_shape_combine_region(new Cairo10.Region)}
-		anchor={TOP | BOTTOM | LEFT | RIGHT}
-	>
-		<box valign={END} halign={CENTER}>
-			<OSDProgress />
-		</box>
-	</window>

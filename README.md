@@ -12,12 +12,9 @@ Check out and support his latest project **[Marble Shell](https://marble-shell.p
 ## ⚠ Known Issues
 - Duplicate top bar when mirroring or demirroring a screen.
 - Lack of user-friendly feedback when a Bluetooth adapter is locked.
-- Wi-Fi menu simply does not show up when the adapter is in monitor mode due to the absence of dynamic binding.
 - Launcher's app list may not automatically update after installing new apps (a relaunch bind is recommended).
-- The launcher retract animation does not activate during toggle, but works as expected when the launcher loses focus or when the Escape key is pressed.
 
 ## 📌 Planned Improvements
-- GTK4 rewrite
 - Decoupling from adw-gtk3-dark theme (styles)
 
 ## Installation on NixOS

@@ -1,9 +1,11 @@
-import { timeout, writeFile } from "astal"
+import { writeFile } from "ags/file"
+import { timeout } from "ags/time"
 
 import { sh, dependencies } from "./utils"
+import { env } from "$lib/env"
 import { wp } from "./services"
-import { env } from "./environment"
-import options from "../options"
+
+import options from "options"
 
 export default function init() {
 	wp.connect("notify::wallpaper", () => matugen())

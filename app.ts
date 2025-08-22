@@ -1,48 +1,52 @@
-import { App, Gdk } from "astal/gtk3"
+import app from "ags/gtk4/app"
+import { Astal } from "ags/gtk4"
 
-import { powermenu, scr } from "./lib/services"
 
-import Bar from "./widget/Bar"
-import Launcher from "./widget/Bar/components/Launcher"
-import Settings from "./widget/Settings"
-import NotificationPopups from "./widget/Bar/components/NotificationPopups"
-import Overview from "./widget/Bar/components/Overview"
-import ScreenCorners from "./widget/Bar/components/ScreenCorners"
-import PowerMenu, { VerificationPopup } from "./widget/PowerMenu/"
-import "./style/style"
-import OSD from "./widget/OSD"
-import init from "./lib/init"
+import Gdk from "gi://Gdk"
+import GLib from "gi://GLib"
 
-function forMonitors(widgets: ((monitor: Gdk.Monitor) => void)[]) {
-	App.get_monitors().forEach(monitor => {
-		widgets.forEach(widget => widget(monitor))
+import Bar from "widget/Bar"
+import OSD from "widget/OSD"
+
+import init from "$lib/init"
+
+let windows: Astal.Window[] = []
+
+function forMonitors(widget: ((monitor: Gdk.Monitor) => any)[]) {
+	const update_windows = () => {
+		windows = windows.filter(w => {
+			if (!w.gdkmonitor) {
+				try { w.destroy() } catch (_) { }
+				return false
+			}
+			return true
+		})
+
+		app.get_monitors().forEach(monitor => {
+			if (!monitor) return
+
+			widget.forEach(w => {
+				try {
+					windows.push(w(monitor))
+				} catch (_) { }
+			})
+		})
+	}
+
+	update_windows()
+
+	app.connect("notify::monitors", (_obj, _pspec) => {
+		GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+			update_windows()
+			return GLib.SOURCE_REMOVE
+		})
 	})
-
-	App.connect("monitor-added", (_s, monitor) => {
-		widgets.forEach(widget => widget(monitor))
-	})
-
-	// App.connect("monitor-removed", (_s, monitor) => {
-	// FIXME: Deal with the mirror problem
-	// })
 }
 
-App.start({
+app.start({
 	main() {
+		forMonitors([Bar])
+		OSD()
 		init()
-		forMonitors([Bar, NotificationPopups, OSD, ScreenCorners])
-		Launcher()
-		Overview()
-		Settings()
-		VerificationPopup()
-		PowerMenu()
-	},
-
-	requestHandler(request: string, _: (response: any) => void) {
-		if (request == "shutdown") powermenu.action("shutdown")
-		if (request == "record") scr.recording ? scr.stopRecord() : scr.startRecord()
-		if (request == "record-area") scr.recording ? scr.stopRecord() : scr.startRecord(true)
-		if (request == "screenshot") scr.screenshot()
-		if (request == "screenshot-area") scr.screenshot(true)
 	},
 })

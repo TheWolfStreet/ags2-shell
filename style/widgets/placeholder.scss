@@ -1,0 +1,17 @@
+@use 'sass:color';
+
+.placeholder {
+  @include spacing(0.5);
+  padding: $padding * 2;
+
+  image {
+    color: color.scale($fg, $alpha: -30%);
+    margin-bottom: 0.1em;
+  }
+
+  label {
+    color: color.scale($fg, $alpha: -30%);
+    font-size: 1.25em;
+  }
+}
+

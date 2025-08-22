@@ -1,12 +1,20 @@
-window#batterystate .batterystate {
+window#bar {
+  .batterystate .battery{
+    @include spacing(.5);
+  }
+}
+
+window#batterystate {
   progress {
     background-color: $primary-bg;
   }
 
-  @include floating-widget;
-  @include spacing(.5);
+  box {
+    @include floating-widget;
+    @include spacing(.5);
 
-  .remaining {
-    font-weight: bold;
+    .remaining {
+      font-weight: bold;
+    }
   }
 }

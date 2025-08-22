@@ -1,24 +1,30 @@
-import { Widget } from "astal/gtk3"
-
-import { onWindowToggle } from "../../../lib/utils"
-
-type PanelButtonProps = Widget.ButtonProps & {
-	flat?: boolean
-}
+import { Gtk } from "ags/gtk4"
+import { onWindowToggle, Props } from "$lib/utils"
 
 export default ({
-	flat,
-	setup,
+	$,
 	...props
-}: PanelButtonProps) =>
-	<button {...props}
-		setup={self => {
-			self.toggleClassName("panel-button")
-			self.toggleClassName(self.name)
+}: Props<Gtk.Button, Gtk.Button.ConstructorProps>) =>
+	<button
+		class="panel-button"
+		{...props}
+		$={self => {
+			if (self.name)
+				self.add_css_class(self.name)
 
-			if (self.name) {
-				onWindowToggle(self, self.name, w => self.toggleClassName("active", w.visible))
-			}
-			setup && setup(self)
+			let is_active = false
+
+			if (self.name)
+				onWindowToggle(self.name, () => {
+					is_active = !is_active
+
+					if (is_active)
+						self.add_css_class("active")
+					else
+						self.remove_css_class("active")
+				})
+
+			if ($)
+				$(self)
 		}}
 	/>

@@ -1,9 +1,14 @@
-import { register, property, GLib, GObject, readFile, writeFile, execAsync } from "astal"
+import GObject, { getter, register, setter } from "ags/gobject"
+import { readFile, writeFile } from "ags/file"
+import { execAsync } from "ags/process"
 
-import { dependencies, notify } from "../lib/utils"
-import { env } from "../lib/environment"
-import icons from "../lib/icons"
-import options from "../options"
+import GLib from "gi://GLib"
+
+import { dependencies, notify } from "$lib/utils"
+import { env } from "$lib/env"
+import icons from "$lib/icons"
+
+import options from "options"
 
 const cacheFile = `${env.paths.cache}/colors.js`
 
@@ -16,56 +21,50 @@ export default class ColorPicker extends GObject.Object {
 	static instance: ColorPicker
 
 	static get_default() {
-		if (!this.instance) {
-			this.instance = new ColorPicker()
-		}
-		return this.instance
+		return this.instance ??= new ColorPicker()
 	}
 
-	#notifID = 0
+	#notifId = 0
 	#colors = JSON.parse(readFile(cacheFile) || "[]") as string[]
 
-	@property(String)
+	@getter(Array)
 	get colors() {
 		return this.#colors
 	}
-
-	set colors(colors) {
-		this.#colors = colors
+	@setter(Array)
+	set colors(value) {
+		this.#colors = value
 	}
 
-	async wlCopy(color: string) {
-		if (!dependencies("wl-copy", "hyprpicker")) {
-			return
-		}
+	readonly copyColor = async (color: string) => {
+		if (!dependencies("wl-copy", "hyprpicker")) return
+
 		await execAsync(`wl-copy "${color}"`)
 	}
 
-	readonly pick = async () => {
-		if (!dependencies("wl-copy", "hyprpicker")) {
-			return
-		}
+	readonly pickColor = async () => {
+		if (!dependencies("wl-copy", "hyprpicker")) return
 
 		const color = await execAsync("hyprpicker -r")
-		if (!color) {
-			return
-		}
+		if (!color) return
 
-		this.wlCopy(color)
-		const list = this.#colors
-		if (!list.includes(color)) {
-			list.push(color)
-			if (list.length > options.colorpicker.maxColors.get()) {
-				list.shift()
+		await this.copyColor(color)
+
+		const colors = this.#colors
+		if (!colors.includes(color)) {
+			colors.push(color)
+			const maxColors = options.colorpicker.maxColors.get()
+			if (colors.length > maxColors) {
+				colors.shift()
 			}
 
-			this.#colors = list
+			this.#colors = colors
 			this.notify("colors")
-			writeFile(cacheFile, JSON.stringify(list, null, 2))
+			writeFile(cacheFile, JSON.stringify(colors, null, 2))
 		}
 
-		this.#notifID = await notify({
-			id: this.#notifID,
+		this.#notifId = await notify({
+			id: this.#notifId,
 			appName: "Colorpicker",
 			appIcon: icons.ui.colorpicker,
 			summary: "Copied to clipboard",

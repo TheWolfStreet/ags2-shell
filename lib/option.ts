@@ -1,124 +1,110 @@
-import { readFile, writeFile, monitorFile, Variable, GLib } from "astal"
-import { env } from "./environment"
+import { env } from "$lib/env"
+import { Accessor, createState, Setter } from "ags"
+import { readFile, writeFile } from "ags/file"
+import { ensurePath } from "./utils"
 
-interface OptProps {
-	persistent?: boolean
+namespace store {
+	export const path = `${env.paths.cfg}/options.json`
+
+	export function modify(updater: (data: Record<string, any>) => void) {
+		try {
+			ensurePath(store.path)
+			const raw = readFile(path) || "{}"
+			const data = JSON.parse(raw)
+			updater(data)
+			writeFile(path, JSON.stringify(data, null, 2))
+		} catch {
+			// ignore
+		}
+	}
+
+	export function read() {
+		ensurePath(store.path)
+		const raw = readFile(path) || "{}"
+		return JSON.parse(raw)
+	}
 }
 
-export class Opt<T = unknown> extends Variable<T> {
-
-	constructor(initial: T, { persistent = false }: OptProps = {}) {
-		super(initial)
-		this.initial = initial
-		this.persistent = persistent
-	}
-
-	initial: T
+export class Opt<T> extends Accessor<T> {
+	#setter: Setter<T>
+	#default: T
 	id = ""
-	persistent: boolean
 
-	toString = () => `${this.get()}`
-	toJSON() { return `opt:${this.get()}` }
-
-	get = (): T => {
-		return super.get()
+	constructor(initial: T) {
+		const [acc, set] = createState(initial)
+		super(() => acc.get(), (cb) => acc.subscribe(cb))
+		this.#setter = set
+		this.#default = initial
 	}
 
-	init(cache_file: string) {
-		const cachedVal = JSON.parse(readFile(cache_file) || "{}")[this.id]
-		if (cachedVal !== undefined)
-			this.set(cachedVal)
+	[Symbol.toPrimitive]() {
+		console.warn("Opt implicitly converted to a primitive value.", new Error().stack)
+		return this.toString()
+	}
 
-		this.subscribe(() => {
-			const cache = JSON.parse(readFile(cache_file) || "{}")
-			cache[this.id] = this.get()
-
-			writeFile(cache_file, JSON.stringify(cache, null, 2))
-		})
+	set(v: T) {
+		this.#setter(v)
+		// TODO: persist
 	}
 
 	reset() {
-		if (this.persistent)
-			return
+		this.#setter(this.#default)
+		// TODO: delete from store
+	}
 
-		if (JSON.stringify(this.get()) !== JSON.stringify(this.initial)) {
-			this.set(this.initial)
-			return this.id
-		}
+	getDefault() {
+		return this.#default
+	}
+
+	toString(): string {
+		return `${this.get()}`
+	}
+
+	toJSON() {
+		return `opt:${this.get()}`
 	}
 }
 
-export const opt = <T>(initial: T, opts?: OptProps) => new Opt(initial, opts)
-
-function getOptions(object: Record<string, any>, path = ""): Opt[] {
-	return Object.keys(object).flatMap(key => {
-		const obj: Opt = object[key]
-		const id = path ? path + "." + key : key
-
-		if (obj instanceof Variable) {
-			obj.id = id
-			return obj
-		}
-
-		if (typeof obj === "object") {
-			return getOptions(obj, id)
-		}
-
-		return []
-	})
+function isStructured(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-export function mkOptions<T extends object>(object: T) {
-	const cacheFile = `${env.paths.cache}/options.json`
-	if (!GLib.file_test(cacheFile, GLib.FileTest.EXISTS)) {
-		writeFile(cacheFile, "")
-	}
-	for (const opt of getOptions(object))
-		opt.init(cacheFile)
+type Options<T> =
+	T extends Record<string, unknown> ? { [K in keyof T]: Options<T[K]> } :
+	Opt<T>
 
-	const values = getOptions(object).reduce((obj, { id, get }) => {
-		return { [id]: get(), ...obj }
-	}, {})
-
-
-	const cfgFile = `${env.paths.tmp}/config.json`
-	writeFile(cfgFile, JSON.stringify(values, null, 2))
-
-	monitorFile(cfgFile, () => {
-		const cache = JSON.parse(readFile(cfgFile) || "{}")
-		for (const opt of getOptions(object)) {
-			if (JSON.stringify(cache[opt.id]) !== JSON.stringify(opt.get()))
-				opt.set(cache[opt.id])
-		}
-	})
-
-	function sleep(ms = 0) {
-		return new Promise(r => setTimeout(r, ms))
-	}
-
-	async function reset(
-		[opt, ...list] = getOptions(object),
-		id = opt?.reset(),
-	): Promise<Array<string>> {
-		if (!opt)
-			return sleep().then(() => [])
-
-		return id
-			? [id, ...(await sleep(50).then(() => reset(list)))]
-			: await sleep().then(() => reset(list))
-	}
-
-	return Object.assign(object, {
-		configFile: cfgFile,
-		array: () => getOptions(object),
-		async reset() {
-			return (await reset()).join("\n")
-		},
-		handler(deps: string[], callback: () => void) {
-			for (const opt of getOptions(object)) {
-				if (deps.some(i => opt.id.startsWith(i)))
-					opt.subscribe(callback)
+export function mkOptions<T>(node: T, path = ""): Options<T> {
+	if (isStructured(node)) {
+		const newNode = {} as any;
+		for (const key in node) {
+			if (Object.prototype.hasOwnProperty.call(node, key)) {
+				const subPath = path ? `${path}.${key}` : key;
+				newNode[key] = mkOptions((node as any)[key], subPath);
 			}
-		},
-	})
+		}
+		return newNode;
+	}
+
+	const opt = new Opt(node);
+	opt.id = path;
+
+	return opt as any;
+}
+
+export function setHandler(
+	opts: Options<any>,
+	deps: string[],
+	callback: () => void,
+) {
+	if (opts instanceof Opt) {
+		if (deps.some(d => opts.id.startsWith(d))) opts.subscribe(callback)
+		return
+	}
+
+	for (const key in opts) {
+		if (Object.prototype.hasOwnProperty.call(opts, key)) {
+			const next = opts[key]
+			setHandler(next, deps, callback)
+		}
+	}
 }

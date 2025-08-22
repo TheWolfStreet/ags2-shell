@@ -1,153 +1,148 @@
-import { opt, mkOptions } from "./lib/option"
-import { env } from "./lib/environment"
-import icons from "./lib/icons"
-import { getFavoriteApps, icon } from "./lib/utils"
+import { mkOptions } from "$lib/option"
+import { env } from "$lib/env"
+import icons from "$lib/icons"
+import { icon } from "$lib/utils"
 
 const options = mkOptions({
-	autotheme: opt(true),
+	autotheme: true,
+
 	theme: {
 		dark: {
 			primary: {
-				bg: opt("#51a4e7"),
-				fg: opt("#141414"),
+				bg: "#51a4e7",
+				fg: "#141414",
 			},
 			error: {
-				bg: opt("#e55f86"),
-				fg: opt("#141414"),
+				bg: "#e55f86",
+				fg: "#141414",
 			},
-			bg: opt("#171717"),
-			fg: opt("#eeeeee"),
-			widget: opt("#eeeeee"),
-			border: opt("#eeeeee"),
+			bg: "#171717",
+			fg: "#eeeeee",
+			widget: "#eeeeee",
+			border: "#eeeeee",
 		},
 		light: {
 			primary: {
-				bg: opt("#426ede"),
-				fg: opt("#eeeeee"),
+				bg: "#426ede",
+				fg: "#eeeeee",
 			},
 			error: {
-				bg: opt("#b13558"),
-				fg: opt("#eeeeee"),
+				bg: "#b13558",
+				fg: "#eeeeee",
 			},
-			bg: opt("#fffffa"),
-			fg: opt("#080808"),
-			widget: opt("#080808"),
-			border: opt("#080808"),
+			bg: "#fffffa",
+			fg: "#080808",
+			widget: "#080808",
+			border: "#080808",
 		},
-
-		blur: opt(70),
-		blurOnLight: opt(false),
-
-		scheme: opt<"dark" | "light">("dark"),
-		widget: { opacity: opt(94) },
+		blur: 70,
+		blurOnLight: false,
+		scheme: "dark",
+		widget: {
+			opacity: 94,
+		},
 		border: {
-			width: opt(1),
-			opacity: opt(86),
+			width: 1,
+			opacity: 86,
 		},
-
-		shadows: opt(true),
-		padding: opt(8),
-		spacing: opt(6),
-		radius: opt(12),
+		shadows: true,
+		padding: 8,
+		spacing: 6,
+		radius: 12,
 	},
 
-	transition: opt(200),
+	transition: 200,
 
 	font: {
-		size: opt(11),
-		name: opt("SFProDisplay Nerd Font"),
+		size: 11,
+		name: "SFProDisplay Nerd Font",
 	},
 
 	bar: {
-		position: opt<"top" | "bottom">("top"),
-		corners: opt(50),
-		transparent: opt(false),
+		position: "top",
+		corners: 50,
+		transparent: false,
 		launcher: {
-			icon: {
-				icon: opt(icon(env.distro.logo, icons.ui.search)),
-			}
+			icon: icon(env.distro.logo, icons.ui.search),
 		},
 		date: {
-			format: opt("%a %b %-d %H:%M"),
+			format: "%a %b %-d %H:%M",
 		},
 		battery: {
-			low: opt(30),
+			low: 30,
 		},
 		workspaces: {
-			count: opt(0),
+			count: 0,
 		},
 		taskbar: {
-			exclusive: opt(false),
+			exclusive: false,
 		},
 		systray: {
-			ignore: opt([
+			ignore: [
 				"KDE Connect Indicator",
 				"spotify-client",
 				"spotify"
-			]),
+			],
 		},
 		media: {
-			preferred: opt("spotify"),
-			direction: opt<"left" | "right">("right"),
-		}
+			preferred: "spotify",
+			direction: "right",
+		},
 	},
 
 	launcher: {
-		margin: opt(40),
+		margin: 40,
 		apps: {
-			max: opt(6),
-			favorites: opt(getFavoriteApps()),
+			max: 6,
 		},
 	},
 
 	overview: {
-		scale: opt(9),
-		workspaces: opt(7),
+		scale: 9,
+		workspaces: 7,
 	},
 
 	powermenu: {
-		sleep: opt("systemctl suspend"),
-		reboot: opt("systemctl reboot"),
-		logout: opt("hyprctl dispatch exit"),
-		shutdown: opt("shutdown now"),
-		layout: opt<"line" | "box">("line"),
-		labels: opt(true),
+		sleep: "systemctl suspend",
+		reboot: "systemctl reboot",
+		logout: "hyprctl dispatch exit",
+		shutdown: "shutdown now",
+		layout: "line",
+		labels: true,
 	},
 
 	asus: {
-		ac_hz: opt(144),
-		bat_hz: opt(60)
+		ac_hz: 144,
+		bat_hz: 60,
 	},
 
 	quicksettings: {
-		width: opt(380),
-		position: opt<"left" | "center" | "right">("right"),
+		width: 380,
+		position: "right",
 	},
 
 	batterystate: {
-		position: opt<"left" | "center" | "right">("right"),
+		position: "right",
 	},
 
 	datemenu: {
-		position: opt<"left" | "center" | "right">("center"),
+		position: "center",
 	},
 
 	colorpicker: {
-		maxColors: opt(10)
+		maxColors: 10,
 	},
 
 	notifications: {
-		position: opt<Array<"top" | "bottom" | "left" | "right">>(["top", "right"]),
-		blacklist: opt(["Spotify", "com.spotify.Client"]),
-		dismiss: opt(3500),
-		width: opt(300),
+		position: ["top", "right"],
+		blacklist: ["Spotify", "com.spotify.Client"],
+		dismiss: 3500,
+		width: 300,
 	},
 
 	hyprland: {
-		gaps: opt(2.4),
-		inactiveBorder: opt("#282828"),
-	},
+		gaps: 2.4,
+		inactiveBorder: "#282828",
+	}
 })
-
 export default options
-

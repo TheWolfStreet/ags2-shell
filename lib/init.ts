@@ -1,14 +1,17 @@
-import { Gio, execAsync } from "astal"
+import { execAsync } from "ags/process"
 
-import { bash } from "./utils"
-import options from "../options"
-import matugen from "./matugen"
-import hyprinit from "./hyprland"
+import { bash, ensurePath } from "$lib/utils"
+import { env } from "$lib/env"
+import { wp } from "$lib/services"
+import hyprinit from "$lib/hyprland"
+import matugen from "$lib/matugen"
 
-import setupBatteryState from "../widget/Bar/components/BatteryState"
-import setupDateMenu from "../widget/Bar/components/DateMenu"
-import setupQuickSettings from "../widget/Bar/components/QuickSettings"
-import { wp } from "./services"
+import Gio from "gi://Gio"
+
+import { setHandler } from "./option"
+import { initCss } from "style"
+
+import options from "options"
 
 const { scheme, dark, light } = options.theme
 
@@ -45,8 +48,7 @@ export default async function init() {
 	gtk();
 	scheme.subscribe(gtk);
 
-	// TODO: Better make it a toggleable feature
-	let tmuxPresent = await execAsync("which tmux").then(() => true).catch(() => false);
+	const tmuxPresent = await execAsync("which tmux").then(() => true).catch(() => false);
 	if (tmuxPresent) {
 		tmux();
 		options.theme.dark.primary.bg.subscribe(tmux);
@@ -55,12 +57,13 @@ export default async function init() {
 	}
 
 	updateGtkMode();
-	options.handler(["theme.scheme", "autotheme"], () => updateGtkMode());
+	setHandler(options, ["theme.scheme", "autotheme"], () => updateGtkMode());
 	wp.connect("notify::wallpaper", updateGtkMode);
+
+	ensurePath(env.paths.tmp)
+	ensurePath(env.paths.cache)
 
 	hyprinit();
 	matugen();
-	setupBatteryState();
-	setupDateMenu();
-	setupQuickSettings();
+	initCss();
 }

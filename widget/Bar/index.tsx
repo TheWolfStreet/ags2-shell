@@ -1,23 +1,23 @@
-import Network from "gi://AstalNetwork"
-import { Astal, Gtk, Gdk, Widget } from "astal/gtk3"
-import { bind, Variable } from "astal"
+import { createState, createBinding, createComputed } from "ags"
+import { Astal, Gdk, Gtk } from "ags/gtk4"
+import app from "ags/gtk4/app"
 
-import { ColorPicker, Media, PendingNotifications, PowerButton, ScreenRecord, SysTray, Taskbar } from "./components/Buttons"
-import { BatteryLevel } from "./components/BatteryState"
-import { Workspaces } from "./components/Overview"
-import { DateMenuBtn } from "./components/DateMenu"
-import { LauncherBtn } from "./components/Launcher"
+import AstalNetwork from "gi://AstalNetwork"
+
+import { PowerButton } from "widget/PowerMenu"
+import Clock from "./components/Clock"
+import Battery from "./components/Battery"
+import { Launcher } from "./components/Launcher"
+import QuickSettings from "./components/QuickSettings"
 import PanelButton from "./components/PanelButton"
 
-import { bashSync, initHook, onWindowToggle, toggleWindow } from "../../lib/utils"
-import { asusctl, audio, bt, hypr, net, notifd, pp } from "../../lib/services"
-import icons from "../../lib/icons"
-import options from "../../options"
+import { bashSync, toggleWindow } from "$lib/utils"
+import { asusctl, audio, bt, hypr, net, notifd, pp } from "$lib/services"
+import icons from "$lib/icons"
 
-const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
-const { START, CENTER, END } = Gtk.Align
+import options from "options"
 
-export function SysIndicators() {
+function SysIndicators() {
 	const CurrentLayout = () => {
 		const ISO639 = {
 			"abkh": "ab",		// Abkhazian
@@ -95,30 +95,31 @@ export function SysIndicators() {
 			return ISO639[layout.slice(0, 4)] || layout.slice(0, 2)
 		}
 
-		const layout = Variable(getLayout())
-		hypr.connect("keyboard-layout", () => layout.set(getLayout()))
-		return <label label={layout()} />
+		const [layout, set_layout] = createState(getLayout())
+		hypr.connect("keyboard-layout", () => set_layout(getLayout()))
+		return <label label={layout} />
 	}
 
 	const ProfileState = () => {
 		const visible = asusctl.available
-			? bind(asusctl, "profile").as(p => p !== "Balanced")
-			: pp.available ? bind(pp, "active_profile").as(p => p !== "balanced") : false
+			? createBinding(asusctl, "profile").as(p => p !== "Balanced")
+			: pp.get_version() ? createBinding(pp, "active_profile").as(p => p !== "balanced") : false
 
 		const icon = asusctl.available
-			? bind(asusctl, "profile").as((p: "Performance" | "Balanced" | "Quiet") => icons.asusctl.profile[p])
-			: pp.available ? bind(pp, "active_profile").as((p: string) => icons.powerprofile[p as "balanced" | "power-saver" | "performance"]) : ""
+			// @ts-ignore: Valid keys
+			? createBinding(asusctl, "profile").as((p: string) => icons.asusctl.profile[p])
+			: pp.get_version() ? createBinding(pp, "active_profile").as((p: string) => icons.powerprofile[p as "balanced" | "power-saver" | "performance"]) : ""
 
-		return <icon icon={icon} visible={visible} useFallback />
+		return <image iconName={icon} visible={visible} useFallback />
 	}
 
 	const AsusModeIndicator = () => {
-		if (!asusctl.available) return <icon visible={false} useFallback />
-		const mode = bind(asusctl, "mode")
+		if (!asusctl.available) return <image visible={false} useFallback />
+		const mode = createBinding(asusctl, "mode")
 		return (
-			<icon
+			<image
 				// @ts-ignore: Valid keys
-				icon={mode.as(m => icons.asusctl.mode[m])}
+				iconName={mode.as(m => icons.asusctl.mode[m])}
 				visible={mode.as(m => m !== "Hybrid")}
 				useFallback
 			/>
@@ -126,73 +127,65 @@ export function SysIndicators() {
 	}
 
 	const BtState = () => {
-		const hasConnected = bind(bt, "isConnected")
-		const isPowered = bind(bt, "isPowered")
+		const hasConnected = createBinding(bt, "isConnected")
+		const isPowered = createBinding(bt, "isPowered")
+
 		return (
-			<box visible={isPowered}>
-				<overlay
-					className="bluetooth"
-					passThrough
-					child={<icon icon={icons.bluetooth.enabled} useFallback />}
-					overlay={
-						<box
-							className="indicator"
-							halign={CENTER}
-							valign={START}
-							visible={hasConnected}
-						/>
-					}
-				/>
-			</box>
+			<image class={hasConnected.as(v => v ? "bluetooth-connected" : "")} visible={isPowered} iconName={icons.bluetooth.enabled} useFallback />
 		)
 	}
 
 	const NetworkState = () => {
-		const { WIRED, WIFI } = Network.Primary
+		const { WIRED, WIFI } = AstalNetwork.Primary
 		// TODO: Make dynamic based on presence of wifi adapter
-		const icon = Variable.derive([bind(net, "primary"), net.wifi ? bind(net.wifi, "iconName") : Variable("")(), net.wired ? bind(net.wired, "iconName") : Variable("")],
+		const icon = createComputed([createBinding(net, "primary"), createBinding(net.wifi, "iconName"), createBinding(net.wired, "iconName")],
 			(type, wifi, wired) => {
 				return type === WIFI ? wifi : (type === WIRED ? wired : "")
 			})
 
 		return (
-			<icon
-				icon={icon()}
-				visible={icon(i => i !== "")}
+			<image
+				iconName={icon}
+				visible={icon.as((i: string) => i !== "")}
 				useFallback
 			/>
 		)
 	}
 
 	const DndState = () =>
-		<icon
-			icon={icons.notifications.silent}
-			visible={bind(notifd, "dontDisturb")}
+		<image
+			iconName={icons.notifications.silent}
+			visible={createBinding(notifd, "dontDisturb")}
 			useFallback
 		/>
 
 	const SpkrState = () =>
-		audio ? <icon icon={bind(audio.defaultSpeaker, "volumeIcon")} useFallback /> : <box visible={false} />
+		audio ? <image iconName={createBinding(audio.defaultSpeaker, "volumeIcon")} useFallback /> : <box visible={false} />
 
 	const MicState = () =>
-		audio ? <icon icon={bind(audio.defaultMicrophone, "volumeIcon")} useFallback /> : <box visible={false} />
+		audio ? <image iconName={createBinding(audio.defaultMicrophone, "volumeIcon")} useFallback /> : <box visible={false} />
 
 	return (
 		<PanelButton
 			name="quicksettings"
-			className="quicksettings"
-			onClick={() => toggleWindow("quicksettings")}
-			setup={self => {
-				onWindowToggle(self, self.name, (w) => {
-					self.toggleClassName("active", w.visible)
-				})
-			}}
-			onScroll={(_: Widget.Button, event: Astal.ScrollEvent) => {
-				const spkr = audio?.get_default_speaker()
-				spkr?.set_volume((spkr.get_volume() ?? 0) - event.delta_y * 0.025)
+			onClicked={() => toggleWindow("quicksettings")}
+			$={() => {
+				app.add_window(QuickSettings() as Gtk.Window)
 			}}
 		>
-			<box className="horizontal">
+			<Gtk.EventControllerScroll
+				flags={Gtk.EventControllerScrollFlags.VERTICAL}
+				onScroll={(_: any, __: number, dy: number) => {
+					const spkr = audio?.get_default_speaker()
+					if (spkr) {
+						const current = spkr.get_volume() ?? 0
+						spkr.set_volume(Math.min(1, Math.max(0, current - dy * 0.025)))
+					}
+					return true
+				}}
+			/>
+
+			<box class="horizontal">
 				<CurrentLayout />
 				<ProfileState />
 				<AsusModeIndicator />
@@ -206,34 +199,39 @@ export function SysIndicators() {
 	)
 }
 
-export default (monitor: Gdk.Monitor) =>
-	<window
-		className="bar"
-		gdkmonitor={monitor}
-		exclusivity={Astal.Exclusivity.EXCLUSIVE}
-		setup={self =>
-			initHook(self, options.bar.transparent, () => {
-				self.toggleClassName("transparent", options.bar.transparent.get())
-			})}
-		anchor={options.bar.position(((pos) => pos === "top" ? (TOP | LEFT | RIGHT) : (BOTTOM | LEFT | RIGHT)))}>
-		<centerbox>
-			<box hexpand halign={START}>
-				<LauncherBtn />
-				<Workspaces />
-				<Taskbar />
-			</box>
-			<box halign={CENTER}>
-				<DateMenuBtn />
-			</box>
-			<box hexpand halign={END} >
-				{Media()}
-				<SysTray />
-				<ColorPicker />
-				<PendingNotifications />
-				<ScreenRecord />
-				<SysIndicators />
-				<BatteryLevel />
-				<PowerButton />
-			</box>
-		</centerbox>
-	</window>
+export default function Bar(gdkmonitor: Gdk.Monitor) {
+	const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
+
+	return (
+		<window
+			visible
+			name="bar"
+			class="bar"
+			gdkmonitor={gdkmonitor}
+			exclusivity={Astal.Exclusivity.EXCLUSIVE}
+			anchor={
+				options.bar.position.as((pos: string) => {
+					const vertical = pos === 'top' ? TOP : pos === 'bottom' ? BOTTOM : TOP
+					return vertical | LEFT | RIGHT
+				})
+			}
+			application={app}
+		>
+			<centerbox>
+				<box $type="start">
+					<Launcher />
+				</box>
+
+				<box $type="center">
+					<Clock />
+				</box>
+
+				<box $type="end">
+					<SysIndicators />
+					<Battery />
+					<PowerButton />
+				</box>
+			</centerbox>
+		</window >
+	)
+}
