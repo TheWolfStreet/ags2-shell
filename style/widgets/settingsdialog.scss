@@ -6,27 +6,23 @@ window.settings-dialog {
 
   .header {
     .pager {
-      @include spacing(.5);
+      @include spacing();
+        button {
+          @include button;
+          font-weight: bold;
+          padding: $padding*.5 $padding;
+
+          >box{
+            @include spacing($spacing: .3em);
+          }
+        }
     }
 
     padding: $padding;
 
-    button {
+    button.reset,
+    button.close{
       @include button;
-      font-weight: bold;
-      padding: $padding*.5 $padding;
-
-      >box {
-        @include spacing($spacing: .3em);
-      }
-    }
-
-    button.close {
-      padding: $padding * .5;
-    }
-
-    button.reset {
-      @include button($flat: true);
       padding: $padding*.5;
     }
   }
@@ -100,9 +96,10 @@ window.settings-dialog {
 
     spinbutton {
       @include unset;
-
-      entry {
+      text {
+        background-color: $widget-bg;
         border-radius: $radius 0 0 $radius;
+        border: $border;
       }
 
       button {
@@ -131,14 +128,10 @@ window.settings-dialog {
       }
     }
 
-    &.wallpaper {
-      button {
-        margin-top: $spacing * .5;
-      }
-
-      .preview {
-        border-radius: $radius;
-      }
+    .preview{
+      border-radius: $radius;
+      min-height: 15em;
+      min-width: 15em;
     }
   }
 }

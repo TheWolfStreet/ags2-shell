@@ -52,7 +52,7 @@
 
   .media box { @include spacing(0.5); }
 
-  .taskbar .indicator.active {
+  .task .indicator.active {
     background-color: $primary-bg;
     border-radius: $radius;
     min-height: 4pt;
@@ -64,9 +64,8 @@
     .horizontal { @include spacing(0.5); }
 
     image { color: color.scale($error-bg, $alpha: -30%); }
-
-    &:hover icon { color: color.scale($error-bg, $alpha: -15%); }
-    &:active icon { color: $primary-fg; }
+    &:hover image { color: color.scale($error-bg, $alpha: -15%); }
+    &:active image { color: $primary-fg; }
   }
 
   .quicksettings box { @include spacing(2, $spacing: $padding * 0.5); }
@@ -89,6 +88,7 @@
 
     &:not(:hover):not(.active) {
       label, image {
+        -gtk-icon-shadow: $text-shadow;
         text-shadow: $text-shadow;
       }
     }

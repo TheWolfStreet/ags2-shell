@@ -63,5 +63,6 @@ export default class Wallpaper extends GObject.Object {
 			execAsync(`swww img --invert-y --transition-type fade --transition-pos ${cursorPos.replace(/ /g, "")} "${wpPath}"`)
 				.then(() => this.notify("wallpaper"))
 		)
+		this.notify("wallpaper")
 	}
 }

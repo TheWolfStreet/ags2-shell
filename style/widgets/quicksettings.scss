@@ -148,10 +148,6 @@ window#quicksettings .quicksettings {
     .horizontal {
       @include spacing(.5);
     }
-
-    image {
-      font-size: 1.3em;
-    }
   }
 
   .toggle-button {

@@ -1,5 +1,6 @@
 import app from "ags/gtk4/app"
 import { CCProps } from "ags"
+import { Gdk } from "ags/gtk4"
 import { exec, execAsync } from "ags/process"
 
 import Apps from "gi://AstalApps"
@@ -8,13 +9,14 @@ import Gtk from "gi://Gtk"
 import GLib from "gi://GLib"
 import Gio from "gi://Gio"
 
-import icons, { substitutes } from "./icons"
-import options from "../options"
+import icons, { substitutes } from "$lib/icons"
 import { hypr, notifd } from "$lib/services"
-import { Opt } from "./option"
-import { Gdk } from "ags/gtk4"
+
+import options from "../options"
 
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
+
+export function fileExists(path: string) { return GLib.file_test(path, GLib.FileTest.EXISTS) }
 
 export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) {
 	if (enable === undefined)
@@ -24,17 +26,6 @@ export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) 
 		widget.add_css_class(name)
 	else
 		widget.remove_css_class(name)
-}
-
-export function duration(length: number) {
-	const hours = Math.floor(length / 3600);
-	const min = Math.floor((length % 3600) / 60);
-	const sec = Math.floor(length % 60);
-	const sec0 = sec < 10 ? "0" : "";
-
-	return hours
-		? `${hours}:${min < 10 ? "0" : ""}${min}:${sec0}${sec}`
-		: `${min}:${sec0}${sec}`;
 }
 
 export async function notify({
@@ -106,48 +97,47 @@ export function toggleWindow(name: string | undefined, hide: boolean = true) {
 export function onWindowToggle(name: string, callback: (w: Gtk.Window) => void) {
 	app.connect("window-toggled", (_: any, w: Gtk.Window) => {
 		if (w.name === name) {
-			callback(w);
-		}
-	});
-}
-
-
-export function checkDefault(opts: Opt<any>[]) {
-	return opts.some(opt => {
-		try {
-			return JSON.stringify(opt.get()) !== JSON.stringify(opt.get_default())
-		} catch {
-			return opt.get() !== opt.get_default()
+			callback(w)
 		}
 	})
+}
+
+export function duration(length: number) {
+	const hours = Math.floor(length / 3600)
+	const min = Math.floor((length % 3600) / 60)
+	const sec = Math.floor(length % 60)
+	const sec0 = sec < 10 ? "0" : ""
+
+	return hours
+		? `${hours}:${min < 10 ? "0" : ""}${min}:${sec0}${sec}`
+		: `${min}:${sec0}${sec}`
 }
 
 export function range(length: number, start = 1) {
 	return Array.from({ length }, (_, i) => i + start)
 }
 
-export function lookupIcon(name: string, size = 16) {
-	if (!name) return null;
+export function lookupIconName(name: string, size = 16) {
+	if (!name) return null
 
-	const display = Gdk.Display.get_default();
-	if (!display) return null;
+	const display = Gdk.Display.get_default()
+	if (!display) return null
 
-	const iconTheme = Gtk.IconTheme.get_for_display(display);
-	const textDir = Gtk.Widget.get_default_direction();
+	const iconTheme = Gtk.IconTheme.get_for_display(display)
 
-	const monitors = display.get_monitors();
-	const n_monitors = monitors.get_n_items();
-	const monitor = n_monitors > 0 ? monitors.get_item(0) as Gdk.Monitor : null;
-	const scale = monitor ? monitor.get_scale_factor() : 1;
-	const icon = Gio.ThemedIcon.new(name);
+	const monitors = display.get_monitors()
+	const n_monitors = monitors.get_n_items()
+	const monitor = n_monitors > 0 ? monitors.get_item(0) as Gdk.Monitor : null
+	const scale = monitor ? monitor.get_scale_factor() : 1
+	const icon = Gio.ThemedIcon.new(name)
 
 	const info = iconTheme.lookup_by_gicon(
 		icon,
 		size,
 		Gtk.IconLookupFlags.FORCE_SYMBOLIC,
-		textDir,
+		Gtk.Widget.get_default_direction(),
 		scale
-	);
+	)
 
 	return info.get_icon_name()
 }
@@ -166,7 +156,7 @@ export function icon(name: string | null, fallback = icons.missing): string {
 
 	// @ts-ignore: Valid keys
 	const resolved = substitutes[name] || name
-	const found = lookupIcon(resolved)
+	const found = lookupIconName(resolved)
 	return found || fallback
 }
 

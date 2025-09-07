@@ -7,26 +7,30 @@ import { Astal, Gdk, Gtk } from "ags/gtk4"
 import AstalMpris from "gi://AstalMpris"
 import AstalWp from "gi://AstalWp"
 import AstalNetwork from "gi://AstalNetwork"
-
 import AstalHyprland from "gi://AstalHyprland"
 import AstalBluetooth from "gi://AstalBluetooth"
 import GdkPixbuf from "gi://GdkPixbuf"
+import Pango from "gi://Pango"
 
 import { Placeholder } from "widget/shared/Placeholder"
 import PopupWindow, { Position } from "widget/shared/PopupWindow"
 import { Arrow, ArrowToggleButton, Menu, opened, set_opened, SimpleToggleButton } from "./ToggleButton"
 
-import { Asusctl } from "$service/asusctl"
 import { env } from "$lib/env"
 import icons from "$lib/icons"
-import { bash, dependencies, duration, launchApp, lookupIcon, toggleClass } from "$lib/utils"
+import { bash, dependencies, duration, launchApp, lookupIconName, toggleClass } from "$lib/utils"
 import { asusctl, audio, brightness, bt, hypr, media, net, notifd, pp } from "$lib/services"
+
+import { Asusctl } from "$service/asusctl"
 
 import options from "options"
 
 const { bar, quicksettings } = options
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
+const { COVER, SCALE_DOWN } = Gtk.ContentFit
+const { BILINEAR } = GdkPixbuf.InterpType
+
 
 const { AUDIO_SOURCE, STREAM_OUTPUT_AUDIO, AUDIO_SINK } = AstalWp.MediaClass
 const { NEVER } = Gtk.PolicyType
@@ -59,6 +63,7 @@ namespace Audio {
 					<label
 						xalign={0}
 						maxWidthChars={28}
+						ellipsize={Pango.EllipsizeMode.END}
 						label={createBinding(node, "name").as((n) => n || "")}
 					/>
 					<slider
@@ -141,16 +146,15 @@ namespace Profiles {
 			.join(" ")
 	}
 
-	type Provider = {
+	interface Provider {
 		getActive: () => Accessor<string>,
 		getProfiles: () => string[],
 		setActive: (p: string) => void,
 		iconFor: (p: string) => string,
 		labelFor: (p: string) => string,
-		extraSettings?: JSX.Element,
+		extraSettings?: Node,
 		toggleDefaults: () => [string, string]
 	}
-
 	const asusProvider: Provider = {
 		getActive: () => createBinding(asusctl, "profile"),
 		getProfiles: () => asusctl.profiles,
@@ -161,7 +165,7 @@ namespace Profiles {
 		labelFor: (p) => p,
 		extraSettings: <Settings callback={() => launchApp("rog-control-center")} />,
 		toggleDefaults: () => ["Quiet", "Balanced"],
-	};
+	}
 
 	const powerProvider: Provider | undefined = pp?.version ? {
 		getActive: () => createBinding(pp, "activeProfile"),
@@ -171,17 +175,18 @@ namespace Profiles {
 		iconFor: (p) => icons.powerprofile[p],
 		labelFor: (p) => prettify(p),
 		toggleDefaults: () => {
-			const profiles = pp.get_profiles();
+			const profiles = pp.get_profiles()
 			if (profiles.length >= 2) {
-				return [profiles[0].profile, profiles[1].profile];
+				return [profiles[0].profile, profiles[1].profile]
 			}
-			return ["", ""]; // fallback
+			return ["", ""]
 		},
-	} : undefined;
+	} : undefined
 
 	function makeToggle(provider: Provider) {
-		const active = provider.getActive();
-		const [on, off] = provider.toggleDefaults();
+		const active = provider.getActive()
+		const [on, off] = provider.toggleDefaults()
+
 		return (
 			<ArrowToggleButton
 				name="profile-selector"
@@ -191,12 +196,12 @@ namespace Profiles {
 				deactivate={() => provider.setActive(off)}
 				connection={active.as(p => p !== off)}
 			/>
-		);
+		)
 	}
 
 	function makeSelector(provider: Provider) {
-		const active = provider.getActive();
-		const profiles = provider.getProfiles();
+		const active = provider.getActive()
+		const profiles = provider.getProfiles()
 		return (
 			<Menu name="profile-selector" iconName={active.as(p => provider.iconFor(p))} title="Profile Selector">
 				<box orientation={VERTICAL} hexpand>
@@ -216,7 +221,7 @@ namespace Profiles {
 					)}
 				</box>
 			</Menu>
-		);
+		)
 	}
 
 	function MissingToggle() {
@@ -226,7 +231,7 @@ namespace Profiles {
 				iconName={icons.missing}
 				label="No Provider"
 			/>
-		);
+		)
 	}
 
 	function MissingSelector() {
@@ -234,55 +239,66 @@ namespace Profiles {
 			<Menu name="missing-profile" iconName={icons.missing} title="Install asusctl or powerprofiles daemon">
 				<Placeholder iconName={icons.missing} label="No power profile provider found" />
 			</Menu>
-		);
+		)
 	}
 
-	const provider = asusctl.available ? asusProvider : powerProvider;
+	const provider = asusctl.available ? asusProvider : powerProvider
 
-	export const Toggle = provider ? () => makeToggle(provider) : MissingToggle;
-	export const Selector = provider ? () => makeSelector(provider) : MissingSelector;
+	export const Toggle = provider ? () => makeToggle(provider) : MissingToggle
+	export const Selector = provider ? () => makeSelector(provider) : MissingSelector
 }
 
 namespace Bluetooth {
 	function Item({ device }: { device: AstalBluetooth.Device }) {
-		const connecting = createBinding(device, "connecting");
-		const percentage = createBinding(device, "battery_percentage");
+		const connecting = createBinding(device, "connecting")
+		const label = createComputed(
+			[
+				createBinding(device, "name"),
+				createBinding(device, "address"),
+				createBinding(device, "batteryPercentage"),
+				createBinding(device, "paired")
+			],
+			(name, address, battery, paired) => {
+				const displayName = name ?? address
+				const bat = paired && battery != undefined
+					? ` ${(battery * 100)}%`.replace(/-/g, "")
+					: ""
+				const isPaired = paired ? " • Paired" : ""
+				return `${displayName}${bat}${isPaired}`
+			}
+		)
 
-		let btn: Gtk.Button;
+		let btn: Gtk.Button
 
 		return (
-			<button $={self => (btn = self)}>
+			<button $={self => (btn = self)} tooltipText={createBinding(device, "paired").as(p => p ? "Right-click to unpair" : "")}>
 				<Gtk.GestureClick
-					nPoints={1}
-					onPressed={g => {
-						const mBtn = g.get_current_button();
+					onPressed={self => {
+						const mBtn = self.get_current_button()
 						switch (mBtn) {
 							case Gdk.BUTTON_PRIMARY:
 								device[device.get_connected() ? "disconnect_device" : "connect_device"](() =>
 									toggleClass(btn, "active", !device.get_connected())
-								);
-								break;
+								)
+								break
 							case Gdk.BUTTON_SECONDARY:
 								if (device.paired) {
-									bash`bluetoothctl remove ${device.get_address()}`;
+									bash`bluetoothctl remove ${device.get_address()}`
 								}
-								break;
+								break
 						}
+						self.reset()
 					}}
 				/>
 
 				<box class="bluetooth-item horizontal">
 					<image iconName={createBinding(device, "icon").as(i => i + "-symbolic")} />
-					<label label={createBinding(device, "name")} />
-					<label
-						visible={percentage.as(v => v != undefined)}
-						label={percentage.as(v => ` ${v * 100}%`.replace(/-/g, ""))}
-					/>
+					<label label={label} />
 					<box hexpand />
 					<Gtk.Spinner spinning={connecting} visible={connecting} />
 				</box>
 			</button>
-		);
+		)
 	}
 
 	export function Toggle() {
@@ -312,7 +328,13 @@ namespace Bluetooth {
 
 	export function Selector() {
 		const adapter = createBinding(bt, "adapter")
-		const devices = createBinding(bt, "devices")
+		const devices = createBinding(bt, "devices").as(d =>
+			(d ?? []).slice().sort((a, b) => {
+				const aName = a.name && a.name.trim() !== ""
+				const bName = b.name && b.name.trim() !== ""
+				return (bName ? 1 : 0) - (aName ? 1 : 0)
+			})
+		)
 
 		return (
 			<Menu
@@ -322,7 +344,7 @@ namespace Bluetooth {
 				headerChild={
 					<With value={adapter}>
 						{adapter => {
-							if (!adapter) return <box hexpand /> // no button if no adapter
+							if (!adapter) return <box visible={false} />
 
 							const discovering = createBinding(adapter, "discovering")
 
@@ -333,56 +355,52 @@ namespace Bluetooth {
 							}
 
 							return (
-								<box visible={!!adapter}>
-									<box hexpand />
-									<button halign={END} onClicked={onToggleDiscover}>
-										<label label={discovering.as(d => (d ? "Stop searching" : "Search devices"))} />
+								<centerbox hexpand>
+									<button $type="end" onClicked={onToggleDiscover}>
+										<label label={discovering.as(d => (d ? "Cancel" : "Scan"))} />
 									</button>
-								</box>
+								</centerbox>
 							)
 						}}
 					</With>
-				}
-				children={
-					<With value={adapter}>
-						{adapter => {
-							if (!adapter)
-								return (
+				}>
+				<With value={adapter}>
+					{adapter => {
+						if (!adapter)
+							return (
+								<Placeholder
+									iconName={icons.bluetooth.disabled}
+									label="No Device Found"
+								/>
+							)
+
+						const discovering = createBinding(adapter, "discovering")
+						const hasDevices = devices.as(d => d.length > 0)
+
+						return (
+							<box orientation={VERTICAL}>
+								<revealer halign={CENTER} revealChild={hasDevices.as(v => !v)} transitionDuration={options.transition.duration}>
 									<Placeholder
 										iconName={icons.bluetooth.disabled}
-										label="No Device Found"
+										label={discovering.as(d => (d ? "Searching for devices..." : "No devices found"))}
 									/>
-								)
-
-
-							const discovering = createBinding(adapter, "discovering")
-							const hasDevices = devices.as(d => d.length > 0)
-
-							return (
-								<box orientation={VERTICAL}>
-									<revealer halign={CENTER} revealChild={hasDevices.as(v => !v)}>
-										<Placeholder
-											iconName={icons.bluetooth.disabled}
-											label={discovering.as(d => (d ? "Searching for devices..." : "No devices found"))}
-										/>
-									</revealer>
-									<revealer revealChild={hasDevices}>
-										<Gtk.ScrolledWindow class="device-scroll" vexpand>
-											<box orientation={VERTICAL} vexpand hexpand>
-												<For each={devices}>
-													{(dev: AstalBluetooth.Device) => <Item device={dev} />}
-												</For>
-											</box>
-										</Gtk.ScrolledWindow>
-									</revealer>
-									<Gtk.Separator />
-									<Settings callback={() => bash`XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth`} />
-								</box>
-							)
-						}}
-					</With>
-				}
-			/>
+								</revealer>
+								<revealer revealChild={hasDevices} transitionDuration={options.transition.duration}>
+									<Gtk.ScrolledWindow class="device-scroll" vexpand>
+										<box orientation={VERTICAL} vexpand hexpand>
+											<For each={devices}>
+												{(dev: AstalBluetooth.Device) => <Item device={dev} />}
+											</For>
+										</box>
+									</Gtk.ScrolledWindow>
+								</revealer>
+								<Gtk.Separator />
+								<Settings callback={() => bash`XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth`} />
+							</box>
+						)
+					}}
+				</With>
+			</Menu>
 		)
 	}
 }
@@ -409,43 +427,29 @@ namespace Wifi {
 		const wifi = createBinding(net, "wifi")
 		return (
 			<With value={wifi}>
-				{w => (
-					<ArrowToggleButton
-						name="wifi-selector"
-						iconName={createBinding(w, "iconName")}
-						label={
-							createComputed(
-								[createBinding(w, "activeAccessPoint").as(v => v?.ssid || ""), createBinding(w, "device")],
-								(ssid, dev) => {
-									if (!dev) return "No device"
-
-									if (ssid) {
-										return ssid;
-									}
-
-									// TODO: Implement
-									// const iface = dev.get_ip_iface();
-									// const result = bashSync`nmcli -f DEVICE,STATE device | grep "^${iface}.*unmanaged"`.toString().trim();
-
-									// if (result) {
-									// 	return "Monitor Mode";
-									// }
-
-									return "Not Connected";
-								}
-							)
-						}
-						activateOnArrow={true}
-						activate={() => {
-							w.set_enabled(true)
-							timeout(100, () => { w.scan() })
-						}}
-						deactivate={() => {
-							w.set_enabled(false)
-						}}
-						connection={createBinding(w, "enabled")}
-					/>
-				)}
+				{w => {
+					if (!w) return <ArrowToggleButton name="wifi-selector" iconName={icons.wifi.offline} label={"No device"} />
+					return (
+						<ArrowToggleButton
+							name="wifi-selector"
+							iconName={createBinding(w, "iconName")}
+							// TODO: Monitor mode tracking
+							label={
+								createBinding(w, "activeAccessPoint")
+									.as(ssid => ssid?.ssid || "Not Connected")
+							}
+							activateOnArrow={true}
+							activate={() => {
+								w.set_enabled(true)
+								timeout(100, () => { w.scan() })
+							}}
+							deactivate={() => {
+								w.set_enabled(false)
+							}}
+							connection={createBinding(w, "enabled")}
+						/>
+					)
+				}}
 			</With>
 		)
 	}
@@ -468,22 +472,22 @@ namespace Wifi {
 										label="No device found" />
 								)
 
-							const access_points = createBinding(wifi, "accessPoints")
+							const aps = createBinding(wifi, "accessPoints")
 								.as(aps => aps.filter(ap => ap.ssid).sort((a, b) => b.strength - a.strength))
-							const has_aps = access_points.as(aps => aps.length > 0)
+							const hasAps = aps.as(aps => aps.length > 0)
 
 							return (
 								<box orientation={VERTICAL}>
-									<revealer halign={CENTER} revealChild={has_aps.as(v => !v)}>
+									<revealer halign={CENTER} revealChild={hasAps.as(v => !v)} transitionDuration={options.transition.duration}>
 										<Placeholder
 											iconName={icons.wifi.scanning}
-											label={has_aps.as(v => (v ? "" : "Searching for Wi-Fi networks..."))}
+											label={hasAps.as(v => (v ? "" : "Searching for Wi-Fi networks..."))}
 										/>
 									</revealer>
-									<revealer revealChild={has_aps}>
+									<revealer revealChild={hasAps} transitionDuration={options.transition.duration}>
 										<Gtk.ScrolledWindow class="device-scroll" hscrollbarPolicy={NEVER}>
 											<box orientation={VERTICAL} vexpand hexpand>
-												<For each={access_points}>{ap => <Item ap={ap} />}</For>
+												<For each={aps}>{ap => <Item ap={ap} />}</For>
 											</box>
 										</Gtk.ScrolledWindow>
 									</revealer>
@@ -491,8 +495,7 @@ namespace Wifi {
 									<Settings callback={() => bash`XDG_CURRENT_DESKTOP=GNOME gnome-control-center wifi`} />
 								</box>
 							)
-						}
-						}
+						}}
 					</With>
 				}
 			/>
@@ -512,14 +515,14 @@ namespace Mirror {
 
 	function Item({ monitor, update }: { monitor: AstalHyprland.Monitor, update: () => void }) {
 		// @ts-ignore: NOTE: A hacky way tracking mirroring in the existing type
-		const mirrored = monitor.mirrorOf == "none";
+		const mirrored = monitor.mirrorOf == "none"
 
 		return (
 			<button
 				onClicked={() => {
-					const command = `keyword monitor ${monitor.name}, highres, auto, 1${mirrored ? `, mirror, ${hypr?.get_monitor(0).name}` : ''}`;
-					hypr.message_async(command, null);
-					update();
+					const command = `keyword monitor ${monitor.name}, highres, auto, 1${mirrored ? `, mirror, ${hypr?.get_monitor(0).name}` : ''}`
+					hypr.message_async(command, null)
+					update()
 				}}
 			>
 				<box class="mirror-item horizontal">
@@ -527,7 +530,7 @@ namespace Mirror {
 					<label label={`${monitor.model} (${monitor.name}) ${mirrored ? "" : "(Mirrored)"}`} />
 				</box>
 			</button>
-		);
+		)
 	}
 
 	const [monitors, set_monitors] = createState(getMonitors())
@@ -557,10 +560,11 @@ namespace Mirror {
 					<revealer
 						halign={CENTER}
 						revealChild={hasMonitors.as(v => !v)}
+						transitionDuration={options.transition.duration}
 					>
 						<Placeholder iconName={icons.missing} label={"No display devices found"} />
 					</revealer>
-					<revealer revealChild={hasMonitors}>
+					<revealer revealChild={hasMonitors} transitionDuration={options.transition.duration}>
 						<Gtk.ScrolledWindow class="device-scroll" hscrollbarPolicy={NEVER}>
 							<box orientation={VERTICAL} vexpand hexpand>
 								<For each={monitors}>
@@ -691,12 +695,14 @@ function DNDToggle() {
 
 function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const { PLAYING } = AstalMpris.PlaybackStatus
-	const { PLAYLIST, TRACK, NONE, UNSUPPORTED } = AstalMpris.Loop
+	const { PLAYLIST, TRACK, NONE } = AstalMpris.Loop
+	const { ON, OFF } = AstalMpris.Shuffle
 
 	const title = createBinding(player, "title").as(t => t || "Untitled")
 	const artist = createBinding(player, "artist").as(a => a || "Unknown Artist")
+	// TODO: Handle weird mpv format
 	const cover = createBinding(player, "coverArt")
-	const icon = createBinding(player, "entry").as(e => e && lookupIcon(e) ? e : "audio-x-generic-symbolic")
+	const icon = createBinding(player, "entry").as(e => e && lookupIconName(e) ? e : "audio-x-generic-symbolic")
 	const pos = createBinding(player, "position").as(p => player.length > 0 ? p / player.length : 0)
 	const status = createBinding(player, "playbackStatus")
 	const loop = createBinding(player, "loopStatus")
@@ -707,7 +713,6 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const prev = createBinding(player, "canGoPrevious")
 
 	const playIcon = status.as(s => s === PLAYING ? icons.mpris.playing : icons.mpris.paused)
-
 	const loopIcon = loop.as(s => {
 		switch (s) {
 			case NONE: return icons.mpris.loop.none
@@ -716,17 +721,45 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 			default: return icons.mpris.loop.none
 		}
 	})
+	const loopHint = createBinding(player, "loopStatus").as((v) => {
+		switch (v) {
+			case NONE: return "Loop: Disabled"
+			case PLAYLIST: return "Loop: Playlist"
+			case TRACK: return "Loop: Track"
+			default: return "Loop: Disabled"
+		}
+	})
+
+	function cycleLoop(self: Gtk.Widget) {
+		switch (player.loopStatus) {
+			case NONE: player.set_loop_status(PLAYLIST); break
+			case PLAYLIST: player.set_loop_status(TRACK); break
+			case TRACK: player.set_loop_status(NONE); break
+			default: toggleClass(self, "active", false); break
+		}
+	}
+
+	function cycleShuffle(self: Gtk.Widget) {
+		switch (player.shuffleStatus) {
+			case OFF: player.set_shuffle_status(ON); toggleClass(self, "active", true); break
+			case ON: player.set_shuffle_status(OFF); toggleClass(self, "active", false); break
+			default: toggleClass(self, "active", false); break
+		}
+	}
 
 	return (
 		<box class="player" vexpand={false}>
 			<Gtk.Picture
 				class="cover-art"
+				// @ts-ignore: Valid
 				paintable={
-					cover.as(url => Gdk.Texture.new_for_pixbuf(
-						GdkPixbuf.Pixbuf.new_from_file(url)?.scale_simple(100, 100, GdkPixbuf.InterpType.BILINEAR)!
-					))
+					cover.as(url => {
+						if (!url) return null
+						const pixbuf = GdkPixbuf.Pixbuf.new_from_file(url).scale_simple(100, 100, BILINEAR)!
+						return Gdk.Texture.new_for_pixbuf(pixbuf)
+					})
 				}
-				contentFit={Gtk.ContentFit.SCALE_DOWN}
+				contentFit={SCALE_DOWN}
 				canShrink
 			/>
 
@@ -751,14 +784,7 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 					/>
 					<box>
 						<button
-							onClicked={(self) => {
-								switch (player.loopStatus) {
-									case NONE: player.set_loop_status(PLAYLIST); toggleClass(self, "active", true); break
-									case PLAYLIST: player.set_loop_status(TRACK); toggleClass(self, "active", true); break
-									case TRACK: player.set_loop_status(NONE); toggleClass(self, "active", false); break
-									default: toggleClass(self, "active", false); break
-								}
-							}}
+							onClicked={cycleShuffle}
 							visible={shuffle.as(s => s != AstalMpris.Shuffle.UNSUPPORTED)}>
 							<image iconName={icons.mpris.shuffle} useFallback />
 						</button>
@@ -772,15 +798,9 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 							<image iconName={icons.mpris.next} useFallback />
 						</button>
 						<button
-							onClicked={(self) => {
-								switch (player.loopStatus) {
-									case NONE: player.set_loop_status(PLAYLIST); toggleClass(self, "active", true); break
-									case PLAYLIST: player.set_loop_status(TRACK); toggleClass(self, "active", true); break
-									case TRACK: player.set_loop_status(NONE); toggleClass(self, "active", false); break
-									default: toggleClass(self, "active", false); break
-								}
-							}}
-							visible={loop.as(s => s != UNSUPPORTED)}
+							tooltipText={loopHint}
+							onClicked={cycleLoop}
+							visible={loop.as(s => s != AstalMpris.Loop.UNSUPPORTED)}
 						>
 							<image iconName={loopIcon} useFallback />
 						</button>
@@ -822,10 +842,10 @@ export default function QuickSettings() {
 				class="avatar"
 				paintable={
 					Gdk.Texture.new_for_pixbuf(
-						GdkPixbuf.Pixbuf.new_from_file(env.paths.avatar)?.scale_simple(65, 65, GdkPixbuf.InterpType.BILINEAR)!
+						GdkPixbuf.Pixbuf.new_from_file(env.paths.avatar).scale_simple(64, 64, GdkPixbuf.InterpType.BILINEAR)!
 					)
 				}
-				contentFit={Gtk.ContentFit.SCALE_DOWN}
+				contentFit={COVER}
 				canShrink
 			/>
 			<box orientation={VERTICAL} valign={CENTER}>
@@ -846,7 +866,7 @@ export default function QuickSettings() {
 						settings.hide()
 						settings.show()
 					}
-					qsettings?.close()
+					qsettings?.hide()
 				}}
 			>
 				<image iconName={icons.ui.settings} useFallback />
@@ -857,6 +877,7 @@ export default function QuickSettings() {
 		<PopupWindow
 			name="quicksettings"
 			exclusivity={Astal.Exclusivity.EXCLUSIVE}
+			application={app}
 			layout={layout}
 		>
 			<box class="quicksettings vertical"

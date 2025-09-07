@@ -5,8 +5,8 @@ $bar-spacing: $spacing * 0.3;
 
   > :not(window) {
     border-radius: $radius;
-    margin: $bar-spacing;
-    padding: $padding * 0.4 $padding * 0.8;
+    padding: $padding * 0.4 $padding * 0.4;
+    margin: $bar-spacing $bar-spacing * 2;
     font-weight: bold;
   }
 }

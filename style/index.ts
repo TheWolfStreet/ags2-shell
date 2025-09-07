@@ -1,9 +1,12 @@
 import app from "ags/gtk4/app"
 import { writeFile } from "ags/file"
+
 import GLib from "gi://GLib"
+
 import { Opt, setHandler } from "$lib/option"
 import { env } from "$lib/env"
 import { bash, dependencies } from "$lib/utils"
+
 import options from "options"
 
 const deps = ["font", "theme", "bar.corners", "bar.position"]
@@ -55,7 +58,7 @@ const variables = () => {
 		$("padding", `${padding.get()}pt`),
 		$("spacing", `${spacing.get()}pt`),
 		$("radius", `${radius.get()}px`),
-		$("transition", `${options.transition.get()}ms`),
+		$("transition", `${options.transition.duration.get()}ms`),
 		$("shadows", `${shadows.get()}`),
 		$("widget-bg", `transparentize(${t(dark.widget, light.widget)}, ${widget.opacity.get() / 100})`),
 		$("hover-bg", `transparentize(${t(dark.widget, light.widget)}, ${(widget.opacity.get() * 0.9) / 100})`),

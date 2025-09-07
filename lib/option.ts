@@ -1,14 +1,15 @@
-import { env } from "$lib/env"
 import { Accessor, createState, Setter } from "ags"
 import { readFile, writeFile } from "ags/file"
-import { ensurePath } from "./utils"
 
-namespace store {
+import { env } from "$lib/env"
+import { ensurePath } from "$lib/utils"
+
+namespace Store {
 	export const path = `${env.paths.cfg}/options.json`
 
 	export function modify(updater: (data: Record<string, any>) => void) {
 		try {
-			ensurePath(store.path)
+			ensurePath(Store.path)
 			const raw = readFile(path) || "{}"
 			const data = JSON.parse(raw)
 			updater(data)
@@ -19,7 +20,7 @@ namespace store {
 	}
 
 	export function read() {
-		ensurePath(store.path)
+		ensurePath(Store.path)
 		const raw = readFile(path) || "{}"
 		return JSON.parse(raw)
 	}
@@ -66,7 +67,7 @@ export class Opt<T> extends Accessor<T> {
 }
 
 function isStructured(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === 'object' && !Array.isArray(value);
+	return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 type Options<T> =
@@ -75,20 +76,21 @@ type Options<T> =
 
 export function mkOptions<T>(node: T, path = ""): Options<T> {
 	if (isStructured(node)) {
-		const newNode = {} as any;
+		const newNode = {} as any
+
 		for (const key in node) {
 			if (Object.prototype.hasOwnProperty.call(node, key)) {
-				const subPath = path ? `${path}.${key}` : key;
-				newNode[key] = mkOptions((node as any)[key], subPath);
+				const subPath = path ? `${path}.${key}` : key
+				newNode[key] = mkOptions((node as any)[key], subPath)
 			}
 		}
-		return newNode;
+		return newNode
 	}
 
-	const opt = new Opt(node);
-	opt.id = path;
+	const opt = new Opt(node)
+	opt.id = path
 
-	return opt as any;
+	return opt as Options<T>
 }
 
 export function setHandler(

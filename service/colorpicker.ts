@@ -36,19 +36,19 @@ export default class ColorPicker extends GObject.Object {
 		this.#colors = value
 	}
 
-	readonly copyColor = async (color: string) => {
+	readonly wlCopy = async (entry: string) => {
 		if (!dependencies("wl-copy", "hyprpicker")) return
 
-		await execAsync(`wl-copy "${color}"`)
+		await execAsync(`wl-copy "${entry}"`)
 	}
 
-	readonly pickColor = async () => {
+	readonly pick = async () => {
 		if (!dependencies("wl-copy", "hyprpicker")) return
 
 		const color = await execAsync("hyprpicker -r")
 		if (!color) return
 
-		await this.copyColor(color)
+		await this.wlCopy(color)
 
 		const colors = this.#colors
 		if (!colors.includes(color)) {

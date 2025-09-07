@@ -76,6 +76,9 @@ async function setupHyprland() {
 			`layerrule ignorealpha ${/* based on shadow color */.29}, gtk4-layer-shell`,
 		])
 	} else {
+		sendBatch([
+			`layerrule unset, gtk4-layer-shell`,
+		])
 
 	}
 

@@ -3,11 +3,16 @@ import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 import { timeout } from "ags/time"
 
+import Pango from "gi://Pango"
+
 import icons from "$lib/icons"
 import { Props, toggleClass } from "$lib/utils"
 
+import options from "options"
+
 const { SLIDE_DOWN } = Gtk.RevealerTransitionType
 const { VERTICAL } = Gtk.Orientation
+const { END } = Pango.EllipsizeMode
 
 export const [opened, set_opened] = createState("")
 app.connect("window-toggled", (_, w) => {
@@ -88,16 +93,19 @@ export function ArrowToggleButton({
 			if (opened.get() === name) set_opened("")
 		} else activate?.()
 	}
-
+	const isAccessor = typeof label == "function"
+	const tooltipText = isAccessor ? label.as(l => l.length > 13 ? l : "") : (label && label.length > 13 ? label : "")
 	return (
 		<box class="toggle-button" $={self => {
 			toggleClass(self, "active", connection?.get() ?? false)
 			connection?.subscribe(() => toggleClass(self, "active", connection.get()))
 		}} >
-			<button onClicked={toggleActive}>
+			<button onClicked={toggleActive}
+				tooltipText={tooltipText}
+			>
 				<box class="horizontal" hexpand>
 					<image class="icon" iconName={iconName} useFallback />
-					<label class="label" maxWidthChars={12} label={label} />
+					<label class="label" ellipsize={END} maxWidthChars={11} label={label} />
 				</box>
 			</button>
 			<Arrow name={name} activate={activateOnArrow ? activate : undefined} visible />
@@ -117,6 +125,7 @@ export function Menu({ name, iconName, title, headerChild, children }: MenuProps
 	return (
 		<revealer
 			transitionType={SLIDE_DOWN}
+			transitionDuration={options.transition.duration}
 			revealChild={opened((n: string) => {
 				return n === name
 			})}
@@ -149,15 +158,18 @@ export function SimpleToggleButton({
 	connection: Accessor<boolean>
 	toggle: () => void
 }) {
+	const isAccessor = typeof label == "function"
+	const tooltipText = isAccessor ? label.as(l => l.length > 13 ? l : "") : (label && label.length > 13 ? label : "")
 	return (
 		<button
-			onClicked={toggle}
 			class="simple-toggle"
+			onClicked={toggle}
+			tooltipText={tooltipText}
 			$={self => { connection.subscribe(() => toggleClass(self, "active", connection.get())) }}
 		>
 			<box class="horizontal">
 				<image iconName={iconName} useFallback />
-				<label maxWidthChars={10} label={label} />
+				<label ellipsize={END} maxWidthChars={11} label={label} />
 			</box>
 		</button>
 	)

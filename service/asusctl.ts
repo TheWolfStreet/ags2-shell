@@ -2,6 +2,7 @@ import GObject, { getter, register, setter } from "ags/gobject"
 
 import { sh, bashSync } from "$lib/utils"
 import { hypr } from "$lib/services"
+
 import options from "options"
 
 export namespace Asusctl {
@@ -72,10 +73,10 @@ export default class Asusctl extends GObject.Object {
 
 	readonly nextMode = async () => {
 		if (!this.#available) return
-		const new_mode = this.#mode === "Hybrid" ? "Integrated" : "Hybrid"
-		await sh(`supergfxctl -m ${new_mode}`)
-		const mode_output = await sh("supergfxctl -g")
-		this.#mode = mode_output as Asusctl.Mode
+		const newMode = this.#mode === "Hybrid" ? "Integrated" : "Hybrid"
+		await sh(`supergfxctl -m ${newMode}`)
+		const modeOut = await sh("supergfxctl -g")
+		this.#mode = modeOut as Asusctl.Mode
 		this.notify("mode")
 	}
 

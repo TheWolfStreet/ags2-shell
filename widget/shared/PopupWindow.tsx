@@ -1,5 +1,5 @@
+import { Time, timeout } from "ags/time"
 import { Accessor, createState, Node } from "ags"
-import app from "ags/gtk4/app"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 
@@ -8,7 +8,6 @@ import Graphene from "gi://Graphene"
 import { Props } from "$lib/utils"
 
 import options from "options"
-import GLib from "gi://GLib?version=2.0"
 
 export type Position =
 	'center' | 'top' | 'top-right' | 'top-center' | 'top-left' |
@@ -61,39 +60,36 @@ function getPosConfig(pos: Position) {
 // declare the class itself
 
 interface PopupWindowProps extends Astal.Window.ConstructorProps {
-	children?: Node | Node[]
-	layout?: Position
-	transitionType?: Gtk.RevealerTransitionType
+	children: Node | Node[]
+	layout: Position
+	transitionType: Gtk.RevealerTransitionType
 }
 
 class PopupWindowClass extends Astal.Window {
-	_set_reveal: (v: boolean) => void = () => { }
-	_hide_timeout: GLib.Source | undefined
+	_set_reveal?: (v: boolean) => void
+	_hide_timeout?: Time
+
+	private _delayed_hide(callback: () => void) {
+		this._hide_timeout?.cancel()
+		this._hide_timeout = timeout(options.transition.duration.get(), callback)
+	}
 
 	override vfunc_show() {
-		if (this._hide_timeout) {
-			clearTimeout(this._hide_timeout)
-			this._hide_timeout = undefined
-		}
+		this._hide_timeout?.cancel()
 		super.vfunc_show()
-		this._set_reveal(true)
+		this._set_reveal?.(true)
 	}
 
 	override vfunc_hide() {
-		this._set_reveal(false)
-		this._hide_timeout = setTimeout(() => {
+		this._set_reveal?.(false)
+		if (this._set_reveal) {
+			this._delayed_hide(() => {
+				this.notify("visible")
+				super.vfunc_hide()
+			})
+		} else {
 			super.vfunc_hide()
-			this._hide_timeout = undefined
-		}, options.transition.get())
-	}
-
-	override vfunc_close_request() {
-		this._set_reveal(false)
-		this._hide_timeout = setTimeout(() => {
-			super.vfunc_close_request()
-			this._hide_timeout = undefined
-		}, options.transition.get())
-		return true
+		}
 	}
 }
 
@@ -101,17 +97,20 @@ export const PopupWindowImpl = GObject.registerClass(PopupWindowClass)
 
 export default function PopupWindow({
 	name = 'popup',
-	children,
+	class: className,
 	layout = 'center',
+	transitionType,
+	decorated = false,
+	visible = false,
+	keymode = Astal.Keymode.ON_DEMAND,
+	anchor = Astal.WindowAnchor.TOP | Astal.WindowAnchor.BOTTOM | Astal.WindowAnchor.LEFT | Astal.WindowAnchor.RIGHT,
+	exclusivity = Astal.Exclusivity.IGNORE,
+	layer = Astal.Layer.TOP,
+	handleClosing = true,
 	onKey,
 	onClick,
-	transitionType,
-	exclusivity = Astal.Exclusivity.IGNORE,
-	layer = Astal.Layer.OVERLAY,
-	keymode = Astal.Keymode.ON_DEMAND,
-	resizable = false,
-	visible = false,
-	anchor = Astal.WindowAnchor.TOP | Astal.WindowAnchor.BOTTOM | Astal.WindowAnchor.LEFT | Astal.WindowAnchor.RIGHT,
+	children,
+	$,
 	...props
 }: Props<PopupWindowClass, PopupWindowProps> & {
 	onKey?: (
@@ -129,6 +128,7 @@ export default function PopupWindow({
 		w: Gtk.Window,
 		content: Gtk.Widget
 	) => void
+	handleClosing?: boolean
 }) {
 	let content: Gtk.Widget
 	let win: PopupWindowClass
@@ -138,42 +138,38 @@ export default function PopupWindow({
 		: getPosConfig(layout)
 
 	const isAccessor = typeof alignment === 'function'
-	const mon = app.get_monitors()[0].geometry
 	const [reveal, set_reveal] = createState(false)
 
 	return (
 		<PopupWindowImpl
-			{...props}
 			$={w => {
 				w._set_reveal = set_reveal
 				win = w
+				$ && $(w)
 			}}
-			defaultHeight={mon.height}
-			defaultWidth={mon.width}
-			exclusivity={exclusivity}
-			layer={layer}
-			class={`${name} popup-window`}
 			name={name}
-			resizable={resizable}
+			class={`${name} popup-window ${className}`}
+			decorated={decorated}
 			visible={visible}
 			keymode={keymode}
 			anchor={anchor}
+			exclusivity={exclusivity}
+			layer={layer}
+			{...props}
 		>
-			<Gtk.EventControllerKey onKeyPressed={(ctrl, keyval, code, mod) => onKeyHandler(ctrl, keyval, code, mod, win, onKey)} />
-			<Gtk.GestureClick onPressed={(ctrl, n, x, y) => onClickHandler(ctrl, n, x, y, win, content, onClick)} />
+			<Gtk.EventControllerKey onKeyPressed={(ctrl, keyval, code, mod) => handleClosing && onKeyHandler(ctrl, keyval, code, mod, win, onKey)} />
+			<Gtk.GestureClick onPressed={(ctrl, n, x, y) => handleClosing && onClickHandler(ctrl, n, x, y, win, content, onClick)} />
 
-			<overlay>
-				<revealer
-					revealChild={reveal}
-					transitionDuration={options.transition}
-					transitionType={transitionType ?? (isAccessor ? alignment.as(v => v.transitionType) : alignment.transitionType)}
-					halign={isAccessor ? alignment.as(v => v.halign) : alignment.halign}
-					valign={isAccessor ? alignment.as(v => v.valign) : alignment.valign}
-					$={c => content = c}
-				>
-					{children}
-				</revealer>
-			</overlay>
-		</PopupWindowImpl>
+			<revealer
+				revealChild={reveal}
+				transitionDuration={options.transition.duration}
+				transitionType={transitionType ?? (isAccessor ? alignment.as(v => v.transitionType) : alignment.transitionType)}
+				halign={isAccessor ? alignment.as(v => v.halign) : alignment.halign}
+				valign={isAccessor ? alignment.as(v => v.valign) : alignment.valign}
+				$={c => content = c}
+			>
+				{children}
+			</revealer>
+		</PopupWindowImpl >
 	)
 }

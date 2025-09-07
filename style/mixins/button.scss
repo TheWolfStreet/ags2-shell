@@ -1,7 +1,7 @@
 @use "sass:color";
 
 @mixin button-focus() {
-  &:not(calendar) {
+  &:not(popover) {
     box-shadow: inset 0 0 0 $border-width / 2 $primary-bg;
     background-color: $hover-bg;
     color: $hover-fg;
@@ -9,22 +9,28 @@
 }
 
 @mixin button-hover() {
-  box-shadow: inset 0 0 0 $border-width $border-color;
-  background-color: $hover-bg;
-  color: $hover-fg;
+  &:not(popover) {
+    box-shadow: inset 0 0 0 $border-width $border-color;
+    background-color: $hover-bg;
+    color: $hover-fg;
+  }
 }
 
 @mixin button-active() {
-  box-shadow: inset 0 0 0 $border-width $border-color;
-  background-image: $active-gradient;
-  background-color: $primary-bg;
-  color: $primary-fg;
+  &:not(popover) {
+    box-shadow: inset 0 0 0 $border-width $border-color;
+    background-image: $active-gradient;
+    background-color: $primary-bg;
+    color: $primary-fg;
+  }
 }
 
 @mixin button-disabled() {
-  box-shadow: none;
-  background-color: transparent;
-  color: color.scale($fg, $alpha: -70%);
+  &:not(popover) {
+    box-shadow: none;
+    background-color: transparent;
+    color: color.scale($fg, $alpha: -70%);
+  }
 }
 
 @mixin button($flat: false, $reactive: true, $radius: $radius, $focusable: true) {

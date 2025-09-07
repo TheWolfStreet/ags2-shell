@@ -1,5 +1,5 @@
 {
-  description = "My Awesome Desktop Shell";
+  description = "A desktop shell";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
@@ -39,6 +39,7 @@
     extraPackages = with pkgs;
       astalPackages
       ++ [
+        matugen
         libadwaita
         libsoup_3
         dart-sass

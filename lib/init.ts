@@ -1,16 +1,15 @@
 import { execAsync } from "ags/process"
 
+import Gio from "gi://Gio"
+
 import { bash, ensurePath } from "$lib/utils"
 import { env } from "$lib/env"
 import { wp } from "$lib/services"
+import { setHandler } from "$lib/option"
 import hyprinit from "$lib/hyprland"
 import matugen from "$lib/matugen"
 
-import Gio from "gi://Gio"
-
-import { setHandler } from "./option"
 import { initCss } from "style"
-
 import options from "options"
 
 const { scheme, dark, light } = options.theme
@@ -31,39 +30,39 @@ async function updateGtkMode() {
 
 async function tmux() {
 	const hex =
-		scheme.get() === "dark" ? dark.primary.bg.get() : light.primary.bg.get();
+		scheme.get() === "dark" ? dark.primary.bg.get() : light.primary.bg.get()
 
-	await bash(`tmux set -g @main_accent "${hex}"`).catch(() => { });
+	await bash(`tmux set -g @main_accent "${hex}"`).catch(() => { })
 
-	const rawSessions = await bash(`tmux list-sessions -F "#S"`).catch(() => "");
-	if (!rawSessions) return;
+	const rawSessions = await bash(`tmux list-sessions -F "#S"`).catch(() => "")
+	if (!rawSessions) return
 
-	const sessions = rawSessions.split("\n").filter(Boolean);
+	const sessions = rawSessions.split("\n").filter(Boolean)
 	for (const session of sessions) {
-		bash(`tmux set-option -t ${session} @main_accent "${hex}"`).catch(() => { });
+		bash(`tmux set-option -t ${session} @main_accent "${hex}"`).catch(() => { })
 	}
 }
 
 export default async function init() {
-	gtk();
-	scheme.subscribe(gtk);
+	gtk()
+	scheme.subscribe(gtk)
 
-	const tmuxPresent = await execAsync("which tmux").then(() => true).catch(() => false);
+	const tmuxPresent = await execAsync("which tmux").then(() => true).catch(() => false)
 	if (tmuxPresent) {
-		tmux();
-		options.theme.dark.primary.bg.subscribe(tmux);
-		options.theme.light.primary.bg.subscribe(tmux);
-		options.theme.scheme.subscribe(tmux);
+		tmux()
+		options.theme.dark.primary.bg.subscribe(tmux)
+		options.theme.light.primary.bg.subscribe(tmux)
+		options.theme.scheme.subscribe(tmux)
 	}
 
-	updateGtkMode();
-	setHandler(options, ["theme.scheme", "autotheme"], () => updateGtkMode());
-	wp.connect("notify::wallpaper", updateGtkMode);
+	updateGtkMode()
+	setHandler(options, ["theme.scheme", "autotheme"], () => updateGtkMode())
+	wp.connect("notify::wallpaper", updateGtkMode)
 
 	ensurePath(env.paths.tmp)
 	ensurePath(env.paths.cache)
 
-	hyprinit();
-	matugen();
-	initCss();
+	hyprinit()
+	matugen()
+	initCss()
 }

@@ -1,13 +1,11 @@
 window#bar {
-  .batterystate .battery{
+  .battery{
     @include spacing(.5);
   }
 }
 
 window#batterystate {
-  progress {
-    background-color: $primary-bg;
-  }
+  @include slider($width: 0.5em, $slider-width: 4em, $focusable: false, $slider: false);
 
   box {
     @include floating-widget;

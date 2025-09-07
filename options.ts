@@ -4,7 +4,7 @@ import icons from "$lib/icons"
 import { icon } from "$lib/utils"
 
 const options = mkOptions({
-	autotheme: true,
+	autotheme: false,
 
 	theme: {
 		dark: {
@@ -51,7 +51,9 @@ const options = mkOptions({
 		radius: 12,
 	},
 
-	transition: 200,
+	transition: {
+		duration: 200,
+	},
 
 	font: {
 		size: 11,
@@ -67,9 +69,6 @@ const options = mkOptions({
 		},
 		date: {
 			format: "%a %b %-d %H:%M",
-		},
-		battery: {
-			low: 30,
 		},
 		workspaces: {
 			count: 0,

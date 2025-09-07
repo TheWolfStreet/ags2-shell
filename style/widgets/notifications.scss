@@ -20,7 +20,8 @@
     .app-icon {
       border-radius: $radius*0.8;
       margin-right: $spacing / 2;
-      font-size: 1.5em;
+      min-height: 1.5em;
+      min-width: 1.5em;
     }
 
     &.icon {
@@ -49,6 +50,8 @@
     .icon {
       border-radius: $radius*0.8;
       margin-right: $spacing;
+      min-height: 1.5em;
+      min-width: 1.5em;
 
       &.icon {
         border: $border;
@@ -70,10 +73,9 @@
 
   button.close-button {
     @include button($flat: true);
+    border-radius: $radius;
+    padding: $padding * 0.3 $padding * 0.3;
     margin-left: $spacing / 2;
-    border-radius: $radius*0.8;
-    min-width: 1.2em;
-    min-height: 1.2em;
 
     &:active {
       background-image: none;

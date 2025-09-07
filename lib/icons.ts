@@ -38,9 +38,10 @@ export default {
 		refresh: "view-refresh-symbolic",
 		search: "system-search-symbolic",
 		settings: "emblem-system-symbolic",
-		themes: "preferences-desktop-theme-symbolic",
+		themes: "dark-mode-symbolic",
 		tick: "object-select-symbolic",
 		time: "hourglass-symbolic",
+		minus: "minus-large-symbolic",
 		toolbars: "toolbars-symbolic",
 		warning: "dialog-warning-symbolic",
 		avatar: "avatar-default-symbolic",
@@ -126,6 +127,6 @@ export default {
 	},
 	color: {
 		dark: "dark-mode-symbolic",
-		light: "light-mode-symbolic",
+		light: "display-brightness-symbolic",
 	},
 }

@@ -57,11 +57,11 @@ export default class Brightness extends GObject.Object {
 	@getter(String)
 	get kbdIcon(): string {
 		if (this.#kbd == 0) {
-			return "keyboard-brightness-off-symbolic";
+			return "keyboard-brightness-off-symbolic"
 		} else if (this.#kbd == 0.5) {
-			return "keyboard-brightness-medium-symbolic";
+			return "keyboard-brightness-medium-symbolic"
 		}
-		return "keyboard-brightness-high-symbolic";
+		return "keyboard-brightness-high-symbolic"
 	}
 
 	@getter(Number)
@@ -87,10 +87,10 @@ export default class Brightness extends GObject.Object {
 	@getter(String)
 	get iconName(): string {
 		if (this.#display < 0.4) {
-			return "display-brightness-low-symbolic";
+			return "display-brightness-low-symbolic"
 		} else if (this.#display < 0.8) {
-			return "display-brightness-medium-symbolic";
+			return "display-brightness-medium-symbolic"
 		}
-		return "display-brightness-high-symbolic";
+		return "display-brightness-high-symbolic"
 	}
 }

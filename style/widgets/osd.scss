@@ -1,20 +1,26 @@
 @use "sass:color";
 
  window#osd {
-  background-color: transparent;
+  @include slider($width: 0.5em, $focusable: false, $slider: false);
 
-  progress {
-    background-color: $primary-bg;
-    color: $primary-fg;
+  trough {
+    border: none;
   }
 
-    box {
-      @include floating-widget;
+  .muted progress {
+    background-image: none;
+    background-color: color.scale($fg, $alpha: -20%);
+  }
 
-      image {
-        margin: $spacing;
-        padding: $popover-padding;
-        color: color.scale($fg, $alpha: -10%)
-      }
+  .padding {
+    @include floating-widget;
+    padding: $popover-padding * 1.25;
+  }
+
+  .content {
+    image {
+      padding: $popover-padding * 1.4;
+      color: color.scale($fg, $alpha: -10%)
     }
+  }
 }

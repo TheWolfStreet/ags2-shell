@@ -78,7 +78,7 @@ export default class Apps extends GObject.Object {
 				.map(name => this.#apps.fuzzy_query(name)[0])
 				.filter(app => app !== undefined)
 
-			return apps;
+			return apps
 		} catch (e) {
 			console.error("Failed to get favorite apps:", e)
 			return []

@@ -16,7 +16,7 @@ export default class Capturer extends GObject.Object {
 	static instance: Capturer
 
 	static get_default() {
-		return this.instance ??= new Capturer();
+		return this.instance ??= new Capturer()
 	}
 
 	#recordings = `${env.paths.home}/Videos/Screencasting`
