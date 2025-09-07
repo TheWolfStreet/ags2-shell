@@ -6,8 +6,9 @@ import Gio from "gi://Gio"
 
 import { env } from "$lib/env"
 import { bashSync } from "$lib/utils"
+import { hypr } from "$lib/services"
 
-@register({ GTypeName: "AppsWatched" })
+@register({ GTypeName: "Apps" })
 export default class Apps extends GObject.Object {
 	static instance: Apps
 
@@ -24,38 +25,42 @@ export default class Apps extends GObject.Object {
 		const stack = [
 			`${env.paths.home}/.local/share/applications/`,
 			`${env.paths.home}/.local/share/flatpak/applications/`,
+			"/var/lib/flatpak/exports/share/applications",
 		]
 
-		for (const root of stack) {
-			if (!GLib.file_test(root, GLib.FileTest.EXISTS)) continue
+		const watchDir = (dir: string) => {
+			if (!GLib.file_test(dir, GLib.FileTest.EXISTS)) return
 
-			const dirs: string[] = []
-			const iter = Gio.File.new_for_path(root).enumerate_children(
-				"standard::name,standard::type",
-				Gio.FileQueryInfoFlags.NONE,
-				null,
-			)
+			const file = Gio.File.new_for_path(dir)
+			const monitor = file.monitor_directory(Gio.FileMonitorFlags.NONE, null)
 
+			monitor.set_rate_limit(200)
+
+			monitor.connect("changed", () => {
+				this.#apps.reload()
+				this.notify("list")
+			})
+
+			this.#monitors.push(monitor)
+
+			const iter = file.enumerate_children("standard::name,standard::type", Gio.FileQueryInfoFlags.NONE, null)
 			let info
 			while ((info = iter?.next_file(null))) {
-				const name = info.get_name()
-				if (info.get_file_type() === Gio.FileType.DIRECTORY)
-					dirs.push(`${root}/${name}`)
+				if (info.get_file_type() === Gio.FileType.DIRECTORY) {
+					watchDir(`${dir}/${info.get_name()}`)
+				}
 			}
 			iter?.close(null)
+		}
 
-			for (const dir of [root, ...dirs]) {
-				if (!GLib.file_test(dir, GLib.FileTest.EXISTS)) continue
+		// When nixos configuration is switched, hyprland is reloaded
+		// This is a decent way to reload apps if packages were changed
+		hypr.connect("config-reloaded", () => {
+			this.#apps.reload()
+		})
 
-				const file = Gio.File.new_for_path(dir)
-				const monitor = file.monitor_directory(Gio.FileMonitorFlags.NONE, null)
-				monitor.set_rate_limit(100)
-				monitor.connect("changed", () => {
-					this.#apps.reload()
-					this.notify("apps")
-				})
-				this.#monitors.push(monitor)
-			}
+		for (const root of stack) {
+			watchDir(root)
 		}
 	}
 

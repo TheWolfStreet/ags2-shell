@@ -2,7 +2,7 @@
 
 ![Demonstration](README.png)
 
-A port of Aylur's AGS shell from AGS v1 to AGS v2, with a subset of features and slight tweaks. Tightly coupled with Hyprland.
+A port of Aylur's AGS shell from AGS v1 to AGS v2 (and then to v3), with a subset of features and slight tweaks. Tightly coupled with Hyprland.
 
 ## Acknowledgments
 Special thanks to [Aylur](https://github.com/Aylur) for the original [AGS v1 shell](https://github.com/Aylur/dotfiles/tree/18b83b2d2c6ef2b9045edefe49a66959f93b358a), [Astal](https://github.com/Aylur/Astal), and the [AGS CLI](https://github.com/Aylur/ags).
@@ -11,8 +11,6 @@ Check out and support his latest project **[Marble Shell](https://marble-shell.p
 
 ## ⚠ Known Issues
 - Duplicate top bar when mirroring or demirroring a screen.
-- Lack of user-friendly feedback when a Bluetooth adapter is locked.
-- Launcher's app list may not automatically update after installing new apps (a relaunch bind is recommended).
 
 ## 📌 Planned Improvements
 - Decoupling from adw-gtk3-dark theme (styles)
@@ -203,7 +201,7 @@ wayland.windowManager.hyprland = {
       e = "exec, ags -i ags2-shell";
     in
     [
-      # Restart AGS shell (recommended if the launcher's app list doesn't update)
+      # Restart shell (just in case)
       # WARNING: If a bundle is used, use ags2-shell instead of ags run
       "CTRL ALT, Delete,   ${e} quit; ags run"
       # Open the application launcher
@@ -217,7 +215,7 @@ wayland.windowManager.hyprland = {
       # Start full-screen recording
       "SUPER SHIFT, Print, ${e} request 'record'"
       # Take full-screen screenshot
-      ", Print,            ${e} request 'screenshot-area'"
+      ", Print,            ${e} request 'screenshot'"
       # Take area screenshot
       "SHIFT, Print,       ${e} request 'screenshot-area'"
     ];

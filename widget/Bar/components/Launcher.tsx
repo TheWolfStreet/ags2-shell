@@ -1,6 +1,6 @@
 import { timeout } from "ags/time"
 import app from "ags/gtk4/app"
-import { Accessor, createBinding, createComputed, createState, For } from "ags"
+import { Accessor, createBinding, createComputed, createState, For, onCleanup } from "ags"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 
 import AstalApps from "gi://AstalApps"
@@ -70,8 +70,8 @@ export namespace Launcher {
 		}
 
 		function Favorites() {
-			const [favs, _] = createState(apps.favorites)
-			const reveal = createComputed([list.as(v => v.length != 0), text.as(v => v.length != 0)], (hasEntries, hasText) => !hasEntries && !hasText)
+			const reveal = createComputed([list.as(v => v.length != 0), text.as(v => v.length != 0)],
+				(hasEntries, hasText) => !hasEntries && !hasText)
 			return (
 				<revealer
 					revealChild={reveal}
@@ -79,7 +79,7 @@ export namespace Launcher {
 					<box orientation={VERTICAL}>
 						<Gtk.Separator />
 						<box class="quicklaunch horizontal">
-							<For each={favs}>
+							<For each={createBinding(apps, "favorites")}>
 								{(app: AstalApps.Application) =>
 									app ? (
 										<button tooltipText={app.name} onClicked={() => launch(app)} hexpand>
@@ -105,7 +105,8 @@ export namespace Launcher {
 				transitionType={SLIDE_DOWN}
 				transitionDuration={options.transition.duration}
 				$={(self) => {
-					timeout(1, () => self.set_reveal_child(true))
+					const autoreveal = timeout(1, () => self.set_reveal_child(true))
+					onCleanup(() => autoreveal.run_dispose())
 				}}
 			>
 				<box orientation={VERTICAL}>

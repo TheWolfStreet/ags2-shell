@@ -4,19 +4,22 @@ import { Gdk } from "ags/gtk4"
 import { exec, execAsync } from "ags/process"
 
 import Apps from "gi://AstalApps"
-import Notifd from "gi://AstalNotifd"
 import Gtk from "gi://Gtk"
 import GLib from "gi://GLib"
 import Gio from "gi://Gio"
 
 import icons, { substitutes } from "$lib/icons"
-import { hypr, notifd } from "$lib/services"
+import { hypr } from "$lib/services"
 
-import options from "../options"
 
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
 
 export function fileExists(path: string) { return GLib.file_test(path, GLib.FileTest.EXISTS) }
+
+export async function wlCopy(data: string) {
+	if (!dependencies("wl-copy")) return ""
+	execAsync(`wl-copy "${data}"`)
+}
 
 export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) {
 	if (enable === undefined)
@@ -28,18 +31,7 @@ export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) 
 		widget.remove_css_class(name)
 }
 
-export async function notify({
-	id,
-	appName = "",
-	appIcon = "",
-	// attachedImage = "",
-	actions = {},
-	body = "",
-	summary = "",
-	urgency = "normal",
-	timeout,
-	hints = {},
-}: {
+export async function notify(opts: {
 	id?: number
 	appName?: string
 	appIcon?: string
@@ -51,6 +43,18 @@ export async function notify({
 	hints?: Record<string, string>
 }) {
 	try {
+		const {
+			id,
+			appName = "",
+			appIcon = "",
+			actions = {},
+			body = "",
+			summary = "",
+			urgency = "normal",
+			timeout,
+			hints = {},
+		} = opts
+
 		const args = []
 
 		if (id !== undefined) args.push(`-r ${id}`)
@@ -73,14 +77,13 @@ export async function notify({
 		}
 
 		const result = await execAsync(`notify-send -p ${args.join(" ")}`)
-		const retId = Number(result.split('\n')[0])
+		const retId = Number(result.split("\n")[0])
 		if (Object.keys(actions).length > 0) {
-			execAsync(result.split('\n')[1])
+			execAsync(result.split("\n")[1]).catch(() => null)
 		}
 		return retId
-	} catch (error) {
-		logError(error)
-		throw error
+	} catch (error: any) {
+		return undefined
 	}
 }
 
@@ -209,28 +212,12 @@ export async function sh(cmd: string | string[]) {
 
 export function launchApp(app: Apps.Application | string) {
 	const exe = typeof app === "string"
-		? app
+		? app.trim()
 		: app.executable
 			.split(/\s+/)
 			.filter(str => !str.startsWith("%") && !str.startsWith("@"))
 			.join(" ")
+			.trim()
 
-	if (typeof app !== "string") {
-		app.frequency += 1
-	}
-
-	hypr.message_async(`dispatch exec ${exe}`, null)
-}
-
-export function notificationBlacklisted(input?: number | Notifd.Notification): boolean {
-	const notif = typeof input === "number"
-		? notifd.get_notification(input)
-		: input
-
-	if (!notif) return false
-
-	const blacklist = options.notifications.blacklist.get()
-	const name = notif.appName || notif.desktopEntry
-
-	return blacklist.includes(name)
+	hypr.message_async(`dispatch exec '${exe}'`, null)
 }

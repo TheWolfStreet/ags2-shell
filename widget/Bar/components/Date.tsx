@@ -4,7 +4,6 @@ import { createComputed } from "ags"
 
 import icons from "$lib/icons"
 import { toggleWindow } from "$lib/utils"
-import { notifd } from "$lib/services"
 import { env } from "$lib/env"
 
 import { Notifications } from "./Notifications"
@@ -35,7 +34,7 @@ export namespace Date {
 	const ClearButton = () =>
 		<button
 			onClicked={() =>
-				notifd.notifications.forEach(n => n.dismiss())
+				Notifications.dismissAll()
 			}
 			valign={CENTER}
 		>

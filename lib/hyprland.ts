@@ -95,6 +95,7 @@ async function setupHyprland() {
 }
 
 export default function hyprinit() {
+	hypr.connect("config-reloaded", () => setupHyprland())
 	setHandler(options, deps, setupHyprland)
 	setupHyprland()
 }

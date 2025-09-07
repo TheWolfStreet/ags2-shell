@@ -9,38 +9,39 @@ import { wp } from "$lib/services"
 
 export default function Wallpaper() {
 	const wall = createBinding(wp, "wallpaper")
-	let chooser: Gtk.FileChooserNative
-	function open_wallpaper_chooser() {
-		if (!chooser) {
+	let dialog: Gtk.FileDialog
+	let dialogOpen = false
 
-			chooser = new Gtk.FileChooserNative({
+	function openDialog() {
+		if (dialogOpen) return
+		dialogOpen = true
+
+		if (!dialog) {
+			dialog = new Gtk.FileDialog({
 				title: "Set wallpaper",
-				action: Gtk.FileChooserAction.OPEN,
-				acceptLabel: "_Open",
-				cancelLabel: "_Cancel"
+				modal: true,
 			})
-
-			if (wp.wallpaper) {
-				const file = Gio.File.new_for_path(wp.wallpaper)
-				chooser.set_file(file)
-			}
-
-			chooser.connect("response", (dialog, response) => {
-				if (response === Gtk.ResponseType.ACCEPT) {
-					const file = chooser.get_file()
-					const filename = file ? file.get_path() : null
-					if (filename) wp.wallpaper = filename
-				}
-				dialog.destroy()
-			})
-
-			chooser.show()
 		}
+
+		if (wp.wallpaper) {
+			const file = Gio.File.new_for_path(wp.wallpaper)
+			dialog.set_initial_file(file)
+		}
+
+		dialog.open(null, null, (_, result) => {
+			dialogOpen = false
+			if (!result) return
+
+			const file = dialog.open_finish(result)
+			const filename = file ? file.get_path() : null
+			if (filename) wp.wallpaper = filename
+		})
 	}
 
 	return (
 		<box class="row">
 			<Gtk.Picture
+				tooltipText={"Set wallpaper"}
 				class="preview"
 				hexpand
 				vexpand
@@ -54,7 +55,7 @@ export default function Wallpaper() {
 				}
 			>
 				<Gtk.GestureClick
-					onPressed={open_wallpaper_chooser}
+					onPressed={openDialog}
 				/>
 			</Gtk.Picture>
 		</box>

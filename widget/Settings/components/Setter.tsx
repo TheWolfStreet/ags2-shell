@@ -2,6 +2,8 @@ import { Gdk, Gtk } from "ags/gtk4"
 
 import { RowProps } from "./Row"
 
+import Pango from "gi://Pango"
+
 import icons from "$lib/icons"
 import { Opt } from "$lib/option"
 
@@ -9,10 +11,6 @@ const { CENTER } = Gtk.Align
 
 const filter = new Gtk.FileFilter()
 filter.add_mime_type('image/*')
-
-function cleanFont(font: string) {
-	return font.split(" ").slice(0, -1).join(" ")
-}
 
 function toHex(rgba: Gdk.RGBA) {
 	const { red, green, blue } = rgba
@@ -126,22 +124,25 @@ export default function Setter({
 		}
 		case "font": {
 			return (
-				<Gtk.FontButton
+				<Gtk.FontDialogButton
 					valign={CENTER}
 					tooltipText={"Select a font"}
-					font={opt.as(f => f as string)}
 					useSize={false}
-					onFontSet={self => {
-						opt.set(cleanFont(self.font))
-					}} />
+					dialog={new Gtk.FontDialog}
+					fontDesc={Pango.FontDescription.from_string(opt.get())}
+					onNotifyFontDesc={(self) => {
+						opt.set(self.get_font_desc()?.get_family())
+					}}
+				/>
 			)
 		}
 		case "color": {
 			return (
-				<Gtk.ColorButton
+				<Gtk.ColorDialogButton
 					valign={CENTER}
 					tooltipText={"Select a color"}
-					onColorSet={self => {
+					dialog={new Gtk.ColorDialog}
+					onNotifyRgba={self => {
 						opt.set(toHex(self.get_rgba()))
 					}}
 					rgba={opt.as(v => {

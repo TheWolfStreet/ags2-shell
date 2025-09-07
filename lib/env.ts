@@ -1,12 +1,15 @@
+import { createBinding } from "ags"
+import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 import { createPoll, } from "ags/time"
 
 import GLib from "gi://GLib"
 
-app.instanceName = "ags2-shell"
+app.set_instance_name("ags2-shell")
 
 export const env = {
 	username: GLib.get_user_name(),
+	iconTheme: createBinding(app, "icon_theme").as(v => new Gtk.IconTheme({ themeName: v })),
 
 	clock: createPoll<GLib.DateTime>(
 		GLib.DateTime.new_now_local(),

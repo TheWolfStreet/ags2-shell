@@ -85,13 +85,15 @@ function Header() {
 
 export function Settings() {
 	return (
-		<Gtk.Window name="settings-dialog"
+		<Gtk.Window
+			name="settings-dialog"
 			application={app}
 			class="settings-dialog"
 			title="Settings"
 			defaultHeight={600}
 			defaultWidth={500}
 			hideOnClose
+			iconName={icons.ui.settings}
 		>
 			<box orientation={VERTICAL}>
 				<Header />

@@ -3,7 +3,6 @@
 
 window#launcher .launcher {
   @include floating_widget;
-
   .quicklaunch {
     @include spacing;
 

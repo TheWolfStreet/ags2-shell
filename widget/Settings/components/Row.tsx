@@ -1,10 +1,10 @@
 import { Gtk } from "ags/gtk4"
+import { Node } from "ags"
 
 import Setter from "./Setter"
 
 import icons from "$lib/icons"
 import { Opt } from "$lib/option"
-import { Node } from "ags"
 
 const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation

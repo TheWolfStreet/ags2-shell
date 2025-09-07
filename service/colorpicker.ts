@@ -4,7 +4,7 @@ import { execAsync } from "ags/process"
 
 import GLib from "gi://GLib"
 
-import { dependencies, notify } from "$lib/utils"
+import { dependencies, notify, wlCopy } from "$lib/utils"
 import { env } from "$lib/env"
 import icons from "$lib/icons"
 
@@ -36,39 +36,40 @@ export default class ColorPicker extends GObject.Object {
 		this.#colors = value
 	}
 
-	readonly wlCopy = async (entry: string) => {
-		if (!dependencies("wl-copy", "hyprpicker")) return
+	readonly pick = async (existing?: string) => {
+		if (!existing && !dependencies("wl-copy", "hyprpicker")) return
+		if (existing && !dependencies("wl-copy")) return
 
-		await execAsync(`wl-copy "${entry}"`)
-	}
-
-	readonly pick = async () => {
-		if (!dependencies("wl-copy", "hyprpicker")) return
-
-		const color = await execAsync("hyprpicker -r")
-		if (!color) return
-
-		await this.wlCopy(color)
-
-		const colors = this.#colors
-		if (!colors.includes(color)) {
-			colors.push(color)
-			const maxColors = options.colorpicker.maxColors.get()
-			if (colors.length > maxColors) {
-				colors.shift()
-			}
-
-			this.#colors = colors
-			this.notify("colors")
-			writeFile(cacheFile, JSON.stringify(colors, null, 2))
+		let color = existing
+		if (!color) {
+			color = await execAsync("hyprpicker -r")
+			color = color.replace("[ERR] renderSurface: PBUFFER null", "").trim()
+			if (!color) return
 		}
 
-		this.#notifId = await notify({
+		wlCopy(color)
+
+		if (!existing) {
+			const max = options.colorpicker.maxColors.get()
+			const colors = [...this.#colors]
+
+			if (!colors.includes(color)) {
+				colors.push(color)
+				if (colors.length > max) colors.shift()
+				this.#colors = colors
+				this.notify("colors")
+				writeFile(cacheFile, JSON.stringify(colors, null, 0))
+			}
+		}
+
+		notify({
 			id: this.#notifId,
 			appName: "Colorpicker",
 			appIcon: icons.ui.colorpicker,
 			summary: "Copied to clipboard",
 			body: color,
+		}).then(id => {
+			if (id) this.#notifId = id
 		})
 	}
 }

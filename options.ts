@@ -71,7 +71,7 @@ const options = mkOptions({
 			format: "%a %b %-d %H:%M",
 		},
 		workspaces: {
-			count: 0,
+			count: 7,
 		},
 		taskbar: {
 			exclusive: false,

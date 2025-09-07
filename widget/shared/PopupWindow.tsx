@@ -84,8 +84,8 @@ class PopupWindowClass extends Astal.Window {
 		this._set_reveal?.(false)
 		if (this._set_reveal) {
 			this._delayed_hide(() => {
-				this.notify("visible")
 				super.vfunc_hide()
+				this.notify("visible")
 			})
 		} else {
 			super.vfunc_hide()

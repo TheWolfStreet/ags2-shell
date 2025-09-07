@@ -1,7 +1,6 @@
-import { Accessor, createBinding, createComputed, createState, For } from "ags"
+import { Accessor, createState, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
-import { Time, timeout } from "ags/time"
 
 import GdkPixbuf from "gi://GdkPixbuf"
 import AstalNotifd from "gi://AstalNotifd"
@@ -10,122 +9,300 @@ import Pango from "gi://Pango"
 
 import PanelButton from "./PanelButton"
 
+import { notifd } from "$lib/services"
 import icons from "$lib/icons"
 import { env } from "$lib/env"
 import { fileExists, toggleWindow } from "$lib/utils"
-import { notifd } from "$lib/services"
 
 import options from "options"
 
 const { COVER } = Gtk.ContentFit
-const { START, CENTER, END } = Gtk.Align
+const { START, CENTER, FILL, END } = Gtk.Align
 const { SWING_RIGHT, SWING_DOWN, SLIDE_DOWN } = Gtk.RevealerTransitionType
 const { VERTICAL } = Gtk.Orientation
 
+const MAX_NOTIFICATIONS = 50
+const STAGGER_DELAY_MAX = 500
+
+function format(time: number): string {
+	const now = GLib.DateTime.new_now_local()
+	const then = GLib.DateTime.new_from_unix_local(time)
+	if (!then) return ""
+	const diff = now.to_unix() - then.to_unix()
+	if (diff < 60) return "now"
+	if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+	if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+	return `${Math.floor(diff / 86400)}d ago`
+}
+
+function urgency(n: AstalNotifd.Notification): string {
+	const { LOW, CRITICAL } = AstalNotifd.Urgency
+	switch (n.urgency) {
+		case LOW: return "low"
+		case CRITICAL: return "critical"
+		default: return "normal"
+	}
+}
+
 export namespace Notifications {
-	let hovered = false
+	let hoverCount = 0
+	const [hovered, setHovered] = createState(false)
+	const [dismiss, set_dismiss] = createState(false)
+	const [_current, set_current] = createState<Array<AstalNotifd.Notification>>([])
 
-	function format(time: number): string {
-		const now = GLib.DateTime.new_now_local()
-		const then = GLib.DateTime.new_from_unix_local(time)
-		if (!then) return ""
+	export const current = _current
 
-		const diff = now.to_unix() - then.to_unix()
-		if (diff < 60) return "now"
-		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-		return `${Math.floor(diff / 86400)}d ago`
-	}
+	const notifyHandler = notifd.connect("notified", (_, id, replaced) => {
+		const notification = notifd.get_notification(id)
+		const blacklist = options.notifications.blacklist.get() || []
 
-	function urgency(n: AstalNotifd.Notification): string {
-		const { LOW, CRITICAL } = AstalNotifd.Urgency
-		switch (n.urgency) {
-			case LOW: return "low"
-			case CRITICAL: return "critical"
-			default: return "normal"
+		const appName = notification.get_app_name() || notification.get_desktop_entry()
+		if (blacklist.includes(appName)) return
+
+		if (replaced && _current.get().some((n) => n.id === id)) {
+			set_current((ns) => ns.map((n) => (n.id === id ? notification : n)))
+		} else {
+			set_current((ns) => [notification, ...ns].slice(0, MAX_NOTIFICATIONS))
 		}
+	})
+
+	onCleanup(() => {
+		notifd.disconnect(notifyHandler)
+	})
+
+	export function dismissAll() {
+		set_dismiss(true)
+		GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.get(), () => {
+			set_dismiss(false)
+			set_current([])
+			return GLib.SOURCE_REMOVE
+		})
 	}
 
-	function Entry({ entry: n, persistent }: { entry: AstalNotifd.Notification, persistent: boolean }) {
+	interface EntryProps {
+		entry: AstalNotifd.Notification
+		persistent: boolean
+	}
+
+	function Entry({ entry: notification, persistent }: EntryProps) {
 		const [reveal, setReveal] = createState(false)
 		const [revealActions, setRevealActions] = createState(false)
-		let dismissTimer: Time | undefined
 
-		timeout(1, () => setReveal(true))
+		let closed = false
+		let dismissTimer: number | undefined
 
-		const autoDismiss = () => {
+		const clearTimer = () => {
+			if (dismissTimer) {
+				GLib.source_remove(dismissTimer)
+				dismissTimer = undefined
+			}
+		}
+
+		const remove = () => {
+			clearTimer()
+			set_current((notifications) => notifications.filter((notif) => notif !== notification))
+			notification.dismiss()
+		}
+
+		const startAutoHide = () => {
 			if (persistent) return
-			dismissTimer?.cancel()
-			dismissTimer = timeout(options.notifications.dismiss.get(), () => {
-				if (!hovered) {
-					setReveal(false)
-					timeout(options.transition.duration.get(), () => n.dismiss())
-				}
+			clearTimer()
+			dismissTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.get(), () => {
+				if (!hovered.get()) setReveal(false)
+				dismissTimer = undefined
+				return GLib.SOURCE_REMOVE
 			})
 		}
 
-		if (!persistent) autoDismiss()
+		const handleDismiss = () => {
+			if (!dismiss.get()) return
+			setReveal(false)
+			GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.get(), () => {
+				notification.dismiss()
+				return GLib.SOURCE_REMOVE
+			})
+		}
+
+		const onEnter = () => {
+			if (closed) return
+			setRevealActions(true)
+			if (!persistent) {
+				hoverCount++
+				setHovered(true)
+				clearTimer()
+			}
+		}
+
+		const onLeave = () => {
+			if (closed) return
+			setRevealActions(false)
+			if (!persistent) {
+				hoverCount--
+				if (hoverCount <= 0) {
+					hoverCount = 0
+					setHovered(false)
+				}
+			}
+		}
+
+		const onReveal = (self: Gtk.Revealer) => {
+			if (!self.get_reveal_child() && closed) {
+				remove()
+			} else {
+				startAutoHide()
+			}
+		}
+
+		const onClose = () => {
+			setReveal(false)
+			closed = true
+		}
+
+		const onActionClick = (actionId: string) => {
+			setReveal(false)
+			GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.get(), () => {
+				set_current((notifications) => notifications.filter((notif) => notif !== notification))
+				notification.invoke(actionId)
+				return GLib.SOURCE_REMOVE
+			})
+		}
+
+		const dismissUnsub = dismiss.subscribe(handleDismiss)
+
+		const hoveredUnsub = hovered.subscribe(() => {
+			if (!hovered.get() && !persistent && !closed) {
+				const delay = Math.random() * STAGGER_DELAY_MAX
+				GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+					if (!hovered.get()) startAutoHide()
+					return GLib.SOURCE_REMOVE
+				})
+			}
+		})
+
+		onCleanup(() => {
+			dismissUnsub()
+			hoveredUnsub()
+			clearTimer()
+			if (!persistent && !closed) {
+				hoverCount = Math.max(0, hoverCount - 1)
+				if (hoverCount === 0) {
+					setHovered(false)
+				}
+			}
+		})
+
+		if (!notifd.get_dont_disturb() || persistent) {
+			GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1, () => {
+				setReveal(true)
+				return GLib.SOURCE_REMOVE
+			})
+		}
+
+		const appIcon = notification.appIcon || notification.desktopEntry || icons.fallback.notification
+		const appName = (notification.appName || notification.desktopEntry || "Notification").toUpperCase()
+		const hasImage = notification.get_image() && fileExists(notification.get_image())
+		const validActions = notification.get_actions().filter(action => action.label?.trim())
 
 		return (
-			<revealer revealChild={reveal} transitionDuration={options.transition.duration} transitionType={SLIDE_DOWN}>
-				<box class={`notification ${urgency(n)}`} orientation={VERTICAL} hexpand>
-					<Gtk.EventControllerMotion
-						onEnter={() => { setRevealActions(true); hovered = true; dismissTimer?.cancel() }}
-						onLeave={() => { setRevealActions(false); hovered = false; autoDismiss() }}
-					/>
+			<revealer
+				revealChild={reveal}
+				transitionDuration={options.transition.duration}
+				transitionType={SLIDE_DOWN}
+				onNotifyChildRevealed={onReveal}
+			>
+				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} hexpand>
+					<Gtk.EventControllerMotion onEnter={onEnter} onLeave={onLeave} />
 
 					<box class="header">
-						<image class="app-icon" iconName={n.appIcon || n.desktopEntry || icons.fallback.notification} useFallback />
-						<label class="app-name" halign={START} use_markup maxWidthChars={24} ellipsize={Pango.EllipsizeMode.END}
-							label={(n.appName || n.desktopEntry || "Notification").toUpperCase()} />
-						<label class="time" halign={END} hexpand label={env.uptime(() => format(n.time))} />
-
-						<revealer revealChild={revealActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
-							<button class="close-button" onClicked={() => { setReveal(false); timeout(options.transition.duration.get(), () => n.dismiss()) }}>
+						<image class="app-icon" iconName={appIcon} useFallback />
+						<label
+							class="app-name"
+							halign={START}
+							use_markup
+							maxWidthChars={24}
+							ellipsize={Pango.EllipsizeMode.END}
+							label={appName}
+						/>
+						<label
+							class="time"
+							halign={END}
+							hexpand
+							label={env.uptime(() => format(notification.time))}
+						/>
+						<revealer
+							revealChild={revealActions}
+							transitionDuration={options.transition.duration}
+							transitionType={SWING_RIGHT}
+						>
+							<button class="close-button" onClicked={onClose}>
 								<image iconName={icons.ui.close} halign={CENTER} valign={CENTER} useFallback />
 							</button>
 						</revealer>
 					</box>
 
 					<box class="content">
-						{n.get_image() && fileExists(n.get_image()) &&
+						{hasImage && (
 							<Gtk.Picture
-								class="icon" halign={CENTER} contentFit={COVER} canShrink={false}
+								class="icon"
+								contentFit={COVER}
+								canShrink={false}
 								paintable={Gdk.Texture.new_for_pixbuf(
-									GdkPixbuf.Pixbuf.new_from_file(n.get_image()).scale_simple(75, 75, GdkPixbuf.InterpType.BILINEAR)!
+									GdkPixbuf.Pixbuf.new_from_file(notification.get_image())
+										.scale_simple(75, 75, GdkPixbuf.InterpType.BILINEAR)!
 								)}
 							/>
-						}
+						)}
 						<box orientation={VERTICAL}>
-							<label class="summary" halign={START} maxWidthChars={20} wrap label={n.summary} />
-							{n.body && <label class="body" halign={START} wrap useMarkup maxWidthChars={20} label={n.body} />}
+							<label
+								class="summary"
+								halign={START}
+								wrap
+								maxWidthChars={24}
+								label={notification.summary}
+								hexpand
+							/>
+							{notification.body && (
+								<label
+									class="body"
+									halign={START}
+									useMarkup
+									wrap
+									maxWidthChars={24}
+									label={notification.body}
+									hexpand
+								/>
+							)}
 						</box>
 					</box>
 
-					{n.get_actions().filter(a => a.label?.trim()).length > 0 &&
-						<revealer revealChild={revealActions} transitionType={SWING_DOWN} transitionDuration={options.transition.duration}>
+					{validActions.length > 0 && (
+						<revealer
+							revealChild={revealActions}
+							transitionType={SWING_DOWN}
+							transitionDuration={options.transition.duration}
+						>
 							<box class="actions horizontal">
-								{n.get_actions().filter(a => a.label?.trim()).map(({ label, id }) =>
-									<button hexpand onClicked={() => n.invoke(id)}>
+								{validActions.map(({ label, id }) => (
+									<button hexpand onClicked={() => onActionClick(id)}>
 										<label label={label} halign={CENTER} hexpand />
 									</button>
-								)}
+								))}
 							</box>
 						</revealer>
-					}
+					)}
 				</box>
 			</revealer>
 		)
 	}
 
-	export const current = createComputed(
-		[createBinding(notifd, "notifications"), options.notifications.blacklist],
-		(notifs, blacklist) => notifs.filter(n => !blacklist.includes(n.get_app_name() || n.get_desktop_entry()))
-	)
-
-	export function Stack({ hexpand, class: class_name, persistent = false }: { hexpand?: boolean | Accessor<boolean>, class?: string, persistent?: boolean }) {
+	export function Stack({ widthRequest, hexpand, class: className, persistent = false }: {
+		widthRequest?: number | Accessor<number>,
+		hexpand?: boolean | Accessor<boolean>,
+		class?: string,
+		persistent?: boolean
+	}) {
 		return (
-			<box orientation={VERTICAL} class={class_name} hexpand={hexpand}>
+			<box widthRequest={widthRequest} hexpand={hexpand} class={className} orientation={VERTICAL} valign={START}>
 				<For each={current}>
 					{(n: AstalNotifd.Notification) => <Entry entry={n} persistent={persistent} />}
 				</For>
@@ -137,8 +314,8 @@ export namespace Notifications {
 		return (
 			<PanelButton
 				class="messages"
-				visible={Notifications.current.as(v => v.length > 0)}
-				tooltipText={Notifications.current.as(v => `${v.length} pending notification${v.length === 1 ? '' : 's'}`)}
+				visible={current.as(v => v.length > 0)}
+				tooltipText={current.as(v => `${v.length} pending notification${v.length === 1 ? '' : 's'}`)}
 				onClicked={() => toggleWindow("datemenu")}
 			>
 				<image iconName={icons.notifications.message} useFallback />
@@ -147,23 +324,23 @@ export namespace Notifications {
 	}
 
 	export function Window() {
-		const { OVERLAY } = Astal.Layer
 		const { EXCLUSIVE } = Astal.Exclusivity
 		const { TOP, RIGHT } = Astal.WindowAnchor
 
 		return (
 			<window
+				visible
+				resizable={false}
+				heightRequest={1}
+				widthRequest={1}
+				$={(self) => onCleanup(() => self.destroy())}
 				name="notifications"
 				class="notifications"
-				visible
 				application={app}
-				layer={OVERLAY}
 				exclusivity={EXCLUSIVE}
 				anchor={TOP | RIGHT}
 			>
-				<box widthRequest={options.notifications.width}>
-					<Stack persistent={false} />
-				</box>
+				<Stack widthRequest={options.notifications.width} persistent={false} />
 			</window>
 		)
 	}

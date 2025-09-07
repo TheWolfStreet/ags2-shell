@@ -17,7 +17,7 @@ export default function OSD() {
 	const [value, set_value] = createState(0)
 	const [mute, set_mute] = createState(false)
 
-	let currentTime: Time | undefined = undefined
+	let current: Time | undefined = undefined
 
 	function show(v: number, i: string, m: boolean) {
 		set_value(v)
@@ -25,11 +25,11 @@ export default function OSD() {
 		set_mute(m)
 		set_reveal(true)
 
-		if (currentTime) {
-			currentTime.cancel()
+		if (current) {
+			current.cancel()
 		}
 
-		currentTime = timeout(options.notifications.dismiss.get() / 3, () => {
+		current = timeout(options.notifications.dismiss.get() / 3, () => {
 			set_reveal(false)
 		})
 	}
@@ -39,7 +39,6 @@ export default function OSD() {
 
 	// TODO: yeah, i know.
 	// for some reason it fires events on app run
-	//
 	timeout(500, () => {
 		brightness.connect("notify::display", () =>
 			show(brightness.display, brightness.iconName, false)

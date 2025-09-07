@@ -1,28 +1,68 @@
 import { Accessor, createState, Setter } from "ags"
+import { Time, timeout } from "ags/time"
 import { readFile, writeFile } from "ags/file"
 
 import { env } from "$lib/env"
 import { ensurePath } from "$lib/utils"
 
-namespace Store {
-	export const path = `${env.paths.cfg}/options.json`
 
-	export function modify(updater: (data: Record<string, any>) => void) {
-		try {
-			ensurePath(Store.path)
-			const raw = readFile(path) || "{}"
-			const data = JSON.parse(raw)
-			updater(data)
-			writeFile(path, JSON.stringify(data, null, 2))
-		} catch {
-			// ignore
-		}
+namespace Store {
+	export const path = `${env.paths.cache}/options.json`
+
+	let saveTimer: Time | null = null
+	let cache: Record<string, any> = {}
+
+	try {
+		ensurePath(path)
+		const raw = readFile(path) || "{}"
+		cache = JSON.parse(raw)
+	} catch {
+		cache = {}
 	}
 
-	export function read() {
-		ensurePath(Store.path)
-		const raw = readFile(path) || "{}"
-		return JSON.parse(raw)
+	function save() {
+		ensurePath(path)
+		writeFile(path, JSON.stringify(cache, null, 2))
+	}
+
+	function scheduleSave() {
+		if (saveTimer) saveTimer.cancel()
+		saveTimer = timeout(1000, () => {
+			save()
+			saveTimer = null
+		})
+	}
+
+	export function get(pathStr: string) {
+		const parts = pathStr.split(".")
+		let node: any = cache
+		for (const part of parts) {
+			if (!node || typeof node !== "object") return undefined
+			node = node[part]
+		}
+		return node
+	}
+
+	export function set(pathStr: string, value: any) {
+		const parts = pathStr.split(".")
+		let node: any = cache
+		for (let i = 0; i < parts.length - 1; i++) {
+			if (!(parts[i] in node)) node[parts[i]] = {}
+			node = node[parts[i]]
+		}
+		node[parts[parts.length - 1]] = value
+		scheduleSave()
+	}
+
+	export function del(pathStr: string) {
+		const parts = pathStr.split(".")
+		let node: any = cache
+		for (let i = 0; i < parts.length - 1; i++) {
+			if (!(parts[i] in node)) return
+			node = node[parts[i]]
+		}
+		delete node[parts[parts.length - 1]]
+		scheduleSave()
 	}
 }
 
@@ -45,12 +85,16 @@ export class Opt<T> extends Accessor<T> {
 
 	set(v: T) {
 		this.#setter(v)
-		// TODO: persist
+		if (v === this.#default) {
+			Store.del(this.id)
+		} else {
+			Store.set(this.id, v)
+		}
 	}
 
 	reset() {
 		this.#setter(this.#default)
-		// TODO: delete from store
+		Store.del(this.id)
 	}
 
 	getDefault() {
@@ -87,8 +131,16 @@ export function mkOptions<T>(node: T, path = ""): Options<T> {
 		return newNode
 	}
 
-	const opt = new Opt(node)
+	const defaultVal = node
+	const storedVal = path ? Store.get(path) : undefined
+	const initialVal = storedVal !== undefined ? (storedVal as T) : defaultVal
+
+	const opt = new Opt(defaultVal)
 	opt.id = path
+
+	if (storedVal !== undefined) {
+		opt.set(initialVal)
+	}
 
 	return opt as Options<T>
 }

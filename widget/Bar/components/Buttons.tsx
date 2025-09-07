@@ -22,6 +22,7 @@ const { preferred } = options.bar.media
 const { position } = options.bar
 
 const { START, CENTER, END } = Gtk.Align
+const { VERTICAL } = Gtk.Orientation
 
 export function Tray() {
 	const items = createComputed([createBinding(tray, "items"), options.bar.systray.ignore], (items, ignore) => {
@@ -40,13 +41,13 @@ export function Tray() {
 		<box>
 			<For each={items}>
 				{(item) => (
-					<menubutton class="panel-button" valign={CENTER}
+					<menubutton valign={CENTER} halign={CENTER}
 						$={(self) => {
 							init(self, item)
 							self.get_popover()?.set_has_arrow(false)
 						}
 						}>
-						<image gicon={createBinding(item, "gicon")} />
+						<image gicon={createBinding(item, "gicon")} useFallback />
 					</menubutton>
 				)}
 			</For>
@@ -82,6 +83,7 @@ export function Tasks() {
 					}
 				>
 					<Gtk.GestureClick
+						button={0}
 						onPressed={self => {
 							const mBtn = self.get_current_button()
 							switch (mBtn) {
@@ -102,7 +104,7 @@ export function Tasks() {
 						}}
 					/>
 					<image
-						iconName={createBinding(app, "class").as(v => v.toString())}
+						iconName={createBinding(app, "class")}
 						useFallback
 					/>
 				</PanelButton>
@@ -113,7 +115,7 @@ export function Tasks() {
 	return (
 		<box class="tasks">
 			<For each={createBinding(hypr, "clients").as(v =>
-				[...v].sort((a, b) => a.workspace.id - b.workspace.id)
+				[...v].sort((a, b) => a?.workspace.id - b?.workspace.id)
 			)}>
 				{(app: AstalHyprland.Client) => <AppItem app={app} />}
 			</For>
@@ -127,7 +129,7 @@ export function Media() {
 	const { END } = Pango.EllipsizeMode
 	const [reveal, set_reveal] = createState(false)
 
-	let currentTime: Time | undefined = undefined
+	let trackTime: Time | undefined = undefined
 
 	const player = createComputed([createBinding(media, "players"), preferred], (ps, pref) => {
 		return ps.find(p => p.get_bus_name().includes(pref)) || ps[0]
@@ -152,7 +154,7 @@ export function Media() {
 								<Gtk.EventControllerMotion
 									onLeave={() => set_reveal(false)}
 									onEnter={() => {
-										currentTime?.cancel()
+										trackTime?.cancel()
 										set_reveal(true)
 									}}
 								/>
@@ -167,15 +169,15 @@ export function Media() {
 												current = p.get_title()
 												set_reveal(true)
 
-												if (currentTime) {
-													currentTime.cancel()
+												if (trackTime) {
+													trackTime.cancel()
 												}
 
-												currentTime = Time.timeout(options.notifications.dismiss.get(), () => {
+												trackTime = Time.timeout(options.notifications.dismiss.get(), () => {
 													if (!self.in_destruction()) {
 														set_reveal(false)
 													}
-													currentTime = undefined
+													trackTime = undefined
 												})
 											}
 										})
@@ -210,30 +212,57 @@ export function ScreenRecord() {
 export function ColorPicker() {
 	const colors = createBinding(cpick, "colors")
 
-	let popover = <Gtk.PopoverMenu >
-		<For each={colors}>
-			{color => <button label={color} onClicked={() => { cpick.wlCopy(color) }} />}
-		</For>
-	</Gtk.PopoverMenu> as Gtk.PopoverMenu
+	const css = (color: string) => `
+		* {
+				background-color: ${color};
+				color: transparent;
+		}
+		*:hover {
+				color: white;
+				text-shadow: 2px 2px 3px rgba(0,0,0,.8);
+		}`
+
+	const popover = <Gtk.Popover hasArrow={false} position={Gtk.PositionType.BOTTOM} /> as Gtk.Popover
+	// TODO: Animate
+	popover.set_child(
+		<box class="colorpicker vertical" orientation={VERTICAL}>
+			<For each={colors}>
+				{color => (
+					<button label={color} css={css(color)}
+						onClicked={() => {
+							cpick.pick(color)
+							popover.popdown()
+						}}
+					/>
+				)}
+			</For>
+		</box> as Gtk.Box
+	)
 
 	return (
 		<PanelButton name="color-picker"
-			tooltipText={`${colors.length} color${colors.length === 1 ? "" : "s"}`}
+			tooltipText={createBinding(cpick, "colors").as(v =>
+				`${v.length} color${v.length === 1 ? "" : "s"}`)}
+
 			$={self => {
 				popover.set_parent(self)
-				popover.set_has_arrow(false)
 			}}
 		>
-			<Gtk.GestureSingle
+			<Gtk.GestureClick
+				button={0}
 				onEnd={self => {
 					const btn = self.get_current_button()
-					if (btn === Gdk.BUTTON_PRIMARY) cpick.pick()
-					else if (btn === Gdk.BUTTON_SECONDARY && colors.length > 0) popover.show()
+					if (btn === Gdk.BUTTON_PRIMARY) {
+						cpick.pick()
+					}
+					else if (cpick.colors.length > 0 && btn === Gdk.BUTTON_SECONDARY) {
+						popover.popup()
+					}
 					self.reset()
 				}}
 			/>
 			<image iconName={icons.ui.colorpicker} useFallback />
-		</PanelButton>
+		</PanelButton >
 	)
 }
 
@@ -435,25 +464,3 @@ export function SysIndicators() {
 		</PanelButton>
 	)
 }
-
-// function Popover() {
-// 	return (
-// 		<popover position={Gtk.PositionType.BOTTOM} visible>
-// 			<box orientation={Gtk.Orientation.VERTICAL}>
-// 				<For each={createBinding(cpick, "colors")}>
-// 					{(color: string) => (
-// 						<button
-// 							onClicked={() => cpick.copyColor(color)}
-// 							css={`
-//               * { background-color: ${color}; color: transparent; }
-//               *:hover { color: white; text-shadow: 2px 2px 3px rgba(0,0,0,.8); }
-//             `}
-// 						>
-// 							{color}
-// 						</button>
-// 					)}
-// 				</For>
-// 			</box>
-// 		</popover>
-// 	) as Gtk.Popover;
-// }

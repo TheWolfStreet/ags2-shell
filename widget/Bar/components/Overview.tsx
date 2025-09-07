@@ -8,12 +8,14 @@ import AstalHyprland from "gi://AstalHyprland"
 import PopupWindow from "widget/shared/PopupWindow"
 import PanelButton from "./PanelButton"
 
-import { toggleClass, toggleWindow } from "$lib/utils"
+import { toggleWindow } from "$lib/utils"
 import { hypr } from "$lib/services"
 
 import options from "options"
+import { env } from "$lib/env"
 
 const { CENTER } = Gtk.Align
+const { MOVE } = Gdk.DragAction
 
 function scale(size: number) {
 	return (options.overview.scale.get() / 100) * size
@@ -53,17 +55,32 @@ export namespace Workspaces {
 		)
 	}
 
+
 	function Client({ entry: c, update }: { entry: AstalHyprland.Client, update: (self: Gtk.Widget) => void }) {
+
+		const className = createBinding(hypr, "focusedClient").as(fc => {
+			const classes: string[] = ["client"];
+			if (fc && fc.address === c.address) classes.push("active");
+			return classes.join(" ");
+		});
+
 		const contentProvider = Gdk.ContentProvider.new_for_value(
 			c.get_address()
 		)
+
 		const title = getClientTitle(c)
+
 		const iconSize = 24
+		const icon = env.iconTheme.as(v => {
+			let iconInfo = v.lookup_icon(c.get_class(), null, iconSize, 1, Gtk.TextDirection.LTR, null)
+			return Gtk.IconPaintable.new_for_file(iconInfo.get_file()!, iconSize, iconSize)
+		})
 
 		return (
-			<box class="client" tooltipText={title}
+			<button class={className} tooltipText={title}
 				heightRequest={createBinding(c, "height").as(scale)}
 				widthRequest={createBinding(c, "width").as(scale)}
+				onClicked={() => c.focus()}
 				$={self => {
 					let hyprConnections: number[] = []
 					let clientConnections: number[] = []
@@ -84,22 +101,23 @@ export namespace Workspaces {
 					iconName={c.get_class()} pixelSize={iconSize}
 				/>
 				<Gtk.DragSource
-					actions={Gdk.DragAction.MOVE}
+					actions={MOVE}
 					content={contentProvider}
 					onDragBegin={self => {
-						const theme = new Gtk.IconTheme({ themeName: app.get_icon_theme() })
-						const iconInfo = theme.lookup_icon(c.get_class(), null, iconSize, 1, Gtk.TextDirection.LTR, null)
-						if (iconInfo?.get_file()) {
-							const icon = Gtk.IconPaintable.new_for_file(iconInfo.get_file()!, iconSize, iconSize)
-							self.set_icon(icon, 0, 0)
-						}
+						self.set_icon(icon.get(), 0, 0)
 					}}
 				/>
-			</box>
+			</button>
 		)
 	}
 
 	function Workspace({ entry: ws }: { entry: AstalHyprland.Workspace }) {
+		const className = createBinding(hypr, "focusedWorkspace").as(fws => {
+			const classes: string[] = ["workspace"]
+			if (fws.id === ws.id) classes.push("active")
+			return classes.join(" ")
+		})
+
 		const css = createComputed(
 			[options.overview.scale, createBinding(ws, "monitor")],
 			(scale, monitor) => {
@@ -113,16 +131,16 @@ export namespace Workspaces {
 		let fixed: Gtk.Fixed
 
 		return (
-			<button name={String(ws.get_id())} tooltipText={String(ws.get_id())} class="workspace"
-				valign={CENTER} css={css} onClicked={() => ws.focus()} $={(self) => {
-					toggleClass(self, "focused", hypr.focusedWorkspace.id == ws.id)
-					hypr.connect("notify::focused-workspace", () => {
-						toggleClass(self, "focused", hypr.focusedWorkspace.id == ws.id)
-					})
-				}}
+			<button
+				name={String(ws.get_id())}
+				class={className}
+				tooltipText={String(ws.get_id())}
+				css={css}
+				valign={CENTER}
+				onClicked={() => ws.focus()}
 			>
 				<Gtk.DropTarget
-					actions={Gdk.DragAction.MOVE}
+					actions={MOVE}
 					formats={Gdk.ContentFormats.new_for_gtype(GObject.TYPE_STRING)}
 					onAccept={(_, drop) => {
 						const formats = drop.get_formats()
@@ -138,7 +156,7 @@ export namespace Workspaces {
 				<Gtk.Fixed $={self => fixed = self}>
 					<For each={clients}>
 						{c => <Client entry={c} update={self => {
-							fixed.move(self, scale(c.get_x()), scale(c.get_y()))
+							if (self.get_parent() === fixed) fixed.move(self, scale(c.get_x()), scale(c.get_y()))
 						}} />
 						}
 					</For>
@@ -157,19 +175,21 @@ export namespace Workspaces {
 			<PanelButton name="overview" class="workspaces" onClicked={() => toggleWindow("overview")}>
 				<box valign={CENTER}>
 					<For each={workspaces}>
-						{(ws, i) => (
-							<label valign={CENTER} name={i.as(String)} label={i.as(String)}
-								class={createComputed(
-									[createBinding(hypr, "focusedWorkspace"), createBinding(ws, "clients")],
-									(fws, clients) => {
-										const classes: string[] = []
-										if (fws.id === ws.id) classes.push("active")
-										if (clients.length) classes.push("occupied")
-										return classes.join(" ")
-									}
-								)}
-							/>
-						)}
+						{(ws) => {
+							const className = createBinding(hypr, "focusedWorkspace")
+								.as(fws => {
+									const classes: string[] = []
+									if (fws.id === ws.id) classes.push("active")
+									if (ws.clients.length) classes.push("occupied")
+									return classes.join(" ")
+								})
+
+							return (
+								<label valign={CENTER} name={`${ws.id}`} label={`${ws.id}`}
+									class={className}
+								/>
+							)
+						}}
 					</For>
 				</box>
 			</PanelButton>

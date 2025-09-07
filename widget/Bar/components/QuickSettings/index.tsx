@@ -273,6 +273,7 @@ namespace Bluetooth {
 		return (
 			<button $={self => (btn = self)} tooltipText={createBinding(device, "paired").as(p => p ? "Right-click to unpair" : "")}>
 				<Gtk.GestureClick
+					button={0}
 					onPressed={self => {
 						const mBtn = self.get_current_button()
 						switch (mBtn) {
