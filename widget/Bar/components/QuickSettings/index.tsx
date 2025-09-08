@@ -1,4 +1,4 @@
-import { Accessor, createBinding, createComputed, createState, For, Node, With } from "ags"
+import { Accessor, createBinding, createComputed, createState, For, Node, onCleanup, With } from "ags"
 import app from "ags/gtk4/app"
 import { execAsync, exec } from "ags/process"
 import { timeout } from "ags/time"
@@ -18,7 +18,7 @@ import { Arrow, ArrowToggleButton, Menu, opened, set_opened, SimpleToggleButton 
 
 import { env } from "$lib/env"
 import icons from "$lib/icons"
-import { bash, dependencies, duration, launchApp, lookupIconName, toggleClass } from "$lib/utils"
+import { bash, dependencies, duration, launchApp, lookupIconName, toggleClass, fileExists } from "$lib/utils"
 import { asusctl, audio, brightness, bt, hypr, media, net, notifd, pp } from "$lib/services"
 
 import { Asusctl } from "$service/asusctl"
@@ -549,7 +549,14 @@ namespace Mirror {
 	}
 
 	export function Selector() {
-		["monitor-added", "monitor-removed"].forEach(event => hypr.connect(event, () => set_monitors(getMonitors())))
+		const ids = [
+			hypr.connect("monitor-added", () => set_monitors(getMonitors())),
+			hypr.connect("monitor-removed", () => set_monitors(getMonitors()))
+		];
+
+		onCleanup(() => {
+			ids.forEach(id => hypr.disconnect(id));
+		});
 		const hasMonitors = monitors.as(ms => ms.length > 0)
 		return (
 			<Menu
@@ -755,9 +762,10 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 				// @ts-ignore: Valid
 				paintable={
 					cover.as(url => {
-						if (!url) return null
-						const pixbuf = GdkPixbuf.Pixbuf.new_from_file(url).scale_simple(100, 100, BILINEAR)!
-						return Gdk.Texture.new_for_pixbuf(pixbuf)
+						if (url) {
+							const pixbuf = GdkPixbuf.Pixbuf.new_from_file(url).scale_simple(100, 100, BILINEAR)!
+							return Gdk.Texture.new_for_pixbuf(pixbuf)
+						}
 					})
 				}
 				contentFit={SCALE_DOWN}
@@ -842,9 +850,12 @@ export default function QuickSettings() {
 			<Gtk.Picture
 				class="avatar"
 				paintable={
-					Gdk.Texture.new_for_pixbuf(
-						GdkPixbuf.Pixbuf.new_from_file(env.paths.avatar).scale_simple(64, 64, GdkPixbuf.InterpType.BILINEAR)!
+					fileExists(env.paths.avatar)
+					? Gdk.Texture.new_for_pixbuf(
+						GdkPixbuf.Pixbuf.new_from_file(env.paths.avatar)
+						.scale_simple(64, 64, GdkPixbuf.InterpType.BILINEAR)!
 					)
+					: null
 				}
 				contentFit={COVER}
 				canShrink

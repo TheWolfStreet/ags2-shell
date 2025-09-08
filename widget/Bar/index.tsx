@@ -17,8 +17,11 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
 
 	return (
 		<window
-			visible
 			name="bar"
+			visible
+			resizable={false}
+			hexpand
+			widthRequest={gdkmonitor.geometry.width}
 			class={transparent.as(v => v ? "bar transparent" : "bar")}
 			gdkmonitor={gdkmonitor}
 			exclusivity={Astal.Exclusivity.EXCLUSIVE}

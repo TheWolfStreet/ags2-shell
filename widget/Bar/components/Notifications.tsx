@@ -6,6 +6,7 @@ import GdkPixbuf from "gi://GdkPixbuf"
 import AstalNotifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
 import Pango from "gi://Pango"
+import Adw from "gi://Adw"
 
 import PanelButton from "./PanelButton"
 
@@ -17,7 +18,7 @@ import { fileExists, toggleWindow } from "$lib/utils"
 import options from "options"
 
 const { COVER } = Gtk.ContentFit
-const { START, CENTER, FILL, END } = Gtk.Align
+const { START, CENTER, END } = Gtk.Align
 const { SWING_RIGHT, SWING_DOWN, SLIDE_DOWN } = Gtk.RevealerTransitionType
 const { VERTICAL } = Gtk.Orientation
 
@@ -210,7 +211,7 @@ export namespace Notifications {
 				transitionType={SLIDE_DOWN}
 				onNotifyChildRevealed={onReveal}
 			>
-				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} hexpand>
+				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL}>
 					<Gtk.EventControllerMotion onEnter={onEnter} onLeave={onLeave} />
 
 					<box class="header">
@@ -246,10 +247,14 @@ export namespace Notifications {
 								class="icon"
 								contentFit={COVER}
 								canShrink={false}
-								paintable={Gdk.Texture.new_for_pixbuf(
-									GdkPixbuf.Pixbuf.new_from_file(notification.get_image())
+								paintable={
+									fileExists(notification.get_image())
+									? Gdk.Texture.new_for_pixbuf(
+										GdkPixbuf.Pixbuf.new_from_file(notification.get_image())
 										.scale_simple(75, 75, GdkPixbuf.InterpType.BILINEAR)!
-								)}
+									)
+									: null
+								}
 							/>
 						)}
 						<box orientation={VERTICAL}>
@@ -259,7 +264,6 @@ export namespace Notifications {
 								wrap
 								maxWidthChars={24}
 								label={notification.summary}
-								hexpand
 							/>
 							{notification.body && (
 								<label
@@ -269,7 +273,6 @@ export namespace Notifications {
 									wrap
 									maxWidthChars={24}
 									label={notification.body}
-									hexpand
 								/>
 							)}
 						</box>

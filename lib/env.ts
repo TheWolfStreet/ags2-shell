@@ -5,11 +5,12 @@ import { createPoll, } from "ags/time"
 
 import GLib from "gi://GLib"
 
-app.set_instance_name("ags2-shell")
+const APPNAME = "ags2-shell"
 
 export const env = {
+	appName: APPNAME,
 	username: GLib.get_user_name(),
-	iconTheme: createBinding(app, "icon_theme").as(v => new Gtk.IconTheme({ themeName: v })),
+	iconTheme: createBinding(app, "iconTheme").as(v => new Gtk.IconTheme({ themeName: v })),
 
 	clock: createPoll<GLib.DateTime>(
 		GLib.DateTime.new_now_local(),
@@ -27,9 +28,9 @@ export const env = {
 	paths: {
 		home: GLib.get_home_dir(),
 		avatar: `/var/lib/AccountsService/icons/${GLib.get_user_name()}`,
-		cfg: `${GLib.get_user_config_dir()}/ags`,
-		cache: `${GLib.get_user_cache_dir()}/${app.instanceName}`,
-		tmp: `${GLib.get_tmp_dir()}/${app.instanceName}`,
+		cfg: `${GLib.get_user_config_dir()}/ags/`,
+		cache: `${GLib.get_user_cache_dir()}/${APPNAME}/`,
+		tmp: `${GLib.get_tmp_dir()}/${APPNAME}/`,
 	},
 
 	distro: {

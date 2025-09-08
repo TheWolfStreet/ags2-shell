@@ -1,5 +1,5 @@
-import { Time, timeout } from "ags/time"
-import { Accessor, createState, Node } from "ags"
+import { Timer, timeout } from "ags/time"
+import { createState, Node } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 
@@ -67,7 +67,7 @@ interface PopupWindowProps extends Astal.Window.ConstructorProps {
 
 class PopupWindowClass extends Astal.Window {
 	_set_reveal?: (v: boolean) => void
-	_hide_timeout?: Time
+	_hide_timeout?: Timer
 
 	private _delayed_hide(callback: () => void) {
 		this._hide_timeout?.cancel()
@@ -93,7 +93,7 @@ class PopupWindowClass extends Astal.Window {
 	}
 }
 
-export const PopupWindowImpl = GObject.registerClass(PopupWindowClass)
+const PopupWindowImpl = GObject.registerClass(PopupWindowClass)
 
 export default function PopupWindow({
 	name = 'popup',

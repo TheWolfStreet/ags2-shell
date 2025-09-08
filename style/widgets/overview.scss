@@ -8,8 +8,8 @@ window#overview .overview {
 
   .workspace {
       @include widget;
-      border-radius: if($radius ==0, 0, $radius + $padding);
-      padding: 0;
+      padding: $padding * 0.3;
+      border-radius: $radius;
 
       &:hover {
         background-color: $hover-bg;
@@ -22,8 +22,8 @@ window#overview .overview {
 
   .client {
     @include button;
+    margin: $spacing * 0.3;
     border-radius: $radius;
-    margin: $padding;
 
     &.hidden {
       @include hidden;

@@ -5,6 +5,8 @@ import Gdk from "gi://Gdk"
 import Gio from "gi://Gio"
 import GdkPixbuf from "gi://GdkPixbuf"
 
+import { fileExists } from "$lib/utils"
+
 import { wp } from "$lib/services"
 
 export default function Wallpaper() {
@@ -23,7 +25,7 @@ export default function Wallpaper() {
 			})
 		}
 
-		if (wp.wallpaper) {
+		if (fileExists(wp.wallpaper)) {
 			const file = Gio.File.new_for_path(wp.wallpaper)
 			dialog.set_initial_file(file)
 		}
@@ -48,9 +50,12 @@ export default function Wallpaper() {
 				contentFit={Gtk.ContentFit.COVER}
 				paintable={
 					wall.as(path => {
-						return Gdk.Texture.new_for_pixbuf(
+						if (fileExists(path)) {
+							return Gdk.Texture.new_for_pixbuf(
 							GdkPixbuf.Pixbuf.new_from_file(path)
-						)
+						)} else {
+							return null
+						}
 					})
 				}
 			>

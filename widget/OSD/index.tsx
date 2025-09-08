@@ -1,7 +1,7 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk } from "ags/gtk4"
 import { createState } from "ags"
-import { Time, timeout } from "ags/time"
+import { Timer, timeout } from "ags/time"
 
 import giCairo from "cairo"
 
@@ -17,7 +17,7 @@ export default function OSD() {
 	const [value, set_value] = createState(0)
 	const [mute, set_mute] = createState(false)
 
-	let current: Time | undefined = undefined
+	let current: Timer | undefined = undefined
 
 	function show(v: number, i: string, m: boolean) {
 		set_value(v)

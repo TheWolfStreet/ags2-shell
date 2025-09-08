@@ -4,8 +4,6 @@ import Gio from "gi://Gio"
 
 import { bash, ensurePath } from "$lib/utils"
 import { env } from "$lib/env"
-import { wp } from "$lib/services"
-import { setHandler } from "$lib/option"
 import hyprinit from "$lib/hyprland"
 import matugen from "$lib/matugen"
 
@@ -19,13 +17,10 @@ const settings = new Gio.Settings({
 })
 
 function gtk() {
-	settings.set_string("color-scheme", `prefer-${scheme.get()}`)
-}
-
-async function updateGtkMode() {
-	const theme = settings.get_string("gtk-theme")
-	settings.set_string("gtk-theme", "")
-	settings.set_string("gtk-theme", theme)
+	const desired = `prefer-${scheme.get()}`;
+	if (settings.get_string("color-scheme") !== desired) {
+		settings.set_string("color-scheme", desired);
+	}
 }
 
 async function tmux() {
@@ -54,10 +49,6 @@ export default async function init() {
 		options.theme.light.primary.bg.subscribe(tmux)
 		options.theme.scheme.subscribe(tmux)
 	}
-
-	updateGtkMode()
-	setHandler(options, ["theme.scheme", "autotheme"], () => updateGtkMode())
-	wp.connect("notify::wallpaper", updateGtkMode)
 
 	ensurePath(env.paths.tmp)
 	ensurePath(env.paths.cache)

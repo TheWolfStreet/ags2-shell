@@ -1,5 +1,5 @@
 import { Accessor, createState, Setter } from "ags"
-import { Time, timeout } from "ags/time"
+import { Timer, timeout } from "ags/time"
 import { readFile, writeFile } from "ags/file"
 
 import { env } from "$lib/env"
@@ -9,7 +9,7 @@ import { ensurePath } from "$lib/utils"
 namespace Store {
 	export const path = `${env.paths.cache}/options.json`
 
-	let saveTimer: Time | null = null
+	let saveTimer: Timer | null = null
 	let cache: Record<string, any> = {}
 
 	try {

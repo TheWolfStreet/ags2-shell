@@ -1,5 +1,5 @@
 import { Gdk, Gtk } from "ags/gtk4"
-import { Time } from "ags/time"
+import { timeout, Timer } from "ags/time"
 import { Accessor, createBinding, createComputed, createState, For, With } from "ags"
 
 import AstalTray from "gi://AstalTray"
@@ -19,9 +19,8 @@ import options from "options"
 
 const { exclusive } = options.bar.taskbar
 const { preferred } = options.bar.media
-const { position } = options.bar
 
-const { START, CENTER, END } = Gtk.Align
+const { CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 
 export function Tray() {
@@ -68,47 +67,46 @@ export function Tasks() {
 			return true
 		})
 
+		const focused = createBinding(hypr, "focusedClient").as(v => {
+			return v && v.address == app.address
+		})
+
 		return (
-			<overlay>
-				<box
-					class="indicator"
-					halign={CENTER}
-					valign={position.as(p => (p === "top" ? START : END))}
-					visible={createBinding(hypr, "focusedClient").as(c => c && (c.address == app.address) || false)}
+			<overlay class="panel-button" tooltipText={createBinding(app, "title")} visible={visible}>
+				<Gtk.GestureClick
+					button={0}
+					onPressed={self => {
+						const mBtn = self.get_current_button()
+						switch (mBtn) {
+							case Gdk.BUTTON_PRIMARY:
+								app.focus()
+								break
+							case Gdk.BUTTON_SECONDARY:
+								app.focus()
+								hypr.message("dispatch fullscreen")
+								break
+							case Gdk.BUTTON_MIDDLE:
+								app.kill()
+								break
+							default:
+								break
+						}
+						self.reset()
+					}}
 				/>
-				<PanelButton
-					visible={visible}
-					tooltipText={
-						createBinding(app, "title")
-					}
-				>
-					<Gtk.GestureClick
-						button={0}
-						onPressed={self => {
-							const mBtn = self.get_current_button()
-							switch (mBtn) {
-								case Gdk.BUTTON_PRIMARY:
-									app.focus()
-									break
-								case Gdk.BUTTON_SECONDARY:
-									app.focus()
-									hypr.message("dispatch fullscreen")
-									break
-								case Gdk.BUTTON_MIDDLE:
-									app.kill()
-									break
-								default:
-									break
-							}
-							self.reset()
-						}}
-					/>
-					<image
-						iconName={createBinding(app, "class")}
-						useFallback
-					/>
-				</PanelButton>
-			</overlay >
+				<image
+					halign={CENTER}
+					valign={CENTER}
+					iconName={createBinding(app, "class")}
+					useFallback
+				/>
+				<box class="focused"
+					$type="overlay"
+					visible={focused}
+					halign={CENTER}
+					valign={END}
+				/>
+			</overlay>
 		)
 	}
 
@@ -129,7 +127,7 @@ export function Media() {
 	const { END } = Pango.EllipsizeMode
 	const [reveal, set_reveal] = createState(false)
 
-	let trackTime: Time | undefined = undefined
+	let trackTime: Timer | undefined = undefined
 
 	const player = createComputed([createBinding(media, "players"), preferred], (ps, pref) => {
 		return ps.find(p => p.get_bus_name().includes(pref)) || ps[0]
@@ -173,7 +171,7 @@ export function Media() {
 													trackTime.cancel()
 												}
 
-												trackTime = Time.timeout(options.notifications.dismiss.get(), () => {
+												trackTime = timeout(options.notifications.dismiss.get(), () => {
 													if (!self.in_destruction()) {
 														set_reveal(false)
 													}

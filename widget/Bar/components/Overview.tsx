@@ -1,4 +1,5 @@
 import { createBinding, createComputed, For, Node, onCleanup, onMount } from "ags"
+import { idle } from "ags/time"
 import app from "ags/gtk4/app"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
@@ -12,7 +13,6 @@ import { toggleWindow } from "$lib/utils"
 import { hypr } from "$lib/services"
 
 import options from "options"
-import { env } from "$lib/env"
 
 const { CENTER } = Gtk.Align
 const { MOVE } = Gdk.DragAction
@@ -59,22 +59,26 @@ export namespace Workspaces {
 	function Client({ entry: c, update }: { entry: AstalHyprland.Client, update: (self: Gtk.Widget) => void }) {
 
 		const className = createBinding(hypr, "focusedClient").as(fc => {
-			const classes: string[] = ["client"];
-			if (fc && fc.address === c.address) classes.push("active");
-			return classes.join(" ");
-		});
-
-		const contentProvider = Gdk.ContentProvider.new_for_value(
-			c.get_address()
-		)
+			const classes: string[] = ["client"]
+			if (fc && fc.address === c.address) classes.push("active")
+			return classes.join(" ")
+		})
 
 		const title = getClientTitle(c)
 
-		const iconSize = 24
-		const icon = env.iconTheme.as(v => {
-			let iconInfo = v.lookup_icon(c.get_class(), null, iconSize, 1, Gtk.TextDirection.LTR, null)
-			return Gtk.IconPaintable.new_for_file(iconInfo.get_file()!, iconSize, iconSize)
-		})
+		const iconSize = 16
+
+		const contentProvider = Gdk.ContentProvider.new_for_value(c.get_address())
+
+		let updateScheduled = false
+		function scheduleUpdate(self: Gtk.Widget) {
+			if (updateScheduled) return
+			updateScheduled = true
+			idle(() => {
+				update(self)
+				updateScheduled = false
+			})
+		}
 
 		return (
 			<button class={className} tooltipText={title}
@@ -84,11 +88,19 @@ export namespace Workspaces {
 				$={self => {
 					let hyprConnections: number[] = []
 					let clientConnections: number[] = []
+
 					onMount(() => {
 						update(self)
-						hyprConnections = ["client-added", "client-moved"].map(e => hypr.connect(e, () => update(self)))
-						clientConnections = ["notify::x", "notify::y"].map(e => c.connect(e, () => update(self)))
+
+						hyprConnections = ["client-added", "client-moved"].map(e =>
+							hypr.connect(e, () => scheduleUpdate(self))
+						)
+
+						clientConnections = ["notify::x", "notify::y"].map(e =>
+							c.connect(e, () => scheduleUpdate(self))
+						)
 					})
+
 					onCleanup(() => {
 						hyprConnections.forEach(conn => hypr.disconnect(conn))
 						clientConnections.forEach(conn => c.disconnect(conn))
@@ -103,9 +115,6 @@ export namespace Workspaces {
 				<Gtk.DragSource
 					actions={MOVE}
 					content={contentProvider}
-					onDragBegin={self => {
-						self.set_icon(icon.get(), 0, 0)
-					}}
 				/>
 			</button>
 		)

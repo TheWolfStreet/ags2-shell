@@ -86,10 +86,10 @@ function Header() {
 export function Settings() {
 	return (
 		<Gtk.Window
-			name="settings-dialog"
-			application={app}
-			class="settings-dialog"
 			title="Settings"
+			name="settings-dialog"
+			class="settings-dialog"
+			application={app}
 			defaultHeight={600}
 			defaultWidth={500}
 			hideOnClose

@@ -3,6 +3,15 @@
 .bar {
   transition: $transition;
   background-color: $bg;
+  padding: $padding * 0.3;
+
+  .tasks .focused {
+    background-color: $primary-bg;
+    border-radius: $radius;
+    padding: 1.25pt;
+    margin-top: 1pt;
+    margin-bottom: 1pt;
+  }
 
   .panel-button { 
     @include panel-button;
@@ -71,14 +80,6 @@
 
   .media box { @include spacing(0.5); }
 
-  .task .indicator.active {
-    background-color: $primary-bg;
-    border-radius: $radius;
-    min-height: 4pt;
-    min-width: 6pt;
-    margin: 2pt;
-  }
-
   .recorder {
     .horizontal { @include spacing(0.5); }
 
@@ -87,7 +88,7 @@
     &:active image { color: $primary-fg; }
   }
 
-  .quicksettings box { @include spacing(2, $spacing: $padding * 0.5); }
+  .quicksettings box { @include spacing(1.5); }
 
   .quicksettings:not(.active):not(:active) {
     .bluetooth-connected {

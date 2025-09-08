@@ -5,7 +5,7 @@ import GLib from "gi://GLib"
 
 import { Opt, setHandler } from "$lib/option"
 import { env } from "$lib/env"
-import { bash, dependencies } from "$lib/utils"
+import { bash, dependencies, fileExists } from "$lib/utils"
 
 import options from "options"
 
@@ -84,9 +84,14 @@ const variables = () => {
 export async function resetCss() {
 	if (!dependencies("sass", "fd")) return
 	try {
-		const vars = `${env.paths.tmp}/variables.scss`
-		const scss = `${env.paths.tmp}/main.scss`
-		const css = `${env.paths.tmp}/main.css`
+		const vars = `${env.paths.tmp}variables.scss`
+		const scss = `${env.paths.tmp}main.scss`
+		const css = `${env.paths.tmp}main.css`
+
+		if (!fileExists(configDir)) {
+			throw new Error("Config directory missing");
+		}
+
 		const files = (await bash(`fd ".scss" ${configDir}`)).split(/\s+/)
 		writeFile(vars, variables().join("\n"))
 		writeFile(scss, [`@import '${vars}';`, ...files.map(f => `@import '${f}';`)].join("\n"))

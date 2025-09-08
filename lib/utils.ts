@@ -145,9 +145,26 @@ export function lookupIconName(name: string, size = 16) {
 	return info.get_icon_name()
 }
 
+
 export function ensurePath(path: string) {
-	if (!GLib.file_test(path, GLib.FileTest.EXISTS))
-		Gio.File.new_for_path(path).make_directory_with_parents(null)
+	const isDir = path.endsWith("/")
+	const file = Gio.File.new_for_path(path)
+
+	if (GLib.file_test(path, GLib.FileTest.EXISTS))
+		return
+
+	if (isDir) {
+		file.make_directory_with_parents(null)
+	} else {
+		const parent = file.get_parent()
+		if (parent) {
+			const parentPath = parent.get_path()
+			if (parentPath && !GLib.file_test(parentPath, GLib.FileTest.EXISTS)) {
+				parent.make_directory_with_parents(null)
+			}
+		}
+		file.create(Gio.FileCreateFlags.PRIVATE, null)
+	}
 }
 
 export function icon(name: string | null, fallback = icons.missing): string {
