@@ -2,12 +2,12 @@ import { execAsync } from "ags/process"
 
 import Gio from "gi://Gio"
 
-import { bash, ensurePath } from "$lib/utils"
-import { env } from "$lib/env"
+import { bash } from "$lib/utils"
 import hyprinit from "$lib/hyprland"
-import matugen from "$lib/matugen"
-
+import { env } from "./env"
+import { Matugen } from "./matugen"
 import { initCss } from "style"
+
 import options from "options"
 
 const { scheme, dark, light } = options.theme
@@ -50,10 +50,8 @@ export default async function init() {
 		options.theme.scheme.subscribe(tmux)
 	}
 
-	ensurePath(env.paths.tmp)
-	ensurePath(env.paths.cache)
-
+	env.init()
+	Matugen.init()
 	hyprinit()
-	matugen()
 	initCss()
 }

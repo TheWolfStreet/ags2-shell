@@ -7,12 +7,33 @@ import Apps from "gi://AstalApps"
 import Gtk from "gi://Gtk"
 import GLib from "gi://GLib"
 import Gio from "gi://Gio"
+import GdkPixbuf from "gi://GdkPixbuf"
 
 import icons, { substitutes } from "$lib/icons"
 import { hypr } from "$lib/services"
 
-
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
+
+export function getFileSize(filePath: string): number | null {
+	if (!filePath || !fileExists(filePath)) return null;
+
+	try {
+		const info = Gio.File.new_for_path(filePath).query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null);
+		return info.get_size();
+	} catch {
+		return null;
+	}
+}
+
+export function textureFromFile(filePath: string, width?: number, height?: number): Gdk.Texture | null {
+	if (!getFileSize(filePath)) return null
+
+	let pixbuf = GdkPixbuf.Pixbuf.new_from_file(filePath)
+	if (width && height) {
+		pixbuf = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)!
+	}
+	return Gdk.Texture.new_for_pixbuf(pixbuf)
+}
 
 export function fileExists(path: string) { return GLib.file_test(path, GLib.FileTest.EXISTS) }
 
@@ -148,10 +169,11 @@ export function lookupIconName(name: string, size = 16) {
 
 export function ensurePath(path: string) {
 	const isDir = path.endsWith("/")
-	const file = Gio.File.new_for_path(path)
 
-	if (GLib.file_test(path, GLib.FileTest.EXISTS))
+	if (fileExists(path))
 		return
+
+	const file = Gio.File.new_for_path(path)
 
 	if (isDir) {
 		file.make_directory_with_parents(null)

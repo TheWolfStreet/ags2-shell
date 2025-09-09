@@ -1,11 +1,11 @@
 import app from "ags/gtk4/app"
-import { writeFile } from "ags/file"
+import { writeFileAsync } from "ags/file"
 
 import GLib from "gi://GLib"
 
 import { Opt, setHandler } from "$lib/option"
 import { env } from "$lib/env"
-import { bash, dependencies, fileExists } from "$lib/utils"
+import { bash, dependencies, fileExists, ensurePath } from "$lib/utils"
 
 import options from "options"
 
@@ -93,8 +93,9 @@ export async function resetCss() {
 		}
 
 		const files = (await bash(`fd ".scss" ${configDir}`)).split(/\s+/)
-		writeFile(vars, variables().join("\n"))
-		writeFile(scss, [`@import '${vars}';`, ...files.map(f => `@import '${f}';`)].join("\n"))
+		ensurePath(env.paths.tmp)
+		writeFileAsync(vars, variables().join("\n"))
+		writeFileAsync(scss, [`@import '${vars}';`, ...files.map(f => `@import '${f}';`)].join("\n"))
 		await bash`sass ${scss} ${css}`
 		app.apply_css(css, true)
 	} catch (err) {

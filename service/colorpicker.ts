@@ -1,30 +1,31 @@
 import GObject, { getter, register, setter } from "ags/gobject"
-import { readFile, writeFile } from "ags/file"
+import { timeout, Timer } from "ags/time"
+import { readFile, writeFileAsync } from "ags/file"
 import { execAsync } from "ags/process"
 
-import GLib from "gi://GLib"
-
-import { dependencies, notify, wlCopy } from "$lib/utils"
+import { dependencies, ensurePath, notify, wlCopy } from "$lib/utils"
 import { env } from "$lib/env"
 import icons from "$lib/icons"
 
 import options from "options"
 
-const cacheFile = `${env.paths.cache}/colors.js`
-
-if (!GLib.file_test(cacheFile, GLib.FileTest.EXISTS)) {
-	writeFile(cacheFile, "[]")
-}
+const cacheFile = `${env.paths.cache}/colors.json`
 
 @register({ GTypeName: "ColorPicker" })
 export default class ColorPicker extends GObject.Object {
 	static instance: ColorPicker
+
+	constructor() {
+		ensurePath(cacheFile)
+		super()
+	}
 
 	static get_default() {
 		return this.instance ??= new ColorPicker()
 	}
 
 	#notifId = 0
+	#saveDebounce: Timer | null = null
 	#colors = JSON.parse(readFile(cacheFile) || "[]") as string[]
 
 	@getter(Array)
@@ -49,6 +50,7 @@ export default class ColorPicker extends GObject.Object {
 
 		wlCopy(color)
 
+
 		if (!existing) {
 			const max = options.colorpicker.maxColors.get()
 			const colors = [...this.#colors]
@@ -58,7 +60,17 @@ export default class ColorPicker extends GObject.Object {
 				if (colors.length > max) colors.shift()
 				this.#colors = colors
 				this.notify("colors")
-				writeFile(cacheFile, JSON.stringify(colors, null, 0))
+
+				if (this.#saveDebounce) this.#saveDebounce.cancel()
+				this.#saveDebounce = timeout(1000, async () => {
+					try {
+						ensurePath(cacheFile)
+						await writeFileAsync(cacheFile, JSON.stringify(this.#colors, null, 0))
+					} catch (e) {
+						console.error("failed to save colors", e)
+					}
+					this.#saveDebounce = null
+				})
 			}
 		}
 

@@ -21,7 +21,8 @@ export default function Page({ name, icon, children = [] }: PageProps): PageWidg
 					</box>
 				</Gtk.ScrolledWindow> as Gtk.ScrolledWindow
 			}
-			name={name} $={(self) => {
+			name={name}
+			$={self => {
 				(self as any).attr = { name, icon }
 			}}>
 		</Gtk.StackPage>

@@ -2,18 +2,16 @@ import { Accessor, createState, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 
-import GdkPixbuf from "gi://GdkPixbuf"
 import AstalNotifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
 import Pango from "gi://Pango"
-import Adw from "gi://Adw"
 
 import PanelButton from "./PanelButton"
 
 import { notifd } from "$lib/services"
 import icons from "$lib/icons"
 import { env } from "$lib/env"
-import { fileExists, toggleWindow } from "$lib/utils"
+import { fileExists, textureFromFile, toggleWindow } from "$lib/utils"
 
 import options from "options"
 
@@ -90,6 +88,7 @@ export namespace Notifications {
 		const [revealActions, setRevealActions] = createState(false)
 
 		let closed = false
+		let wasShown = false
 		let dismissTimer: number | undefined
 
 		const clearTimer = () => {
@@ -192,13 +191,6 @@ export namespace Notifications {
 			}
 		})
 
-		if (!notifd.get_dont_disturb() || persistent) {
-			GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1, () => {
-				setReveal(true)
-				return GLib.SOURCE_REMOVE
-			})
-		}
-
 		const appIcon = notification.appIcon || notification.desktopEntry || icons.fallback.notification
 		const appName = (notification.appName || notification.desktopEntry || "Notification").toUpperCase()
 		const hasImage = notification.get_image() && fileExists(notification.get_image())
@@ -210,6 +202,12 @@ export namespace Notifications {
 				transitionDuration={options.transition.duration}
 				transitionType={SLIDE_DOWN}
 				onNotifyChildRevealed={onReveal}
+				onMap={() => {
+					if (!wasShown && (!notifd.get_dont_disturb() || persistent)) {
+						setReveal(true)
+						wasShown = true
+					}
+				}}
 			>
 				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL}>
 					<Gtk.EventControllerMotion onEnter={onEnter} onLeave={onLeave} />
@@ -247,14 +245,7 @@ export namespace Notifications {
 								class="icon"
 								contentFit={COVER}
 								canShrink={false}
-								paintable={
-									fileExists(notification.get_image())
-									? Gdk.Texture.new_for_pixbuf(
-										GdkPixbuf.Pixbuf.new_from_file(notification.get_image())
-										.scale_simple(75, 75, GdkPixbuf.InterpType.BILINEAR)!
-									)
-									: null
-								}
+								paintable={textureFromFile(notification.get_image(), 75, 75) as Gdk.Paintable}
 							/>
 						)}
 						<box orientation={VERTICAL}>
@@ -336,7 +327,7 @@ export namespace Notifications {
 				resizable={false}
 				heightRequest={1}
 				widthRequest={1}
-				$={(self) => onCleanup(() => self.destroy())}
+				$={self => onCleanup(() => self.destroy())}
 				name="notifications"
 				class="notifications"
 				application={app}

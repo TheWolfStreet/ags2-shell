@@ -5,6 +5,8 @@ import { createPoll, } from "ags/time"
 
 import GLib from "gi://GLib"
 
+import { ensurePath } from "./utils"
+
 const APPNAME = "ags2-shell"
 
 export const env = {
@@ -37,4 +39,8 @@ export const env = {
 		id: GLib.get_os_info("ID"),
 		logo: GLib.get_os_info("LOGO"),
 	},
+	init: async () => {
+		ensurePath(env.paths.tmp)
+		ensurePath(env.paths.cache)
+	}
 }

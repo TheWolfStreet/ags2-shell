@@ -36,26 +36,28 @@
       powerprofiles
     ];
 
-    extraPackages = with pkgs; [
-      matugen
-      libadwaita
-      libsoup_3
-      dart-sass
-      brightnessctl
-      swww
-      which
-      libnotify
-      libheif
-      wf-recorder
-      wl-clipboard
-      slurp
-      wayshot
-      swappy
-      hyprpicker
-      pavucontrol
-      networkmanager
-      fd
-    ];
+    extraPackages = with pkgs;
+      astalPackages
+      ++ [
+        matugen
+        libadwaita
+        libsoup_3
+        dart-sass
+        brightnessctl
+        swww
+        which
+        libnotify
+        libheif
+        wf-recorder
+        wl-clipboard
+        slurp
+        wayshot
+        swappy
+        hyprpicker
+        pavucontrol
+        networkmanager
+        fd
+      ];
   in {
     packages.${system} = {
       default = pkgs.stdenv.mkDerivation {
@@ -68,7 +70,7 @@
           ags.packages.${system}.default
         ];
 
-        buildInputs = astalPackages ++ extraPackages ++ [pkgs.gjs];
+        buildInputs = extraPackages ++ [pkgs.gjs];
 
         installPhase = ''
           runHook preInstall

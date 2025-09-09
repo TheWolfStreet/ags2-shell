@@ -9,7 +9,6 @@ import AstalWp from "gi://AstalWp"
 import AstalNetwork from "gi://AstalNetwork"
 import AstalHyprland from "gi://AstalHyprland"
 import AstalBluetooth from "gi://AstalBluetooth"
-import GdkPixbuf from "gi://GdkPixbuf"
 import Pango from "gi://Pango"
 
 import { Placeholder } from "widget/shared/Placeholder"
@@ -18,18 +17,18 @@ import { Arrow, ArrowToggleButton, Menu, opened, set_opened, SimpleToggleButton 
 
 import { env } from "$lib/env"
 import icons from "$lib/icons"
-import { bash, dependencies, duration, launchApp, lookupIconName, toggleClass, fileExists } from "$lib/utils"
+import { bash, dependencies, duration, launchApp, lookupIconName, toggleClass, textureFromFile } from "$lib/utils"
 import { asusctl, audio, brightness, bt, hypr, media, net, notifd, pp } from "$lib/services"
 
 import { Asusctl } from "$service/asusctl"
 
 import options from "options"
+import { monitorFile } from "ags/file"
 
 const { bar, quicksettings } = options
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { COVER, SCALE_DOWN } = Gtk.ContentFit
-const { BILINEAR } = GdkPixbuf.InterpType
 
 
 const { AUDIO_SOURCE, STREAM_OUTPUT_AUDIO, AUDIO_SINK } = AstalWp.MediaClass
@@ -759,15 +758,7 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 		<box class="player" vexpand={false}>
 			<Gtk.Picture
 				class="cover-art"
-				// @ts-ignore: Valid
-				paintable={
-					cover.as(url => {
-						if (url) {
-							const pixbuf = GdkPixbuf.Pixbuf.new_from_file(url).scale_simple(100, 100, BILINEAR)!
-							return Gdk.Texture.new_for_pixbuf(pixbuf)
-						}
-					})
-				}
+				paintable={cover.as(url => textureFromFile(url, 100, 100) as Gdk.Paintable)}
 				contentFit={SCALE_DOWN}
 				canShrink
 			/>
@@ -849,14 +840,12 @@ export default function QuickSettings() {
 		<box class="header horizontal">
 			<Gtk.Picture
 				class="avatar"
-				paintable={
-					fileExists(env.paths.avatar)
-					? Gdk.Texture.new_for_pixbuf(
-						GdkPixbuf.Pixbuf.new_from_file(env.paths.avatar)
-						.scale_simple(64, 64, GdkPixbuf.InterpType.BILINEAR)!
-					)
-					: null
-				}
+				$={self => {
+					monitorFile(env.paths.avatar, () => {
+						self.paintable = textureFromFile(env.paths.avatar, 64, 64) as Gdk.Paintable
+					})
+				}}
+				paintable={textureFromFile(env.paths.avatar, 64, 64) as Gdk.Paintable}
 				contentFit={COVER}
 				canShrink
 			/>

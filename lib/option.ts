@@ -1,17 +1,26 @@
 import { Accessor, createState, Setter } from "ags"
 import { Timer, timeout } from "ags/time"
-import { readFile, writeFile } from "ags/file"
+import { readFile, writeFileAsync } from "ags/file"
 
 import { env } from "$lib/env"
 import { ensurePath } from "$lib/utils"
 
-
 namespace Store {
 	export const path = `${env.paths.cache}/options.json`
 
-	let saveTimer: Timer | null = null
-	let cache: Record<string, any> = {}
+	let saveDebounce: Timer | null = null
+	let cache: Record<string, any> | null = null
 
+	function ensureLoaded() {
+		if (cache !== null) return
+		try {
+			ensurePath(path)
+			const raw = readFile(path) || "{}"
+			cache = JSON.parse(raw)
+		} catch {
+			cache = {}
+		}
+	}
 	try {
 		ensurePath(path)
 		const raw = readFile(path) || "{}"
@@ -20,20 +29,22 @@ namespace Store {
 		cache = {}
 	}
 
-	function save() {
-		ensurePath(path)
-		writeFile(path, JSON.stringify(cache, null, 2))
-	}
-
 	function scheduleSave() {
-		if (saveTimer) saveTimer.cancel()
-		saveTimer = timeout(1000, () => {
-			save()
-			saveTimer = null
+		if (saveDebounce) saveDebounce.cancel()
+		saveDebounce = timeout(1000, async () => {
+			try {
+				ensurePath(path)
+				await writeFileAsync(path, JSON.stringify(cache, null, 2))
+			} catch (e) {
+				console.error("Failed to save store:", e)
+			} finally {
+				saveDebounce = null
+			}
 		})
 	}
 
 	export function get(pathStr: string) {
+		ensureLoaded()
 		const parts = pathStr.split(".")
 		let node: any = cache
 		for (const part of parts) {
@@ -44,6 +55,7 @@ namespace Store {
 	}
 
 	export function set(pathStr: string, value: any) {
+		ensureLoaded()
 		const parts = pathStr.split(".")
 		let node: any = cache
 		for (let i = 0; i < parts.length - 1; i++) {
@@ -55,6 +67,7 @@ namespace Store {
 	}
 
 	export function del(pathStr: string) {
+		ensureLoaded()
 		const parts = pathStr.split(".")
 		let node: any = cache
 		for (let i = 0; i < parts.length - 1; i++) {

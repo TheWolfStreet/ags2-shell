@@ -30,9 +30,11 @@ function forMonitors(widget: ((monitor: Gdk.Monitor) => any)[]) {
 		})
 	})
 }
+
 app.start({
 	instanceName: env.appName,
 	main() {
+		init()
 		Date.Window()
 		Launcher.Window()
 		Power.Window()
@@ -43,7 +45,6 @@ app.start({
 		OSD()
 		QuickSettings()
 		Settings()
-		init()
 		forMonitors([Bar, BarCorners])
 	},
 	requestHandler(argv: string[], _: (response: any) => void) {

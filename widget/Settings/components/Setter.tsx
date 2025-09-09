@@ -101,7 +101,7 @@ export default function Setter({
 					valign={CENTER}
 					label="Select an image"
 					tooltipText="Select an image"
-					onClicked={_ => {
+					onClicked={() => {
 						const chooser = new Gtk.FileChooserNative({
 							title: "Select an image",
 							action: Gtk.FileChooserAction.OPEN,

@@ -1,6 +1,5 @@
-import { timeout } from "ags/time"
 import app from "ags/gtk4/app"
-import { Accessor, createBinding, createComputed, createState, For, onCleanup } from "ags"
+import { Accessor, createBinding, createComputed, createState, For } from "ags"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 
 import AstalApps from "gi://AstalApps"
@@ -34,6 +33,9 @@ export namespace Launcher {
 			</PanelButton>
 		)
 	}
+	// Each entry is linked to an app from a list of apps
+	// <For> deletes the entry if app from list is deleted
+	// What we could do?
 
 	export function Window() {
 		let win: Astal.Window
@@ -104,9 +106,8 @@ export namespace Launcher {
 				name={app.name}
 				transitionType={SLIDE_DOWN}
 				transitionDuration={options.transition.duration}
-				$={(self) => {
-					const autoreveal = timeout(1, () => self.set_reveal_child(true))
-					onCleanup(() => autoreveal.run_dispose())
+				onMap={self => {
+					self.set_reveal_child(true)
 				}}
 			>
 				<box orientation={VERTICAL}>
@@ -136,7 +137,7 @@ export namespace Launcher {
 						</box>
 					</button>
 				</box>
-			</revealer >
+			</revealer>
 
 		const { OVERLAY } = Astal.Layer
 		const { NORMAL } = Astal.Exclusivity
@@ -168,17 +169,21 @@ export namespace Launcher {
 					css={options.launcher.margin.as((m: any) => `margin-top: ${m}pt;`)}
 				>
 					<entry
-						$={(e) => {
+						$={e => {
 							entry = e
 							text = createBinding(entry, "text")
 						}}
 						placeholderText="Search"
 						primaryIconName="system-search-symbolic"
-						onNotifyText={e => search(e.text)}
+						onNotifyText={e => {
+							search(e.text)
+						}}
 					/>
 					<revealer
 						halign={CENTER}
-						revealChild={createComputed([list.as(v => v.length != 0), text.as(v => v.length != 0)], (hasEntries, hasText) => !hasEntries && hasText)}
+						revealChild={createComputed([list.as(v => v.length != 0),
+						text.as(v => v.length != 0)],
+							(hasEntries, hasText) => !hasEntries && hasText)}
 						transitionType={SLIDE_DOWN}
 						transitionDuration={options.transition.duration}
 					>
@@ -189,8 +194,9 @@ export namespace Launcher {
 						<For
 							each={list.as(l =>
 								l.slice(0, options.launcher.apps.max.get())
-							)}>
-							{(app: AstalApps.Application, index) => <Entry app={app} index={index} />}
+							)}
+						>
+							{(app: AstalApps.Application, index) => <Entry app={app} index={index} /> as Gtk.Revealer}
 						</For>
 					</box>
 				</box>

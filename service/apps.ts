@@ -1,11 +1,10 @@
 import GObject, { register, getter } from "ags/gobject"
 
 import AstalApps from "gi://AstalApps"
-import GLib from "gi://GLib"
 import Gio from "gi://Gio"
 
 import { env } from "$lib/env"
-import { bashSync } from "$lib/utils"
+import { bashSync, fileExists } from "$lib/utils"
 import { hypr } from "$lib/services"
 
 @register({ GTypeName: "Apps" })
@@ -29,7 +28,7 @@ export default class Apps extends GObject.Object {
 		]
 
 		const watchDir = (dir: string) => {
-			if (!GLib.file_test(dir, GLib.FileTest.EXISTS)) return
+			if (!fileExists(dir)) return
 
 			const file = Gio.File.new_for_path(dir)
 			const monitor = file.monitor_directory(Gio.FileMonitorFlags.NONE, null)

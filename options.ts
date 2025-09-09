@@ -85,7 +85,6 @@ const options = mkOptions({
 		},
 		media: {
 			preferred: "spotify",
-			direction: "right",
 		},
 	},
 

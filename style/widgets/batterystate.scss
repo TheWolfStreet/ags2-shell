@@ -5,7 +5,7 @@ window#bar {
 }
 
 window#batterystate {
-  @include slider($width: 0.5em, $slider-width: 4em, $focusable: false, $slider: false);
+  @include slider($width: 0.5em, $slider-width: 4em, $hoverable: false, $focusable: false, $slider: false);
 
   box {
     @include floating-widget;

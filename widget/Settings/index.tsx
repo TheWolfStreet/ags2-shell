@@ -17,7 +17,6 @@ const { VERTICAL } = Gtk.Orientation
 
 function collectOpts(obj: { [x: string]: any }) {
 	let opts: any[] = []
-
 	for (let key in obj) {
 		const value = obj[key]
 
@@ -27,21 +26,20 @@ function collectOpts(obj: { [x: string]: any }) {
 			opts.push(value)
 		}
 	}
-
 	return opts
 }
 
 function Header() {
 	const opts = collectOpts(options)
 	const anyChanged = createComputed(
-		opts,
-		() => {
+		opts, () => {
 			for (const opt of opts) {
 				if (opt.get() !== opt.getDefault()) return true
 			}
 			return false
 		}
 	)
+
 	return (
 		<centerbox class="header" >
 			<button $type="start"

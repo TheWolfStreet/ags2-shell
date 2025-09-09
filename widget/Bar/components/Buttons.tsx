@@ -41,7 +41,7 @@ export function Tray() {
 			<For each={items}>
 				{(item) => (
 					<menubutton valign={CENTER} halign={CENTER}
-						$={(self) => {
+						$={self => {
 							init(self, item)
 							self.get_popover()?.set_has_arrow(false)
 						}
@@ -113,11 +113,13 @@ export function Tasks() {
 	return (
 		<box class="tasks">
 			<For each={createBinding(hypr, "clients").as(v =>
-				[...v].sort((a, b) => a?.workspace.id - b?.workspace.id)
+				[...(v ?? [])]                 // ensure v is at least an empty array
+					.filter((c): c is AstalHyprland.Client => c != null) // remove nulls
+					.sort((a, b) => (a.workspace?.id ?? 0) - (b.workspace?.id ?? 0)) // safe access
 			)}>
 				{(app: AstalHyprland.Client) => <AppItem app={app} />}
 			</For>
-		</box >
+		</box>
 	)
 }
 

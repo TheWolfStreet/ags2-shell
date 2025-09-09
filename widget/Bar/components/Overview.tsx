@@ -141,9 +141,9 @@ export namespace Workspaces {
 
 		return (
 			<button
-				name={String(ws.get_id())}
+				name={`${ws.get_id()}`}
 				class={className}
-				tooltipText={String(ws.get_id())}
+				tooltipText={`${ws.get_id()}`}
 				css={css}
 				valign={CENTER}
 				onClicked={() => ws.focus()}
