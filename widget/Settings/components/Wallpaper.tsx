@@ -11,6 +11,8 @@ import icons from "$lib/icons"
 
 import options from "options"
 
+const { COVER } = Gtk.ContentFit
+
 export default function Wallpaper() {
 	const wall = createBinding(wp, "wallpaper")
 
@@ -71,7 +73,7 @@ export default function Wallpaper() {
 					class="preview"
 					hexpand
 					vexpand
-					contentFit={Gtk.ContentFit.COVER}
+					contentFit={COVER}
 					paintable={wall.as(v => textureFromFile(v) as Gdk.Paintable)}
 				>
 				</Gtk.Picture>

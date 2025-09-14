@@ -59,7 +59,8 @@ export default function Setter({
 					adjustment={new Gtk.Adjustment({ lower: min, upper: max, stepIncrement: 1, pageIncrement: 5 })}
 					numeric
 					value={opt.as(v => v as number)}
-					onNotifyValue={(self) => opt.set(self.value)}
+					onNotifyText={self => opt.set(self.value)}
+					onNotifyValue={self => opt.set(self.value)}
 				/>
 			)
 		}
@@ -92,7 +93,7 @@ export default function Setter({
 		case "enum": return EnumSetter(opt, enums!)
 		case "boolean": {
 			return (
-				<switch valign={CENTER} state={opt} onNotifyState={self => opt.set(self.get_state())} />
+				<switch valign={CENTER} state={opt} active={opt} onNotifyState={self => opt.set(self.get_state())} />
 			)
 		}
 		case "img": {

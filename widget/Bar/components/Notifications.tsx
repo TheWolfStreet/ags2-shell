@@ -45,6 +45,7 @@ function urgency(n: AstalNotifd.Notification): string {
 
 export namespace Notifications {
 	let hoverCount = 0
+
 	const [hovered, setHovered] = createState(false)
 	const [dismiss, set_dismiss] = createState(false)
 	const [_current, set_current] = createState<Array<AstalNotifd.Notification>>([])
@@ -80,10 +81,11 @@ export namespace Notifications {
 
 	interface EntryProps {
 		entry: AstalNotifd.Notification
-		persistent: boolean
+		widthRequest?: Accessor<number> | number
+		persistent?: boolean
 	}
 
-	function Entry({ entry: notification, persistent }: EntryProps) {
+	function Entry({ entry: notification, widthRequest, persistent }: EntryProps) {
 		const [reveal, setReveal] = createState(false)
 		const [revealActions, setRevealActions] = createState(false)
 
@@ -168,7 +170,6 @@ export namespace Notifications {
 		}
 
 		const dismissUnsub = dismiss.subscribe(handleDismiss)
-
 		const hoveredUnsub = hovered.subscribe(() => {
 			if (!hovered.get() && !persistent && !closed) {
 				const delay = Math.random() * STAGGER_DELAY_MAX
@@ -209,17 +210,16 @@ export namespace Notifications {
 					}
 				}}
 			>
-				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL}>
+				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} widthRequest={widthRequest}>
 					<Gtk.EventControllerMotion onEnter={onEnter} onLeave={onLeave} />
-
 					<box class="header">
 						<image class="app-icon" iconName={appIcon} useFallback />
 						<label
 							class="app-name"
 							halign={START}
-							use_markup
 							maxWidthChars={24}
 							ellipsize={Pango.EllipsizeMode.END}
+							useMarkup
 							label={appName}
 						/>
 						<label
@@ -251,18 +251,20 @@ export namespace Notifications {
 						<box orientation={VERTICAL}>
 							<label
 								class="summary"
-								halign={START}
 								wrap
-								maxWidthChars={24}
+								wrapMode={Gtk.WrapMode.WORD}
+								maxWidthChars={28}
+								halign={START}
 								label={notification.summary}
 							/>
 							{notification.body && (
 								<label
 									class="body"
+									wrap
+									wrapMode={Gtk.WrapMode.WORD}
+									maxWidthChars={28}
 									halign={START}
 									useMarkup
-									wrap
-									maxWidthChars={24}
 									label={notification.body}
 								/>
 							)}
@@ -277,26 +279,24 @@ export namespace Notifications {
 						>
 							<box class="actions horizontal">
 								{validActions.map(({ label, id }) => (
-									<button hexpand onClicked={() => onActionClick(id)}>
-										<label label={label} halign={CENTER} hexpand />
-									</button>
+									<button hexpand label={label} onClicked={() => onActionClick(id)} />
 								))}
 							</box>
 						</revealer>
 					)}
+
 				</box>
-			</revealer>
+			</revealer >
 		)
 	}
 
-	export function Stack({ widthRequest, hexpand, class: className, persistent = false }: {
-		widthRequest?: number | Accessor<number>,
-		hexpand?: boolean | Accessor<boolean>,
+	export function Stack({ class: className, persistent = false }: {
 		class?: string,
+		hexpand?: boolean | Accessor<boolean>,
 		persistent?: boolean
 	}) {
 		return (
-			<box widthRequest={widthRequest} hexpand={hexpand} class={className} orientation={VERTICAL} valign={START}>
+			<box class={className} orientation={VERTICAL} valign={START}>
 				<For each={current}>
 					{(n: AstalNotifd.Notification) => <Entry entry={n} persistent={persistent} />}
 				</For>
@@ -327,14 +327,13 @@ export namespace Notifications {
 				resizable={false}
 				heightRequest={1}
 				widthRequest={1}
-				$={self => onCleanup(() => self.destroy())}
 				name="notifications"
 				class="notifications"
 				application={app}
 				exclusivity={EXCLUSIVE}
 				anchor={TOP | RIGHT}
 			>
-				<Stack widthRequest={options.notifications.width} persistent={false} />
+				<Stack persistent={false} />
 			</window>
 		)
 	}

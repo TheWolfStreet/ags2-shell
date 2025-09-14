@@ -119,7 +119,7 @@ const general_page =
 		</Group>
 
 		<Group title="Launcher">
-			<Row opt={l.apps.max} title="Max Items" />
+			<Row opt={l.apps.max} title="Max Items" max={9} />
 		</Group>
 
 		<Group title="Overview">
@@ -133,8 +133,8 @@ const general_page =
 		</Group>
 
 		<Group title="ASUS" visible={asusctl.available}>
-			<Row opt={s.ac_hz} title="Screen Refresh Rate (AC)" min={60} note="Minimum is 60HZ to avoid breakage" />
-			<Row opt={s.bat_hz} title="Screen Refresh Rate (Battery)" min={60} note="Minimum is 60HZ to avoid breakage" />
+			<Row opt={s.ac_hz} title="Screen Refresh Rate (AC)" min={60} note="60HZ is the minimum to avoid breakage" />
+			<Row opt={s.bat_hz} title="Screen Refresh Rate (Battery)" min={60} note="60HZ is the minimum to avoid breakage" />
 		</Group>
 	</Page >
 

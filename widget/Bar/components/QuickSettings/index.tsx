@@ -28,7 +28,7 @@ import { monitorFile } from "ags/file"
 const { bar, quicksettings } = options
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
-const { COVER, SCALE_DOWN } = Gtk.ContentFit
+const { COVER } = Gtk.ContentFit
 
 
 const { AUDIO_SOURCE, STREAM_OUTPUT_AUDIO, AUDIO_SINK } = AstalWp.MediaClass
@@ -710,7 +710,8 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	// TODO: Handle weird mpv format
 	const cover = createBinding(player, "coverArt")
 	const icon = createBinding(player, "entry").as(e => e && lookupIconName(e) ? e : "audio-x-generic-symbolic")
-	const pos = createBinding(player, "position").as(p => player.length > 0 ? p / player.length : 0)
+	const posNorm = createBinding(player, "position").as(p => player.length > 0 ? p / player.length : 0)
+	const pos = createBinding(player, "position")
 	const status = createBinding(player, "playbackStatus")
 	const loop = createBinding(player, "loopStatus")
 	const shuffle = createBinding(player, "shuffleStatus")
@@ -718,6 +719,8 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const control = createBinding(player, "canControl")
 	const next = createBinding(player, "canGoNext")
 	const prev = createBinding(player, "canGoPrevious")
+
+	const remaining = createComputed([pos, len], (p, l) => Math.max(0, l - p))
 
 	const playIcon = status.as(s => s === PLAYING ? icons.mpris.playing : icons.mpris.paused)
 	const loopIcon = loop.as(s => {
@@ -753,26 +756,45 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 			default: toggleClass(self, "active", false); break
 		}
 	}
+	let lastUpdate = 0
 
 	return (
 		<box class="player" vexpand={false}>
 			<Gtk.Picture
 				class="cover-art"
+				// TODO: Make it cover, not resize
 				paintable={cover.as(url => textureFromFile(url, 100, 100) as Gdk.Paintable)}
-				contentFit={SCALE_DOWN}
-				canShrink
+				contentFit={COVER}
 			/>
 
 			<box orientation={VERTICAL}>
 				<box class="title horizontal">
-					<label wrap hexpand halign={START} label={title} maxWidthChars={20} />
+					<label
+						label={title}
+						halign={START}
+						wrap hexpand
+						maxWidthChars={20}
+					/>
 					<image iconName={icon} useFallback />
 				</box>
-				<label class="artist" halign={START} valign={START} vexpand wrap label={artist} maxWidthChars={20} />
+				<label
+					class="artist"
+					label={artist}
+					halign={START}
+					valign={START}
+					wrap vexpand
+					maxWidthChars={20}
+				/>
 				<slider
+					tooltipText={len.as(v => (v > 0) ? `Duration: ${duration(v)}` : "")}
 					visible={len.as(l => l > 0)}
-					onNotifyValue={({ value }) => player.position = value * player.length}
-					value={pos}
+					onNotifyValue={({ value }) => {
+						const now = Date.now()
+						if (now - lastUpdate < 100) return
+						lastUpdate = now
+						player.position = value * player.length
+					}}
+					value={posNorm}
 				/>
 				<box class="horizontal">
 					<label
@@ -810,7 +832,7 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 						hexpand
 						halign={END}
 						visible={len.as(l => l > 0)}
-						label={len.as(l => l > 0 ? duration(l) : "0:00")}
+						label={remaining.as(duration)}
 					/>
 				</box>
 			</box>

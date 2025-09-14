@@ -9,7 +9,7 @@ import AstalHyprland from "gi://AstalHyprland"
 import PopupWindow from "widget/shared/PopupWindow"
 import PanelButton from "./PanelButton"
 
-import { toggleWindow } from "$lib/utils"
+import { getClientTitle, toggleWindow } from "$lib/utils"
 import { hypr } from "$lib/services"
 
 import options from "options"
@@ -41,21 +41,6 @@ export namespace Workspaces {
 		return ws.sort((a, b) => a.id - b.id)
 	}
 
-	function getClientTitle(c: AstalHyprland.Client) {
-		return createComputed(
-			[
-				createBinding(c, "title"),
-				createBinding(c, "class")
-			],
-			(title, className) => {
-				if (title?.length) return title
-				const name = (className || "Unknown").split(".").pop()!
-				return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
-			}
-		)
-	}
-
-
 	function Client({ entry: c, update }: { entry: AstalHyprland.Client, update: (self: Gtk.Widget) => void }) {
 
 		const className = createBinding(hypr, "focusedClient").as(fc => {
@@ -63,11 +48,7 @@ export namespace Workspaces {
 			if (fc && fc.address === c.address) classes.push("active")
 			return classes.join(" ")
 		})
-
 		const title = getClientTitle(c)
-
-		const iconSize = 16
-
 		const contentProvider = Gdk.ContentProvider.new_for_value(c.get_address())
 
 		let updateScheduled = false
@@ -110,7 +91,7 @@ export namespace Workspaces {
 				<image
 					vexpand hexpand
 					valign={CENTER} halign={CENTER}
-					iconName={c.get_class()} pixelSize={iconSize}
+					iconName={c.get_class()} pixelSize={16}
 				/>
 				<Gtk.DragSource
 					actions={MOVE}
@@ -123,7 +104,7 @@ export namespace Workspaces {
 	function Workspace({ entry: ws }: { entry: AstalHyprland.Workspace }) {
 		const className = createBinding(hypr, "focusedWorkspace").as(fws => {
 			const classes: string[] = ["workspace"]
-			if (fws.id === ws.id) classes.push("active")
+			if (fws?.id === ws?.id) classes.push("active")
 			return classes.join(" ")
 		})
 
@@ -177,7 +158,7 @@ export namespace Workspaces {
 	export function Button() {
 		const workspaces = createComputed(
 			[createBinding(hypr, "workspaces"), options.bar.workspaces.count],
-			(ws, fill) => dummyWorkspaces(ws.filter(w => w.id !== -99).sort((a, b) => a.id - b.id), fill)
+			(ws, fill) => dummyWorkspaces(ws.filter(w => w?.id !== -99).sort((a, b) => a?.id - b?.id), fill)
 		)
 
 		return (
@@ -188,13 +169,13 @@ export namespace Workspaces {
 							const className = createBinding(hypr, "focusedWorkspace")
 								.as(fws => {
 									const classes: string[] = []
-									if (fws.id === ws.id) classes.push("active")
-									if (ws.clients.length) classes.push("occupied")
+									if (fws?.id === ws?.id) classes.push("active")
+									if (ws?.clients.length) classes.push("occupied")
 									return classes.join(" ")
 								})
 
 							return (
-								<label valign={CENTER} name={`${ws.id}`} label={`${ws.id}`}
+								<label valign={CENTER} name={`${ws?.id}`} label={`${ws?.id}`}
 									class={className}
 								/>
 							)

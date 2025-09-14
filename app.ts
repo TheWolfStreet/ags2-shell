@@ -47,12 +47,30 @@ app.start({
 		Settings()
 		forMonitors([Bar, BarCorners])
 	},
-	requestHandler(argv: string[], _: (response: any) => void) {
+	requestHandler(argv: string[], res: (response: string) => void) {
 		const [request] = argv
-		if (request == "shutdown") Power.selAction("shutdown")
-		if (request == "record") scr.recording ? scr.stopRecord() : scr.startRecord()
-		if (request == "record-area") scr.recording ? scr.stopRecord() : scr.startRecord(true)
-		if (request == "screenshot") scr.screenshot()
-		if (request == "screenshot-area") scr.screenshot(true)
+
+		switch (request) {
+			case "shutdown":
+				Power.selAction("shutdown")
+				break
+			case "record":
+				scr.recording ? scr.stopRecord() : scr.startRecord()
+				break
+			case "record-area":
+				scr.recording ? scr.stopRecord() : scr.startRecord(true)
+				break
+			case "screenshot":
+				scr.screenshot()
+				break
+			case "screenshot-area":
+				scr.screenshot(true)
+				break
+			default:
+				res(`Unknown request: ${request}`)
+				return
+		}
+
+		res("Request handled successfully")
 	},
 })

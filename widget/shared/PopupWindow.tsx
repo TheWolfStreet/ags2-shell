@@ -1,5 +1,4 @@
-import { Timer, timeout } from "ags/time"
-import { createState, Node } from "ags"
+import { Node, onMount } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 
@@ -56,9 +55,6 @@ function getPosConfig(pos: Position) {
 	}
 }
 
-// TODO: This entire ordeal is a mess, subclass, then spawn, then assign revealer state outside in some function that creates it. Need to find a more elegant solution
-// declare the class itself
-
 interface PopupWindowProps extends Astal.Window.ConstructorProps {
 	children: Node | Node[]
 	layout: Position
@@ -66,30 +62,20 @@ interface PopupWindowProps extends Astal.Window.ConstructorProps {
 }
 
 class PopupWindowClass extends Astal.Window {
-	_set_reveal?: (v: boolean) => void
-	_hide_timeout?: Timer
-
-	private _delayed_hide(callback: () => void) {
-		this._hide_timeout?.cancel()
-		this._hide_timeout = timeout(options.transition.duration.get(), callback)
-	}
+	_revealer?: Gtk.Revealer
 
 	override vfunc_show() {
-		this._hide_timeout?.cancel()
 		super.vfunc_show()
-		this._set_reveal?.(true)
+		this._revealer?.set_reveal_child(true)
 	}
 
 	override vfunc_hide() {
-		this._set_reveal?.(false)
-		if (this._set_reveal) {
-			this._delayed_hide(() => {
-				super.vfunc_hide()
-				this.notify("visible")
-			})
-		} else {
-			super.vfunc_hide()
-		}
+		this._revealer?.set_reveal_child(false)
+	}
+
+	performHide() {
+		super.vfunc_hide()
+		this.notify("visible")
 	}
 }
 
@@ -130,7 +116,7 @@ export default function PopupWindow({
 	) => void
 	handleClosing?: boolean
 }) {
-	let content: Gtk.Widget
+	let content: Gtk.Revealer
 	let win: PopupWindowClass
 
 	const alignment = typeof layout === 'function'
@@ -138,12 +124,10 @@ export default function PopupWindow({
 		: getPosConfig(layout)
 
 	const isAccessor = typeof alignment === 'function'
-	const [reveal, set_reveal] = createState(false)
 
 	return (
 		<PopupWindowImpl
 			$={w => {
-				w._set_reveal = set_reveal
 				win = w
 				$ && $(w)
 			}}
@@ -161,12 +145,21 @@ export default function PopupWindow({
 			<Gtk.GestureClick onPressed={(ctrl, n, x, y) => handleClosing && onClickHandler(ctrl, n, x, y, win, content, onClick)} />
 
 			<revealer
-				revealChild={reveal}
 				transitionDuration={options.transition.duration}
 				transitionType={transitionType ?? (isAccessor ? alignment.as(v => v.transitionType) : alignment.transitionType)}
 				halign={isAccessor ? alignment.as(v => v.halign) : alignment.halign}
 				valign={isAccessor ? alignment.as(v => v.valign) : alignment.valign}
-				$={c => content = c}
+				onNotifyChildRevealed={(self) => {
+					if (!self.get_child_revealed()) {
+						win.performHide()
+					}
+				}}
+				$={c => {
+					content = c
+					onMount(() => {
+						win._revealer = c
+					})
+				}}
 			>
 				{children}
 			</revealer>

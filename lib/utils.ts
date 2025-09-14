@@ -1,5 +1,5 @@
 import app from "ags/gtk4/app"
-import { CCProps } from "ags"
+import { CCProps, createBinding, createComputed } from "ags"
 import { Gdk } from "ags/gtk4"
 import { exec, execAsync } from "ags/process"
 
@@ -11,8 +11,23 @@ import GdkPixbuf from "gi://GdkPixbuf"
 
 import icons, { substitutes } from "$lib/icons"
 import { hypr } from "$lib/services"
+import AstalHyprland from "gi://AstalHyprland"
 
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
+
+export function getClientTitle(c: AstalHyprland.Client) {
+	return createComputed(
+		[
+			createBinding(c, "title"),
+			createBinding(c, "class")
+		],
+		(title, className) => {
+			if (title?.length) return title
+			const name = (className || "Unknown").split(".").pop()!
+			return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
+		}
+	)
+}
 
 export function getFileSize(filePath: string): number | null {
 	if (!filePath || !fileExists(filePath)) return null;
@@ -128,13 +143,15 @@ export function onWindowToggle(name: string, callback: (w: Gtk.Window) => void) 
 
 export function duration(length: number) {
 	const hours = Math.floor(length / 3600)
-	const min = Math.floor((length % 3600) / 60)
-	const sec = Math.floor(length % 60)
-	const sec0 = sec < 10 ? "0" : ""
+	const minutes = Math.floor((length % 3600) / 60)
+	const seconds = Math.floor(length % 60)
+
+	const mm = minutes.toString().padStart(hours ? 2 : 1, "0")
+	const ss = seconds.toString().padStart(2, "0")
 
 	return hours
-		? `${hours}:${min < 10 ? "0" : ""}${min}:${sec0}${sec}`
-		: `${min}:${sec0}${sec}`
+		? `${hours}:${mm}:${ss}`
+		: `${minutes}:${ss}`
 }
 
 export function range(length: number, start = 1) {

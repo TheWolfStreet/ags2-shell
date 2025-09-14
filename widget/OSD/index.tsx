@@ -64,6 +64,7 @@ export default function OSD() {
 	const { OVERLAY } = Astal.Layer
 	const { EXCLUSIVE } = Astal.Exclusivity
 	const { NONE } = Astal.Keymode
+	// TODO: Sometimes doesn't reapper when triggered fast
 	return (
 		<PopupWindow
 			name="osd"

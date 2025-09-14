@@ -13,7 +13,7 @@ import PanelButton from "./PanelButton"
 
 import { asusctl, audio, bt, cpick, hypr, media, net, notifd, pp, scr, tray } from "$lib/services"
 import icons from "$lib/icons"
-import { bashSync, duration, lookupIconName, toggleWindow } from "$lib/utils"
+import { bashSync, duration, getClientTitle, lookupIconName, toggleWindow } from "$lib/utils"
 
 import options from "options"
 
@@ -55,38 +55,38 @@ export function Tray() {
 }
 
 export function Tasks() {
-	function AppItem({ app }: { app: AstalHyprland.Client }) {
-		if (!app || app.class === "") {
+	function Entry({ client }: { client: AstalHyprland.Client }) {
+		if (!client || client.class === "") {
 			return <box visible={false} />
 		}
 
-		const visible = createComputed([createBinding(app, "workspace"), createBinding(hypr, "focusedWorkspace"), exclusive], (w, focused, exclusive) => {
+		const visible = createComputed([createBinding(client, "workspace"), createBinding(hypr, "focusedWorkspace"), exclusive], (w, focused, exclusive) => {
 			if (exclusive) {
-				return w.id == focused.id
+				return w?.id == focused?.id
 			}
 			return true
 		})
 
 		const focused = createBinding(hypr, "focusedClient").as(v => {
-			return v && v.address == app.address
+			return v?.address === client.address;
 		})
 
 		return (
-			<overlay class="panel-button" tooltipText={createBinding(app, "title")} visible={visible}>
+			<overlay class="panel-button" tooltipText={getClientTitle(client)} visible={visible}>
 				<Gtk.GestureClick
 					button={0}
 					onPressed={self => {
 						const mBtn = self.get_current_button()
 						switch (mBtn) {
 							case Gdk.BUTTON_PRIMARY:
-								app.focus()
+								client.focus()
 								break
 							case Gdk.BUTTON_SECONDARY:
-								app.focus()
+								client.focus()
 								hypr.message("dispatch fullscreen")
 								break
 							case Gdk.BUTTON_MIDDLE:
-								app.kill()
+								client.kill()
 								break
 							default:
 								break
@@ -97,7 +97,7 @@ export function Tasks() {
 				<image
 					halign={CENTER}
 					valign={CENTER}
-					iconName={createBinding(app, "class")}
+					iconName={createBinding(client, "class")}
 					useFallback
 				/>
 				<box class="focused"
@@ -113,11 +113,11 @@ export function Tasks() {
 	return (
 		<box class="tasks">
 			<For each={createBinding(hypr, "clients").as(v =>
-				[...(v ?? [])]                 // ensure v is at least an empty array
-					.filter((c): c is AstalHyprland.Client => c != null) // remove nulls
-					.sort((a, b) => (a.workspace?.id ?? 0) - (b.workspace?.id ?? 0)) // safe access
+				[...(v ?? [])]
+					.filter((c): c is AstalHyprland.Client => c != null)
+					.sort((a, b) => (a?.workspace?.id ?? 0) - (b?.workspace?.id ?? 0))
 			)}>
-				{(app: AstalHyprland.Client) => <AppItem app={app} />}
+				{(app: AstalHyprland.Client) => <Entry client={app} />}
 			</For>
 		</box>
 	)
@@ -223,7 +223,7 @@ export function ColorPicker() {
 		}`
 
 	const popover = <Gtk.Popover hasArrow={false} position={Gtk.PositionType.BOTTOM} /> as Gtk.Popover
-	// TODO: Animate
+	// TODO: Animate popovers
 	popover.set_child(
 		<box class="colorpicker vertical" orientation={VERTICAL}>
 			<For each={colors}>
@@ -386,24 +386,31 @@ export function SysIndicators() {
 
 	function NetworkState() {
 		const { WIRED, WIFI } = AstalNetwork.Primary
+		const adapter = createComputed([createBinding(net, "primary"), createBinding(net, "wifi"), createBinding(net, "wired")], (type, wifi, wired) => {
+			switch (type) {
+				case (WIFI):
+					return wifi
 
-		const primary = createBinding(net, "primary")
-		const connectivity = createBinding(net, "connectivity")
-		const wifiAdapter = createBinding(net, "wifi")
-		const wiredAdapter = createBinding(net, "wired")
+				case (WIRED):
+					return wired
 
-		// TODO: Wifi strength doesn't update, it's just hacky
-		const icon = createComputed(
-			[primary, wifiAdapter, wiredAdapter, connectivity],
-			(t, wifi, wired) => t === WIFI ? wifi.iconName : (t === WIRED ? wired.iconName : "")
-		)
+				default:
+					return undefined
+			}
+		})
 
 		return (
-			<image
-				iconName={icon}
-				visible={icon.as(i => i !== "")}
-				useFallback
-			/>
+			<box visible={adapter.as(v => v !== undefined)}>
+				<With value={adapter}>
+					{(adapter) =>
+						adapter &&
+						<image
+							iconName={createBinding(adapter, "iconName")}
+							useFallback
+						/>
+					}
+				</With>
+			</box>
 		)
 	}
 

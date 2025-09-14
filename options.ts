@@ -135,7 +135,6 @@ const options = mkOptions({
 		position: ["top", "right"],
 		blacklist: ["Spotify", "com.spotify.Client"],
 		dismiss: 3500,
-		width: 300,
 	},
 
 	hyprland: {

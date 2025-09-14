@@ -2,7 +2,7 @@
 
 ![Demonstration](README.png)
 
-A port of Aylur's AGS shell from AGS v1 to AGS v2 (and then to v3), with a subset of features and slight tweaks. Tightly coupled with Hyprland.
+A port of Aylur's AGS shell from AGS v1 to AGS v2 (and now to v3), with a subset of features and slight tweaks. Tightly coupled with Hyprland.
 
 ## Acknowledgments
 Special thanks to [Aylur](https://github.com/Aylur) for the original [AGS v1 shell](https://github.com/Aylur/dotfiles/tree/18b83b2d2c6ef2b9045edefe49a66959f93b358a), [Astal](https://github.com/Aylur/Astal), and the [AGS CLI](https://github.com/Aylur/ags).
@@ -11,9 +11,6 @@ Check out and support his latest project **[Marble Shell](https://marble-shell.p
 
 ## ⚠ Known Issues
 - Duplicate top bar when mirroring or demirroring a screen.
-
-## 📌 Planned Improvements
-- Decoupling from adw-gtk3-dark theme (styles)
 
 ## Installation on NixOS
 ### As a bundled package
@@ -72,7 +69,7 @@ pkgs,
   imports = [inputs.ags.homeManagerModules.default];
   programs.ags = {
     enable = true;
-    # WARNING: Do not use submodules, nix flakes won't see them, use subtrees
+    # WARNING: For nix flakes to see submodules set inputs.self.submodules = true
     configDir = ../ags2-shell; # Path to this repository
     # And a few expected things in the environment like bash and which
     extraPackages = with pkgs; [
@@ -92,7 +89,6 @@ pkgs,
       hyprpicker # Colorpicker
       pavucontrol # Audio control
       networkmanager # Network control
-      gtk3 # GUI (gjs)
       fd # For searching .scss files
       inputs.matugen.packages.${system}.default # Dynamic color generation based on wallpaper colors
       # Astal libs

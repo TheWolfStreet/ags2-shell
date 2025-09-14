@@ -1,8 +1,7 @@
-import { timeout } from "ags/time"
-
 import { hypr } from "./services"
-import options from "options"
 import { setHandler } from "./option"
+
+import options from "options"
 
 const {
 	hyprland,
@@ -56,33 +55,22 @@ async function sendBatch(batch: string[]) {
 }
 
 async function setupHyprland() {
-	const wm_gaps = Math.floor(hyprland.gaps.get() * spacing.get())
-	const isDark = scheme.get().includes("dark")
-	const blurPolicy = isDark || blurOnLight.get()
+	const wm_gaps = Math.floor(hyprland.gaps.get() * spacing.get());
+	const is_dark = scheme.get().includes("dark");
+	const blur_policy = is_dark || blurOnLight.get();
+	const blur_enabled = blur.get() > 0 && blur_policy;
 
-	if (!blurPolicy) {
-		timeout(1, () => {
-			sendBatch([
-				`layerrule unset, gtk4-layer-shell`,
-			])
-		})
-	}
+	const base_rules = [
+		"layerrule unset, *",
+	];
 
-	if (blur.get() > 0 && blurPolicy) {
-		sendBatch([
-			`layerrule unset, gtk4-layer-shell`,
-			`layerrule blur, gtk4-layer-shell`,
-			`layerrule blurpopups, gtk4-layer-shell`,
-			`layerrule ignorealpha ${/* based on shadow color */.29}, gtk4-layer-shell`,
-		])
-	} else {
-		sendBatch([
-			`layerrule unset, gtk4-layer-shell`,
-		])
+	const blur_rules = [
+		"layerrule blur, gtk4-layer-shell",
+		"layerrule blurpopups, gtk4-layer-shell",
+		"layerrule ignorealpha .29, gtk4-layer-shell",
+	];
 
-	}
-
-	sendBatch([
+	const general_rules = [
 		`general:border_size ${width.get()}`,
 		`general:gaps_out ${wm_gaps}`,
 		`general:gaps_in ${Math.floor(wm_gaps / 2)}`,
@@ -90,8 +78,11 @@ async function setupHyprland() {
 		`general:col.inactive_border ${rgba(hyprland.inactiveBorder.get())}`,
 		`decoration:rounding ${radius.get()}`,
 		`decoration:shadow:enabled ${shadows.get() ? "yes" : "no"}`,
-		`layerrule noanim, gtk4-layer-shell`,
-	])
+		"layerrule noanim, gtk4-layer-shell",
+	];
+
+	sendBatch(blur_enabled ? [...base_rules, ...blur_rules] : base_rules);
+	sendBatch(general_rules);
 }
 
 export default function hyprinit() {
