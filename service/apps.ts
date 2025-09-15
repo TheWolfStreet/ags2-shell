@@ -76,11 +76,13 @@ export default class Apps extends GObject.Object {
 
 			if (!Array.isArray(list)) throw new Error("not an array")
 
-			let apps = list
-				.filter(item => typeof item === "string")
-				.map(item => item.replace(/\.desktop$/, ""))
-				.map(name => this.#apps.fuzzy_query(name)[0])
-				.filter(app => app !== undefined)
+			const apps = []
+			for (const item of list) {
+				if (typeof item !== "string") continue
+				const name = item.replace(/\.desktop$/, "")
+				const match = this.#apps.fuzzy_query(name)[0]
+				if (match) apps.push(match)
+			}
 
 			return apps
 		} catch (e) {

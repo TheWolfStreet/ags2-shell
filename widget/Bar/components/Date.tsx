@@ -6,10 +6,10 @@ import icons from "$lib/icons"
 import { toggleWindow } from "$lib/utils"
 import { env } from "$lib/env"
 
-import { Notifications } from "./Notifications"
-import PopupWindow, { Position } from "widget/shared/PopupWindow"
 import { Placeholder } from "widget/shared/Placeholder"
-import PanelButton from "./PanelButton"
+import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { Notifications } from "./Notifications"
+import { PanelButton } from "./PanelButton"
 
 import options from "options"
 
@@ -30,55 +30,66 @@ function up(up: number) {
 }
 
 export namespace Date {
-
-	const ClearButton = () =>
-		<button
-			onClicked={() =>
-				Notifications.dismissAll()
-			}
-			valign={CENTER}
-		>
-			<box class="horizontal">
-				<label label="Clear" />
-				<image iconName={Notifications.current.as(v => icons.trash[v.length ? "full" : "empty"])} useFallback />
-			</box>
-		</button>
-
-	const Header = () =>
-		<box class="notifications-header">
-			<label label="Notifications" hexpand xalign={0} />
-			<ClearButton />
-		</box>
-
-	const NotifyColumn = () =>
-		<box class="notifications" orientation={VERTICAL} vexpand>
-			<Header />
-			<Gtk.ScrolledWindow class="notification-scrollable" hscrollbarPolicy={NEVER}>
-				<box vexpand orientation={VERTICAL}>
-					<Notifications.Stack class="notification-list vertical" persistent={true} />
-					<revealer revealChild={Notifications.current.as(ns => ns.length == 0)} transitionDuration={options.transition.duration}>
-						<Placeholder iconName={icons.notifications.silent} label={"No new notifications"} />
-					</revealer>
+	function ClearButton() {
+		return (
+			<button
+				onClicked={() =>
+					Notifications.dismissAll()
+				}
+				valign={CENTER}
+			>
+				<box class="horizontal">
+					<label label="Clear" />
+					<image iconName={Notifications.current.as(v => icons.trash[v.length ? "full" : "empty"])} useFallback />
 				</box>
-			</Gtk.ScrolledWindow>
-		</box>
+			</button>
+		)
+	}
 
-	const DateColumn = () =>
-		<box class="date-column vertical" orientation={VERTICAL}>
-			<box class="clock-box" orientation={VERTICAL}>
-				<label
-					class="clock"
-					label={env.clock(v => v.format("%H:%M") ?? "")}
-				/>
-				<label
-					class="uptime"
-					label={env.uptime(v => up(v))}
-				/>
+	function Header() {
+		return (
+			<box class="notifications-header">
+				<label label="Notifications" hexpand xalign={0} />
+				<ClearButton />
 			</box>
-			<box class="calendar" hexpand>
-				<Gtk.Calendar halign={CENTER} />
+		)
+	}
+
+	function NotifyColumn() {
+		return (
+			<box class="notifications" orientation={VERTICAL} vexpand>
+				<Header />
+				<Gtk.ScrolledWindow class="notification-scrollable" hscrollbarPolicy={NEVER}>
+					<box vexpand orientation={VERTICAL}>
+						<Notifications.Stack class="notification-list vertical" persistent={true} />
+						<revealer revealChild={Notifications.current.as(ns => ns.length == 0)} transitionDuration={options.transition.duration}>
+							<Placeholder iconName={icons.notifications.silent} label={"No new notifications"} />
+						</revealer>
+					</box>
+				</Gtk.ScrolledWindow>
 			</box>
-		</box>
+		)
+	}
+
+	function DateColumn() {
+		return (
+			<box class="date-column vertical" orientation={VERTICAL}>
+				<box class="clock-box" orientation={VERTICAL}>
+					<label
+						class="clock"
+						label={env.clock(v => v.format("%H:%M") ?? "")}
+					/>
+					<label
+						class="uptime"
+						label={env.uptime(v => up(v))}
+					/>
+				</box>
+				<box class="calendar" hexpand>
+					<Gtk.Calendar halign={CENTER} />
+				</box>
+			</box>
+		)
+	}
 
 	export function Button() {
 		return (

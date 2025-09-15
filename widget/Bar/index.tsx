@@ -3,15 +3,16 @@ import app from "ags/gtk4/app"
 
 import { Date } from "./components/Date"
 import { Battery } from "./components/Battery"
-import { SysIndicators, Tasks, Tray, ColorPicker, ScreenRecord, Media } from "./components/Buttons"
+import { Tasks, Tray, ColorPicker, ScreenRecord, Media } from "./components/Buttons"
 import { Launcher } from "./components/Launcher"
 import { Workspaces } from "./components/Overview"
 import { Power } from "widget/PowerMenu"
 import { Notifications } from "./components/Notifications"
+import { QuickSettings } from "./components/QuickSettings"
 
 import options from "options"
 
-export default function Bar(gdkmonitor: Gdk.Monitor) {
+export function Bar(gdkmonitor: Gdk.Monitor) {
 	const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 	const { transparent } = options.bar
 
@@ -50,7 +51,7 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
 					<ColorPicker />
 					<Tray />
 					<ScreenRecord />
-					<SysIndicators />
+					<QuickSettings.Button />
 					<Battery.Button />
 					<Power.Button />
 				</box>

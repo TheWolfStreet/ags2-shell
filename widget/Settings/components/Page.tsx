@@ -1,17 +1,17 @@
-import { Node } from "ags"
+import { Accessor, Node } from "ags"
 import { Gtk } from "ags/gtk4"
 
 const { VERTICAL } = Gtk.Orientation
 
-export interface PageProps {
-	name: string
-	icon: string
-	children?: Node | Node[]
-}
-
 export type PageWidget = Gtk.Widget & { attr: { name: string, icon: string } }
 
-export default function Page({ name, icon, children = [] }: PageProps): PageWidget {
+export default function Page(
+	{ name, icon, children = [] }: {
+		name: Accessor<string> | string
+		icon: Accessor<string> | string
+		children?: Node | Node[]
+	}
+): PageWidget {
 	return (
 		<Gtk.StackPage
 			child={

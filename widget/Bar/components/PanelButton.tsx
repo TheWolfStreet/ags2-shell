@@ -2,7 +2,7 @@ import { Gtk } from "ags/gtk4"
 
 import { onWindowToggle, Props, toggleClass } from "$lib/utils"
 
-export default function PanelButton({
+export function PanelButton({
 	$,
 	class: className,
 	...props

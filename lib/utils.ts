@@ -9,6 +9,8 @@ import GLib from "gi://GLib"
 import Gio from "gi://Gio"
 import GdkPixbuf from "gi://GdkPixbuf"
 
+import giCairo from "cairo"
+
 import icons, { substitutes } from "$lib/icons"
 import { hypr } from "$lib/services"
 import AstalHyprland from "gi://AstalHyprland"
@@ -131,6 +133,10 @@ export function toggleWindow(name: string | undefined, hide: boolean = true) {
 	} else {
 		win?.show()
 	}
+}
+
+export function ignoreInput(widget: Gtk.Window) {
+	widget.get_surface()?.set_input_region(new giCairo.Region)
 }
 
 export function onWindowToggle(name: string, callback: (w: Gtk.Window) => void) {

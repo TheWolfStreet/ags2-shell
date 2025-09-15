@@ -1,647 +1,38 @@
-import { Accessor, createBinding, createComputed, createState, For, Node, onCleanup, With } from "ags"
+import { Accessor, createBinding, createComputed, createState, For, Node } from "ags"
+import { monitorFile } from "ags/file"
 import app from "ags/gtk4/app"
-import { execAsync, exec } from "ags/process"
-import { timeout } from "ags/time"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
 import AstalMpris from "gi://AstalMpris"
-import AstalWp from "gi://AstalWp"
-import AstalNetwork from "gi://AstalNetwork"
-import AstalHyprland from "gi://AstalHyprland"
-import AstalBluetooth from "gi://AstalBluetooth"
-import Pango from "gi://Pango"
 
-import { Placeholder } from "widget/shared/Placeholder"
-import PopupWindow, { Position } from "widget/shared/PopupWindow"
-import { Arrow, ArrowToggleButton, Menu, opened, set_opened, SimpleToggleButton } from "./ToggleButton"
+import { Settings } from "widget/Settings"
+import { PanelButton } from "widget/Bar/components/PanelButton"
+import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { Network } from "./components/Network"
+import { Audio } from "./components/Audio"
+import { SimpleToggleButton } from "./components/shared/MenuElements"
+import { DND } from "./components/DND"
+import { Bluetooth } from "./components/Bluetooth"
+import { Mirror } from "./components/Mirror"
+import { Profiles } from "./components/PowerProfiles"
 
 import { env } from "$lib/env"
 import icons from "$lib/icons"
-import { bash, dependencies, duration, launchApp, lookupIconName, toggleClass, textureFromFile } from "$lib/utils"
-import { asusctl, audio, brightness, bt, hypr, media, net, notifd, pp } from "$lib/services"
-
-import { Asusctl } from "$service/asusctl"
+import { duration, lookupIconName, toggleClass, textureFromFile, bashSync, toggleWindow } from "$lib/utils"
+import { audio, brightness, hypr, media } from "$lib/services"
 
 import options from "options"
-import { monitorFile } from "ags/file"
 
 const { bar, quicksettings } = options
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { COVER } = Gtk.ContentFit
 
-
-const { AUDIO_SOURCE, STREAM_OUTPUT_AUDIO, AUDIO_SINK } = AstalWp.MediaClass
-const { NEVER } = Gtk.PolicyType
-
 const layout = createComputed([bar.position, quicksettings.position], (bar, qs) => `${bar}-${qs}` as Position)
 
 const { scheme } = options.theme
 
-function Settings({ callback: callback }: { callback: () => void }) {
-	return (
-		<button onClicked={callback} hexpand>
-			<box class="settings horizontal">
-				<image iconName={icons.ui.settings} useFallback />
-				<label label={"Settings"} />
-			</box>
-		</button>
-	)
-}
-
-namespace Audio {
-	function MixerItem({ node }: { node: AstalWp.Node }) {
-		return (
-			<box hexpand class="mixer-item horizontal">
-				<image
-					iconName={createBinding(node, "name")}
-					tooltipText={createBinding(node, "description").as((d) => d || "")}
-					useFallback
-				/>
-				<box orientation={VERTICAL}>
-					<label
-						xalign={0}
-						maxWidthChars={28}
-						ellipsize={Pango.EllipsizeMode.END}
-						label={createBinding(node, "name").as((n) => n || "")}
-					/>
-					<slider
-						hexpand
-						drawValue={false}
-						value={createBinding(node, "volume")}
-						onNotifyValue={({ value }) => (node.volume = value)}
-					/>
-				</box>
-			</box>
-		)
-	}
-
-	function SinkItem({ endpoint }: { endpoint: AstalWp.Endpoint }) {
-		return (
-			<button hexpand onClicked={() => (endpoint.set_is_default(true))}>
-				<box class="sink-item horizontal">
-					<image
-						iconName={createBinding(endpoint, "icon")}
-						tooltipText={createBinding(endpoint, "name")}
-						useFallback
-					/>
-					<label label={(endpoint.description || "").split(" ").slice(0, 4).join(" ")} />
-					<image
-						iconName={icons.ui.tick}
-						hexpand
-						halign={END}
-						visible={(audio && createBinding(audio.defaultSpeaker, "description").as(s => s === endpoint.description)) ?? undefined}
-						useFallback
-					/>
-				</box>
-			</button>
-		)
-	}
-
-	export function AppMixer() {
-		const nodes = createBinding(audio, "nodes").as((a) => a.filter((item) => item.get_media_class() === STREAM_OUTPUT_AUDIO))
-		return (
-			<Menu name="app-mixer" title="App Mixer" iconName={icons.audio.mixer}>
-				<box orientation={VERTICAL}>
-					<box orientation={VERTICAL}>
-						<For each={nodes}>
-							{(n: AstalWp.Node) => (
-								<MixerItem node={n} />
-							)}
-						</For>
-					</box>
-					<Gtk.Separator />
-					<Settings callback={() => dependencies("pavucontrol") && execAsync("pavucontrol")} />
-				</box>
-			</Menu>
-		)
-	}
-
-	export function SinkSelector() {
-		const nodes = createBinding(audio, "nodes").as(nodes => nodes.filter((n): n is AstalWp.Endpoint => n instanceof AstalWp.Endpoint && n.get_media_class() === AUDIO_SINK))
-		return (
-			<Menu name="device-selector" title="Device Selector" iconName={icons.audio.type.headset}>
-				<box orientation={VERTICAL}>
-					<box orientation={VERTICAL}>
-						<For each={nodes}>
-							{(endpoint: AstalWp.Endpoint) => (
-								<SinkItem endpoint={endpoint} />
-							)}
-						</For>
-					</box>
-					<Gtk.Separator />
-					<Settings callback={() => dependencies("pavucontrol") && execAsync("pavucontrol")} />
-				</box>
-			</Menu>
-		)
-	}
-}
-
-namespace Profiles {
-	function prettify(str: string) {
-		return str
-			.split("-")
-			.map((str) => `${str.at(0)?.toUpperCase()}${str.slice(1)}`)
-			.join(" ")
-	}
-
-	interface Provider {
-		getActive: () => Accessor<string>,
-		getProfiles: () => string[],
-		setActive: (p: string) => void,
-		iconFor: (p: string) => string,
-		labelFor: (p: string) => string,
-		extraSettings?: Node,
-		toggleDefaults: () => [string, string]
-	}
-	const asusProvider: Provider = {
-		getActive: () => createBinding(asusctl, "profile"),
-		getProfiles: () => asusctl.profiles,
-		// @ts-ignore: Valid keys
-		setActive: (p: Asusctl.Profile) => { asusctl.profile = p },
-		// @ts-ignore: Valid keys
-		iconFor: (p) => icons.asusctl.profile[p],
-		labelFor: (p) => p,
-		extraSettings: <Settings callback={() => launchApp("rog-control-center")} />,
-		toggleDefaults: () => ["Quiet", "Balanced"],
-	}
-
-	const powerProvider: Provider | undefined = pp?.version ? {
-		getActive: () => createBinding(pp, "activeProfile"),
-		getProfiles: () => pp.get_profiles().map(p => p.profile),
-		setActive: (p) => pp.set_active_profile(p),
-		// @ts-ignore: Valid keys
-		iconFor: (p) => icons.powerprofile[p],
-		labelFor: (p) => prettify(p),
-		toggleDefaults: () => {
-			const profiles = pp.get_profiles()
-			if (profiles.length >= 2) {
-				return [profiles[0].profile, profiles[1].profile]
-			}
-			return ["", ""]
-		},
-	} : undefined
-
-	function makeToggle(provider: Provider) {
-		const active = provider.getActive()
-		const [on, off] = provider.toggleDefaults()
-
-		return (
-			<ArrowToggleButton
-				name="profile-selector"
-				iconName={active.as(p => provider.iconFor(p))}
-				label={active.as(p => provider.labelFor(p))}
-				activate={() => provider.setActive(on)}
-				deactivate={() => provider.setActive(off)}
-				connection={active.as(p => p !== off)}
-			/>
-		)
-	}
-
-	function makeSelector(provider: Provider) {
-		const active = provider.getActive()
-		const profiles = provider.getProfiles()
-		return (
-			<Menu name="profile-selector" iconName={active.as(p => provider.iconFor(p))} title="Profile Selector">
-				<box orientation={VERTICAL} hexpand>
-					{profiles.map(p => (
-						<button onClicked={() => provider.setActive(p)}>
-							<box class="profile-item horizontal">
-								<image iconName={provider.iconFor(p)} />
-								<label label={provider.labelFor(p)} />
-							</box>
-						</button>
-					))}
-					{provider.extraSettings && (
-						<>
-							<Gtk.Separator />
-							{provider.extraSettings}
-						</>
-					)}
-				</box>
-			</Menu>
-		)
-	}
-
-	function MissingToggle() {
-		return (
-			<ArrowToggleButton
-				name="missing-profile"
-				iconName={icons.missing}
-				label="No Provider"
-			/>
-		)
-	}
-
-	function MissingSelector() {
-		return (
-			<Menu name="missing-profile" iconName={icons.missing} title="Install asusctl or powerprofiles daemon">
-				<Placeholder iconName={icons.missing} label="No power profile provider found" />
-			</Menu>
-		)
-	}
-
-	const provider = asusctl.available ? asusProvider : powerProvider
-
-	export const Toggle = provider ? () => makeToggle(provider) : MissingToggle
-	export const Selector = provider ? () => makeSelector(provider) : MissingSelector
-}
-
-namespace Bluetooth {
-	function Item({ device }: { device: AstalBluetooth.Device }) {
-		const connecting = createBinding(device, "connecting")
-		const label = createComputed(
-			[
-				createBinding(device, "name"),
-				createBinding(device, "address"),
-				createBinding(device, "batteryPercentage"),
-				createBinding(device, "paired")
-			],
-			(name, address, battery, paired) => {
-				const displayName = name ?? address
-				const bat = paired && battery != undefined
-					? ` ${(battery * 100)}%`.replace(/-/g, "")
-					: ""
-				const isPaired = paired ? " • Paired" : ""
-				return `${displayName}${bat}${isPaired}`
-			}
-		)
-
-		let btn: Gtk.Button
-
-		return (
-			<button $={self => (btn = self)} tooltipText={createBinding(device, "paired").as(p => p ? "Right-click to unpair" : "")}>
-				<Gtk.GestureClick
-					button={0}
-					onPressed={self => {
-						const mBtn = self.get_current_button()
-						switch (mBtn) {
-							case Gdk.BUTTON_PRIMARY:
-								device[device.get_connected() ? "disconnect_device" : "connect_device"](() =>
-									toggleClass(btn, "active", !device.get_connected())
-								)
-								break
-							case Gdk.BUTTON_SECONDARY:
-								if (device.paired) {
-									bash`bluetoothctl remove ${device.get_address()}`
-								}
-								break
-						}
-						self.reset()
-					}}
-				/>
-
-				<box class="bluetooth-item horizontal">
-					<image iconName={createBinding(device, "icon").as(i => i + "-symbolic")} />
-					<label label={label} />
-					<box hexpand />
-					<Gtk.Spinner spinning={connecting} visible={connecting} />
-				</box>
-			</button>
-		)
-	}
-
-	export function Toggle() {
-		const powered = createBinding(bt, "isPowered")
-		const connected = createBinding(bt, "isConnected")
-		const adapters = createBinding(bt, "adapters")
-
-		const label = createComputed([powered, connected, adapters], (p, c, a) => {
-			if (a.length == 0) return "No Device"
-			if (!p) return "Disabled"
-			if (c) return bt.devices.filter(d => d.connected).at(0)?.name ?? ""
-			return "Not Connected"
-		})
-
-		return (
-			<ArrowToggleButton
-				name="bluetooth-selector"
-				label={label}
-				iconName={powered.as(p => p ? icons.bluetooth.enabled : icons.bluetooth.disabled)}
-				activateOnArrow={true}
-				activate={() => !powered.get() && bt.toggle()}
-				deactivate={() => bt.toggle()}
-				connection={powered}
-			/>
-		)
-	}
-
-	export function Selector() {
-		const adapter = createBinding(bt, "adapter")
-		const devices = createBinding(bt, "devices").as(d =>
-			(d ?? []).slice().sort((a, b) => {
-				const aName = a.name && a.name.trim() !== ""
-				const bName = b.name && b.name.trim() !== ""
-				return (bName ? 1 : 0) - (aName ? 1 : 0)
-			})
-		)
-
-		return (
-			<Menu
-				name="bluetooth-selector"
-				iconName={icons.bluetooth.disabled}
-				title="Bluetooth devices"
-				headerChild={
-					<With value={adapter}>
-						{adapter => {
-							if (!adapter) return <box visible={false} />
-
-							const discovering = createBinding(adapter, "discovering")
-
-							const onToggleDiscover = () => {
-								if (!adapter.powered) adapter.set_powered(true)
-								if (discovering.get()) adapter.stop_discovery()
-								else adapter.start_discovery()
-							}
-
-							return (
-								<centerbox hexpand>
-									<button $type="end" onClicked={onToggleDiscover}>
-										<label label={discovering.as(d => (d ? "Cancel" : "Scan"))} />
-									</button>
-								</centerbox>
-							)
-						}}
-					</With>
-				}>
-				<With value={adapter}>
-					{adapter => {
-						if (!adapter)
-							return (
-								<Placeholder
-									iconName={icons.bluetooth.disabled}
-									label="No Device Found"
-								/>
-							)
-
-						const discovering = createBinding(adapter, "discovering")
-						const hasDevices = devices.as(d => d.length > 0)
-
-						return (
-							<box orientation={VERTICAL}>
-								<revealer halign={CENTER} revealChild={hasDevices.as(v => !v)} transitionDuration={options.transition.duration}>
-									<Placeholder
-										iconName={icons.bluetooth.disabled}
-										label={discovering.as(d => (d ? "Searching for devices..." : "No devices found"))}
-									/>
-								</revealer>
-								<revealer revealChild={hasDevices} transitionDuration={options.transition.duration}>
-									<Gtk.ScrolledWindow class="device-scroll" vexpand>
-										<box orientation={VERTICAL} vexpand hexpand>
-											<For each={devices}>
-												{(dev: AstalBluetooth.Device) => <Item device={dev} />}
-											</For>
-										</box>
-									</Gtk.ScrolledWindow>
-								</revealer>
-								<Gtk.Separator />
-								<Settings callback={() => bash`XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth`} />
-							</box>
-						)
-					}}
-				</With>
-			</Menu>
-		)
-	}
-}
-
-namespace Wifi {
-	function Item({ ap }: { ap: AstalNetwork.AccessPoint }) {
-		return (
-			<button onClicked={() => dependencies("nmcli") && execAsync(`nmcli device wifi connect ${ap.bssid}`)}>
-				<box class="wifi-item horizontal">
-					<image iconName={createBinding(ap, "iconName")} />
-					<label label={createBinding(ap, "ssid").as(v => v || "Hidden network")} />
-					<image
-						iconName={icons.ui.tick}
-						hexpand
-						halign={END}
-						visible={createBinding(net.wifi, "activeAccessPoint").as(v => v?.bssid === ap.bssid)}
-					/>
-				</box>
-			</button>
-		)
-	}
-
-	export function Toggle() {
-		const wifi = createBinding(net, "wifi")
-		return (
-			<With value={wifi}>
-				{w => {
-					if (!w) return <ArrowToggleButton name="wifi-selector" iconName={icons.wifi.offline} label={"No device"} />
-					return (
-						<ArrowToggleButton
-							name="wifi-selector"
-							iconName={createBinding(w, "iconName")}
-							// TODO: Monitor mode tracking
-							label={
-								createBinding(w, "activeAccessPoint")
-									.as(ssid => ssid?.ssid || "Not Connected")
-							}
-							activateOnArrow={true}
-							activate={() => {
-								w.set_enabled(true)
-								timeout(100, () => { w.scan() })
-							}}
-							deactivate={() => {
-								w.set_enabled(false)
-							}}
-							connection={createBinding(w, "enabled")}
-						/>
-					)
-				}}
-			</With>
-		)
-	}
-
-	export function Selector() {
-		const wifi = createBinding(net, "wifi")
-
-		return (
-			<Menu
-				name="wifi-selector"
-				iconName={wifi.as(w => w ? w.iconName : icons.wifi.offline)}
-				title="Visible networks"
-				children={
-					<With value={wifi}>
-						{wifi => {
-							if (!wifi)
-								return (
-									<Placeholder
-										iconName={icons.wifi.offline}
-										label="No device found" />
-								)
-
-							const aps = createBinding(wifi, "accessPoints")
-								.as(aps => aps.filter(ap => ap.ssid).sort((a, b) => b.strength - a.strength))
-							const hasAps = aps.as(aps => aps.length > 0)
-
-							return (
-								<box orientation={VERTICAL}>
-									<revealer halign={CENTER} revealChild={hasAps.as(v => !v)} transitionDuration={options.transition.duration}>
-										<Placeholder
-											iconName={icons.wifi.scanning}
-											label={hasAps.as(v => (v ? "" : "Searching for Wi-Fi networks..."))}
-										/>
-									</revealer>
-									<revealer revealChild={hasAps} transitionDuration={options.transition.duration}>
-										<Gtk.ScrolledWindow class="device-scroll" hscrollbarPolicy={NEVER}>
-											<box orientation={VERTICAL} vexpand hexpand>
-												<For each={aps}>{ap => <Item ap={ap} />}</For>
-											</box>
-										</Gtk.ScrolledWindow>
-									</revealer>
-									<Gtk.Separator />
-									<Settings callback={() => bash`XDG_CURRENT_DESKTOP=GNOME gnome-control-center wifi`} />
-								</box>
-							)
-						}}
-					</With>
-				}
-			/>
-		)
-	}
-}
-
-namespace Mirror {
-	function getMonitors() {
-		try {
-			return (JSON.parse(exec("hyprctl monitors all -j")) as AstalHyprland.Monitor[]).filter(m => m.id !== 0)
-		} catch (error) {
-			console.error("Error fetching monitors:", error)
-			return []
-		}
-	}
-
-	function Item({ monitor, update }: { monitor: AstalHyprland.Monitor, update: () => void }) {
-		// @ts-ignore: NOTE: A hacky way tracking mirroring in the existing type
-		const mirrored = monitor.mirrorOf == "none"
-
-		return (
-			<button
-				onClicked={() => {
-					const command = `keyword monitor ${monitor.name}, highres, auto, 1${mirrored ? `, mirror, ${hypr?.get_monitor(0).name}` : ''}`
-					hypr.message_async(command, null)
-					update()
-				}}
-			>
-				<box class="mirror-item horizontal">
-					<image iconName={icons.ui.projector} pixelSize={16} />
-					<label label={`${monitor.model} (${monitor.name}) ${mirrored ? "" : "(Mirrored)"}`} />
-				</box>
-			</button>
-		)
-	}
-
-	const [monitors, set_monitors] = createState(getMonitors())
-
-	export function Toggle() {
-		return (
-			<ArrowToggleButton
-				name="mirror-selector"
-				iconName={icons.ui.projector}
-				label={"Mirror"}
-				activate={() => set_opened("mirror-selector")}
-				connection={opened.as(v => v == "mirror-selector")}
-			/>
-		)
-	}
-
-	export function Selector() {
-		const ids = [
-			hypr.connect("monitor-added", () => set_monitors(getMonitors())),
-			hypr.connect("monitor-removed", () => set_monitors(getMonitors()))
-		];
-
-		onCleanup(() => {
-			ids.forEach(id => hypr.disconnect(id));
-		});
-		const hasMonitors = monitors.as(ms => ms.length > 0)
-		return (
-			<Menu
-				name={"mirror-selector"}
-				iconName={icons.ui.projector}
-				title={"Select display device"}
-			>
-				<box orientation={VERTICAL}>
-					<revealer
-						halign={CENTER}
-						revealChild={hasMonitors.as(v => !v)}
-						transitionDuration={options.transition.duration}
-					>
-						<Placeholder iconName={icons.missing} label={"No display devices found"} />
-					</revealer>
-					<revealer revealChild={hasMonitors} transitionDuration={options.transition.duration}>
-						<Gtk.ScrolledWindow class="device-scroll" hscrollbarPolicy={NEVER}>
-							<box orientation={VERTICAL} vexpand hexpand>
-								<For each={monitors}>
-									{(monitor) => (
-										<Item
-											monitor={monitor}
-											update={() => { set_monitors(getMonitors()) }}
-										/>
-									)}
-								</For>
-							</box>
-						</Gtk.ScrolledWindow>
-					</revealer>
-				</box>
-			</Menu>
-		)
-	}
-}
-
 namespace Sliders {
-	function ControlUnit({
-		device,
-		show = true,
-	}: {
-		device: AstalWp.Node | undefined,
-		show?: Accessor<boolean> | boolean
-	}) {
-		if (!device) return <box visible={false} />
-		return (
-			<box class="control-unit" visible={show}>
-				<button valign={CENTER} onClicked={() => device.set_mute(!device.get_mute())}
-					tooltipText={createBinding(device, "volume").as(v => `Volume: ${Math.floor((v ?? 0) * 100)}%`)}>
-					<image iconName={createBinding(device, "volumeIcon")} useFallback />
-				</button>
-				<slider
-					hexpand
-					draw_value={false}
-					value={createBinding(device, "volume")}
-					class={createBinding(device, "mute").as(v => v ? "muted" : "")}
-					onNotifyValue={({ value }) => {
-						device.set_volume(value)
-						device.set_mute(false)
-					}}
-				/>
-			</box>
-		)
-	}
-
-	export function Volume() {
-		const speaker = audio?.default_speaker
-		const hasAudioSpeaker = audio ? createBinding(audio, "nodes").as(n => n.some(item => item.get_media_class() === AUDIO_SOURCE)) : false
-		const hasAudioStream = audio ? createBinding(audio, "nodes").as(n => n.some(item => item.get_media_class() === STREAM_OUTPUT_AUDIO)) : false
-
-		return (
-			<box>
-				<ControlUnit device={speaker} />
-				<box class="volume" valign={CENTER} visible={hasAudioSpeaker}>
-					<Arrow name="device-selector" tooltipText={"Device Selector"} />
-					<Arrow name="app-mixer" visible={hasAudioStream} tooltipText={"App Mixer"} />
-				</box>
-			</box>
-		)
-	}
-
-	export function Microphone() {
-		const hasDevices = createBinding(audio, "devices").as(a => a.length > 0)
-		const mic = audio.get_default_microphone()
-		return <ControlUnit device={mic} show={hasDevices} />
-	}
-
 	export function Brightness() {
 		let prevBrightness = 1
 		return (
@@ -684,18 +75,6 @@ function DarkModeToggle() {
 				scheme.set(invert)
 			}}
 			connection={scheme.as(s => s === "dark")}
-		/>
-	)
-}
-
-function DNDToggle() {
-	const dnd = createBinding(notifd, "dontDisturb")
-	return (
-		<SimpleToggleButton
-			iconName={dnd.as(v => v ? icons.notifications.silent : icons.notifications.noisy)}
-			label={dnd.as(v => v ? "Silent" : "Normal")}
-			toggle={() => notifd.set_dont_disturb(!notifd.get_dont_disturb())}
-			connection={dnd}
 		/>
 	)
 }
@@ -840,97 +219,198 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	)
 }
 
-export default function QuickSettings() {
-	function Row({
-		toggles = [],
-		menus = [],
-	}: {
-		toggles?: Array<() => JSX.Element>
-		menus?: Array<() => JSX.Element>
-	} = {}) {
+export namespace QuickSettings {
+	namespace State {
+		const ISO639 = {
+			"abkh": "ab",		// Abkhazian
+			"astu": "ast",	// Asturian
+			"avat": "avt",	// Avatime
+			"akan": "ak",		// Akan
+			"alba": "sq",		// Albanian
+			"arme": "hy",		// Armenian
+			"bamb": "bm",		// Bambara
+			"banb": "bn",		// Bangla
+			"berb": "ber",	// Berber
+			"bosn": "bs",		// Bosnian
+			"bulg": "bg",		// Bulgarian
+			"burm": "my",		// Burmese
+			"cher": "chr",	// Cherokee
+			"chin": "zh",		// Chinese
+			"chuv": "cv",		// Chuvash
+			"crim": "crh",	// Crimean Tatar
+			"croa": "hr",		// Croatian
+			"czec": "cs",		// Czech
+			"dari": "prs",	// Dari
+			"dhiv": "dv",		// Dhivehi
+			"dutc": "nl",		// Dutch
+			"esper": "eo",	// Esperanto
+			"esto": "et",		// Estonian
+			"ewe": "ee",		// Ewe
+			"faro": "fo",		// Faroese
+			"fili": "fil",  // Filipino
+			"friu": "fur",	// Friulian
+			"fula": "ff",		// Fulah
+			"ga": "gaa",		// Ga
+			"gaga": "gag",	// Gagauz
+			"geor": "ka",		// Georgian
+			"germ": "de",		// German
+			"gree": "el",		// Greek
+			"igbo": "ig",		// Igbo
+			"icel": "is",		// Icelandic
+			"ido": "io",		// Ido
+			"indo": "id",		// Indonesian
+			"inuk": "iu",		// Inuktitut
+			"iris": "ga",		// Irish
+			"java": "jv",		// Javanese
+			"kann": "kn",		// Kannada
+			"kanu": "kr",		// Kanuri
+			"kash": "ks",		// Kashmiri
+			"kaza": "kk",		// Kazakh
+			"khme": "km",		// Khmer
+			"kiku": "ki",		// Kikuyu
+			"kiny": "rw",		// Kinyarwanda
+			"kirg": "ky",		// Kirghiz
+			"komi": "kv",		// Komi
+			"kurd": "ku",		// Kurdish
+			"lao": "lo",		// Lao
+			"latv": "lv",		// Latvian
+			"lith": "lt",		// Lithuanian
+			"mace": "mk",		// Macedonian
+			"malt": "mt",		// Maltese
+			"maor": "mi",		// Maori
+			"mara": "mr",		// Marathi
+			"mong": "mn",		// Mongolian
+			"nort": "se",		// Northern Sami
+			"port": "pt",		// Portuguese
+			"yaku": "sah",	// Yakut
+		}
+
+		export function CurrentLayout() {
+			function getLayout() {
+				const layout = bashSync("hyprctl devices | awk '/active keymap:/{a[$3]++} END{min=NR; for(layout in a) if(a[layout]<min){min=a[layout]; minlayout=layout} print minlayout}'")
+					.toLowerCase()
+
+				if (layout == "malagasy") return "mg"
+				if (layout == "malay") return "ms"
+				if (layout == "malayalam") return "ml"
+
+				// @ts-ignore: Valid keys
+				return ISO639[layout.slice(0, 4)] || layout.slice(0, 2)
+			}
+
+			const [layout, set_layout] = createState(getLayout())
+			hypr.connect("keyboard-layout", () => set_layout(getLayout()))
+			return <label label={layout} />
+		}
+	}
+
+	export function Button() {
 		return (
-			<box orientation={VERTICAL}>
-				<box class="row horizontal" homogeneous>
-					{toggles.map(Toggle => Toggle())}
+			<PanelButton
+				name="quicksettings"
+				onClicked={() => toggleWindow("quicksettings")}
+			>
+				<Gtk.EventControllerScroll
+					flags={Gtk.EventControllerScrollFlags.VERTICAL}
+					onScroll={(_: any, __: number, dy: number) => {
+						const spkr = audio?.get_default_speaker()
+						if (spkr) {
+							const current = spkr.get_volume() ?? 0
+							spkr.set_volume(Math.min(1, Math.max(0, current - dy * 0.025)))
+						}
+						return true
+					}}
+				/>
+				<box class="horizontal">
+					<State.CurrentLayout />
+					<Profiles.State.Power />
+					<Network.State />
+					<Bluetooth.State />
+					<Profiles.State.Asus />
+					<Audio.State.Speaker />
+					<Audio.State.Microphone />
+					<DND.State />
 				</box>
-				{menus.map(Menu => Menu())}
-			</box>
+			</PanelButton>
 		)
 	}
 
-	const Header = () =>
-		<box class="header horizontal">
-			<Gtk.Picture
-				class="avatar"
-				$={self => {
-					monitorFile(env.paths.avatar, () => {
-						self.paintable = textureFromFile(env.paths.avatar, 64, 64) as Gdk.Paintable
-					})
-				}}
-				paintable={textureFromFile(env.paths.avatar, 64, 64) as Gdk.Paintable}
-				contentFit={COVER}
-				canShrink
-			/>
-			<box orientation={VERTICAL} valign={CENTER}>
-				<box>
-					<label class="username" label={env.username} />
+	export function Window() {
+		function Row({
+			toggles = [],
+			menus = [],
+		}: {
+			toggles?: Array<() => JSX.Element>
+			menus?: Array<() => JSX.Element>
+		} = {}) {
+			return (
+				<box orientation={VERTICAL}>
+					<box class="row horizontal" homogeneous>
+						{toggles.map(Toggle => Toggle())}
+					</box>
+					{menus.map(Menu => Menu())}
 				</box>
-			</box>
-			<box hexpand />
-			<button
-				valign={CENTER}
-				onClicked={() => {
-					const settings = app.get_window("settings-dialog")
-					const qsettings = app.get_window("quicksettings")
+			)
+		}
 
-					if (!settings?.visible) {
-						settings?.show()
-					} else {
-						settings.hide()
-						settings.show()
-					}
-					qsettings?.hide()
-				}}
-			>
-				<image iconName={icons.ui.settings} useFallback />
-			</button>
-		</box >
-
-	return (
-		<PopupWindow
-			name="quicksettings"
-			exclusivity={Astal.Exclusivity.EXCLUSIVE}
-			application={app}
-			layout={layout}
-		>
-			<box class="quicksettings vertical"
-				css={quicksettings.width.as((w: any) => `min-width: ${w}px;`)}
-				orientation={VERTICAL}>
-				<Header />
-				<box class="sliders-box vertical" orientation={VERTICAL}>
-					<Row
-						toggles={[Sliders.Volume]}
-						menus={[Audio.SinkSelector, Audio.AppMixer]}
-					/>
-					<Sliders.Microphone />
-					<Sliders.Brightness />
-				</box>
-				<Row
-					toggles={[Wifi.Toggle, Bluetooth.Toggle]}
-					menus={[Wifi.Selector, Bluetooth.Selector]}
+		const Header = () =>
+			<box class="header horizontal">
+				<Gtk.Picture
+					class="avatar"
+					$={self => {
+						monitorFile(env.paths.avatar, () => {
+							self.paintable = textureFromFile(env.paths.avatar, 64, 64) as Gdk.Paintable
+						})
+					}}
+					paintable={textureFromFile(env.paths.avatar, 64, 64) as Gdk.Paintable}
+					contentFit={COVER}
+					canShrink
 				/>
-				<Row toggles={[DarkModeToggle, DNDToggle]} />
-				<Row toggles={[Profiles.Toggle, Mirror.Toggle]} menus={[Profiles.Selector, Mirror.Selector]} />
-				<box
-					class="media vertical"
-					visible={createBinding(media, "players").as(players => players.length > 0)}
-					orientation={VERTICAL}
-				>
-					<For each={createBinding(media, "players")}>
-						{(player: AstalMpris.Player) => <MediaPlayer player={player} />}
-					</For>
+				<box orientation={VERTICAL} valign={CENTER}>
+					<box>
+						<label class="username" label={env.username} />
+					</box>
 				</box>
-			</box>
-		</PopupWindow>
-	)
+				<box hexpand />
+				<Settings.Button />
+			</box >
+
+		return (
+			<PopupWindow
+				name="quicksettings"
+				exclusivity={Astal.Exclusivity.EXCLUSIVE}
+				application={app}
+				layout={layout}
+			>
+				<box class="quicksettings vertical"
+					css={quicksettings.width.as((w: any) => `min-width: ${w}px;`)}
+					orientation={VERTICAL}>
+					<Header />
+					<box class="sliders-box vertical" orientation={VERTICAL}>
+						<Row
+							toggles={[Audio.Sliders.Volume]}
+							menus={[Audio.SinkSelector, Audio.AppMixer]}
+						/>
+						<Audio.Sliders.Microphone />
+						<Sliders.Brightness />
+					</box>
+					<Row
+						toggles={[Network.Wifi.Toggle, Bluetooth.Toggle]}
+						menus={[Network.Wifi.Selector, Bluetooth.Selector]}
+					/>
+					<Row toggles={[DarkModeToggle, DND.Toggle]} />
+					<Row toggles={[Profiles.Toggle, Mirror.Toggle]} menus={[Profiles.Selector, Mirror.Selector]} />
+					<box
+						class="media vertical"
+						visible={createBinding(media, "players").as(players => players.length > 0)}
+						orientation={VERTICAL}
+					>
+						<For each={createBinding(media, "players")}>
+							{(player: AstalMpris.Player) => <MediaPlayer player={player} />}
+						</For>
+					</box>
+				</box>
+			</PopupWindow>
+		)
+	}
 }

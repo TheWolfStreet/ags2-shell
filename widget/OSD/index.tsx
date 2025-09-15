@@ -1,69 +1,71 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk } from "ags/gtk4"
-import { createState } from "ags"
 import { Timer, timeout } from "ags/time"
+import { createState } from "ags"
 
-import giCairo from "cairo"
-
-import PopupWindow from "widget/shared/PopupWindow"
+import { PopupWindow } from "widget/shared/PopupWindow"
 
 import { audio, brightness } from "$lib/services"
+import { ignoreInput } from "$lib/utils"
 
 import options from "options"
 
-export default function OSD() {
-	const [reveal, set_reveal] = createState(false)
-	const [icon, set_icon] = createState("")
-	const [value, set_value] = createState(0)
-	const [mute, set_mute] = createState(false)
+const { VERTICAL } = Gtk.Orientation
+const { OVERLAY } = Astal.Layer
+const { EXCLUSIVE } = Astal.Exclusivity
+const { NONE } = Astal.Keymode
 
-	let current: Timer | undefined = undefined
+const [reveal, set_reveal] = createState(false)
+const [icon, set_icon] = createState("")
+const [value, set_value] = createState(0)
+const [mute, set_mute] = createState(false)
 
-	function show(v: number, i: string, m: boolean) {
-		set_value(v)
-		set_icon(i)
-		set_mute(m)
-		set_reveal(true)
+let current: Timer | undefined = undefined
 
-		if (current) {
-			current.cancel()
-		}
+function show(v: number, i: string, m: boolean) {
+	set_value(v)
+	set_icon(i)
+	set_mute(m)
+	set_reveal(true)
 
-		current = timeout(options.notifications.dismiss.get() / 3, () => {
-			set_reveal(false)
-		})
+	if (current) {
+		current.cancel()
 	}
 
-	const spkr = audio.get_default_speaker()
-	const mic = audio.get_default_microphone()
+	current = timeout(options.notifications.dismiss.get() / 3, () => {
+		set_reveal(false)
+	})
+}
 
-	// TODO: yeah, i know.
-	// for some reason it fires events on app run
-	timeout(500, () => {
-		brightness.connect("notify::display", () =>
-			show(brightness.display, brightness.iconName, false)
-		)
-		brightness.connect("notify::kbd", () =>
-			show(brightness.kbd, brightness.kbdIcon, false)
-		)
-		spkr.connect("notify::volume", () =>
-			show(spkr.get_volume(), spkr.get_volume_icon(), spkr.get_mute())
-		)
-		spkr.connect("notify::mute", () =>
-			show(spkr.get_volume(), spkr.get_volume_icon(), spkr.get_mute())
-		)
-		mic.connect("notify::volume", () =>
-			show(mic.get_volume(), mic.get_volume_icon(), mic.get_mute())
-		)
-		mic.connect("notify::mute", () =>
-			show(mic.get_volume(), mic.get_volume_icon(), mic.get_mute())
-		)
+const spkr = audio.get_default_speaker()
+const mic = audio.get_default_microphone()
+
+brightness.connect("notify::display", () =>
+	show(brightness.display, brightness.iconName, false)
+)
+brightness.connect("notify::kbd", () =>
+	show(brightness.kbd, brightness.kbdIcon, false)
+)
+
+timeout(1000, () => {
+	spkr.connect("notify::volume", () => {
+		show(spkr.get_volume(), spkr.get_volume_icon(), spkr.get_mute())
 	})
 
-	const { VERTICAL } = Gtk.Orientation
-	const { OVERLAY } = Astal.Layer
-	const { EXCLUSIVE } = Astal.Exclusivity
-	const { NONE } = Astal.Keymode
+	spkr.connect("notify::mute", () => {
+		show(spkr.get_volume(), spkr.get_volume_icon(), spkr.get_mute())
+	})
+
+	mic.connect("notify::volume", () => {
+		show(mic.get_volume(), mic.get_volume_icon(), mic.get_mute())
+	})
+
+	mic.connect("notify::mute", () => {
+		show(mic.get_volume(), mic.get_volume_icon(), mic.get_mute())
+	})
+})
+
+export function OSD() {
 	// TODO: Sometimes doesn't reapper when triggered fast
 	return (
 		<PopupWindow
@@ -75,12 +77,8 @@ export default function OSD() {
 			exclusivity={EXCLUSIVE}
 			layout="bottom-center"
 			handleClosing={false}
-			onNotifyVisible={(w) => {
-				w.get_surface()?.set_input_region(new giCairo.Region)
-			}}
-			$={w => {
-				w.get_surface()?.set_input_region(new giCairo.Region)
-			}}
+			onNotifyVisible={ignoreInput}
+			$={ignoreInput}
 		>
 			<Gtk.AspectFrame obeyChild={false} ratio={1}>
 				<box class="padding">

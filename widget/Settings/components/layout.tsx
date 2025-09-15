@@ -35,7 +35,7 @@ const {
 	border,
 } = theme
 
-const theme_page =
+const themePage =
 	<Page name="Theme" icon={icons.ui.themes} >
 		<Group title="Theme">
 			<Wallpaper />
@@ -83,7 +83,7 @@ const theme_page =
 		</Group>
 	</Page >
 
-const bar_page =
+const barPage =
 	<Page name="Bar" icon={icons.ui.minus}>
 		<Group title="General">
 			<Row opt={b.transparent} title="Transparent Bar" note="Works best on minimalist wallpapers" />
@@ -112,7 +112,7 @@ const bar_page =
 		</Group>
 	</Page>
 
-const general_page =
+const generalPage =
 	<Page name="General" icon={icons.ui.settings} >
 		<Group title="Hyprland">
 			<Row opt={h.inactiveBorder} title="Inactive Border Color" type="color" />
@@ -138,5 +138,5 @@ const general_page =
 		</Group>
 	</Page >
 
-export const layout = [theme_page, bar_page, general_page] as Array<PageWidget>
+export const layout = [themePage, barPage, generalPage] as Array<PageWidget>
 

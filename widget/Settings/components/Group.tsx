@@ -9,13 +9,7 @@ import { Opt } from "$lib/option"
 const { START, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 
-type GroupProps = {
-	title: string
-	visible?: boolean | Accessor<boolean>
-	children?: Row | Row[]
-}
-
-export default function Group({ title, visible = true, children = [] }: GroupProps) {
+export default function Group({ title, visible = true, children = [] }: { title: Accessor<string> | string, visible?: boolean | Accessor<boolean>, children?: Row | Row[] }) {
 	const nodes = Array.isArray(children) ? children : [children]
 	const opts: Opt<any>[] = []
 
@@ -39,9 +33,10 @@ export default function Group({ title, visible = true, children = [] }: GroupPro
 					$type="end"
 					halign={END}
 					onClicked={() => {
-						if (!children) return
-						const nodes = Array.isArray(children) ? children : [children]
-						nodes.forEach(row => row?.attr?.opt?.reset())
+						if (children) {
+							const nodes = Array.isArray(children) ? children : [children]
+							nodes.forEach(row => row?.attr?.opt?.reset())
+						}
 					}}
 					sensitive={anyChanged}
 				>

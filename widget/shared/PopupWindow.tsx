@@ -8,6 +8,8 @@ import { Props } from "$lib/utils"
 
 import options from "options"
 
+const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
+
 export type Position =
 	'center' | 'top' | 'top-right' | 'top-center' | 'top-left' |
 	'bottom-left' | 'bottom-center' | 'bottom-right'
@@ -81,7 +83,7 @@ class PopupWindowClass extends Astal.Window {
 
 const PopupWindowImpl = GObject.registerClass(PopupWindowClass)
 
-export default function PopupWindow({
+export function PopupWindow({
 	name = 'popup',
 	class: className,
 	layout = 'center',
@@ -89,7 +91,7 @@ export default function PopupWindow({
 	decorated = false,
 	visible = false,
 	keymode = Astal.Keymode.ON_DEMAND,
-	anchor = Astal.WindowAnchor.TOP | Astal.WindowAnchor.BOTTOM | Astal.WindowAnchor.LEFT | Astal.WindowAnchor.RIGHT,
+	anchor = TOP | BOTTOM | LEFT | RIGHT,
 	exclusivity = Astal.Exclusivity.IGNORE,
 	layer = Astal.Layer.TOP,
 	handleClosing = true,

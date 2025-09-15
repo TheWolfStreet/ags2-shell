@@ -1,4 +1,4 @@
-import { Accessor, createState, Node } from "ags"
+import { Accessor, createState, Node, onCleanup } from "ags"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 import { timeout } from "ags/time"
@@ -43,13 +43,14 @@ export function Arrow({ name, visible, activate = false, tooltipText }: Props<Gt
 		}
 	}
 
-	opened.subscribe(() => {
+	const unsub = opened.subscribe(() => {
 		const current = getName()
 		if ((opened.get() === current && !open) || (opened.get() !== current && open)) {
 			animate(opened.get() === current ? 10 : -10)
 			open = !open
 		}
 	})
+	onCleanup(unsub)
 
 	return (
 		<button
@@ -170,6 +171,17 @@ export function SimpleToggleButton({
 			<box class="horizontal">
 				<image iconName={iconName} useFallback />
 				<label ellipsize={END} maxWidthChars={11} label={label} />
+			</box>
+		</button>
+	)
+}
+
+export function Settings({ callback: callback }: { callback: () => void }) {
+	return (
+		<button onClicked={callback} hexpand>
+			<box class="settings horizontal">
+				<image iconName={icons.ui.settings} useFallback />
+				<label label={"Settings"} />
 			</box>
 		</button>
 	)

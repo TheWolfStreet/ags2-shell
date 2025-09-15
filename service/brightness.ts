@@ -34,9 +34,8 @@ export default class Brightness extends GObject.Object {
 			this.notify("display")
 		})
 
-		monitorFile(kbdPath, async f => {
-			const v = await readFileAsync(f)
-			this.#kbd = Number(v) / this.#kbdMax
+		this.#monitorKbd(kbdPath, (v) => {
+			this.#kbd = v / this.#kbdMax
 			this.notify("kbd")
 		})
 	}
@@ -92,5 +91,17 @@ export default class Brightness extends GObject.Object {
 			return "display-brightness-medium-symbolic"
 		}
 		return "display-brightness-high-symbolic"
+	}
+
+
+	readonly #monitorKbd = async (path: string, callback: (v: number) => void, interval = 100) => {
+		let last = await readFileAsync(path)
+		setInterval(async () => {
+			const curr = await readFileAsync(path)
+			if (curr !== last) {
+				last = curr
+				callback(Number(curr))
+			}
+		}, interval)
 	}
 }

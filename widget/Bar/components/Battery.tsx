@@ -2,8 +2,8 @@ import app from "ags/gtk4/app"
 import { createBinding, createComputed } from "ags"
 import { Astal, Gtk } from "ags/gtk4"
 
-import PanelButton from "./PanelButton"
-import PopupWindow, { Position } from "widget/shared/PopupWindow"
+import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { PanelButton } from "./PanelButton"
 
 import { toggleWindow } from "$lib/utils"
 import { bat } from "$lib/services"
@@ -60,7 +60,7 @@ export namespace Battery {
 				exclusivity={Astal.Exclusivity.NORMAL}
 				layout={layout}
 			>
-				<box class="vertical" orientation={Gtk.Orientation.VERTICAL} >
+				<box class="vertical" orientation={Gtk.Orientation.VERTICAL}>
 					<Gtk.ProgressBar fraction={createBinding(bat, "percentage")} widthRequest={125} />
 					<label class="remaining" label={remainingTime} />
 				</box>

@@ -1,14 +1,14 @@
+import { ignoreInput } from "$lib/utils"
 import { Astal, Gdk } from "ags/gtk4"
-import giCairo from "cairo"
 
 import options from "options"
 
-export default function BarCorners(monitor: Gdk.Monitor) {
-	const { corners, transparent } = options.bar
-	const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
-	const { EXCLUSIVE } = Astal.Exclusivity
-	const { NONE } = Astal.Keymode
+const { corners, transparent } = options.bar
+const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
+const { EXCLUSIVE } = Astal.Exclusivity
+const { NONE } = Astal.Keymode
 
+export function BarCorners(monitor: Gdk.Monitor) {
 	return (
 		<window
 			name="screen-corner"
@@ -18,12 +18,8 @@ export default function BarCorners(monitor: Gdk.Monitor) {
 			gdkmonitor={monitor}
 			exclusivity={EXCLUSIVE}
 			anchor={TOP | BOTTOM | LEFT | RIGHT}
-			onNotifyVisible={w => {
-				w.get_surface()?.set_input_region(new giCairo.Region)
-			}}
-			$={w => {
-				w.get_surface()?.set_input_region(new giCairo.Region)
-			}}
+			onNotifyVisible={ignoreInput}
+			$={ignoreInput}
 		>
 			<box class="shadow">
 				<box class="border">

@@ -3,18 +3,18 @@ import { exec } from "ags/process"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 
-import PopupWindow from "widget/shared/PopupWindow"
-import PanelButton from "widget/Bar/components/PanelButton"
+import { PopupWindow } from "widget/shared/PopupWindow"
+import { PanelButton } from "widget/Bar/components/PanelButton"
 
 import icons from "$lib/icons"
 import { onWindowToggle, toggleWindow } from "$lib/utils"
 
 import options from "options"
 
-const { layout, labels } = options.powermenu
 const { END } = Gtk.Align
 const { CROSSFADE } = Gtk.RevealerTransitionType
 const { VERTICAL, HORIZONTAL } = Gtk.Orientation
+const { layout, labels } = options.powermenu
 
 type ActionType = "sleep" | "reboot" | "logout" | "shutdown"
 

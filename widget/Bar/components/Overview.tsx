@@ -6,8 +6,8 @@ import GObject from "ags/gobject"
 
 import AstalHyprland from "gi://AstalHyprland"
 
-import PopupWindow from "widget/shared/PopupWindow"
-import PanelButton from "./PanelButton"
+import { PopupWindow } from "widget/shared/PopupWindow"
+import { PanelButton } from "./PanelButton"
 
 import { getClientTitle, toggleWindow } from "$lib/utils"
 import { hypr } from "$lib/services"
@@ -16,6 +16,7 @@ import options from "options"
 
 const { CENTER } = Gtk.Align
 const { MOVE } = Gdk.DragAction
+const { OVERLAY } = Astal.Layer
 
 function scale(size: number) {
 	return (options.overview.scale.get() / 100) * size
@@ -187,7 +188,6 @@ export namespace Workspaces {
 	}
 
 	export function Window() {
-		const { OVERLAY } = Astal.Layer
 		const workspaces = createComputed(
 			[createBinding(hypr, "workspaces"), options.overview.workspaces],
 			(ws, fill) => dummyWorkspaces(ws.filter(w => w.id !== -99).sort((a, b) => a.id - b.id), fill)
