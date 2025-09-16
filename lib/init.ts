@@ -4,7 +4,7 @@ import Gio from "gi://Gio"
 
 import { bash } from "$lib/utils"
 import hyprinit from "$lib/hyprland"
-import { env } from "./env"
+import env from "./env"
 import { Matugen } from "./matugen"
 import { initCss } from "style"
 

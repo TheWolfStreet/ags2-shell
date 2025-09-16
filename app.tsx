@@ -1,5 +1,9 @@
 import app from "ags/gtk4/app"
-import { Astal, Gdk } from "ags/gtk4"
+import init from "$lib/init"
+import env from "$lib/env"
+import { scr } from "$lib/services"
+
+import { createBinding, For, This } from "ags"
 
 import { Bar } from "widget/Bar"
 import { BarCorners } from "widget/Bar/components/BarCorners"
@@ -13,28 +17,12 @@ import { QuickSettings } from "widget/Bar/components/QuickSettings"
 import { Date } from "widget/Bar/components/Date"
 import { OSD } from "widget/OSD"
 
-import init from "$lib/init"
-import { scr } from "$lib/services"
-import { env } from "$lib/env"
-
-let windows: Astal.Window[] = []
-
-function forMonitors(widget: ((monitor: Gdk.Monitor) => any)[]) {
-	app.get_monitors().forEach(monitor => {
-		if (!monitor) return
-
-		widget.forEach(w => {
-			try {
-				windows.push(w(monitor))
-			} catch (_) { }
-		})
-	})
-}
-
 app.start({
 	instanceName: env.appName,
 	main() {
-		init()
+		const monitors = createBinding(app, "monitors");
+
+		init();
 		Date.Window()
 		Launcher.Window()
 		Power.Window()
@@ -45,7 +33,17 @@ app.start({
 		QuickSettings.Window()
 		Settings.Window()
 		OSD()
-		forMonitors([Bar, BarCorners])
+
+		return (
+			<For each={monitors}>
+				{(monitor) => (
+					<This this={app}>
+						<Bar gdkmonitor={monitor} />
+						<BarCorners gdkmonitor={monitor} />
+					</This>
+				)}
+			</For>
+		)
 	},
 	requestHandler(argv: string[], res: (response: string) => void) {
 		const [request] = argv
@@ -53,22 +51,22 @@ app.start({
 		switch (request) {
 			case "shutdown":
 				Power.selAction("shutdown")
-				break
+				break;
 			case "record":
 				scr.recording ? scr.stopRecord() : scr.startRecord()
-				break
+				break;
 			case "record-area":
 				scr.recording ? scr.stopRecord() : scr.startRecord(true)
-				break
+				break;
 			case "screenshot":
 				scr.screenshot()
-				break
+				break;
 			case "screenshot-area":
 				scr.screenshot(true)
-				break
+				break;
 			default:
 				res(`Unknown request: ${request}`)
-				return
+				return;
 		}
 
 		res("Request handled successfully")

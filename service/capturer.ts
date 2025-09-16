@@ -6,7 +6,7 @@ import AstalIO from "gi://AstalIO"
 import GLib from "gi://GLib"
 
 import { bash, dependencies, ensurePath, notify } from "$lib/utils"
-import { env } from "$lib/env"
+import env from "$lib/env"
 import icons from "$lib/icons"
 
 const now = () => GLib.DateTime.new_now_local().format("%Y-%m-%d_%H-%M-%S")

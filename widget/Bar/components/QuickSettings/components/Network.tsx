@@ -1,7 +1,7 @@
 import { Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import { timeout } from "ags/time"
-import { createBinding, With, For, createComputed } from "gnim"
+import { createBinding, With, For, createComputed } from "ags"
 
 import AstalNetwork from "gi://AstalNetwork?version=0.1"
 

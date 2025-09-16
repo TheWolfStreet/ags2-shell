@@ -15,7 +15,7 @@ import giCairo from "cairo"
 import icons from "$lib/icons"
 import { hypr } from "$lib/services"
 
-import { env } from "./env"
+import env from "./env"
 
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
 

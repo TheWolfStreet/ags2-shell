@@ -4,7 +4,7 @@ import { readFile, writeFileAsync } from "ags/file"
 import { execAsync } from "ags/process"
 
 import { dependencies, ensurePath, notify, wlCopy } from "$lib/utils"
-import { env } from "$lib/env"
+import env from "$lib/env"
 import icons from "$lib/icons"
 
 import options from "options"

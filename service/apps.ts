@@ -3,7 +3,7 @@ import GObject, { register, getter } from "ags/gobject"
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
 
-import { env } from "$lib/env"
+import env from "$lib/env"
 import { bashSync, fileExists } from "$lib/utils"
 import { hypr } from "$lib/services"
 

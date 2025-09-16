@@ -2,7 +2,7 @@ import { Accessor, createState, Setter } from "ags"
 import { Timer, timeout } from "ags/time"
 import { readFile, writeFileAsync } from "ags/file"
 
-import { env } from "$lib/env"
+import env from "$lib/env"
 import { ensurePath } from "$lib/utils"
 
 namespace Store {

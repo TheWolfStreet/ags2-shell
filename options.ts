@@ -1,5 +1,5 @@
 import { mkOptions } from "$lib/option"
-import { env } from "$lib/env"
+import env from "$lib/env"
 import icons from "$lib/icons"
 import { icon } from "$lib/utils"
 

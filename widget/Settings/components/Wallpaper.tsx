@@ -55,7 +55,6 @@ export default function Wallpaper() {
 			<overlay>
 				<Gtk.GestureClick
 					onPressed={openDialog}
-					$type="overlay"
 				/>
 				<revealer
 					transitionDuration={options.transition.duration.as(v => v * 4)}

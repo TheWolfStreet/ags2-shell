@@ -1,6 +1,6 @@
 import { Gtk } from "ags/gtk4"
 import { exec } from "ags/process"
-import { createState, onCleanup, For } from "gnim"
+import { createState, onCleanup, For } from "ags"
 
 import AstalHyprland from "gi://AstalHyprland?version=0.1"
 

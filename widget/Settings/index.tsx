@@ -3,13 +3,10 @@ import app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 
 import { Opt } from "$lib/option"
+
 import icons from "$lib/icons"
-
-import { layout } from "./components/layout"
-
+import { createLayout } from "./components/layout"
 import options from "options"
-
-const [current, set_current] = createState(layout[0].attr.name)
 
 const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
 const { CENTER } = Gtk.Align
@@ -20,7 +17,6 @@ export namespace Settings {
 		let opts: any[] = []
 		for (let key in obj) {
 			const value = obj[key]
-
 			if (value && typeof value === 'object') {
 				opts = opts.concat(collectOpts(value))
 			} else if (value instanceof Opt) {
@@ -30,7 +26,7 @@ export namespace Settings {
 		return opts
 	}
 
-	function Header() {
+	function Header(layout: ReturnType<typeof createLayout>) {
 		const opts = collectOpts(options)
 		const anyChanged = createComputed(
 			opts, () => {
@@ -41,45 +37,51 @@ export namespace Settings {
 			}
 		)
 
-		return (
-			<centerbox class="header" >
-				<button $type="start"
-					class="reset"
-					onClicked={() => { opts.forEach((o) => o.reset()) }}
-					sensitive={anyChanged}
-					tooltipText="Reset"
-					valign={CENTER}
-				>
-					<image iconName={icons.ui.refresh} useFallback />
-				</button>
+		const [current, set_current] = createState(layout[0].attr.name)
 
-				< box class="pager horizontal" $type="center" >
-					{
-						layout.map(({ attr: { name, icon } }) => (
-							<button
-								halign={0}
-								class={current(v => v === name ? "active" : "")
-								}
-								onClicked={() => set_current(name)}
-								valign={CENTER}
-							>
-								<box>
-									<image iconName={icon} useFallback />
-									<label label={name} />
-								</box>
-							</button>
-						))}
-				</box>
-				< button
-					class="close"
-					$type="end"
-					onClicked={() => app.get_window("settings-dialog")?.close()}
-					valign={CENTER}
-				>
-					<image iconName={icons.ui.close} useFallback />
-				</button>
-			</centerbox>
-		)
+		return {
+			current,
+			set_current,
+			component: (
+				<centerbox class="header">
+					<button 
+						$type="start"
+						class="reset"
+						onClicked={() => { opts.forEach((o) => o.reset()) }}
+						sensitive={anyChanged}
+						tooltipText="Reset"
+						valign={CENTER}
+					>
+						<image iconName={icons.ui.refresh} useFallback />
+					</button>
+					<box class="pager horizontal" $type="center">
+						{
+							layout.map(({ attr: { name, icon } }) => (
+								<button
+									halign={0}
+									class={current(v => v === name ? "active" : "")}
+									onClicked={() => set_current(name)}
+									valign={CENTER}
+								>
+									<box>
+										<image iconName={icon} useFallback />
+										<label label={name} />
+									</box>
+								</button>
+							))
+						}
+					</box>
+					<button
+						class="close"
+						$type="end"
+						onClicked={() => app.get_window("settings-dialog")?.close()}
+						valign={CENTER}
+					>
+						<image iconName={icons.ui.close} useFallback />
+					</button>
+				</centerbox>
+			)
+		}
 	}
 
 	export function Button() {
@@ -89,7 +91,6 @@ export namespace Settings {
 				onClicked={() => {
 					const settings = app.get_window("settings-dialog")
 					const qsettings = app.get_window("quicksettings")
-
 					if (!settings?.visible) {
 						settings?.show()
 					} else {
@@ -105,6 +106,10 @@ export namespace Settings {
 	}
 
 	export function Window() {
+		// Create layout within the proper scope context
+		const layout = createLayout()
+		const header = Header(layout)
+
 		return (
 			<Gtk.Window
 				title="Settings"
@@ -117,12 +122,12 @@ export namespace Settings {
 				iconName={icons.ui.settings}
 			>
 				<box orientation={VERTICAL}>
-					<Header />
-					< stack visibleChildName={current} transitionType={SLIDE_LEFT_RIGHT}>
+					{header.component}
+					<stack visibleChildName={header.current} transitionType={SLIDE_LEFT_RIGHT}>
 						{layout}
 					</stack>
 				</box>
-			</Gtk.Window>)
+			</Gtk.Window>
+		)
 	}
-
 }

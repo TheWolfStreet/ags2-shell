@@ -1,8 +1,11 @@
+
+import app from "ags/gtk4/app"
+import { createBinding, onCleanup } from "ags"
 import GObject, { property, register } from "ags/gobject"
 import { monitorFile } from "ags/file"
 import { execAsync } from "ags/process"
 
-import { env } from "$lib/env"
+import env from "$lib/env"
 import { bashSync, dependencies } from "$lib/utils"
 
 @register({ GTypeName: "Wallpaper" })
@@ -17,9 +20,21 @@ export default class Wallpaper extends GObject.Object {
 	constructor() {
 		super()
 		if (!dependencies("swww")) return this
+
+		this.#apply()
+
 		monitorFile(this.wallpaper, () => {
 			this.notify("wallpaper")
 			this.#apply()
+		})
+
+		let prevMonCount = app.get_monitors().length
+		const unsub = createBinding(app, "monitors").subscribe(() => {
+			const monCount = app.get_monitors().length
+			if (monCount < prevMonCount) {
+				prevMonCount = monCount
+				this.#apply()
+			}
 		})
 		execAsync("swww-daemon").catch(() => null)
 	}

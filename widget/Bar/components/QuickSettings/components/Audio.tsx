@@ -1,7 +1,7 @@
 import { Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 
-import { Accessor, createBinding, For, With } from "gnim"
+import { Accessor, createBinding, For, With } from "ags"
 
 import AstalWp from "gi://AstalWp?version=0.1"
 import Pango from "gi://Pango?version=1.0"

@@ -10,7 +10,7 @@ import { PanelButton } from "./PanelButton"
 
 import { notifd } from "$lib/services"
 import icons from "$lib/icons"
-import { env } from "$lib/env"
+import env from "$lib/env"
 import { fileExists, textureFromFile, toggleWindow } from "$lib/utils"
 
 import options from "options"
@@ -44,8 +44,6 @@ export namespace Notifications {
 			set_current((ns) => [notification, ...ns].slice(0, MAX_NOTIFICATIONS))
 		}
 	})
-
-	onCleanup(() => notifd.disconnect(notifyHandler))
 
 	export function dismissAll() {
 		set_dismiss(true)
@@ -266,6 +264,7 @@ export namespace Notifications {
 	}
 
 	export function Window() {
+	onCleanup(() => notifd.disconnect(notifyHandler))
 		return (
 			<window visible resizable={false} heightRequest={1} widthRequest={1} name="notifications" class="notifications" application={app} exclusivity={EXCLUSIVE} anchor={TOP | RIGHT}>
 				<Stack persistent={false} />

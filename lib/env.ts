@@ -9,7 +9,7 @@ import { ensurePath } from "./utils"
 
 const APPNAME = "ags2-shell"
 
-export const env = {
+const env = {
 	appName: APPNAME,
 	username: GLib.get_user_name(),
 	iconTheme: createBinding(app, "iconTheme").as(v => new Gtk.IconTheme({ themeName: v })),
@@ -44,3 +44,5 @@ export const env = {
 		ensurePath(env.paths.cache)
 	}
 }
+
+export default env

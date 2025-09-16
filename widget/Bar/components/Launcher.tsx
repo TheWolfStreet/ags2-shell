@@ -160,7 +160,6 @@ function updateRevealers(visibleApps: AstalApps.Application[]) {
 				$={b => {
 					function populateApps() {
 						while (b.get_first_child()) b.remove(b.get_first_child()!)
-						// Clear cache when apps change
 						desktopInfoCache.clear()
 						allApps.get().forEach(app => b.append(Entry(app, visibleApps, launch)))
 					}

@@ -1,5 +1,5 @@
 import { Gtk, Gdk } from "ags/gtk4"
-import { createBinding, createComputed, With, For } from "gnim"
+import { createBinding, createComputed, With, For } from "ags"
 
 import AstalBluetooth from "gi://AstalBluetooth?version=0.1"
 

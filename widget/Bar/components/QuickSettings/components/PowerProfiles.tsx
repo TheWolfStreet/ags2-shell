@@ -1,12 +1,13 @@
+import { Gtk } from "ags/gtk4"
+import { Accessor, Node, createBinding } from "ags"
+
+import { ArrowToggleButton, Menu, Settings } from "widget/Bar/components/QuickSettings/components/shared/MenuElements"
+import { Placeholder } from "widget/shared/Placeholder"
+
 import icons from "$lib/icons"
 import { pp } from "$lib/services"
 import { launchApp } from "$lib/utils"
 import { asusctl } from "$lib/services"
-import { Gtk } from "ags/gtk4"
-import { Accessor, Node, createBinding } from "gnim"
-
-import { ArrowToggleButton, Menu, Settings } from "widget/Bar/components/QuickSettings/components/shared/MenuElements"
-import { Placeholder } from "widget/shared/Placeholder"
 
 const { VERTICAL } = Gtk.Orientation
 
@@ -24,7 +25,7 @@ export namespace Profiles {
 		setActive: (p: string) => void,
 		iconFor: (p: string) => string,
 		labelFor: (p: string) => string,
-		extraSettings?: Node,
+		extraSettings?: () => Node,
 		toggleDefaults: () => [string, string]
 	}
 
@@ -36,7 +37,7 @@ export namespace Profiles {
 		// @ts-ignore: Valid keys
 		iconFor: (p) => icons.asusctl.profile[p],
 		labelFor: (p) => p,
-		extraSettings: <Settings callback={() => launchApp("rog-control-center")} />,
+		extraSettings: () => <Settings callback={() => launchApp("rog-control-center")} />,
 		toggleDefaults: () => ["Quiet", "Balanced"],
 	}
 
@@ -89,7 +90,7 @@ export namespace Profiles {
 					{provider.extraSettings && (
 						<>
 							<Gtk.Separator />
-							{provider.extraSettings}
+							{provider.extraSettings()}
 						</>
 					)}
 				</box>

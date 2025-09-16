@@ -1,4 +1,4 @@
-import { createBinding } from "gnim"
+import { createBinding } from "ags"
 
 import { SimpleToggleButton } from "./shared/MenuElements"
 

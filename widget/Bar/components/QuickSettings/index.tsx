@@ -16,7 +16,7 @@ import { Bluetooth } from "./components/Bluetooth"
 import { Mirror } from "./components/Mirror"
 import { Profiles } from "./components/PowerProfiles"
 
-import { env } from "$lib/env"
+import env from "$lib/env"
 import icons from "$lib/icons"
 import { duration, toggleClass, textureFromFile, bashSync, toggleWindow } from "$lib/utils"
 import { audio, brightness, hypr, media } from "$lib/services"
