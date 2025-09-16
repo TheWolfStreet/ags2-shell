@@ -15,6 +15,9 @@ export default class Apps extends GObject.Object {
 		return this.instance ??= new Apps()
 	}
 
+	#favorites: Array<AstalApps.Application> = []
+	#favortiesSnapshot = ""
+
 	#apps = new AstalApps.Apps
 	#monitors: Gio.FileMonitor[] = []
 
@@ -70,24 +73,35 @@ export default class Apps extends GObject.Object {
 
 	@getter(Array<AstalApps.Application>)
 	get favorites(): Array<AstalApps.Application> {
+		this.#updateFav()
+		return this.#favorites
+	}
+	readonly #updateFav = () => {
 		try {
-			const raw = bashSync("dconf read /org/gnome/shell/favorite-apps", { encoding: "utf-8" })
-			const list = JSON.parse(raw.replace(/'/g, '"'))
+			const raw = bashSync(
+				"dconf read /org/gnome/shell/favorite-apps",
+				{ encoding: "utf-8" }
+			).trim()
 
+			if (raw === this.#favortiesSnapshot) return
+			this.#favortiesSnapshot = raw
+
+			const list = JSON.parse(raw.replace(/'/g, '"'))
 			if (!Array.isArray(list)) throw new Error("not an array")
 
-			const apps = []
+			const apps: Array<AstalApps.Application> = []
 			for (const item of list) {
-				if (typeof item !== "string") continue
-				const name = item.replace(/\.desktop$/, "")
-				const match = this.#apps.fuzzy_query(name)[0]
-				if (match) apps.push(match)
+				if (typeof item === "string") {
+					const name = item.replace(/\.desktop$/, "")
+					const match = this.#apps.exact_query(name)[0]
+					if (match) apps.push(match)
+				}
 			}
 
-			return apps
+			this.#favorites = apps
 		} catch (e) {
 			console.error("Failed to get favorite apps:", e)
-			return []
+			this.#favorites = []
 		}
 	}
 }

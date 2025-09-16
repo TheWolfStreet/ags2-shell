@@ -7,13 +7,15 @@ import Apps from "gi://AstalApps"
 import Gtk from "gi://Gtk"
 import GLib from "gi://GLib"
 import Gio from "gi://Gio"
+import AstalHyprland from "gi://AstalHyprland"
 import GdkPixbuf from "gi://GdkPixbuf"
 
 import giCairo from "cairo"
 
-import icons, { substitutes } from "$lib/icons"
+import icons from "$lib/icons"
 import { hypr } from "$lib/services"
-import AstalHyprland from "gi://AstalHyprland"
+
+import { env } from "./env"
 
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
 
@@ -164,32 +166,6 @@ export function range(length: number, start = 1) {
 	return Array.from({ length }, (_, i) => i + start)
 }
 
-export function lookupIconName(name: string, size = 16) {
-	if (!name) return null
-
-	const display = Gdk.Display.get_default()
-	if (!display) return null
-
-	const iconTheme = Gtk.IconTheme.get_for_display(display)
-
-	const monitors = display.get_monitors()
-	const n_monitors = monitors.get_n_items()
-	const monitor = n_monitors > 0 ? monitors.get_item(0) as Gdk.Monitor : null
-	const scale = monitor ? monitor.get_scale_factor() : 1
-	const icon = Gio.ThemedIcon.new(name)
-
-	const info = iconTheme.lookup_by_gicon(
-		icon,
-		size,
-		Gtk.IconLookupFlags.FORCE_SYMBOLIC,
-		Gtk.Widget.get_default_direction(),
-		scale
-	)
-
-	return info.get_icon_name()
-}
-
-
 export function ensurePath(path: string) {
 	const isDir = path.endsWith("/")
 
@@ -212,17 +188,12 @@ export function ensurePath(path: string) {
 	}
 }
 
-export function icon(name: string | null, fallback = icons.missing): string {
-	if (!name)
-		return fallback || ""
 
-	if (GLib.file_test(name, GLib.FileTest.EXISTS))
+export function icon(name?: string, fallback = icons.missing): string {
+	if (name && env.iconTheme.get().has_icon(name)) {
 		return name
-
-	// @ts-ignore: Valid keys
-	const resolved = substitutes[name] || name
-	const found = lookupIconName(resolved)
-	return found || fallback
+	}
+	return fallback
 }
 
 export function dependencies(...bins: string[]) {

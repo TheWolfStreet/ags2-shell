@@ -27,6 +27,7 @@ export namespace Profiles {
 		extraSettings?: Node,
 		toggleDefaults: () => [string, string]
 	}
+
 	const asusProvider: Provider = {
 		getActive: () => createBinding(asusctl, "profile"),
 		getProfiles: () => asusctl.profiles,
@@ -119,13 +120,14 @@ export namespace Profiles {
 	export namespace State {
 		export function Power() {
 			const visible = asusctl.available
-				? createBinding(asusctl, "profile").as(p => p !== "Balanced")
-				: pp.get_version() ? createBinding(pp, "active_profile").as(p => p !== "balanced") : false
+				? createBinding(asusctl, "profile").as(p => p !== "Balanced") : pp.get_version() ?
+					createBinding(pp, "active_profile").as(p => p !== "balanced") : false
 
 			const icon = asusctl.available
 				// @ts-ignore: Valid keys
 				? createBinding(asusctl, "profile").as((p: string) => icons.asusctl.profile[p])
-				: pp.get_version() ? createBinding(pp, "active_profile").as((p: string) => icons.powerprofile[p as "balanced" | "power-saver" | "performance"]) : ""
+				: pp.get_version() ? createBinding(pp, "active_profile").as((p: string) =>
+					icons.powerprofile[p as "balanced" | "power-saver" | "performance"]) : ""
 
 			return <image iconName={icon} visible={visible} useFallback />
 		}
@@ -147,4 +149,3 @@ export namespace Profiles {
 	export const Toggle = provider ? () => makeToggle(provider) : MissingToggle
 	export const Selector = provider ? () => makeSelector(provider) : MissingSelector
 }
-

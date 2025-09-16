@@ -10,7 +10,7 @@ import { PanelButton } from "./PanelButton"
 
 import { cpick, hypr, media, scr, tray } from "$lib/services"
 import icons from "$lib/icons"
-import { duration, getClientTitle, lookupIconName } from "$lib/utils"
+import { duration, getClientTitle } from "$lib/utils"
 
 import options from "options"
 
@@ -147,7 +147,7 @@ export function Media() {
 						>
 							<box class="horizontal">
 								<image valign={CENTER} iconName={
-									createBinding(p, "entry").as(e => e && lookupIconName(e) ? e : "audio-x-generic-symbolic")
+									createBinding(p, "entry").as(e => e || "audio-x-generic-symbolic")
 								} useFallback />
 								<Gtk.EventControllerMotion
 									onLeave={() => set_reveal(false)}

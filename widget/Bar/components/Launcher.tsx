@@ -24,24 +24,24 @@ const { VERTICAL } = Gtk.Orientation
 const { CENTER, END } = Gtk.Align
 
 export namespace Launcher {
+	const allApps = createBinding(apps, "list").as(v => v.get_list())
 	const appRevealers = new Map<string, Gtk.Revealer>()
-	const desktopInfos = new Map<string, Gio.DesktopAppInfo>()
-	const lcNames = new Map<string, string>()
-	const maxVisible = options.launcher.apps.max.get() || 9
+	const desktopInfoCache = new Map<string, Gio.DesktopAppInfo | null>()
 
-	function refresh(apps: AstalApps.Application[]) {
-		lcNames.clear()
-		desktopInfos.clear()
-		for (const app of apps) {
-			const appName = app.get_name()
-			lcNames.set(appName, appName.toLowerCase())
-			desktopInfos.set(appName, Gio.DesktopAppInfo.new(app.get_entry())!)
+	function getDesktopInfo(app: AstalApps.Application): Gio.DesktopAppInfo | undefined {
+		const appName = app.get_name()
+		if (!desktopInfoCache.has(appName)) {
+			desktopInfoCache.set(appName, Gio.DesktopAppInfo.new(app.get_entry()))
 		}
+		return desktopInfoCache.get(appName) ?? undefined
 	}
 
-	function updateRevealers(ids: Set<string>) {
-		appRevealers.forEach((r, id) => r.set_reveal_child(ids.has(id)))
-	}
+function updateRevealers(visibleApps: AstalApps.Application[]) {
+    appRevealers.forEach((revealer, appName) => {
+        const isVisible = visibleApps.some(app => app.get_name() === appName)
+        revealer.set_reveal_child(isVisible)
+    })
+}
 
 	function launchApp(win: Astal.Window, app?: AstalApps.Application) {
 		if (app) {
@@ -50,56 +50,46 @@ export namespace Launcher {
 		}
 	}
 
-	function handleKey(
+	function onKeyHandler(
 		win: Astal.Window,
 		keyval: number,
 		mod: number,
-		visibleApps: Accessor<Set<string>>,
-		allApps: Accessor<AstalApps.Application[]>
+		visibleApps: AstalApps.Application[]
 	) {
 		if (mod !== Gdk.ModifierType.ALT_MASK) return
 
-		const ids = visibleApps.get()
-		const appsArray = allApps.get()
-
-		const visibleList: typeof appsArray = []
-		for (const app of appsArray) {
-			if (ids.has(app.get_name())) visibleList.push(app)
-		}
-
-		for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9] as const) {
-			const app = visibleList[i - 1]
-			if (app && keyval === (Gdk as any)[`KEY_${i}`]) launchApp(win, app)
+		for (let i = 0; i < Math.min(visibleApps.length, 9); i++) {
+			const key = (Gdk as any)[`KEY_${i + 1}`]
+			if (keyval === key) {
+				launchApp(win, visibleApps[i])
+				break
+			}
 		}
 	}
 
 	function Favorites({
-		visibleApps,
 		text,
 		launch,
 	}: {
-		visibleApps: Accessor<Set<string>>
 		text: Accessor<string>
 		launch: (a: AstalApps.Application) => void
 	}) {
-		const reveal = createComputed([visibleApps, text], (v, t) => v.size === 0 && t.length === 0)
 		return (
-			<revealer revealChild={reveal} transitionDuration={options.transition.duration}>
+			<revealer revealChild={text.as(v => v.length == 0)} transitionDuration={options.transition.duration}>
 				<box orientation={VERTICAL}>
 					<Gtk.Separator />
 					<box class="quicklaunch horizontal">
 						<For each={createBinding(apps, "favorites")}>
 							{(app: AstalApps.Application) =>
 								app ? (
-									<button tooltipText={app.name} onClicked={() => launch(app)} hexpand>
+									<button tooltipText={app.get_name()} onClicked={() => launch(app)} hexpand>
 										<image
 											iconName={app.get_icon_name()}
-											gicon={desktopInfos.get(app.get_name())?.get_icon() ?? undefined}
 											pixelSize={64}
 										/>
 									</button>
 								) : (
-									<box />
+									<box visible={false} />
 								)
 							}
 						</For>
@@ -109,13 +99,11 @@ export namespace Launcher {
 		)
 	}
 
-	function Entry(app: AstalApps.Application, visibleApps: Accessor<Set<string>>, launch: (a: AstalApps.Application) => void) {
+	function Entry(app: AstalApps.Application, visibleApps: Accessor<AstalApps.Application[]>, launch: (a: AstalApps.Application) => void) {
 		const appName = app.get_name()
-		const hint = visibleApps.as(v => {
-			if (!v.has(appName)) return ""
-			const visibleNames = Array.from(v)
-			const idx = visibleNames.indexOf(appName)
-			return idx >= 0 ? `󰘳 ${idx + 1}` : ""
+		const hint = visibleApps.as(apps => {
+			const idx = apps.findIndex(a => a.get_name() === appName)
+			return idx >= 0 && idx < 9 ? `󰘳 ${idx + 1}` : ""
 		})
 
 		return (
@@ -131,8 +119,7 @@ export namespace Launcher {
 					<button class="app-item" onClicked={() => launch(app)}>
 						<box>
 							<image
-								iconName={app.get_icon_name()}
-								gicon={desktopInfos.get(appName)?.get_icon() ?? undefined}
+								gicon={getDesktopInfo(app)?.get_icon() ?? undefined}
 								pixelSize={64}
 							/>
 							<box valign={CENTER} orientation={VERTICAL}>
@@ -164,7 +151,7 @@ export namespace Launcher {
 		launch,
 	}: {
 		allApps: Accessor<AstalApps.Application[]>
-		visibleApps: Accessor<Set<string>>
+		visibleApps: Accessor<AstalApps.Application[]>
 		launch: (a: AstalApps.Application) => void
 	}) {
 		return (
@@ -173,8 +160,8 @@ export namespace Launcher {
 				$={b => {
 					function populateApps() {
 						while (b.get_first_child()) b.remove(b.get_first_child()!)
-						const currentList = apps.list.get_list()
-						refresh(currentList)
+						// Clear cache when apps change
+						desktopInfoCache.clear()
 						allApps.get().forEach(app => b.append(Entry(app, visibleApps, launch)))
 					}
 
@@ -201,24 +188,26 @@ export namespace Launcher {
 		let entry: Gtk.Entry
 
 		const [text, setText] = createState("")
-		const allApps = createBinding(apps, "list").as(v => v.get_list())
 
-		const visibleApps = createComputed([text, allApps], (t, apps) => {
-			const result: string[] = []
-			if (t) {
-				const txt = t.toLowerCase()
-				for (const app of apps) {
-					const appName = app.get_name()
-					if (lcNames.get(appName)!.includes(txt)) {
-						result.push(appName)
-						if (result.length >= maxVisible) break
-					}
+		const visibleApps = createComputed([text, allApps], (searchText, apps) => {
+			if (!searchText) return []
+
+			const maxVisible = options.launcher.apps.max.get() || 9
+			const query = searchText.toLowerCase()
+			const results: AstalApps.Application[] = []
+
+			for (const app of apps) {
+				if (app.get_name().toLowerCase().includes(query)) {
+					results.push(app)
+					if (results.length >= maxVisible) break
 				}
 			}
-			return new Set(result)
+			return results
 		})
 
-		const notFound = createComputed([text.as(t => t), visibleApps], (t, v) => t.length > 0 && v.size === 0)
+		const notFound = createComputed([text, visibleApps], (t, apps) =>
+			t.length > 0 && apps.length === 0
+		)
 
 		return (
 			<PopupWindow
@@ -228,7 +217,7 @@ export namespace Launcher {
 				layer={OVERLAY}
 				layout="top-center"
 				application={app}
-				onKey={(_ctrl, keyval, _code, mod) => handleKey(win, keyval, mod, visibleApps, allApps)}
+				onKey={(_ctrl, keyval, _code, mod) => onKeyHandler(win, keyval, mod, visibleApps.get())}
 				$={w => (win = w)}
 				onNotifyVisible={w => {
 					if (w.visible) {
@@ -259,7 +248,7 @@ export namespace Launcher {
 					>
 						<Placeholder iconName={icons.ui.search} label="No results found" />
 					</revealer>
-					<Favorites visibleApps={visibleApps} text={text} launch={a => launchApp(win, a)} />
+					<Favorites text={text} launch={a => launchApp(win, a)} />
 					<AppList allApps={allApps} visibleApps={visibleApps} launch={a => launchApp(win, a)} />
 				</box>
 			</PopupWindow>

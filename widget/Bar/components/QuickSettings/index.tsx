@@ -18,7 +18,7 @@ import { Profiles } from "./components/PowerProfiles"
 
 import { env } from "$lib/env"
 import icons from "$lib/icons"
-import { duration, lookupIconName, toggleClass, textureFromFile, bashSync, toggleWindow } from "$lib/utils"
+import { duration, toggleClass, textureFromFile, bashSync, toggleWindow } from "$lib/utils"
 import { audio, brightness, hypr, media } from "$lib/services"
 
 import options from "options"
@@ -88,7 +88,7 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const artist = createBinding(player, "artist").as(a => a || "Unknown Artist")
 	// TODO: Handle weird mpv format
 	const cover = createBinding(player, "coverArt")
-	const icon = createBinding(player, "entry").as(e => e && lookupIconName(e) ? e : "audio-x-generic-symbolic")
+	const icon = createBinding(player, "entry").as(e => e || "audio-x-generic-symbolic")
 	const posNorm = createBinding(player, "position").as(p => player.length > 0 ? p / player.length : 0)
 	const pos = createBinding(player, "position")
 	const status = createBinding(player, "playbackStatus")

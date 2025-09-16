@@ -37,7 +37,7 @@ export const env = {
 
 	distro: {
 		id: GLib.get_os_info("ID"),
-		logo: GLib.get_os_info("LOGO"),
+		logo: GLib.get_os_info("LOGO") ?? undefined,
 	},
 	init: async () => {
 		ensurePath(env.paths.tmp)

@@ -87,6 +87,7 @@ export namespace Notifications {
 	}) {
 		const [reveal, setReveal] = createState(false)
 		const [revealActions, setRevealActions] = createState(false)
+
 		let closed = false
 		let wasShown = false
 		let dismissTimer: number | undefined
