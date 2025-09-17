@@ -1,20 +1,18 @@
 import { Gtk } from "ags/gtk4"
 import { Accessor, createComputed, Node } from "ags"
 
-import { Row } from "./Row"
-
 import icons from "$lib/icons"
 import { Opt } from "$lib/option"
 
 const { START, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 
-export default function Group({ title, visible = true, children = [] }: { title: Accessor<string> | string, visible?: boolean | Accessor<boolean>, children?: Row | Row[] }) {
+export default function Group({ title, visible = true, children = [] }: { title: Accessor<string> | string, visible?: Accessor<boolean> | boolean, children?: JSX.Element | Array<JSX.Element> }) {
 	const nodes = Array.isArray(children) ? children : [children]
 	const opts: Opt<any>[] = []
 
 	for (const child of nodes) {
-		const opt = child?.attr?.opt
+		const opt = (child as any).opt
 		if (opt) opts.push(opt)
 	}
 
@@ -35,7 +33,7 @@ export default function Group({ title, visible = true, children = [] }: { title:
 					onClicked={() => {
 						if (children) {
 							const nodes = Array.isArray(children) ? children : [children]
-							nodes.forEach(row => row?.attr?.opt?.reset())
+							nodes.forEach(row => (row as any).opt?.reset())
 						}
 					}}
 					sensitive={anyChanged}

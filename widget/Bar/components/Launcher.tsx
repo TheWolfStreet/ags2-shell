@@ -36,12 +36,12 @@ export namespace Launcher {
 		return desktopInfoCache.get(appName) ?? undefined
 	}
 
-function updateRevealers(visibleApps: AstalApps.Application[]) {
-    appRevealers.forEach((revealer, appName) => {
-        const isVisible = visibleApps.some(app => app.get_name() === appName)
-        revealer.set_reveal_child(isVisible)
-    })
-}
+	function updateRevealers(visibleApps: AstalApps.Application[]) {
+		appRevealers.forEach((revealer, appName) => {
+			const isVisible = visibleApps.some(app => app.get_name() === appName)
+			revealer.set_reveal_child(isVisible)
+		})
+	}
 
 	function launchApp(win: Astal.Window, app?: AstalApps.Application) {
 		if (app) {
@@ -54,7 +54,8 @@ function updateRevealers(visibleApps: AstalApps.Application[]) {
 		win: Astal.Window,
 		keyval: number,
 		mod: number,
-		visibleApps: AstalApps.Application[]
+		visibleApps: AstalApps.Application[],
+		favorites: AstalApps.Application[],
 	) {
 		if (mod !== Gdk.ModifierType.ALT_MASK) return
 
@@ -62,15 +63,25 @@ function updateRevealers(visibleApps: AstalApps.Application[]) {
 			const key = (Gdk as any)[`KEY_${i + 1}`]
 			if (keyval === key) {
 				launchApp(win, visibleApps[i])
-				break
+				return
+			}
+		}
+
+		for (let i = 0; i < Math.min(favorites.length, 9); i++) {
+			const key = (Gdk as any)[`KEY_${i + 1}`]
+			if (keyval === key) {
+				launchApp(win, favorites[i])
+				return
 			}
 		}
 	}
 
 	function Favorites({
+		favorites,
 		text,
 		launch,
 	}: {
+		favorites: Accessor<AstalApps.Application>
 		text: Accessor<string>
 		launch: (a: AstalApps.Application) => void
 	}) {
@@ -79,7 +90,7 @@ function updateRevealers(visibleApps: AstalApps.Application[]) {
 				<box orientation={VERTICAL}>
 					<Gtk.Separator />
 					<box class="quicklaunch horizontal">
-						<For each={createBinding(apps, "favorites")}>
+						<For each={favorites}>
 							{(app: AstalApps.Application) =>
 								app ? (
 									<button tooltipText={app.get_name()} onClicked={() => launch(app)} hexpand>
@@ -166,6 +177,7 @@ function updateRevealers(visibleApps: AstalApps.Application[]) {
 
 					populateApps()
 					const unsub = createBinding(apps, "list").subscribe(populateApps)
+
 					onCleanup(unsub)
 				}}
 			/>
@@ -187,7 +199,7 @@ function updateRevealers(visibleApps: AstalApps.Application[]) {
 		let entry: Gtk.Entry
 
 		const [text, setText] = createState("")
-
+		const favorites = createBinding(apps, "favorites")
 		const visibleApps = createComputed([text, allApps], (searchText, apps) => {
 			if (!searchText) return []
 
@@ -216,7 +228,7 @@ function updateRevealers(visibleApps: AstalApps.Application[]) {
 				layer={OVERLAY}
 				layout="top-center"
 				application={app}
-				onKey={(_ctrl, keyval, _code, mod) => onKeyHandler(win, keyval, mod, visibleApps.get())}
+				onKey={(_ctrl, keyval, _code, mod) => onKeyHandler(win, keyval, mod, visibleApps.get(), favorites.get())}
 				$={w => (win = w)}
 				onNotifyVisible={w => {
 					if (w.visible) {
@@ -247,7 +259,7 @@ function updateRevealers(visibleApps: AstalApps.Application[]) {
 					>
 						<Placeholder iconName={icons.ui.search} label="No results found" />
 					</revealer>
-					<Favorites text={text} launch={a => launchApp(win, a)} />
+					<Favorites favorites={favorites} text={text} launch={a => launchApp(win, a)} />
 					<AppList allApps={allApps} visibleApps={visibleApps} launch={a => launchApp(win, a)} />
 				</box>
 			</PopupWindow>

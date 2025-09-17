@@ -10,8 +10,9 @@ export namespace Asusctl {
 	export type Mode = "Hybrid" | "Integrated"
 }
 
-@register({ GTypeName: "Asusctl" })
+@register()
 export default class Asusctl extends GObject.Object {
+	declare static $gtype: GObject.GType<Asusctl>
 	static instance: Asusctl
 
 	static get_default() {

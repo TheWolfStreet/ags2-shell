@@ -1,7 +1,7 @@
 import { Gtk, Gdk } from "ags/gtk4"
 import { createBinding, createComputed, With, For } from "ags"
 
-import AstalBluetooth from "gi://AstalBluetooth?version=0.1"
+import AstalBluetooth from "gi://AstalBluetooth"
 
 import { ArrowToggleButton, Menu, Settings } from "widget/Bar/components/QuickSettings/components/shared/MenuElements"
 import { Placeholder } from "widget/shared/Placeholder"

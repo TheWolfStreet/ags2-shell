@@ -1,4 +1,4 @@
-import { Node, onMount } from "ags"
+import { onMount } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 
@@ -57,22 +57,22 @@ function getPosConfig(pos: Position) {
 	}
 }
 
-interface PopupWindowProps extends Astal.Window.ConstructorProps {
-	children: Node | Node[]
+interface PopupProps extends Astal.Window.ConstructorProps {
+	children: JSX.Element | Array<JSX.Element>
 	layout: Position
 	transitionType: Gtk.RevealerTransitionType
 }
 
-class PopupWindowClass extends Astal.Window {
-	_revealer?: Gtk.Revealer
+class Impl extends Astal.Window {
+	revealer?: Gtk.Revealer
 
 	override vfunc_show() {
 		super.vfunc_show()
-		this._revealer?.set_reveal_child(true)
+		this.revealer?.set_reveal_child(true)
 	}
 
 	override vfunc_hide() {
-		this._revealer?.set_reveal_child(false)
+		this.revealer?.set_reveal_child(false)
 	}
 
 	performHide() {
@@ -81,7 +81,7 @@ class PopupWindowClass extends Astal.Window {
 	}
 }
 
-const PopupWindowImpl = GObject.registerClass(PopupWindowClass)
+const Popup = GObject.registerClass(Impl)
 
 export function PopupWindow({
 	name = 'popup',
@@ -100,7 +100,7 @@ export function PopupWindow({
 	children,
 	$,
 	...props
-}: Props<PopupWindowClass, PopupWindowProps> & {
+}: Props<Impl, PopupProps> & {
 	onKey?: (
 		ctrl: Gtk.EventControllerKey,
 		keyval: number,
@@ -119,7 +119,7 @@ export function PopupWindow({
 	handleClosing?: boolean
 }) {
 	let content: Gtk.Revealer
-	let win: PopupWindowClass
+	let win: Impl
 
 	const alignment = typeof layout === 'function'
 		? layout.as(getPosConfig)
@@ -128,13 +128,13 @@ export function PopupWindow({
 	const isAccessor = typeof alignment === 'function'
 
 	return (
-		<PopupWindowImpl
+		<Popup
 			$={w => {
 				win = w
 				$ && $(w)
 			}}
 			name={name}
-			class={`${name} popup-window ${className}`}
+			class={`${name && name + " "}${className}`}
 			decorated={decorated}
 			visible={visible}
 			keymode={keymode}
@@ -146,7 +146,7 @@ export function PopupWindow({
 			<Gtk.EventControllerKey onKeyPressed={(ctrl, keyval, code, mod) => handleClosing && onKeyHandler(ctrl, keyval, code, mod, win, onKey)} />
 			<Gtk.GestureClick onPressed={(ctrl, n, x, y) => handleClosing && onClickHandler(ctrl, n, x, y, win, content, onClick)} />
 
-			<revealer
+			<Gtk.Revealer
 				transitionDuration={options.transition.duration}
 				transitionType={transitionType ?? (isAccessor ? alignment.as(v => v.transitionType) : alignment.transitionType)}
 				halign={isAccessor ? alignment.as(v => v.halign) : alignment.halign}
@@ -156,15 +156,15 @@ export function PopupWindow({
 						win.performHide()
 					}
 				}}
-				$={c => {
-					content = c
+				$={self => {
 					onMount(() => {
-						win._revealer = c
+						content = self
+						win.revealer = self
 					})
 				}}
 			>
 				{children}
-			</revealer>
-		</PopupWindowImpl >
+			</Gtk.Revealer>
+		</Popup >
 	)
 }

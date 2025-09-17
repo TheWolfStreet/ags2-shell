@@ -21,7 +21,7 @@ export namespace Battery {
 				name="batterystate"
 				onClicked={() => toggleWindow("batterystate")}
 				visible={createBinding(bat, "isPresent")}>
-				<box class=" battery horizontal">
+				<box class="battery horizontal">
 					<image iconName={createBinding(bat, "batteryIconName")} useFallback />
 					<label label={percentage.as((p: number) =>
 						`${Math.floor(p * 100)}%`
@@ -60,9 +60,9 @@ export namespace Battery {
 				exclusivity={Astal.Exclusivity.NORMAL}
 				layout={layout}
 			>
-				<box class="vertical" orientation={Gtk.Orientation.VERTICAL}>
-					<Gtk.ProgressBar fraction={createBinding(bat, "percentage")} widthRequest={125} />
-					<label class="remaining" label={remainingTime} />
+				<box class="batterystate vertical" orientation={Gtk.Orientation.VERTICAL}>
+					<Gtk.ProgressBar class="percentage" fraction={createBinding(bat, "percentage")} widthRequest={125} />
+					<label label={remainingTime} />
 				</box>
 			</PopupWindow>
 		) as Gtk.Window

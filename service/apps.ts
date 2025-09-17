@@ -1,4 +1,5 @@
 import GObject, { register, getter } from "ags/gobject"
+import { timeout } from "ags/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
@@ -7,8 +8,9 @@ import env from "$lib/env"
 import { bashSync, fileExists } from "$lib/utils"
 import { hypr } from "$lib/services"
 
-@register({ GTypeName: "Apps" })
+@register()
 export default class Apps extends GObject.Object {
+	declare static $gtype: GObject.GType<Apps>
 	static instance: Apps
 
 	static get_default(): Apps {
@@ -59,6 +61,7 @@ export default class Apps extends GObject.Object {
 		// This is a decent way to reload apps if packages were changed
 		hypr.connect("config-reloaded", () => {
 			this.#apps.reload()
+			this.notify("list")
 		})
 
 		for (const root of stack) {

@@ -1,12 +1,13 @@
-import Row from "./Row"
 import Group from "./Group"
-import Page, { PageWidget } from "./Page"
+import { Row } from "./Row"
+import { Page } from "./Page"
 import Wallpaper from "./Wallpaper"
 
 import { asusctl } from "$lib/services"
 import icons from "$lib/icons"
 
 import options from "options"
+import { Gtk } from "ags/gtk4"
 
 const {
 	autotheme: at,
@@ -35,9 +36,9 @@ const {
 	border,
 } = theme
 
-function createThemePage(): PageWidget {
+function Theme() {
 	return (
-		<Page name="Theme" icon={icons.ui.themes} >
+		<Page name="Theme" iconName={icons.ui.themes} >
 			<Group title="Theme">
 				<Wallpaper />
 				<Row opt={at} title="Auto Generate Color Scheme" />
@@ -83,12 +84,12 @@ function createThemePage(): PageWidget {
 				<Row opt={font.name} title="Font Name" type="font" />
 			</Group>
 		</Page >
-	)
+	) as Gtk.StackPage
 }
 
-function createBarPage(): PageWidget {
+function Bar() {
 	return (
-		<Page name="Bar" icon={icons.ui.minus}>
+		<Page name="Bar" iconName={icons.ui.minus}>
 			<Group title="General">
 				<Row opt={b.transparent} title="Transparent Bar" note="Works best on minimalist wallpapers" />
 				<Row opt={b.position} title="Position" type="enum" enums={["top", "bottom"]} />
@@ -115,12 +116,12 @@ function createBarPage(): PageWidget {
 				<Row opt={b.media.preferred} title="Preferred Player" />
 			</Group>
 		</Page>
-	)
+	) as Gtk.StackPage
 }
 
-function createGeneralPage(): PageWidget {
+function General() {
 	return (
-		<Page name="General" icon={icons.ui.settings} >
+		<Page name="General" iconName={icons.ui.settings} >
 			<Group title="Hyprland">
 				<Row opt={h.inactiveBorder} title="Inactive Border Color" type="color" />
 			</Group>
@@ -144,11 +145,11 @@ function createGeneralPage(): PageWidget {
 				<Row opt={s.bat_hz} title="Screen Refresh Rate (Battery)" min={60} note="60HZ is the minimum to avoid breakage" />
 			</Group>
 		</Page >
-	)
+	) as Gtk.StackPage
 }
 
-export const createLayout = (): Array<PageWidget> => [
-	createThemePage(),
-	createBarPage(),
-	createGeneralPage()
+export const createLayout = (): Gtk.StackPage[] => [
+	Theme(),
+	Bar(),
+	General()
 ]

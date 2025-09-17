@@ -2,9 +2,10 @@ import { Accessor, createState, Setter } from "ags"
 import { Timer, timeout } from "ags/time"
 import { readFile, writeFileAsync } from "ags/file"
 
-import env from "$lib/env"
 import { ensurePath } from "$lib/utils"
+import env from "$lib/env"
 
+// FIXME: Make it not block the UI on batched sets
 namespace Store {
 	export const path = `${env.paths.cache}/options.json`
 
@@ -30,8 +31,8 @@ namespace Store {
 	}
 
 	function scheduleSave() {
-		if (saveDebounce) saveDebounce.cancel()
-		saveDebounce = timeout(1000, async () => {
+		if (saveDebounce) return
+		saveDebounce = timeout(3000, async () => {
 			try {
 				ensurePath(path)
 				await writeFileAsync(path, JSON.stringify(cache, null, 2))

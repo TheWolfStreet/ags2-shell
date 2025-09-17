@@ -3,7 +3,7 @@ import { execAsync } from "ags/process"
 import { timeout } from "ags/time"
 import { createBinding, With, For, createComputed } from "ags"
 
-import AstalNetwork from "gi://AstalNetwork?version=0.1"
+import AstalNetwork from "gi://AstalNetwork"
 
 import { Placeholder } from "widget/shared/Placeholder"
 import { ArrowToggleButton, Menu, Settings } from "./shared/MenuElements"

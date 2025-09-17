@@ -1,8 +1,7 @@
-import app from "ags/gtk4/app"
 import init from "$lib/init"
 import env from "$lib/env"
-import { scr } from "$lib/services"
 
+import app from "ags/gtk4/app"
 import { createBinding, For, This } from "ags"
 
 import { Bar } from "widget/Bar"
@@ -17,12 +16,13 @@ import { QuickSettings } from "widget/Bar/components/QuickSettings"
 import { Date } from "widget/Bar/components/Date"
 import { OSD } from "widget/OSD"
 
+import { scr } from "$lib/services"
+
 app.start({
 	instanceName: env.appName,
 	main() {
 		const monitors = createBinding(app, "monitors");
-
-		init();
+		init()
 		Date.Window()
 		Launcher.Window()
 		Power.Window()

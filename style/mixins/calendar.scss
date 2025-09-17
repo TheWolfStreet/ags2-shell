@@ -11,12 +11,12 @@
 
     button {
       @include button($flat: true);
-      padding: $padding * 0.60;
+      padding: $padding * .6;
     }
 
     label:selected {
       background-color: $primary-bg;
-      border-radius: $radius * 0.6;
+      border-radius: $radius * .6;
     }
 
      header { background-color: transparent; border: none; color: color.scale($fg, $alpha: -50%); }

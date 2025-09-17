@@ -3,7 +3,7 @@
 .bar {
   transition: $transition;
   background-color: $bg;
-  padding: $padding * 0.3;
+  padding: $padding * .3;
 
   .tasks .focused {
     background-color: $primary-bg;
@@ -26,11 +26,11 @@
   popover {
     contents {
       modelbutton {
-        padding: $padding * 0 $padding * 0.8;
+        padding: $padding * 0 $padding * .8;
       }
       @include floating-widget;
-      border-radius: $popover-radius * 0.5;
-      padding: $padding * 0.5;
+      border-radius: $popover-radius * .5;
+      padding: $padding * .5;
     }
   }
 
@@ -49,10 +49,10 @@
       font-size: 0;
       min-width: 5pt;
       min-height: 5pt;
-      border-radius: $radius * 0.6;
+      border-radius: $radius * .6;
       box-shadow: inset 0 0 2px $border-width $border-color;
-      margin: 0 $padding * 0.5;
-      transition: $transition * 0.5;
+      margin: 0 $padding * .5;
+      transition: $transition * .5;
       background-color: color.scale($fg, $alpha: -80%);
 
       &.occupied {
@@ -78,10 +78,10 @@
     }
   }
 
-  .media box { @include spacing(0.5); }
+  .media box { @include spacing(.5); }
 
   .recorder {
-    .horizontal { @include spacing(0.5); }
+    .horizontal { @include spacing(.5); }
 
     image { color: color.scale($error-bg, $alpha: -30%); }
     &:hover image { color: color.scale($error-bg, $alpha: -15%); }

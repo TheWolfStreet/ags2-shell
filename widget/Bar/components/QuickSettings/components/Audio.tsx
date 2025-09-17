@@ -3,8 +3,8 @@ import { execAsync } from "ags/process"
 
 import { Accessor, createBinding, For, With } from "ags"
 
-import AstalWp from "gi://AstalWp?version=0.1"
-import Pango from "gi://Pango?version=1.0"
+import AstalWp from "gi://AstalWp"
+import Pango from "gi://Pango"
 
 import { Arrow, Menu, Settings } from "./shared/MenuElements"
 
@@ -128,6 +128,7 @@ export namespace Audio {
 			)
 		}
 	}
+
 	export namespace Sliders {
 		function ControlUnit({
 			device,
@@ -158,19 +159,29 @@ export namespace Audio {
 		}
 
 		export function Volume() {
-			const speaker = audio?.default_speaker
-			const hasAudioSpeaker = audio ? createBinding(audio, "nodes").as(n => n.some(item => item.get_media_class() === AUDIO_SOURCE)) : false
-			const hasAudioStream = audio ? createBinding(audio, "nodes").as(n => n.some(item => item.get_media_class() === STREAM_OUTPUT_AUDIO)) : false
+			const speaker = audio?.defaultSpeaker;
+
+			const hasAudioSpeaker = audio
+				? createBinding(audio, "nodes").as(nodes =>
+					nodes.some(node => node.get_media_class() === AUDIO_SOURCE)
+				)
+				: false;
+
+			const hasAudioStream = audio
+				? createBinding(audio, "nodes").as(nodes =>
+					nodes.some(node => node.get_media_class() === STREAM_OUTPUT_AUDIO)
+				)
+				: false;
 
 			return (
 				<box>
 					<ControlUnit device={speaker} />
 					<box class="volume" valign={CENTER} visible={hasAudioSpeaker}>
-						<Arrow name="device-selector" tooltipText={"Device Selector"} />
-						<Arrow name="app-mixer" visible={hasAudioStream} tooltipText={"App Mixer"} />
+						<Arrow name="device-selector" tooltipText="Device Selector" />
+						<Arrow name="app-mixer" visible={hasAudioStream} tooltipText="App Mixer" />
 					</box>
 				</box>
-			)
+			);
 		}
 
 		export function Microphone() {

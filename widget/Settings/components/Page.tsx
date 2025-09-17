@@ -1,19 +1,21 @@
-import { Accessor, Node } from "ags"
+import { FCProps } from "ags"
 import { Gtk } from "ags/gtk4"
 
 const { VERTICAL } = Gtk.Orientation
 
-export type PageWidget = Gtk.Widget & { attr: { name: string, icon: string } }
-
-export default function Page(
-	{ name, icon, children = [] }: {
-		name: Accessor<string> | string
-		icon: Accessor<string> | string
-		children?: Node | Node[]
-	}
-): PageWidget {
+export function Page({
+	name,
+	iconName,
+	children = [],
+}: FCProps<Gtk.StackPage, {
+	name: string,
+	iconName: string,
+	children?: JSX.Element | Array<JSX.Element>
+}>) {
 	return (
 		<Gtk.StackPage
+			name={name}
+			iconName={iconName}
 			child={
 				<Gtk.ScrolledWindow class="page" css="min-height: 300px;">
 					<box class="page-content" vexpand orientation={VERTICAL}>
@@ -21,10 +23,6 @@ export default function Page(
 					</box>
 				</Gtk.ScrolledWindow> as Gtk.ScrolledWindow
 			}
-			name={name}
-			$={self => {
-				(self as any).attr = { name, icon }
-			}}>
-		</Gtk.StackPage>
-	) as PageWidget
+		/>
+	)
 }

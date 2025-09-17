@@ -1,6 +1,6 @@
+import app from "ags/gtk4/app"
 import { Accessor, createBinding, createComputed, createState, For, Node } from "ags"
 import { monitorFile } from "ags/file"
-import app from "ags/gtk4/app"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
 import AstalMpris from "gi://AstalMpris"
@@ -27,6 +27,8 @@ const { bar, quicksettings } = options
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { COVER } = Gtk.ContentFit
+
+const { EXCLUSIVE } = Astal.Exclusivity
 
 const layout = createComputed([bar.position, quicksettings.position], (bar, qs) => `${bar}-${qs}` as Position)
 
@@ -141,7 +143,7 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 		<box class="player" vexpand={false}>
 			<Gtk.Picture
 				class="cover-art"
-				// TODO: Make it cover, not resize
+				// FIXME: Make it cover, not resize
 				paintable={cover.as(url => textureFromFile(url, 100, 100) as Gdk.Paintable)}
 				contentFit={COVER}
 			/>
@@ -321,6 +323,23 @@ export namespace QuickSettings {
 						return true
 					}}
 				/>
+				<Gtk.GestureClick
+					button={0}
+					onPressed={self => {
+						const mBtn = self.get_current_button()
+						switch (mBtn) {
+							case Gdk.BUTTON_MIDDLE:
+								const spkr = audio?.get_default_speaker()
+								if (spkr) {
+									spkr.set_mute(!spkr.get_mute())
+								}
+								break
+							default:
+								break
+						}
+						self.reset()
+					}}
+				/>
 				<box class="horizontal">
 					<State.CurrentLayout />
 					<Profiles.State.Power />
@@ -378,7 +397,7 @@ export namespace QuickSettings {
 		return (
 			<PopupWindow
 				name="quicksettings"
-				exclusivity={Astal.Exclusivity.EXCLUSIVE}
+				exclusivity={EXCLUSIVE}
 				application={app}
 				layout={layout}
 			>

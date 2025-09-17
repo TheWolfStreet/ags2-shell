@@ -2,14 +2,14 @@ import app from "ags/gtk4/app"
 import { Astal, Gtk } from "ags/gtk4"
 import { createComputed } from "ags"
 
-import icons from "$lib/icons"
-import { toggleWindow } from "$lib/utils"
-import env from "$lib/env"
-
 import { Placeholder } from "widget/shared/Placeholder"
 import { PopupWindow, Position } from "widget/shared/PopupWindow"
 import { Notifications } from "./Notifications"
 import { PanelButton } from "./PanelButton"
+
+import env from "$lib/env"
+import icons from "$lib/icons"
+import { toggleWindow } from "$lib/utils"
 
 import options from "options"
 

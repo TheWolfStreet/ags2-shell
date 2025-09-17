@@ -20,34 +20,34 @@ export namespace Profiles {
 	}
 
 	interface Provider {
-		getActive: () => Accessor<string>,
-		getProfiles: () => string[],
-		setActive: (p: string) => void,
-		iconFor: (p: string) => string,
-		labelFor: (p: string) => string,
+		get_active: () => Accessor<string>,
+		get_profiles: () => string[],
+		set_active: (p: string) => void,
+		icon: (p: string) => string,
+		label: (p: string) => string,
 		extraSettings?: () => Node,
 		toggleDefaults: () => [string, string]
 	}
 
 	const asusProvider: Provider = {
-		getActive: () => createBinding(asusctl, "profile"),
-		getProfiles: () => asusctl.profiles,
+		get_active: () => createBinding(asusctl, "profile"),
+		get_profiles: () => asusctl.profiles,
 		// @ts-ignore: Valid keys
-		setActive: (p: Asusctl.Profile) => { asusctl.profile = p },
+		set_active: (p: Asusctl.Profile) => { asusctl.profile = p },
 		// @ts-ignore: Valid keys
-		iconFor: (p) => icons.asusctl.profile[p],
-		labelFor: (p) => p,
+		icon: (p) => icons.asusctl.profile[p],
+		label: (p) => p,
 		extraSettings: () => <Settings callback={() => launchApp("rog-control-center")} />,
 		toggleDefaults: () => ["Quiet", "Balanced"],
 	}
 
 	const powerProvider: Provider | undefined = pp?.version ? {
-		getActive: () => createBinding(pp, "activeProfile"),
-		getProfiles: () => pp.get_profiles().map(p => p.profile),
-		setActive: (p) => pp.set_active_profile(p),
+		get_active: () => createBinding(pp, "activeProfile"),
+		get_profiles: () => pp.get_profiles().map(p => p.profile),
+		set_active: (p) => pp.set_active_profile(p),
 		// @ts-ignore: Valid keys
-		iconFor: (p) => icons.powerprofile[p],
-		labelFor: (p) => prettify(p),
+		icon: (p) => icons.powerprofile[p],
+		label: (p) => prettify(p),
 		toggleDefaults: () => {
 			const profiles = pp.get_profiles()
 			if (profiles.length >= 2) {
@@ -58,32 +58,32 @@ export namespace Profiles {
 	} : undefined
 
 	function makeToggle(provider: Provider) {
-		const active = provider.getActive()
+		const active = provider.get_active()
 		const [on, off] = provider.toggleDefaults()
 
 		return (
 			<ArrowToggleButton
 				name="profile-selector"
-				iconName={active.as(p => provider.iconFor(p))}
-				label={active.as(p => provider.labelFor(p))}
-				activate={() => provider.setActive(on)}
-				deactivate={() => provider.setActive(off)}
+				iconName={active.as(p => provider.icon(p))}
+				label={active.as(p => provider.label(p))}
+				activate={() => provider.set_active(on)}
+				deactivate={() => provider.set_active(off)}
 				connection={active.as(p => p !== off)}
 			/>
 		)
 	}
 
 	function makeSelector(provider: Provider) {
-		const active = provider.getActive()
-		const profiles = provider.getProfiles()
+		const active = provider.get_active()
+		const profiles = provider.get_profiles()
 		return (
-			<Menu name="profile-selector" iconName={active.as(p => provider.iconFor(p))} title="Profile Selector">
+			<Menu name="profile-selector" iconName={active.as(p => provider.icon(p))} title="Profiles">
 				<box orientation={VERTICAL} hexpand>
 					{profiles.map(p => (
-						<button onClicked={() => provider.setActive(p)}>
+						<button onClicked={() => provider.set_active(p)}>
 							<box class="profile-item horizontal">
-								<image iconName={provider.iconFor(p)} />
-								<label label={provider.labelFor(p)} />
+								<image iconName={provider.icon(p)} />
+								<label label={provider.label(p)} />
 							</box>
 						</button>
 					))}

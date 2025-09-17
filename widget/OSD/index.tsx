@@ -26,7 +26,11 @@ function show(v: number, i: string, m: boolean) {
 	set_value(v)
 	set_icon(i)
 	set_mute(m)
-	set_reveal(true)
+
+	// FIXME: Not really a solution. This is an underlying problem within the PopupWindow
+	if (!app.get_window("state-display")?.get_visible()) {
+		set_reveal(true)
+	}
 
 	if (current) {
 		current.cancel()
@@ -37,55 +41,51 @@ function show(v: number, i: string, m: boolean) {
 	})
 }
 
-const spkr = audio.get_default_speaker()
-const mic = audio.get_default_microphone()
-
-brightness.connect("notify::display", () =>
-	show(brightness.display, brightness.iconName, false)
-)
-brightness.connect("notify::kbd", () =>
-	show(brightness.kbd, brightness.kbdIcon, false)
-)
-
-timeout(1000, () => {
-	spkr.connect("notify::volume", () => {
-		show(spkr.get_volume(), spkr.get_volume_icon(), spkr.get_mute())
-	})
-
-	spkr.connect("notify::mute", () => {
-		show(spkr.get_volume(), spkr.get_volume_icon(), spkr.get_mute())
-	})
-
-	mic.connect("notify::volume", () => {
-		show(mic.get_volume(), mic.get_volume_icon(), mic.get_mute())
-	})
-
-	mic.connect("notify::mute", () => {
-		show(mic.get_volume(), mic.get_volume_icon(), mic.get_mute())
-	})
-})
-
 export function OSD() {
-	// TODO: Sometimes doesn't reapper when triggered fast
+	const spkr = audio.get_default_speaker()
+	const mic = audio.get_default_microphone()
+	timeout(1000, () => {
+		brightness.connect("notify::display", () =>
+			show(brightness.display, brightness.iconName, false)
+		)
+		brightness.connect("notify::kbd", () =>
+			show(brightness.kbd, brightness.kbdIcon, false)
+		)
+
+		spkr.connect("notify::volume", () =>
+			show(spkr.get_volume(), spkr.get_volume_icon(), spkr.get_mute())
+		)
+
+		spkr.connect("notify::mute", () =>
+			show(spkr.get_volume(), spkr.get_volume_icon(), spkr.get_mute())
+		)
+
+		mic.connect("notify::volume", () =>
+			show(mic.get_volume(), mic.get_volume_icon(), mic.get_mute())
+		)
+
+		mic.connect("notify::mute", () =>
+			show(mic.get_volume(), mic.get_volume_icon(), mic.get_mute())
+		)
+	})
 	return (
 		<PopupWindow
-			name="osd"
+			name="state-display"
 			visible={reveal}
 			keymode={NONE}
-			application={app}
-			layer={OVERLAY}
 			exclusivity={EXCLUSIVE}
+			layer={OVERLAY}
+			application={app}
 			layout="bottom-center"
 			handleClosing={false}
 			onNotifyVisible={ignoreInput}
 			$={ignoreInput}
 		>
 			<Gtk.AspectFrame obeyChild={false} ratio={1}>
-				<box class="padding">
-					<box class="content" orientation={VERTICAL}>
-						<image iconName={icon} useFallback pixelSize={64} />
-						<Gtk.ProgressBar class={mute.as(v => v ? "muted" : "")} fraction={value} />
-					</box>
+				<box
+					class="state-display" orientation={VERTICAL} hexpand vexpand>
+					<image iconName={icon} pixelSize={64} useFallback vexpand hexpand />
+					<Gtk.ProgressBar class={mute.as(v => v ? "percentage muted" : "percentage")} fraction={value} hexpand />
 				</box>
 			</Gtk.AspectFrame>
 		</PopupWindow >

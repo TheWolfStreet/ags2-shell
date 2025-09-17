@@ -2,10 +2,11 @@ import { createComputed, createState } from "ags"
 import app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 
-import { Opt } from "$lib/option"
-
-import icons from "$lib/icons"
 import { createLayout } from "./components/layout"
+
+import { Opt } from "$lib/option"
+import icons from "$lib/icons"
+
 import options from "options"
 
 const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
@@ -13,69 +14,71 @@ const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 
 export namespace Settings {
-	function collectOpts(obj: { [x: string]: any }) {
-		let opts: any[] = []
-		for (let key in obj) {
+	function collectOpts(obj: Record<string, unknown>): Opt<any>[] {
+		let opts: Opt<any>[] = []
+		for (const key in obj) {
 			const value = obj[key]
-			if (value && typeof value === 'object') {
-				opts = opts.concat(collectOpts(value))
-			} else if (value instanceof Opt) {
+			if (value instanceof Opt) {
 				opts.push(value)
+			} else if (value && typeof value === "object") {
+				opts = opts.concat(collectOpts(value as Record<string, unknown>))
 			}
 		}
 		return opts
 	}
 
-	function Header(layout: ReturnType<typeof createLayout>) {
+	function Header(layout: Gtk.StackPage[]) {
 		const opts = collectOpts(options)
 		const anyChanged = createComputed(
-			opts, () => {
-				for (const opt of opts) {
-					if (opt.get() !== opt.getDefault()) return true
-				}
-				return false
-			}
+			opts, () => opts.some(opt => opt.get() !== opt.getDefault())
 		)
 
-		const [current, set_current] = createState(layout[0].attr.name)
+		const [current, set_current] = createState(layout[0].name)
+
+		async function resetAll() {
+			const BATCH_SIZE = 8
+			for (let i = 0; i < opts.length; i += BATCH_SIZE) {
+				const batch = opts.slice(i, i + BATCH_SIZE)
+				await Promise.all(batch.map(opt => opt.reset()))
+			}
+		}
 
 		return {
 			current,
 			set_current,
 			component: (
 				<centerbox class="header">
-					<button 
-						$type="start"
+					<button
 						class="reset"
-						onClicked={() => { opts.forEach((o) => o.reset()) }}
+						$type="start"
+						valign={CENTER}
 						sensitive={anyChanged}
 						tooltipText="Reset"
-						valign={CENTER}
+						onClicked={resetAll}
 					>
 						<image iconName={icons.ui.refresh} useFallback />
 					</button>
+
 					<box class="pager horizontal" $type="center">
-						{
-							layout.map(({ attr: { name, icon } }) => (
-								<button
-									halign={0}
-									class={current(v => v === name ? "active" : "")}
-									onClicked={() => set_current(name)}
-									valign={CENTER}
-								>
-									<box>
-										<image iconName={icon} useFallback />
-										<label label={name} />
-									</box>
-								</button>
-							))
-						}
+						{layout.map(({ name, iconName }) => (
+							<button
+								class={current(v => v === name ? "active" : "")}
+								valign={CENTER}
+								onClicked={() => set_current(name)}
+							>
+								<box>
+									<image iconName={iconName} useFallback />
+									<label label={name} />
+								</box>
+							</button>
+						))}
 					</box>
+
 					<button
 						class="close"
 						$type="end"
-						onClicked={() => app.get_window("settings-dialog")?.close()}
 						valign={CENTER}
+						onClicked={() => app.get_window("settings-dialog")?.close()}
 					>
 						<image iconName={icons.ui.close} useFallback />
 					</button>
@@ -106,7 +109,6 @@ export namespace Settings {
 	}
 
 	export function Window() {
-		// Create layout within the proper scope context
 		const layout = createLayout()
 		const header = Header(layout)
 

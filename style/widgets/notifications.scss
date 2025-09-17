@@ -18,8 +18,8 @@
     }
 
     .app-icon {
-      border-radius: $radius*0.8;
-      margin-right: $spacing / 2;
+      border-radius: $radius * .8;
+      margin-right: $spacing * .5;
       min-height: 1.5em;
       min-width: 1.5em;
     }
@@ -30,8 +30,8 @@
 
     .app-name {
       margin-right: $spacing;
-      letter-spacing: -0.50pt;
-      font-size: 0.9em;
+      letter-spacing: -.50pt;
+      font-size: .9em;
       color: $fg;
     }
   }
@@ -39,7 +39,7 @@
   .content {
     .summary {
       margin-right: $spacing;
-      margin-bottom: $spacing * 0.5;
+      margin-bottom: $spacing * .5;
       color: $fg;
       font-weight: bold;
     }
@@ -49,7 +49,7 @@
     }
 
     .icon {
-      border-radius: $radius*0.8;
+      border-radius: $radius * .8;
       margin-right: $spacing;
       min-height: 1.5em;
       min-width: 1.5em;
@@ -61,22 +61,22 @@
   }
 
   .actions {
-    @include spacing(0.8);
+    @include spacing(.8);
     margin-top: $spacing;
 
     button {
       @include button;
-      border-radius: $radius*0.8;
+      border-radius: $radius * .8;
       font-size: 1.2em;
-      padding: $padding * 0.7;
+      padding: $padding * .7;
     }
   }
 
   button.close-button {
     @include button($flat: true);
     border-radius: $radius;
-    padding: $padding * 0.3 $padding * 0.3;
-    margin-left: $spacing / 2;
+    padding: $padding * .3 $padding * .3;
+    margin-left: $spacing * .5;
 
     &:active {
       background-image: none;

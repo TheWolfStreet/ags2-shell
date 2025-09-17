@@ -1,10 +1,9 @@
 import { createBinding } from "ags"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
-import { createPoll, } from "ags/time"
+import { createPoll } from "ags/time"
 
 import GLib from "gi://GLib"
-
 import { ensurePath } from "./utils"
 
 const APPNAME = "ags2-shell"

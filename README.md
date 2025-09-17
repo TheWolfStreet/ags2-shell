@@ -9,8 +9,8 @@ Special thanks to [Aylur](https://github.com/Aylur) for the original [AGS v1 she
 
 Check out and support his latest project **[Marble Shell](https://marble-shell.pages.dev/pages/installation)**, the new and expanded version of the AGS shell with more features and improvements.
 
-## ⚠ Known Issues
-- Duplicate top bar when mirroring or demirroring a screen.
+## ⚠ Planned
+- NixOS configuration for ui?
 
 ## Installation on NixOS
 ### As a bundled package
@@ -90,7 +90,7 @@ pkgs,
       pavucontrol # Audio control
       networkmanager # Network control
       fd # For searching .scss files
-      inputs.matugen.packages.${system}.default # Dynamic color generation based on wallpaper colors
+      matugen # Dynamic coloring
       # Astal libs
       inputs.ags.packages.${pkgs.system}.apps
       inputs.ags.packages.${pkgs.system}.battery

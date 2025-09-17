@@ -54,26 +54,26 @@ async function sendBatch(batch: string[]) {
 	hypr.message(`[[BATCH]]/${cmd}`)
 }
 
-async function setupHyprland() {
-	const wm_gaps = Math.floor(hyprland.gaps.get() * spacing.get());
-	const is_dark = scheme.get().includes("dark");
-	const blur_policy = is_dark || blurOnLight.get();
-	const blur_enabled = blur.get() > 0 && blur_policy;
+async function setHyprland() {
+	const gaps = Math.floor(hyprland.gaps.get() * spacing.get());
+	const darkMode = scheme.get().includes("dark");
+	const blurPolicy = darkMode || blurOnLight.get();
+	const blurEnabled = blur.get() > 0 && blurPolicy;
 
-	const base_rules = [
+	const baseRules = [
 		"layerrule unset, *",
 	];
 
-	const blur_rules = [
+	const blurRules = [
 		"layerrule blur, gtk4-layer-shell",
 		"layerrule blurpopups, gtk4-layer-shell",
 		"layerrule ignorealpha .29, gtk4-layer-shell",
 	];
 
-	const general_rules = [
+	const generalRules = [
 		`general:border_size ${width.get()}`,
-		`general:gaps_out ${wm_gaps}`,
-		`general:gaps_in ${Math.floor(wm_gaps / 2)}`,
+		`general:gaps_out ${gaps}`,
+		`general:gaps_in ${Math.floor(gaps / 2)}`,
 		`general:col.active_border ${rgba(primary())}`,
 		`general:col.inactive_border ${rgba(hyprland.inactiveBorder.get())}`,
 		`decoration:rounding ${radius.get()}`,
@@ -81,12 +81,12 @@ async function setupHyprland() {
 		"layerrule noanim, gtk4-layer-shell",
 	];
 
-	sendBatch(blur_enabled ? [...base_rules, ...blur_rules] : base_rules);
-	sendBatch(general_rules);
+	sendBatch(blurEnabled ? [...baseRules, ...blurRules] : baseRules);
+	sendBatch(generalRules);
 }
 
 export default function hyprinit() {
-	hypr.connect("config-reloaded", () => setupHyprland())
-	setHandler(options, deps, setupHyprland)
-	setupHyprland()
+	hypr.connect("config-reloaded", () => setHyprland())
+	setHandler(options, deps, setHyprland)
+	setHyprland()
 }

@@ -1,26 +1,25 @@
 @use "sass:color";
 
- window#osd {
-  @include slider($width: 0.5em, $focusable: false, $slider: false);
+window#state-display .state-display {
+  @include floating-widget;
+  padding: $padding * 2.25;
 
-  trough {
-    border: none;
+  image {
+    padding: $popover-padding;
+    color: color.scale($fg, $alpha: -10%);
   }
 
-  .muted progress {
-    background-image: none;
-    background-color: color.scale($fg, $alpha: -20%);
-  }
+  .percentage {
+    @include slider($width: .5em, $focusable: false, $slider: false);
+    trough {
+      border: none;
+    }
 
-  .padding {
-    @include floating-widget;
-    padding: $popover-padding * 1.25;
-  }
-
-  .content {
-    image {
-      padding: $popover-padding * 1.4;
-      color: color.scale($fg, $alpha: -10%)
+    &.muted {
+      trough progress {
+        background-image: none;
+        background-color: color.scale($fg, $alpha: -20%);
+      }
     }
   }
 }

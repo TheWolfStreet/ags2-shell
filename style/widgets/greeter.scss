@@ -21,7 +21,7 @@ window#greeter {
   }
 
   .auth {
-    @include floating_widget;
+    @include floating-widget;
     border-radius: $radius;
     min-width: 400px;
     padding: 0;
@@ -50,11 +50,11 @@ window#greeter {
     .password {
       entry {
         @include button;
-        padding: $padding*.7 $padding;
-        margin-left: $spacing*.5;
+        padding: $padding * .7 $padding;
+        margin-left: $spacing *.5;
       }
 
-      margin: 0 $padding*4;
+      margin: 0 $padding * 4 ;
       margin-top: $spacing;
     }
 

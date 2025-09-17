@@ -198,7 +198,7 @@ export function Media() {
 
 export function ScreenRecord() {
 	return (
-		<PanelButton class="recorder horizontal" visible={createBinding(scr, "recording")} onClicked={() => scr.stopRecord()}>
+		<PanelButton class="recorder" visible={createBinding(scr, "recording")} onClicked={() => scr.stopRecord()}>
 			<box class="horizontal">
 				<image iconName={icons.recorder.recording} />
 				<label label={createBinding(scr, "timer").as(v => duration(v) + " ")} />

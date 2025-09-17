@@ -12,10 +12,9 @@ import GdkPixbuf from "gi://GdkPixbuf"
 
 import giCairo from "cairo"
 
+import env from "$lib/env"
 import icons from "$lib/icons"
 import { hypr } from "$lib/services"
-
-import env from "./env"
 
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
 

@@ -3,8 +3,8 @@ import { writeFileAsync } from "ags/file"
 
 import GLib from "gi://GLib"
 
-import { Opt, setHandler } from "$lib/option"
 import env from "$lib/env"
+import { Opt, setHandler } from "$lib/option"
 import { bash, dependencies, fileExists, ensurePath } from "$lib/utils"
 
 import options from "options"

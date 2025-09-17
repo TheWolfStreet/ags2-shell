@@ -1,15 +1,15 @@
-
 import app from "ags/gtk4/app"
-import { createBinding, onCleanup } from "ags"
+import { createBinding } from "ags"
 import GObject, { property, register } from "ags/gobject"
 import { monitorFile } from "ags/file"
 import { execAsync } from "ags/process"
 
 import env from "$lib/env"
-import { bashSync, dependencies } from "$lib/utils"
+import { bash, bashSync, dependencies } from "$lib/utils"
 
-@register({ GTypeName: "Wallpaper" })
+@register()
 export default class Wallpaper extends GObject.Object {
+	declare static $gtype: GObject.GType<Wallpaper>
 	static instance: Wallpaper
 
 	static get_default() {
@@ -29,9 +29,9 @@ export default class Wallpaper extends GObject.Object {
 		})
 
 		let prevMonCount = app.get_monitors().length
-		const unsub = createBinding(app, "monitors").subscribe(() => {
+		createBinding(app, "monitors").subscribe(() => {
 			const monCount = app.get_monitors().length
-			if (monCount < prevMonCount) {
+			if (monCount > prevMonCount) {
 				prevMonCount = monCount
 				this.#apply()
 			}
@@ -39,10 +39,10 @@ export default class Wallpaper extends GObject.Object {
 		execAsync("swww-daemon").catch(() => null)
 	}
 
-	#handleHeic(imgPath: string) {
+	async #handleHeic(imgPath: string) {
 		if (!dependencies("heif-dec")) return
 		const tmpImg = `${env.paths.tmp}/heic.png`
-		bashSync(`heif-dec "${imgPath}" "${tmpImg}" && cp "${tmpImg}" "${`${env.paths.home}/.config/background`}"`)
+		await bash(`heif-dec "${imgPath}" "${tmpImg}" && cp "${tmpImg}" "${`${env.paths.home}/.config/background`}"`)
 	}
 
 	get_wallpaper() {
@@ -65,8 +65,6 @@ export default class Wallpaper extends GObject.Object {
 	}
 
 	readonly #apply = async () => {
-		await execAsync(
-			`swww img --invert-y --transition-type fade "${this.wallpaper}"`
-		)
+		await execAsync(`swww img --invert-y --transition-type fade "${this.wallpaper}"`)
 	}
 }

@@ -2,7 +2,7 @@
 @use "sass:color";
 
 window#launcher .launcher {
-  @include floating_widget;
+  @include floating-widget;
   .quicklaunch {
     @include spacing;
 
@@ -44,7 +44,7 @@ window#launcher .launcher {
     transition: $transition;
 
     >box {
-      @include spacing(0.5);
+      @include spacing(.5);
     }
 
     label {

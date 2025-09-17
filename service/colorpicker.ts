@@ -3,16 +3,17 @@ import { timeout, Timer } from "ags/time"
 import { readFile, writeFileAsync } from "ags/file"
 import { execAsync } from "ags/process"
 
-import { dependencies, ensurePath, notify, wlCopy } from "$lib/utils"
 import env from "$lib/env"
+import { dependencies, ensurePath, notify, wlCopy } from "$lib/utils"
 import icons from "$lib/icons"
 
 import options from "options"
 
 const cacheFile = `${env.paths.cache}/colors.json`
 
-@register({ GTypeName: "ColorPicker" })
+@register()
 export default class ColorPicker extends GObject.Object {
+	declare static $gtype: GObject.GType<ColorPicker>
 	static instance: ColorPicker
 
 	constructor() {

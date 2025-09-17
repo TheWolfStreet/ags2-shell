@@ -8,8 +8,9 @@ const get = (args: string) => Number(exec(`brightnessctl ${args}`))
 const display = await bash`ls -w1 /sys/class/backlight | head -1`
 const kbd = await bash`ls -w1 /sys/class/leds | head -1`
 
-@register({ GTypeName: "Brightness" })
+@register()
 export default class Brightness extends GObject.Object {
+	declare static $gtype: GObject.GType<Brightness>
 	static instance: Brightness
 
 	static get_default() {
@@ -57,7 +58,7 @@ export default class Brightness extends GObject.Object {
 	get kbdIcon(): string {
 		if (this.#kbd == 0) {
 			return "keyboard-brightness-off-symbolic"
-		} else if (this.#kbd == 0.5) {
+		} else if (this.#kbd == .5) {
 			return "keyboard-brightness-medium-symbolic"
 		}
 		return "keyboard-brightness-high-symbolic"

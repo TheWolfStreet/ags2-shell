@@ -8,9 +8,9 @@ import Pango from "gi://Pango"
 
 import { PanelButton } from "./PanelButton"
 
+import env from "$lib/env"
 import { notifd } from "$lib/services"
 import icons from "$lib/icons"
-import env from "$lib/env"
 import { fileExists, textureFromFile, toggleWindow } from "$lib/utils"
 
 import options from "options"
@@ -19,42 +19,68 @@ const { COVER } = Gtk.ContentFit
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { SWING_RIGHT, SWING_DOWN, SLIDE_DOWN } = Gtk.RevealerTransitionType
-
 const { EXCLUSIVE } = Astal.Exclusivity
 const { TOP, RIGHT } = Astal.WindowAnchor
 
 const MAX_NOTIFICATIONS = 50
 
+// TODO: Refactor
 export namespace Notifications {
-	const [hovered, setHovered] = createState(false)
-	const [dismiss, set_dismiss] = createState(false)
 	const [_current, set_current] = createState<Array<AstalNotifd.Notification>>([])
-
 	export const current = _current
+
+	const [hovered, setHovered] = createState(false)
+	const [dismiss, setDismiss] = createState(false)
+
+	const [hidingNotifications, setHidingNotifications] = createState<Set<number>>(new Set())
+	const [autoHiddenNotifications, setAutoHiddenNotifications] = createState<Set<number>>(new Set())
 
 	const notifyHandler = notifd.connect("notified", (_, id, replaced) => {
 		const notification = notifd.get_notification(id)
 		const blacklist = options.notifications.blacklist.get() || []
 		const appName = notification.get_app_name() || notification.get_desktop_entry()
+
 		if (blacklist.includes(appName)) return
 
 		if (replaced && _current.get().some((n) => n.id === id)) {
-			set_current((ns) => ns.map((n) => (n.id === id ? notification : n)))
+			set_current(ns => ns.map(n => (n.id === id ? notification : n)))
 		} else {
-			set_current((ns) => [notification, ...ns].slice(0, MAX_NOTIFICATIONS))
+			set_current(ns => [notification, ...ns].slice(0, MAX_NOTIFICATIONS))
 		}
 	})
 
 	export function dismissAll() {
-		set_dismiss(true)
+		setDismiss(true)
 		GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.get(), () => {
-			set_dismiss(false)
+			setDismiss(false)
 			set_current([])
+			setHidingNotifications(new Set())
+			setAutoHiddenNotifications(new Set())
 			return GLib.SOURCE_REMOVE
 		})
 	}
 
-	function format(time: number): string {
+	function hideNotification(notification: AstalNotifd.Notification, onComplete?: () => void) {
+		setHidingNotifications(prev => new Set([...prev, notification.id]))
+
+		GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.get(), () => {
+			set_current(ns => ns.filter(n => n.id !== notification.id))
+			setHidingNotifications(prev => {
+				const newSet = new Set(prev)
+				newSet.delete(notification.id)
+				return newSet
+			})
+			return GLib.SOURCE_REMOVE
+		})
+
+		onComplete?.()
+	}
+
+	function autoHideNotification(notification: AstalNotifd.Notification) {
+		setAutoHiddenNotifications(prev => new Set([...prev, notification.id]))
+	}
+
+	export function formatTime(time: number) {
 		const now = GLib.DateTime.new_now_local()
 		const then = GLib.DateTime.new_from_unix_local(time)
 		if (!then) return ""
@@ -65,7 +91,7 @@ export namespace Notifications {
 		return `${Math.floor(diff / 86400)}d ago`
 	}
 
-	function urgency(n: AstalNotifd.Notification): string {
+	export function urgency(n: AstalNotifd.Notification): string {
 		const { LOW, CRITICAL } = AstalNotifd.Urgency
 		switch (n.urgency) {
 			case LOW: return "low"
@@ -74,17 +100,9 @@ export namespace Notifications {
 		}
 	}
 
-	function Entry({
-		entry: notification,
-		widthRequest,
-		persistent,
-	}: {
-		entry: AstalNotifd.Notification
-		widthRequest?: Accessor<number> | number
-		persistent?: boolean
-	}) {
-		const [reveal, setReveal] = createState(false)
-		const [revealActions, setRevealActions] = createState(false)
+	function Entry({ entry: notification, widthRequest, persistent }: { entry: AstalNotifd.Notification, widthRequest?: Accessor<number> | number, persistent?: boolean }) {
+		const [reveal, set_reveal] = createState(false)
+		const [revealActions, set_revealActions] = createState(false)
 
 		let closed = false
 		let wasShown = false
@@ -99,7 +117,6 @@ export namespace Notifications {
 
 		const remove = () => {
 			clearTimer()
-			set_current((ns) => ns.filter((n) => n !== notification))
 			notification.dismiss()
 		}
 
@@ -107,7 +124,9 @@ export namespace Notifications {
 			if (persistent) return
 			clearTimer()
 			dismissTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.get(), () => {
-				if (!hovered.get()) setReveal(false)
+				if (!hovered.get()) {
+					set_reveal(false)
+				}
 				dismissTimer = undefined
 				return GLib.SOURCE_REMOVE
 			})
@@ -115,7 +134,7 @@ export namespace Notifications {
 
 		const handleDismiss = () => {
 			if (dismiss.get()) {
-				setReveal(false)
+				set_reveal(false)
 				GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.get(), () => {
 					notification.dismiss()
 					return GLib.SOURCE_REMOVE
@@ -123,9 +142,21 @@ export namespace Notifications {
 			}
 		}
 
+		const hidingUnsub = hidingNotifications.subscribe(() => {
+			if (hidingNotifications.get().has(notification.id)) {
+				set_reveal(false)
+			}
+		})
+
+		const autoHiddenUnsub = autoHiddenNotifications.subscribe(() => {
+			if (!persistent && autoHiddenNotifications.get().has(notification.id)) {
+				set_reveal(false)
+			}
+		})
+
 		const onEnter = () => {
 			if (closed) return
-			setRevealActions(true)
+			set_revealActions(true)
 			if (!persistent) {
 				setHovered(true)
 				clearTimer()
@@ -134,27 +165,28 @@ export namespace Notifications {
 
 		const onLeave = () => {
 			if (closed) return
-			setRevealActions(false)
+			set_revealActions(false)
 			if (!persistent) setHovered(false)
 		}
 
 		const onReveal = (self: Gtk.Revealer) => {
-			if (!self.get_reveal_child() && closed) remove()
-			else startAutoHide()
+			if (!self.get_reveal_child() && closed) {
+				remove()
+			} else if (!self.get_reveal_child() && !persistent && autoHiddenNotifications.get().has(notification.id)) {
+				autoHideNotification(notification)
+			} else {
+				startAutoHide()
+			}
 		}
 
 		const onClose = () => {
-			setReveal(false)
 			closed = true
+			hideNotification(notification, () => notification.dismiss())
 		}
 
 		const onActionClick = (actionId: string) => {
-			setReveal(false)
-			GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.get(), () => {
-				set_current((ns) => ns.filter((n) => n !== notification))
-				notification.invoke(actionId)
-				return GLib.SOURCE_REMOVE
-			})
+			closed = true
+			hideNotification(notification, () => notification.invoke(actionId))
 		}
 
 		const dismissUnsub = dismiss.subscribe(handleDismiss)
@@ -165,6 +197,8 @@ export namespace Notifications {
 		onCleanup(() => {
 			dismissUnsub()
 			hoveredUnsub()
+			hidingUnsub()
+			autoHiddenUnsub()
 			clearTimer()
 		})
 
@@ -181,7 +215,10 @@ export namespace Notifications {
 				onNotifyChildRevealed={onReveal}
 				onMap={() => {
 					if (!wasShown && (!notifd.get_dont_disturb() || persistent)) {
-						setReveal(true)
+						if (!persistent && autoHiddenNotifications.get().has(notification.id)) {
+							return
+						}
+						set_reveal(true)
 						wasShown = true
 					}
 				}}
@@ -190,20 +227,8 @@ export namespace Notifications {
 					<Gtk.EventControllerMotion onEnter={onEnter} onLeave={onLeave} />
 					<box class="header">
 						<image class="app-icon" iconName={appIcon} useFallback />
-						<label
-							class="app-name"
-							halign={START}
-							maxWidthChars={24}
-							ellipsize={Pango.EllipsizeMode.END}
-							useMarkup
-							label={appName}
-						/>
-						<label
-							class="time"
-							halign={END}
-							hexpand
-							label={env.uptime(() => format(notification.time))}
-						/>
+						<label class="app-name" halign={START} maxWidthChars={24} ellipsize={Pango.EllipsizeMode.END} useMarkup label={appName} />
+						<label class="time" halign={END} hexpand label={env.uptime(() => formatTime(notification.time))} />
 						<revealer revealChild={revealActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
 							<button class="close-button" onClicked={onClose}>
 								<image iconName={icons.ui.close} halign={CENTER} valign={CENTER} useFallback />
@@ -213,12 +238,7 @@ export namespace Notifications {
 
 					<box class="content">
 						{hasImage && (
-							<Gtk.Picture
-								class="icon"
-								contentFit={COVER}
-								canShrink={false}
-								paintable={textureFromFile(notification.get_image(), 75, 75) as Gdk.Paintable}
-							/>
+							<Gtk.Picture class="icon" contentFit={COVER} canShrink={false} paintable={textureFromFile(notification.get_image(), 75, 75) as Gdk.Paintable} />
 						)}
 						<box orientation={VERTICAL}>
 							<label class="summary" wrap wrapMode={Gtk.WrapMode.WORD} maxWidthChars={28} halign={START} label={notification.summary} />
@@ -242,9 +262,9 @@ export namespace Notifications {
 		)
 	}
 
-	export function Stack({ class: className, persistent = false }: { class?: string; hexpand?: boolean | Accessor<boolean>; persistent?: boolean }) {
+	export function Stack({ persistent = false }: { persistent?: boolean }) {
 		return (
-			<box class={className} orientation={VERTICAL} valign={START}>
+			<box class="notifications-stack" orientation={VERTICAL} valign={START}>
 				<For each={current}>{(n) => <Entry entry={n} persistent={persistent} />}</For>
 			</box>
 		)
@@ -252,21 +272,16 @@ export namespace Notifications {
 
 	export function Button() {
 		return (
-			<PanelButton
-				class="messages"
-				visible={current.as(v => v.length > 0)}
-				tooltipText={current.as(v => `${v.length} pending notification${v.length === 1 ? '' : 's'}`)}
-				onClicked={() => toggleWindow("datemenu")}
-			>
+			<PanelButton class="messages" visible={current.as(v => v.length > 0)} tooltipText={current.as(v => `${v.length} pending notification${v.length === 1 ? '' : 's'}`)} onClicked={() => toggleWindow("datemenu")}>
 				<image iconName={icons.notifications.message} useFallback />
 			</PanelButton>
 		)
 	}
 
 	export function Window() {
-	onCleanup(() => notifd.disconnect(notifyHandler))
+		onCleanup(() => notifd.disconnect(notifyHandler))
 		return (
-			<window visible resizable={false} heightRequest={1} widthRequest={1} name="notifications" class="notifications" application={app} exclusivity={EXCLUSIVE} anchor={TOP | RIGHT}>
+			<window visible resizable={false} heightRequest={1} widthRequest={350} name="notifications" class="notifications" application={app} exclusivity={EXCLUSIVE} anchor={TOP | RIGHT}>
 				<Stack persistent={false} />
 			</window>
 		)

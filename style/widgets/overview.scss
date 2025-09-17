@@ -8,7 +8,7 @@ window#overview .overview {
 
   .workspace {
       @include widget;
-      padding: $padding * 0.3;
+      padding: $padding * .3;
       border-radius: $radius;
 
       &:hover {
@@ -22,7 +22,7 @@ window#overview .overview {
 
   .client {
     @include button;
-    margin: $spacing * 0.3;
+    margin: $spacing * .3;
     border-radius: $radius;
 
     &.hidden {

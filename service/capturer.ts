@@ -5,14 +5,15 @@ import { execAsync } from "ags/process"
 import AstalIO from "gi://AstalIO"
 import GLib from "gi://GLib"
 
-import { bash, dependencies, ensurePath, notify } from "$lib/utils"
 import env from "$lib/env"
+import { bash, dependencies, ensurePath, notify } from "$lib/utils"
 import icons from "$lib/icons"
 
 const now = () => GLib.DateTime.new_now_local().format("%Y-%m-%d_%H-%M-%S")
 
 @register()
 export default class Capturer extends GObject.Object {
+	declare static $gtype: GObject.GType<Capturer>
 	static instance: Capturer
 
 	static get_default() {

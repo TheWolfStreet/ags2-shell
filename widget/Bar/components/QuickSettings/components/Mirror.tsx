@@ -2,7 +2,7 @@ import { Gtk } from "ags/gtk4"
 import { exec } from "ags/process"
 import { createState, onCleanup, For } from "ags"
 
-import AstalHyprland from "gi://AstalHyprland?version=0.1"
+import AstalHyprland from "gi://AstalHyprland"
 
 import { Placeholder } from "widget/shared/Placeholder"
 import { ArrowToggleButton, set_opened, opened, Menu } from "./shared/MenuElements"
@@ -75,7 +75,7 @@ export namespace Mirror {
 			<Menu
 				name={"mirror-selector"}
 				iconName={icons.ui.projector}
-				title={"Select display device"}
+				title={"Display devices"}
 			>
 				<box orientation={VERTICAL}>
 					<revealer

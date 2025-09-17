@@ -1,4 +1,4 @@
-import { Accessor, createState, Node, onCleanup } from "ags"
+import { Accessor, createState, FCProps, Node, onCleanup } from "ags"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 import { timeout } from "ags/time"
@@ -6,7 +6,7 @@ import { timeout } from "ags/time"
 import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
-import { Props, toggleClass } from "$lib/utils"
+import { toggleClass } from "$lib/utils"
 
 import options from "options"
 
@@ -22,12 +22,20 @@ app.connect("window-toggled", (_, w) => {
 })
 
 type ArrowProps = {
-	name: string
-	visible: boolean,
-	tooltipText: string
+	name?: string | Accessor<string>
+	visible?: boolean | Accessor<boolean>
+	tooltipText?: string | Accessor<string>
+	activate?: false | (() => void)
 }
 
-export function Arrow({ name, visible, activate = false, tooltipText }: Props<Gtk.Button, ArrowProps> & { activate?: false | (() => void) }) {
+export function Arrow(
+	{
+		name,
+		visible,
+		activate = false,
+		tooltipText
+	}: FCProps<Gtk.Button, ArrowProps>
+) {
 	let deg = 0
 	let open = false
 
@@ -36,7 +44,7 @@ export function Arrow({ name, visible, activate = false, tooltipText }: Props<Gt
 
 	const animate = (step: number) => {
 		for (let i = 0; i < 9; i++) {
-			timeout(15 * i, () => {
+			timeout(options.transition.duration.get() * 0.075 * i, () => {
 				deg += step
 				set_css(`transform: rotate(${deg}deg);`)
 			})
@@ -69,9 +77,9 @@ export function Arrow({ name, visible, activate = false, tooltipText }: Props<Gt
 }
 
 type ArrowToggleButtonProps = {
-	name: string
-	iconName: string
-	label: string
+	name?: Accessor<string> | string
+	iconName?: Accessor<string> | string
+	label?: Accessor<string> | string
 }
 
 export function ArrowToggleButton({
@@ -82,7 +90,7 @@ export function ArrowToggleButton({
 	deactivate,
 	activateOnArrow = false,
 	connection
-}: Props<Gtk.Widget, ArrowToggleButtonProps> & {
+}: FCProps<Gtk.Widget, ArrowToggleButtonProps> & {
 	activateOnArrow?: boolean
 	connection?: Accessor<boolean>
 	activate?: () => void
@@ -114,10 +122,10 @@ export function ArrowToggleButton({
 	)
 }
 
-type MenuProps = Props<Gtk.Widget, {
-	name: string
-	iconName: string
-	title: string
+type MenuProps = FCProps<Gtk.Widget, {
+	name?: Accessor<string> | string
+	iconName?: Accessor<string> | string
+	title?: Accessor<string> | string
 }>
 export function Menu({ name, iconName, title, headerChild, children }: MenuProps & {
 	headerChild?: Node
@@ -127,7 +135,7 @@ export function Menu({ name, iconName, title, headerChild, children }: MenuProps
 		<revealer
 			transitionType={SLIDE_DOWN}
 			transitionDuration={options.transition.duration}
-			revealChild={opened((n: string) => {
+			revealChild={opened.as(n => {
 				return n === name
 			})}
 			vexpand={false} hexpand={false}
@@ -146,8 +154,8 @@ export function Menu({ name, iconName, title, headerChild, children }: MenuProps
 }
 
 type SimpleToggleButtonProps = {
-	iconName: string
-	label: string
+	iconName?: Accessor<string> | string
+	label?: Accessor<string> | string
 }
 
 export function SimpleToggleButton({
@@ -155,7 +163,7 @@ export function SimpleToggleButton({
 	label,
 	toggle,
 	connection
-}: Props<Gtk.Button, SimpleToggleButtonProps> & {
+}: FCProps<Gtk.Button, SimpleToggleButtonProps> & {
 	connection: Accessor<boolean>
 	toggle: () => void
 }) {

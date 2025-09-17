@@ -4,19 +4,18 @@ window#bar {
   }
 }
 
-window#batterystate {
-  @include slider($width: 0.5em, $slider-width: 4em, $hoverable: false, $focusable: false, $slider: false);
+window#batterystate .batterystate {
+  @include floating-widget;
+  @include spacing(.5);
 
-  trough {
-    border: none;
+  .percentage {
+    @include slider($width: .5em, $slider-width: 4em, $hoverable: false, $focusable: false, $slider: false);
+    trough {
+      border: none;
+    }
   }
 
-  box {
-    @include floating-widget;
-    @include spacing(.5);
-
-    .remaining {
-      font-weight: bold;
-    }
+  label {
+    font-weight: bold;
   }
 }

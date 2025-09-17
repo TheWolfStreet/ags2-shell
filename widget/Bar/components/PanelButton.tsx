@@ -2,21 +2,23 @@ import { Gtk } from "ags/gtk4"
 
 import { onWindowToggle, Props, toggleClass } from "$lib/utils"
 
+const { CENTER } = Gtk.Align
+
 export function PanelButton({
 	$,
+	name,
 	class: className,
 	...props
 }: Props<Gtk.Button, Gtk.Button.ConstructorProps>) {
 	return (
 		<button
-			valign={Gtk.Align.CENTER}
-			class={`panel-button ${className}`}
+			name={name}
+			valign={CENTER}
+			class={`panel-button ${name ?? ""} ${className}`}
 			canFocus={false}
 			{...props}
 			$={self => {
 				if (self.name) {
-					self.add_css_class(self.name)
-
 					onWindowToggle(self.name, (w) => {
 						toggleClass(self, "active", w.is_visible())
 					})
@@ -24,5 +26,6 @@ export function PanelButton({
 
 				$ && $(self)
 			}}
-		/>)
+		/>
+	)
 }
