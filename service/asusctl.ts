@@ -1,91 +1,103 @@
-import { GObject, property, register } from "astal"
+import GObject, { getter, register, setter } from "ags/gobject"
 
-import { sh, bashSync } from "../lib/utils"
-import { hypr } from "../lib/services"
-import options from "../options"
+import { sh, bashSync } from "$lib/utils"
+import { hypr } from "$lib/services"
 
-type Profile = "Performance" | "Balanced" | "Quiet"
-type Mode = "Hybrid" | "Integrated"
+import options from "options"
 
-@register({ GTypeName: "Asusctl" })
+export namespace Asusctl {
+	export type Profile = "Performance" | "Balanced" | "Quiet"
+	export type Mode = "Hybrid" | "Integrated"
+}
+
+@register()
 export default class Asusctl extends GObject.Object {
+	declare static $gtype: GObject.GType<Asusctl>
 	static instance: Asusctl
 
 	static get_default() {
-		if (!this.instance) {
-			this.instance = new Asusctl()
-		}
-		return this.instance
+		return this.instance ??= new Asusctl()
 	}
 
-	#profile: Profile = "Balanced"
-	#mode: Mode = "Hybrid"
+	#profile: Asusctl.Profile = "Balanced"
+	#mode: Asusctl.Mode = "Hybrid"
 	#available: boolean = bashSync`which asusctl`.trim() !== ""
 
-	get profiles(): Profile[] {
+	constructor() {
+		super()
+		if (!this.#available) return
+		this.init()
+	}
+
+	@getter(Array)
+	get profiles(): Asusctl.Profile[] {
 		return ["Performance", "Balanced", "Quiet"]
 	}
 
-	@property(String)
-	get profile(): Profile {
+	@getter(String)
+	get profile(): string {
 		return this.#profile
 	}
 
-	set profile(p: Profile) {
+	@setter(String)
+	set profile(p: Asusctl.Profile) {
 		if (!this.#available) return
-		sh(`asusctl profile -P ${p}`).then(() => {
-			this.#profile = p
-			this.notify("profile")
-		})
+		this.setProfile(p)
 	}
 
-	@property(String)
-	get mode(): Mode {
+	@getter(String)
+	get mode(): string {
 		return this.#mode
 	}
 
-	@property(Boolean)
+	@getter(Boolean)
 	get available(): boolean {
 		return this.#available
 	}
 
-	async nextProfile(): Promise<void> {
-		if (!this.#available) return
-		await sh("asusctl profile -n")
-		const p = await sh("asusctl profile -p")
-		this.#profile = p.split(" ")[5] as Profile
+	readonly setProfile = async (p: Asusctl.Profile) => {
+		await sh(`asusctl profile -P ${p}`)
+		this.#profile = p
 		this.notify("profile")
+		this.updMonitorCfg()
 	}
 
-	async nextMode(): Promise<void> {
+	readonly nextProfile = async () => {
+		if (!this.#available) return
+		await sh("asusctl profile -n")
+		const output = await sh("asusctl profile -p")
+		const p = output.split(" ")[5] as Asusctl.Profile
+		this.#profile = p
+		this.notify("profile")
+		this.updMonitorCfg()
+	}
+
+	readonly nextMode = async () => {
 		if (!this.#available) return
 		const newMode = this.#mode === "Hybrid" ? "Integrated" : "Hybrid"
 		await sh(`supergfxctl -m ${newMode}`)
-		this.#mode = (await sh("supergfxctl -g")) as Mode
+		const modeOut = await sh("supergfxctl -g")
+		this.#mode = modeOut as Asusctl.Mode
 		this.notify("mode")
 	}
 
-	constructor() {
-		super()
-		this.initializeDefaults()
+	readonly updMonitorCfg = async () => {
+		const cmd = this.#profile === "Quiet"
+			? `keyword monitor eDP-1,1920x1200@${options.asus.bat_hz.get()},0x0,1`
+			: `keyword monitor eDP-1,1920x1200@${options.asus.ac_hz.get()},0x0,1`
+
+		hypr.message_async(cmd, null)
 	}
 
-	private async initializeDefaults() {
-		if (!this.#available) return
+	readonly init = async () => {
 		const p = await sh("asusctl profile -p")
-		this.#profile = p.split(" ")[5] as Profile
+		this.#profile = p.split(" ")[5] as Asusctl.Profile
 		this.notify("profile")
 
 		const mode = await sh("supergfxctl -g")
-		this.#mode = mode as Mode
+		this.#mode = mode as Asusctl.Mode
 		this.notify("mode")
 
-		this.connect("notify::profile", () => {
-			const monitorConfig = this.#profile === "Quiet"
-				? `keyword monitor eDP-1,1920x1200@${options.asus.bat_hz.get()},0x0,1`
-				: `keyword monitor eDP-1,1920x1200@${options.asus.ac_hz.get()},0x0,1`
-
-			hypr.message_async(monitorConfig, null)
-		})
+		this.updMonitorCfg()
 	}
 }

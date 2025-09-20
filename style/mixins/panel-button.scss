@@ -1,0 +1,13 @@
+$bar-spacing: $spacing * .3;
+
+@mixin panel-button($reactive: true) {
+  @include accs-button($reactive);
+
+  >:not(window) {
+    border-radius: $radius;
+    padding: $padding * .5;
+    margin: 0 $bar-spacing * 2;
+    font-weight: bold;
+  }
+}
+

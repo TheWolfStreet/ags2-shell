@@ -1,237 +1,204 @@
-import Hyprland from "gi://AstalHyprland"
-import { bind } from "astal"
-import { Gtk, Gdk, Widget, Astal } from "astal/gtk3"
+import { createBinding, createComputed, For, Node, onCleanup, onMount } from "ags"
+import { idle } from "ags/time"
+import app from "ags/gtk4/app"
+import { Astal, Gdk, Gtk } from "ags/gtk4"
+import GObject from "ags/gobject"
 
-import { Fixed } from "../../GtkWidgets"
-import PopupWindow from "../../PopupWindow"
-import PanelButton from "./PanelButton"
+import AstalHyprland from "gi://AstalHyprland"
 
-import { hypr } from "../../../lib/services"
-import { initHook, range, toggleWindow } from "../../../lib/utils"
-import options from "../../../options"
+import { PopupWindow } from "widget/shared/PopupWindow"
+import { PanelButton } from "./PanelButton"
 
-const target = [Gtk.TargetEntry.new("text/plain", Gtk.TargetFlags.SAME_APP, 0)]
+import { getClientTitle, toggleWindow } from "$lib/utils"
+import { hypr } from "$lib/services"
+
+import options from "options"
+
 const { CENTER } = Gtk.Align
+const { MOVE } = Gdk.DragAction
+const { OVERLAY } = Astal.Layer
 
-function scale(size: number) { (options.overview.scale.get() / 100) * size }
+function scale(size: number) {
+	return (options.overview.scale.get() / 100) * size
+}
 
-export function Workspaces() {
-	const labels = (ws: number) =>
-		<box setup={self => {
-			if (ws == 0) {
-				initHook(self, bind(hypr, "focusedWorkspace"), () => {
-					self.children.map(label => {
-						label.visible = hypr.workspaces.some(ws => `${ws.id} ` == label.name)
-					})
-				})
+export namespace Workspaces {
+
+	function dummyWorkspaces(ws: AstalHyprland.Workspace[], total: number) {
+		const existing_ids = new Set(ws.map(w => w.id))
+		for (let id = 1; id <= total; id++) {
+			if (!existing_ids.has(id)) {
+				ws.push({
+					id,
+					get_id() { return this.id },
+					disconnect() { },
+					connect() { },
+					focus() { hypr.message_async(`dispatch workspace ${this.id}`, null) },
+					clients: [],
+					monitor: undefined,
+				} as any as AstalHyprland.Workspace)
 			}
-		}}>
-			{
-				range(ws || 20).map(i => (
-					<label
-						name={`${i} `}
-						label={`${i} `}
-						setup={self => {
-							initHook(self, bind(hypr, "focusedWorkspace"), () => {
-								if (hypr.focusedWorkspace) {
-									self.toggleClassName("active", hypr.focusedWorkspace.id === i)
-									self.toggleClassName("occupied", hypr.get_workspace(i)?.clients.length > 0)
-								}
-							})
-						}}
-						valign={CENTER}
-					/>
-				))
-			}
-		</box >
-
-
-	return (
-		<PanelButton name="overview" className="workspaces" onClicked={() => toggleWindow("overview")}>
-			{options.bar.workspaces.count(labels)}
-		</PanelButton>
-	)
-}
-
-function size(id: number) {
-	const def = { h: 1080, w: 1920 }
-	const ws = hypr.get_workspace(id)
-
-	if (ws === null || typeof ws === "undefined") return def
-	const mon = hypr.get_monitor(ws.monitor.id)
-
-	return mon ? { h: mon.height, w: mon.width } : def
-}
-
-function Window({ address, size: [w, h], class: c, title }: any) {
-	return (
-		<button
-			className="client"
-			name={address}
-			tooltipText={`${title}`}
-			onDragDataGet={(_w, _c, data) => {
-				data.set_text(address, address.length)
-			}}
-			onDragBegin={(self, _a, _b) => {
-				self.toggleClassName("hidden", true)
-			}}
-			onDragEnd={self => {
-				self.toggleClassName("hidden", false)
-			}}
-			setup={self => {
-				self.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, target, Gdk.DragAction.COPY)
-			}}
-			onClick={(_: Widget.Button, event: Astal.ClickEvent) => {
-				const client = hypr.get_client(address)
-				const { BUTTON_PRIMARY, BUTTON_MIDDLE, BUTTON_SECONDARY } = Gdk
-
-				if (client && event.release) {
-					switch (event.button) {
-						case BUTTON_PRIMARY:
-							toggleWindow("overview")
-							client.focus()
-							break
-						case BUTTON_SECONDARY:
-							client.focus()
-							hypr.message_async(`dispatch fullscreen`, null)
-							break
-						case BUTTON_MIDDLE:
-							client.kill()
-							break
-						default:
-							break
-					}
-				}
-			}}
-			onKeyPressEvent={(_, event: Gdk.Event) => {
-				const client = hypr.get_client(address)
-				if (client && event.get_keyval()[1] === Gdk.KEY_Return) {
-					toggleWindow("overview")
-					client.focus()
-				}
-			}}
-		>
-			<icon
-				icon={c}
-				useFallback
-				css={options.overview.scale((v) => `
-                min-width: ${(v / 100) * w}px;
-                min-height: ${(v / 100) * h}px;
-      `)}
-			/>
-		</button >
-	)
-}
-
-function Workspace(id: number) {
-	const fixed = <Fixed /> as Gtk.Fixed
-
-	async function update() {
-		const json = hypr.message("j/clients")
-		if (!json)
-			return
-
-		fixed.get_children().forEach((ch) => ch.destroy())
-		JSON.parse(json)
-			.filter((c: any) => c.mapped && c.workspace?.id === id)
-			.forEach((c: any) => {
-				const monitor = hypr.get_monitor(0)
-				if (!monitor)
-					return
-
-				// FIXME: This isn't returning a correct position from the monitor
-				const local_x = c.at[0] - monitor.x / 100
-				const local_y = c.at[1] - monitor.y / 100
-
-				fixed.put(Window(c), scale(local_x), scale(local_y))
-			})
+		}
+		return ws.sort((a, b) => a.id - b.id)
 	}
 
-	return (
-		<box
-			name={`${id}`}
-			tooltipText={`${id}`}
-			className="workspace"
-			valign={CENTER}
-			css={options.overview.scale(v => `
-          min-width: ${(v / 100) * size(id).w}px;
-          min-height: ${(v / 100) * size(id).h}px;
-        `
-			)}
-			setup={self => {
-				initHook(self, bind(hypr, "focusedWorkspace"), () => {
-					if (hypr.focusedWorkspace) {
-						self.toggleClassName("active", hypr.focusedWorkspace.id == id)
-					}
-				})
+	function Client({ entry: c, update }: { entry: AstalHyprland.Client, update: (self: Gtk.Widget) => void }) {
 
-				self.hook(hypr, "client-moved", update)
-				self.hook(hypr, "event", (_, e) => {
-					if (e == "openwindow" || e == "closewindow" || e == "activewindow") {
-						update()
-					}
-				})
+		const className = createBinding(hypr, "focusedClient").as(fc => {
+			const classes: string[] = ["client"]
+			if (fc && fc.address === c.address) classes.push("active")
+			return classes.join(" ")
+		})
+		const title = getClientTitle(c)
+		const contentProvider = Gdk.ContentProvider.new_for_value(c.get_address())
 
-				initHook(self, options.overview.scale, update)
-			}}
-		>
-			<eventbox
-				vexpand hexpand
-				onClick={() => {
-					toggleWindow("overview")
-					hypr.message_async(`dispatch workspace ${id}`, null)
+		let updateScheduled = false
+		function scheduleUpdate(self: Gtk.Widget) {
+			if (updateScheduled) return
+			updateScheduled = true
+			idle(() => {
+				update(self)
+				updateScheduled = false
+			})
+		}
+
+		return (
+			<button class={className} tooltipText={title}
+				heightRequest={createBinding(c, "height").as(scale)}
+				widthRequest={createBinding(c, "width").as(scale)}
+				onClicked={() => c.focus()}
+				$={self => {
+					let hyprConnections: number[] = []
+					let clientConnections: number[] = []
+
+					onMount(() => {
+						update(self)
+
+						hyprConnections = ["client-added", "client-moved"].map(e =>
+							hypr.connect(e, () => scheduleUpdate(self))
+						)
+
+						clientConnections = ["notify::x", "notify::y"].map(e =>
+							c.connect(e, () => scheduleUpdate(self))
+						)
+					})
+
+					onCleanup(() => {
+						hyprConnections.forEach(conn => hypr.disconnect(conn))
+						clientConnections.forEach(conn => c.disconnect(conn))
+					})
 				}}
-				onDragDataReceived={(_w, _c, _x, _y, data) => {
-					const address = data.get_text()
-					if (address) {
-						hypr.message_async(`dispatch movetoworkspacesilent ${id},address:${address}`, null)
-					}
-				}}
-				setup={self => {
-					self.drag_dest_set(Gtk.DestDefaults.ALL, target, Gdk.DragAction.COPY)
-				}}
-				child={fixed}
-			/>
-		</box >
-	)
+			>
+				<image
+					vexpand hexpand
+					valign={CENTER} halign={CENTER}
+					iconName={c.get_class()} pixelSize={16}
+				/>
+				<Gtk.DragSource
+					actions={MOVE}
+					content={contentProvider}
+				/>
+			</button>
+		)
+	}
+
+	function Workspace({ entry: ws }: { entry: AstalHyprland.Workspace }) {
+		const className = createBinding(hypr, "focusedWorkspace").as(fws => {
+			const classes: string[] = ["workspace"]
+			if (fws?.id === ws?.id) classes.push("active")
+			return classes.join(" ")
+		})
+
+		const css = createComputed(
+			[options.overview.scale, createBinding(ws, "monitor")],
+			(scale, monitor) => {
+				const width = monitor?.get_width() ?? 1920
+				const height = monitor?.get_height() ?? 1080
+				return `min-width: ${(scale / 100) * width}px; min-height: ${(scale / 100) * height}px;`
+			}
+		)
+
+		const clients = createBinding(ws, "clients")
+		let fixed: Gtk.Fixed
+
+		return (
+			<button
+				name={`${ws.get_id()}`}
+				class={className}
+				tooltipText={`${ws.get_id()}`}
+				css={css}
+				valign={CENTER}
+				onClicked={() => ws.focus()}
+			>
+				<Gtk.DropTarget
+					actions={MOVE}
+					formats={Gdk.ContentFormats.new_for_gtype(GObject.TYPE_STRING)}
+					onAccept={(_, drop) => {
+						const formats = drop.get_formats()
+						return formats.contain_gtype(GObject.TYPE_STRING)
+					}}
+					onDrop={(_, value) => {
+						if (value) {
+							hypr.message_async(`dispatch movetoworkspacesilent ${ws.get_id()},address:0x${value}`, null)
+						}
+						return true
+					}}
+				/>
+				<Gtk.Fixed $={self => fixed = self}>
+					<For each={clients}>
+						{c => <Client entry={c} update={self => {
+							if (self.get_parent() === fixed) fixed.move(self, scale(c.get_x()), scale(c.get_y()))
+						}} />
+						}
+					</For>
+				</Gtk.Fixed>
+			</button>
+		)
+	}
+
+	export function Button() {
+		const workspaces = createComputed(
+			[createBinding(hypr, "workspaces"), options.bar.workspaces.count],
+			(ws, fill) => dummyWorkspaces(ws.filter(w => w?.id !== -99).sort((a, b) => a?.id - b?.id), fill)
+		)
+
+		return (
+			<PanelButton name="overview" class="workspaces" onClicked={() => toggleWindow("overview")}>
+				<box valign={CENTER}>
+					<For each={workspaces}>
+						{(ws) => {
+							const className = createBinding(hypr, "focusedWorkspace")
+								.as(fws => {
+									const classes: string[] = []
+									if (fws?.id === ws?.id) classes.push("active")
+									if (ws?.clients.length) classes.push("occupied")
+									return classes.join(" ")
+								})
+
+							return (
+								<label valign={CENTER} name={`${ws?.id}`} label={`${ws?.id}`}
+									class={className}
+								/>
+							)
+						}}
+					</For>
+				</box>
+			</PanelButton>
+		)
+	}
+
+	export function Window() {
+		const workspaces = createComputed(
+			[createBinding(hypr, "workspaces"), options.overview.workspaces],
+			(ws, fill) => dummyWorkspaces(ws.filter(w => w.id !== -99).sort((a, b) => a.id - b.id), fill)
+		)
+
+		return (
+			<PopupWindow application={app} name="overview" layer={OVERLAY}>
+				<box class="overview horizontal">
+					<For each={workspaces}>{ws => <Workspace entry={ws} />}</For>
+				</box>
+			</PopupWindow>
+		)
+	}
 }
-
-function Entry(ws: number) {
-	return (
-		<box className="overview horizontal"
-			setup={self => {
-				if (ws > 0)
-					return
-
-				self.hook(hypr, "workspace-removed", (_, id) => {
-					if (id === undefined)
-						return
-
-					self.get_children().filter(c => c.name == id).forEach(c => c.destroy())
-				})
-
-				self.hook(hypr, "workspace-added", (_, id) => {
-					if (id === undefined)
-						return
-
-					self.children = [...self.children, Workspace(Number(id))]
-						.sort((a, b) => Number(a.name) - Number(b.name))
-				})
-			}}
-		>
-			{ws > 0
-				? range(ws).map(Workspace)
-				: hypr.workspaces
-					.map(({ id }) => Workspace(id))
-					.sort((a, b) => Number(a.name) - Number(b.name))}
-		</box>
-	)
-}
-
-export default () =>
-	<PopupWindow
-		name={"overview"}
-		layout={"center"}
-	>
-		{options.overview.workspaces(Entry)}
-	</PopupWindow>

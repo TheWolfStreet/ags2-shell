@@ -1,26 +1,24 @@
 @use "sass:color";
 
-window.indicator {
-  progress {
-    background-color: $primary-bg;
-    color: $primary-fg;
+window#state-display .state-display {
+  @include floating-widget;
+  padding: $padding * 2.25;
+
+  image {
+    padding: $popover-padding;
+    color: color.scale($fg, $alpha: -10%);
   }
 
-
-
-  .audio-state {
-    border {
-      all: unset;
+  .percentage {
+    @include slider($width: .5em, $focusable: false, $slider: false);
+    trough {
+      border: none;
     }
 
-    box {
-      @include floating-widget;
-
-      icon {
-        margin: $spacing;
-        padding: $popover-padding;
-        font-size: 58px;
-        color: color.scale($fg, $alpha: -10%)
+    &.muted {
+      trough progress {
+        background-image: none;
+        background-color: color.scale($fg, $alpha: -20%);
       }
     }
   }

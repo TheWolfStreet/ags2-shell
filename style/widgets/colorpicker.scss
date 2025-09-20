@@ -1,0 +1,4 @@
+.colorpicker {
+  @include spacing (.5);
+  padding: $padding * .5;
+}

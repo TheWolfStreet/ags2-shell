@@ -3,15 +3,14 @@
 window#quicksettings .quicksettings {
   @include floating-widget;
   @include spacing;
-
   padding: $popover-padding * 1.4;
 
   .avatar {
     @include widget;
     min-width: 65px;
     min-height: 65px;
-    background-size: cover;
     border-radius: $radius * 3;
+    background-clip: padding-box;
   }
 
   .username {
@@ -38,27 +37,51 @@ window#quicksettings .quicksettings {
     @include widget;
     padding: $padding;
 
-    button {
-      @include button($flat: true);
+    .volume {
+      button {
+        @include button($flat: true);
+        padding: $padding * .5;
+      }
+
+      button.arrow:last-child {
+        margin-left: $spacing * .4;
+      }
+    }
+
+
+    .control-unit {
+      button {
+        @include button($flat: true);
+        padding: $padding * .5;
+      }
+
       padding: $padding * .5;
+
+      scale {
+        @include slider;
+        margin: 0 ($spacing * .5);
+
+        &.muted highlight {
+          background-image: none;
+          background-color: color.scale($fg, $alpha: -20%);
+        }
+      }
     }
 
-    .volume button.arrow:last-child {
-      margin-left: $spacing * .4;
-    }
+    .menu {
+      margin: ($spacing * .5) 0;
 
-    .volume,
-    .brightness {
-      padding: $padding * .5;
-    }
+      &.device-selector .sink-item,
+      &.app-mixer .mixer-item {
+        @include spacing(.5);
+      }
 
-    scale {
-      @include slider;
-      margin: 0 ($spacing * .5);
+      &.app-mixer .mixer-item {
+        padding: $padding * .5;
 
-      &.muted highlight {
-        background-image: none;
-        background-color: color.scale($fg, $alpha: -20%);
+        scale {
+          @include slider($width: .5em);
+        }
       }
     }
   }
@@ -71,7 +94,6 @@ window#quicksettings .quicksettings {
     @include unset;
     @include widget;
     @include scrollable;
-
     padding: $padding;
     margin-top: $spacing;
 
@@ -85,7 +107,7 @@ window#quicksettings .quicksettings {
     }
 
     separator {
-      margin: ($radius * .5);
+      margin: $radius * .5;
       background-color: $border-color;
     }
 
@@ -94,10 +116,9 @@ window#quicksettings .quicksettings {
       padding: $padding * .7;
 
       icon:first-child {
-        margin-right: ($spacing * .5);
+        margin-right: $spacing * .5;
       }
     }
-
 
     .device-scroll {
       min-height: 200px;
@@ -110,40 +131,26 @@ window#quicksettings .quicksettings {
     switch {
       @include switch;
     }
-  }
 
-  .sliders-box .menu {
-    margin: ($spacing * .5) 0;
-
-    &.app-mixer {
-      .mixer-item {
-        @include spacing(.5);
-        padding: $padding * .5;
-
-        scale {
-          @include slider($width: .5em);
-        }
-
-        icon {
-          font-size: 1.2em;
-        }
-      }
+    &.bluetooth-selector .bluetooth-item,
+    &.mirror-selector .mirror-item,
+    &.profile-selector .profile-item,
+    &.wifi-selector .wifi-item {
+      @include spacing(.5);
     }
   }
 
-  .toggle-button {
+  .toggle-button,
+  .simple-toggle {
     @include button;
+    font-weight: bold;
 
     .horizontal {
       @include spacing(.5);
     }
+  }
 
-    font-weight: bold;
-
-    icon {
-      font-size: 1.3em;
-    }
-
+  .toggle-button {
     button {
       @include button($flat: true);
 
@@ -164,25 +171,14 @@ window#quicksettings .quicksettings {
       background-color: $primary-bg;
 
       label,
-      icon {
+      image {
         color: $primary-fg;
       }
     }
   }
 
   .simple-toggle {
-    @include button;
-
-    .horizontal {
-      @include spacing(.5);
-    }
-
-    font-weight: bold;
     padding: $padding * 1.2;
-
-    icon {
-      font-size: 1.3em;
-    }
   }
 
   .media {

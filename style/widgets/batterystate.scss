@@ -1,12 +1,21 @@
-window#batterystate .batterystate {
-  progress {
-    background-color: $primary-bg;
+window#bar {
+  .battery{
+    @include spacing(.5);
   }
+}
 
+window#batterystate .batterystate {
   @include floating-widget;
   @include spacing(.5);
 
-  .remaining {
+  .percentage {
+    @include slider($width: .5em, $slider-width: 4em, $hoverable: false, $focusable: false, $slider: false);
+    trough {
+      border: none;
+    }
+  }
+
+  label {
     font-weight: bold;
   }
 }

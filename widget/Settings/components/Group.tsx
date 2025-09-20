@@ -1,56 +1,56 @@
-import { idle } from "astal"
-import { Gtk } from "astal/gtk3"
+import { Gtk } from "ags/gtk4"
+import { Accessor, createComputed, Node } from "ags"
 
-import Row from "./Row"
-
-import icons from "../../../lib/icons"
-import { checkDefault } from "../../../lib/utils"
+import icons from "$lib/icons"
+import { Opt } from "$lib/option"
 
 const { START, END } = Gtk.Align
+const { VERTICAL } = Gtk.Orientation
 
-export default function <T>(
-	title: string,
-	visible: boolean | ReturnType<typeof Row<T>> = true,
-	...rows: ReturnType<typeof Row<T>>[]
-): void {
-	let isVisible = true;
+export default function Group({ title, visible = true, children = [] }: { title: Accessor<string> | string, visible?: Accessor<boolean> | boolean, children?: JSX.Element | Array<JSX.Element> }) {
+	const nodes = Array.isArray(children) ? children : [children]
+	const opts: Opt<any>[] = []
 
-	if (typeof visible === "boolean") {
-		isVisible = visible;
-	} else {
-		rows.unshift(visible);
+	for (const child of nodes) {
+		const opt = (child as any).opt
+		if (opt) opts.push(opt)
 	}
+
+	let anyChanged = createComputed(opts, () => {
+		for (const opt of opts) {
+			if (opt.get() !== opt.getDefault()) return true
+		}
+		return false
+	})
+
 	return (
-		<box className="group" vertical visible={visible}>
-			<box>
+		<box class="group" orientation={VERTICAL} visible={visible}>
+			<centerbox>
+				<button
+					class="group-reset"
+					$type="end"
+					halign={END}
+					onClicked={() => {
+						if (children) {
+							const nodes = Array.isArray(children) ? children : [children]
+							nodes.forEach(row => (row as any).opt?.reset())
+						}
+					}}
+					sensitive={anyChanged}
+				>
+					<image iconName={icons.ui.refresh} useFallback />
+				</button>
 				<label
+					class="group-title"
+					$type="start"
 					halign={START}
 					valign={END}
-					className="group-title"
 					label={title}
-					setup={(w: { visible: boolean }) => idle(() => w.visible = !!title)}
 				/>
-				{title ? (
-					<button
-						hexpand
-						halign={END}
-						className="group-reset"
-						sensitive={checkDefault(
-							rows
-								.filter(row => row.attr != undefined)
-								.map(row => row.attr!.opt)
-						)}
-						onClicked={() => rows.forEach(row => row.attr && row.attr.opt.reset())}
-					>
-						<icon icon={icons.ui.refresh} useFallback />
-					</button>
-				) : (
-					<box />
-				)}
+			</centerbox>
+			<box orientation={VERTICAL}>
+				{children}
 			</box>
-			<box vertical>
-				{rows}
-			</box>
-		</box >
+		</box>
 	)
 }

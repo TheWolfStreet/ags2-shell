@@ -8,13 +8,12 @@ import Notifd from "gi://AstalNotifd"
 import Bluetooth from "gi://AstalBluetooth"
 import Network from "gi://AstalNetwork"
 
-import Apps from "../service/apps"
-import Asusctl from "../service/asusctl"
-import Brightness from "../service/brightness"
-import ColorPicker from "../service/colorpicker"
-import PowerMenu from "../service/powermenu"
-import Wallpaper from "../service/wallpaper"
-import Capturer from "../service/capturer"
+import Apps from "$service/apps"
+import Asusctl from "$service/asusctl"
+import Brightness from "$service/brightness"
+import ColorPicker from "$service/colorpicker"
+import Wallpaper from "$service/wallpaper"
+import Capturer from "$service/capturer"
 
 export const media = Media.get_default()
 export const hypr = Hyprland.get_default()
@@ -30,6 +29,5 @@ export const apps = Apps.get_default()
 export const asusctl = Asusctl.get_default()
 export const brightness = Brightness.get_default()
 export const cpick = ColorPicker.get_default()
-export const powermenu = PowerMenu.get_default()
 export const wp = Wallpaper.get_default()
 export const scr = Capturer.get_default()

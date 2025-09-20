@@ -1,20 +1,16 @@
-import { bind } from "astal"
-import { Widget, Gtk, Gdk } from "astal/gtk3"
+import { Gdk, Gtk } from "ags/gtk4"
 
-import { type RowProps } from "./Row"
-import { ColorButton, FileChooserButton, FontButton, SpinButton } from "../../GtkWidgets"
+import { RowProps } from "./Row"
 
-import { Opt } from "../../../lib/option"
-import icons from "../../../lib/icons"
-import { initHook } from "../../../lib/utils"
+import Pango from "gi://Pango"
 
-const rgba = new Gdk.RGBA
+import icons from "$lib/icons"
+import { Opt } from "$lib/option"
+
+const { CENTER } = Gtk.Align
+
 const filter = new Gtk.FileFilter()
 filter.add_mime_type('image/*')
-
-function cleanFont(font: string) {
-	return font.split(" ").slice(0, -1).join(" ")
-}
 
 function toHex(rgba: Gdk.RGBA) {
 	const { red, green, blue } = rgba
@@ -24,65 +20,57 @@ function toHex(rgba: Gdk.RGBA) {
 }
 
 function EnumSetter(opt: Opt<string>, values: string[]) {
-	const lbl = new Widget.Label({
-		label: opt()
-	})
-	opt.bind(lbl.label)
-
 	const step = (dir: 1 | -1) => {
-		const i = values.findIndex(i => i === lbl.label)
+		const i = values.findIndex(i => i === opt.get())
 		opt.set(dir > 0
 			? i + dir > values.length - 1 ? values[0] : values[i + dir]
 			: i + dir < 0 ? values[values.length - 1] : values[i + dir],
 		)
 	}
 	return (
-		<box className="enum-setter">
-			{lbl}
+		<box class="enum-setter">
+			<label label={opt}></label>
 			<button onClicked={() => step(-1)}>
 				<box>
-					<icon icon={icons.ui.arrow.left} />
+					<image iconName={icons.ui.arrow.left} />
 				</box>
 			</button>
 			<button onClicked={() => step(+1)}>
 				<box>
-					<icon icon={icons.ui.arrow.right} />
+					<image iconName={icons.ui.arrow.right} />
 				</box>
 			</button>
 		</box>
 	)
 }
 
-export default function Setter<T>({
+export default function Setter({
 	opt,
-	type = (typeof opt.get() as unknown) as RowProps<T>["type"],
+	type = (typeof opt.get() as unknown) as RowProps["type"],
 	enums,
 	max = 1000,
 	min = 0,
-}: RowProps<T>) {
+}: RowProps) {
 	switch (type) {
 		case "number": {
 			return (
-				<SpinButton
+				<Gtk.SpinButton
+					valign={CENTER}
 					adjustment={new Gtk.Adjustment({ lower: min, upper: max, stepIncrement: 1, pageIncrement: 5 })}
 					numeric
-					value={opt(v => v as number)}
-					setup={self => {
-						self.hook(self, "value-changed", () => {
-							opt.set(self.value as T)
-						})
-						self.value = opt.get() as number
-					}}
-				>
-				</SpinButton>
+					value={opt.as(v => v as number)}
+					onNotifyText={self => opt.set(self.value)}
+					onNotifyValue={self => opt.set(self.value)}
+				/>
 			)
 		}
 		case "float":
 		case "object": {
 			return (
 				<entry
-					text={opt(t => JSON.stringify(t, null, 2))}
-					onChanged={self => {
+					valign={CENTER}
+					text={opt.as(t => JSON.stringify(t, null, 2))}
+					onNotifyText={self => {
 						try {
 							opt.set(JSON.parse(self.text || ""))
 						} catch (e) {
@@ -94,74 +82,82 @@ export default function Setter<T>({
 		}
 		case "string": {
 			return (
-				<entry tooltipText={"Enter text"}
-					text={opt(v => v as string)}
-					onChanged={self => opt.set(self.get_text() as T)}
+				<entry
+					valign={CENTER}
+					tooltipText={"Enter text"}
+					text={opt.as(v => v as string)}
+					onNotifyText={self => opt.set(self.get_text())}
 				/>
 			)
 		}
-		case "enum": return EnumSetter(opt as Opt<string>, enums!)
+		case "enum": return EnumSetter(opt, enums!)
 		case "boolean": {
 			return (
-				<switch
-					state={opt(v => v as boolean)}
-					setup={self => {
-						self.hook(bind(self, "state"), () => opt.set(self.state as T))
-					}}>
-				</switch>
+				<switch valign={CENTER} state={opt} active={opt} onNotifyState={self => opt.set(self.get_state())} />
 			)
 		}
 		case "img": {
 			return (
-				<FileChooserButton
-					tooltipText={"Select an image"}
-					onFileSet={self => opt.set(self.get_filename() as T)}
-					filter={filter}
-					setup={self => {
-						initHook(self, opt, () => {
-							self.set_filename(opt.get() as string)
+				<Gtk.Button
+					valign={CENTER}
+					label="Select an image"
+					tooltipText="Select an image"
+					onClicked={() => {
+						const chooser = new Gtk.FileChooserNative({
+							title: "Select an image",
+							action: Gtk.FileChooserAction.OPEN,
+							acceptLabel: "_Open",
+							cancelLabel: "_Cancel"
 						})
+
+						chooser.connect("response", (dialog, response) => {
+							if (response === Gtk.ResponseType.ACCEPT) {
+								const filename = chooser.get_file()?.get_path()
+								opt.set(filename)
+							}
+							dialog.destroy()
+						})
+
+						chooser.show()
 					}}
 				/>
 			)
 		}
 		case "font": {
 			return (
-				<FontButton
+				<Gtk.FontDialogButton
+					valign={CENTER}
 					tooltipText={"Select a font"}
-					font={opt(f => f as string)}
-					showSize={false}
 					useSize={false}
-					onFontSet={self => {
-						opt.set(cleanFont(self.font) as T)
+					dialog={new Gtk.FontDialog}
+					fontDesc={Pango.FontDescription.from_string(opt.get())}
+					onNotifyFontDesc={(self) => {
+						opt.set(self.get_font_desc()?.get_family())
 					}}
-					setup={
-						self => {
-							initHook(self, opt, () => {
-								self.font = opt.get() as string
-							})
-						}} />
+				/>
 			)
 		}
 		case "color": {
 			return (
-				<ColorButton
+				<Gtk.ColorDialogButton
+					valign={CENTER}
 					tooltipText={"Select a color"}
-					onColorSet={self => {
-						opt.set(toHex(self.get_rgba()) as T)
+					dialog={new Gtk.ColorDialog}
+					onNotifyRgba={self => {
+						opt.set(toHex(self.get_rgba()))
 					}}
-					setup={
-						self => {
-							initHook(self, opt, () => {
-								if (rgba.parse(opt.get() as string)) {
-									self.set_rgba(rgba)
-								}
-							})
-						}} />
+					rgba={opt.as(v => {
+						const color = new Gdk.RGBA()
+						color.parse(v as string)
+						return color
+					})}
+				/>
 			)
 		}
-		default: return <label
-			label={`[ERROR]: No setter with type ${type}`}
-		></label>
+		default:
+			return <label
+				label={`[ERROR]: No setter with type ${type}`}
+			/>
 	}
 }
+

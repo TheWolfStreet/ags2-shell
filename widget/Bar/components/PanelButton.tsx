@@ -1,24 +1,31 @@
-import { Widget } from "astal/gtk3"
+import { Gtk } from "ags/gtk4"
 
-import { onWindowToggle } from "../../../lib/utils"
+import { onWindowToggle, Props, toggleClass } from "$lib/utils"
 
-type PanelButtonProps = Widget.ButtonProps & {
-	flat?: boolean
-}
+const { CENTER } = Gtk.Align
 
-export default ({
-	flat,
-	setup,
+export function PanelButton({
+	$,
+	name,
+	class: className,
 	...props
-}: PanelButtonProps) =>
-	<button {...props}
-		setup={self => {
-			self.toggleClassName("panel-button")
-			self.toggleClassName(self.name)
+}: Props<Gtk.Button, Gtk.Button.ConstructorProps>) {
+	return (
+		<button
+			name={name}
+			valign={CENTER}
+			class={`panel-button ${name ?? ""} ${className}`}
+			canFocus={false}
+			{...props}
+			$={self => {
+				if (self.name) {
+					onWindowToggle(self.name, (w) => {
+						toggleClass(self, "active", w.is_visible())
+					})
+				}
 
-			if (self.name) {
-				onWindowToggle(self, self.name, w => self.toggleClassName("active", w.visible))
-			}
-			setup && setup(self)
-		}}
-	/>
+				$ && $(self)
+			}}
+		/>
+	)
+}

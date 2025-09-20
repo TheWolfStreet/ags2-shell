@@ -3,14 +3,13 @@ window#overview .overview {
   @include spacing;
 
   .active {
-    border: $border-width solid $primary-bg;
-    border-radius: $popover-radius;
+    box-shadow: 0 0 0 1px $primary-bg;
   }
 
   .workspace {
-    >eventbox {
       @include widget;
-      border-radius: if($radius ==0, 0, $radius + $padding);
+      padding: $padding * .3;
+      border-radius: $radius;
 
       &:hover {
         background-color: $hover-bg;
@@ -19,13 +18,12 @@ window#overview .overview {
       &:drop(active) {
         border-color: $primary-bg;
       }
-    }
   }
 
   .client {
     @include button;
+    margin: $spacing * .3;
     border-radius: $radius;
-    margin: $padding;
 
     &.hidden {
       @include hidden;

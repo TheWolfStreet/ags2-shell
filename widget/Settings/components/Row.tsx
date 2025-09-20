@@ -1,59 +1,77 @@
-import { Gtk } from "astal/gtk3"
-
+import { Gtk } from "ags/gtk4"
+import { FCProps, Node } from "ags"
 import Setter from "./Setter"
-
-import { Opt } from "../../../lib/option"
-import icons from "../../../lib/icons"
+import icons from "$lib/icons"
+import { Opt } from "$lib/option"
 
 const { CENTER } = Gtk.Align
+const { VERTICAL } = Gtk.Orientation
 
-export type RowProps<T> = {
-	opt: Opt<T>
-	title: string
-	note?: string
-	type?:
-	| "number"
-	| "color"
-	| "float"
-	| "object"
-	| "string"
-	| "enum"
-	| "boolean"
-	| "img"
-	| "font"
-	enums?: string[]
-	max?: number
-	min?: number
-}
+export type RowProps = FCProps<
+	Gtk.Box,
+	{
+		opt: Opt<any>
+		title?: string
+		note?: string
+		type?:
+		| "number"
+		| "color"
+		| "float"
+		| "object"
+		| "string"
+		| "enum"
+		| "boolean"
+		| "img"
+		| "font"
+		enums?: string[]
+		max?: number
+		min?: number
+	}
+>
 
-export interface Row extends Gtk.Widget {
-	attr?: { opt: any }
-}
-
-export default function Row<T>(props: RowProps<T>): Row {
-	const row = (
-		<box className="row" tooltipText={props.note ? `note: ${props.note}` : ""}>
-			<box vertical valign={CENTER}>
-				<label className="row-title" xalign={0} label={props.title} />
-				<label className="id" xalign={0} label={props.opt.id} />
+export function Row({
+	opt,
+	title,
+	note,
+	type,
+	enums,
+	max,
+	min,
+}: RowProps) {
+	return (
+		<box
+			class="row"
+			tooltipText={note ? `${note}` : ""}
+			$={(self) => { (self as any).opt = opt }}
+		>
+			<box orientation={VERTICAL} valign={CENTER}>
+				<label class="row-title" xalign={0} label={title} />
+				<label class="id" xalign={0} label={opt.id} />
 			</box>
+
 			<box hexpand />
+
 			<box valign={CENTER}>
-				{Setter(props)}
+				<Setter
+					opt={opt}
+					type={type}
+					enums={enums}
+					max={max}
+					min={min}
+				/>
 				<box valign={CENTER}>
 					<button
-						className="reset"
+						class="reset"
 						valign={CENTER}
-						onClicked={() => props.opt.reset()}
-						sensitive={props.opt((v: T) => v !== props.opt.initial)}
+						onClicked={() => opt.reset()}
+						sensitive={opt.as(
+							(v) => v !== opt.getDefault(),
+						)}
 					>
-						<icon icon={icons.ui.refresh} useFallback />
+						<image iconName={icons.ui.refresh} useFallback />
 					</button>
 				</box>
 			</box>
 		</box>
-	) as Row
-
-	row.attr = { opt: props.opt }
-	return row
+	)
 }

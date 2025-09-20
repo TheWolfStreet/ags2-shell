@@ -1,0 +1,26 @@
+@use 'sass:color';
+
+@mixin calendar {
+  @include widget;
+  padding: $padding $padding 0;
+
+  calendar {
+    all: unset;
+    font-size: 1.1em;
+    padding: .3em;
+
+    button {
+      @include button($flat: true);
+      padding: $padding * .6;
+    }
+
+    label:selected {
+      background-color: $primary-bg;
+      border-radius: $radius * .6;
+    }
+
+     header { background-color: transparent; border: none; color: color.scale($fg, $alpha: -50%); }
+    .day-name { background-color: transparent; color: color.scale($primary-bg, $alpha: -50%); }
+    .other-month { color: color.scale($fg, $alpha: -90%); }
+  }
+}

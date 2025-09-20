@@ -1,7 +1,7 @@
-import { timeout } from "astal"
-
-import options from "../options"
 import { hypr } from "./services"
+import { setHandler } from "./option"
+
+import options from "options"
 
 const {
 	hyprland,
@@ -21,6 +21,7 @@ const {
 		scheme,
 	},
 } = options
+
 
 const deps = [
 	"hyprland",
@@ -53,45 +54,39 @@ async function sendBatch(batch: string[]) {
 	hypr.message(`[[BATCH]]/${cmd}`)
 }
 
-async function setupHyprland() {
-	const wm_gaps = Math.floor(hyprland.gaps.get() * spacing.get())
-	const blurPolicy =
-		scheme(s => s.includes("dark")).get()
-			? true
-			: blurOnLight.get()
+async function setHyprland() {
+	const gaps = Math.floor(hyprland.gaps.get() * spacing.get());
+	const darkMode = scheme.get().includes("dark");
+	const blurPolicy = darkMode || blurOnLight.get();
+	const blurEnabled = blur.get() > 0 && blurPolicy;
 
-	if (!blurPolicy) {
-		timeout(1, () => {
-			sendBatch([
-				`layerrule unset, gtk-layer-shell`,
-			])
-		})
-	}
+	const baseRules = [
+		"layerrule unset, *",
+	];
 
-	if (blur.get() > 0 && blurPolicy) {
-		sendBatch([
-			`layerrule unset, gtk-layer-shell`,
-			`layerrule blur, gtk-layer-shell`,
-			`layerrule blurpopups, gtk-layer-shell`,
-			`layerrule ignorealpha ${/* based on shadow color */.29}, gtk-layer-shell`,
-		])
-	} else {
+	const blurRules = [
+		"layerrule blur, gtk4-layer-shell",
+		"layerrule blurpopups, gtk4-layer-shell",
+		"layerrule ignorealpha .29, gtk4-layer-shell",
+	];
 
-	}
-
-	sendBatch([
-		`general:border_size ${width}`,
-		`general:gaps_out ${wm_gaps}`,
-		`general:gaps_in ${Math.floor(wm_gaps / 2)}`,
+	const generalRules = [
+		`general:border_size ${width.get()}`,
+		`general:gaps_out ${gaps}`,
+		`general:gaps_in ${Math.floor(gaps / 2)}`,
 		`general:col.active_border ${rgba(primary())}`,
 		`general:col.inactive_border ${rgba(hyprland.inactiveBorder.get())}`,
-		`decoration:rounding ${radius}`,
+		`decoration:rounding ${radius.get()}`,
 		`decoration:shadow:enabled ${shadows.get() ? "yes" : "no"}`,
-		`layerrule noanim, gtk-layer-shell`,
-	])
+		"layerrule noanim, gtk4-layer-shell",
+	];
+
+	sendBatch(blurEnabled ? [...baseRules, ...blurRules] : baseRules);
+	sendBatch(generalRules);
 }
 
 export default function hyprinit() {
-	options.handler(deps, setupHyprland)
-	setupHyprland()
+	hypr.connect("config-reloaded", () => setHyprland())
+	setHandler(options, deps, setHyprland)
+	setHyprland()
 }

@@ -4,23 +4,20 @@
   @include unset;
   color: $fg;
 
-  >:not(window) {
+  > :not(window):not(popover) {
     border-radius: $radius;
     transition: $transition;
-
     background-color: transparent;
     box-shadow: none;
   }
 
-
   @if $reactive {
-
-    &:focus>:not(window),
-    &.focused>:not(window) {
+    &:focus > :not(window):not(popover),
+    &.focused > :not(window):not(popover) {
       @include button-focus;
     }
 
-    &:hover>:not(window) {
+    &:hover > :not(window):not(popover) {
       @include button-hover;
     }
 
@@ -28,13 +25,13 @@
     &.active,
     &.on,
     &:checked {
-      >:not(window) {
+      > :not(window):not(popover) {
         @include button-active;
       }
 
-      &:hover>:not(window) {
+      &:hover > :not(window):not(popover) {
         box-shadow: inset 0 0 0 $border-width $border-color,
-          inset 0 0 0 99px $hover-bg;
+                    inset 0 0 0 0px $hover-bg;
       }
     }
   }

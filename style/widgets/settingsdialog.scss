@@ -6,28 +6,24 @@ window.settings-dialog {
 
   .header {
     .pager {
-      @include spacing(.5);
+      @include spacing();
+        button {
+          @include button;
+          font-weight: bold;
+          padding: $padding * .4 $padding * .75;
+
+          >box {
+            @include spacing($spacing: .3em);
+          }
+        }
     }
 
     padding: $padding;
 
-    button {
+    button.reset,
+    button.close{
       @include button;
-      font-weight: bold;
-      padding: $padding*.5 $padding;
-
-      >box {
-        @include spacing($spacing: .3em);
-      }
-    }
-
-    button.close {
       padding: $padding * .5;
-    }
-
-    button.reset {
-      @include button($flat: true);
-      padding: $padding*.5;
     }
   }
 
@@ -35,7 +31,7 @@ window.settings-dialog {
     @include scrollable($top: true);
 
     .page-content {
-      padding: $padding*2;
+      padding: $padding * 2;
       padding-top: 0;
     }
   }
@@ -43,7 +39,7 @@ window.settings-dialog {
   .group {
     .group-title {
       color: $primary-bg;
-      margin-bottom: $spacing*.5;
+      margin-bottom: $spacing * .5;
     }
 
     .group-reset {
@@ -100,9 +96,11 @@ window.settings-dialog {
 
     spinbutton {
       @include unset;
-
-      entry {
+      text {
+        padding: $padding * .5;
+        background-color: $widget-bg;
         border-radius: $radius 0 0 $radius;
+        border: $border;
       }
 
       button {
@@ -118,11 +116,13 @@ window.settings-dialog {
       label {
         background-color: $widget-bg;
         border: $border;
-        padding: 0 $padding;
+        padding: $padding * .5;
         border-radius: $radius 0 0 $radius;
       }
 
+
       button {
+        padding: $padding * .5;
         border-radius: 0;
       }
 
@@ -131,14 +131,10 @@ window.settings-dialog {
       }
     }
 
-    &.wallpaper {
-      button {
-        margin-top: $spacing * .5;
-      }
-
-      .preview {
-        border-radius: $radius;
-      }
+    .preview {
+      border-radius: $radius;
+      min-height: 15em;
+      min-width: 15em;
     }
   }
 }

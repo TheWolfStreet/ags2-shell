@@ -1,14 +1,14 @@
-import { Gio, execAsync } from "astal"
+import { execAsync } from "ags/process"
 
-import { bash } from "./utils"
-import options from "../options"
-import matugen from "./matugen"
-import hyprinit from "./hyprland"
+import Gio from "gi://Gio"
 
-import setupBatteryState from "../widget/Bar/components/BatteryState"
-import setupDateMenu from "../widget/Bar/components/DateMenu"
-import setupQuickSettings from "../widget/Bar/components/QuickSettings"
-import { wp } from "./services"
+import { bash } from "$lib/utils"
+import { initCss } from "style"
+import env from "$lib/env"
+import hyprinit from "$lib/hyprland"
+import { Matugen } from "./matugen"
+
+import options from "options"
 
 const { scheme, dark, light } = options.theme
 
@@ -17,50 +17,43 @@ const settings = new Gio.Settings({
 })
 
 function gtk() {
-	settings.set_string("color-scheme", `prefer-${scheme.get()}`)
-}
-
-async function updateGtkMode() {
-	const theme = settings.get_string("gtk-theme")
-	settings.set_string("gtk-theme", "")
-	settings.set_string("gtk-theme", theme)
+	const desired = `prefer-${scheme.get()}`;
+	if (settings.get_string("color-scheme") !== desired) {
+		settings.set_string("color-scheme", desired);
+	}
 }
 
 async function tmux() {
 	const hex =
-		scheme.get() === "dark" ? dark.primary.bg.get() : light.primary.bg.get();
+		scheme.get() === "dark" ? dark.primary.bg.get() : light.primary.bg.get()
 
-	await bash(`tmux set -g @main_accent "${hex}"`).catch(() => { });
+	await bash(`tmux set -g @main_accent "${hex}"`).catch(() => { })
 
-	const rawSessions = await bash(`tmux list-sessions -F "#S"`).catch(() => "");
-	if (!rawSessions) return;
+	const rawSessions = await bash(`tmux list-sessions -F "#S"`).catch(() => "")
+	if (!rawSessions) return
 
-	const sessions = rawSessions.split("\n").filter(Boolean);
+	const sessions = rawSessions.split("\n").filter(Boolean)
 	for (const session of sessions) {
-		bash(`tmux set-option -t ${session} @main_accent "${hex}"`).catch(() => { });
+		bash(`tmux set-option -t ${session} @main_accent "${hex}"`).catch(() => { })
 	}
 }
 
 export default async function init() {
-	gtk();
-	scheme.subscribe(gtk);
+	env.init()
 
-	// TODO: Better make it a toggleable feature
-	let tmuxPresent = await execAsync("which tmux").then(() => true).catch(() => false);
+	gtk()
+	scheme.subscribe(gtk)
+
+	const tmuxPresent = await execAsync("which tmux").then(() => true).catch(() => false)
 	if (tmuxPresent) {
-		tmux();
-		options.theme.dark.primary.bg.subscribe(tmux);
-		options.theme.light.primary.bg.subscribe(tmux);
-		options.theme.scheme.subscribe(tmux);
+		tmux()
+		options.theme.dark.primary.bg.subscribe(tmux)
+		options.theme.light.primary.bg.subscribe(tmux)
+		options.theme.scheme.subscribe(tmux)
 	}
 
-	updateGtkMode();
-	options.handler(["theme.scheme", "autotheme"], () => updateGtkMode());
-	wp.connect("notify::wallpaper", updateGtkMode);
+	Matugen.init()
+	hyprinit()
 
-	hyprinit();
-	matugen();
-	setupBatteryState();
-	setupDateMenu();
-	setupQuickSettings();
+	initCss()
 }

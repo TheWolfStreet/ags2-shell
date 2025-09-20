@@ -1,37 +1,76 @@
+import app from "ags/gtk4/app"
+import { CCProps, createBinding, createComputed } from "ags"
+import { Gdk } from "ags/gtk4"
+import { exec, execAsync } from "ags/process"
+
 import Apps from "gi://AstalApps"
-import Notifd from "gi://AstalNotifd"
-import { exec, execAsync, Variable, Gio, GLib } from "astal"
-import { App, Gtk } from "astal/gtk3"
-import { Subscribable, Connectable } from "astal/binding"
+import Gtk from "gi://Gtk"
+import GLib from "gi://GLib"
+import Gio from "gi://Gio"
+import AstalHyprland from "gi://AstalHyprland"
+import GdkPixbuf from "gi://GdkPixbuf"
 
-import icons, { substitutes } from "./icons"
-import { Opt } from "./option"
-import { hypr, notifd } from "./services"
-import options from "../options"
+import giCairo from "cairo"
 
-export function duration(length: number) {
-	const hours = Math.floor(length / 3600);
-	const min = Math.floor((length % 3600) / 60);
-	const sec = Math.floor(length % 60);
-	const sec0 = sec < 10 ? "0" : "";
+import env from "$lib/env"
+import icons from "$lib/icons"
+import { hypr } from "$lib/services"
 
-	return hours
-		? `${hours}:${min < 10 ? "0" : ""}${min}:${sec0}${sec}`
-		: `${min}:${sec0}${sec}`;
+export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
+
+export function getClientTitle(c: AstalHyprland.Client) {
+	return createComputed(
+		[
+			createBinding(c, "title"),
+			createBinding(c, "class")
+		],
+		(title, className) => {
+			if (title?.length) return title
+			const name = (className || "Unknown").split(".").pop()!
+			return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
+		}
+	)
 }
 
-export async function notify({
-	id,
-	appName = "",
-	appIcon = "",
-	attachedImage = "",
-	actions = {},
-	body = "",
-	summary = "",
-	urgency = "normal",
-	timeout,
-	hints = {},
-}: {
+export function getFileSize(filePath: string): number | null {
+	if (!filePath || !fileExists(filePath)) return null;
+
+	try {
+		const info = Gio.File.new_for_path(filePath).query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null);
+		return info.get_size();
+	} catch {
+		return null;
+	}
+}
+
+export function textureFromFile(filePath: string, width?: number, height?: number): Gdk.Texture | null {
+	if (!getFileSize(filePath)) return null
+
+	let pixbuf = GdkPixbuf.Pixbuf.new_from_file(filePath)
+	if (width && height) {
+		pixbuf = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)!
+	}
+	return Gdk.Texture.new_for_pixbuf(pixbuf)
+}
+
+export function fileExists(path: string) { return GLib.file_test(path, GLib.FileTest.EXISTS) }
+
+export async function wlCopy(data: string) {
+	if (!dependencies("wl-copy")) return ""
+	execAsync(`wl-copy "${data}"`)
+}
+
+export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) {
+	if (enable === undefined)
+		enable = !widget.has_css_class(name)
+
+	if (enable)
+		widget.add_css_class(name)
+	else
+		widget.remove_css_class(name)
+}
+
+export async function notify(opts: {
 	id?: number
 	appName?: string
 	appIcon?: string
@@ -43,6 +82,18 @@ export async function notify({
 	hints?: Record<string, string>
 }) {
 	try {
+		const {
+			id,
+			appName = "",
+			appIcon = "",
+			actions = {},
+			body = "",
+			summary = "",
+			urgency = "normal",
+			timeout,
+			hints = {},
+		} = opts
+
 		const args = []
 
 		if (id !== undefined) args.push(`-r ${id}`)
@@ -65,19 +116,19 @@ export async function notify({
 		}
 
 		const result = await execAsync(`notify-send -p ${args.join(" ")}`)
-		const retId = Number(result.split('\n')[0])
+		const retId = Number(result.split("\n")[0])
 		if (Object.keys(actions).length > 0) {
-			execAsync(result.split('\n')[1])
+			execAsync(result.split("\n")[1]).catch(() => null)
 		}
 		return retId
-	} catch (error) {
-		logError(error)
-		throw error
+	} catch (error: any) {
+		return undefined
 	}
 }
 
-export function toggleWindow(name: string, hide?: boolean) {
-	const win = App.get_window(name)
+export function toggleWindow(name: string | undefined, hide: boolean = true) {
+	if (name == undefined) return
+	const win = app.get_window(name)
 	if (win?.visible) {
 		hide ? win.hide() : win.close()
 	} else {
@@ -85,84 +136,62 @@ export function toggleWindow(name: string, hide?: boolean) {
 	}
 }
 
-export function onWindowToggle(self: any, name: string, callback: (w: Gtk.Window) => void) {
-	self.hook(App, "window-toggled", (_: any, w: Gtk.Window) => {
-		if (w.name == name) {
+export function ignoreInput(widget: Gtk.Window) {
+	widget.get_surface()?.set_input_region(new giCairo.Region)
+}
+
+export function onWindowToggle(name: string, callback: (w: Gtk.Window) => void) {
+	app.connect("window-toggled", (_: any, w: Gtk.Window) => {
+		if (w.name === name) {
 			callback(w)
 		}
 	})
 }
 
-export function initHook(
-	self: any,
-	object: Connectable,
-	signal: string,
-	callback: (...args: any[]) => void
-): void
+export function duration(length: number) {
+	const hours = Math.floor(length / 3600)
+	const minutes = Math.floor((length % 3600) / 60)
+	const seconds = Math.floor(length % 60)
 
-export function initHook(
-	self: any,
-	object: Subscribable,
-	callback: (...args: any[]) => void
-): void
+	const mm = minutes.toString().padStart(hours ? 2 : 1, "0")
+	const ss = seconds.toString().padStart(2, "0")
 
-export function initHook(
-	self: any,
-	object: Connectable | Subscribable,
-	signalOrCallback: string | ((...args: any[]) => void),
-	callback?: (...args: any[]) => void
-): void {
-	if ('hook' in self && typeof signalOrCallback === 'string' && callback) {
-		callback()
-		self.hook(object, signalOrCallback, callback)
-	} else if ('hook' in self && typeof signalOrCallback === 'function') {
-		signalOrCallback()
-		self.hook(object, signalOrCallback)
-	} else {
-		throw new Error('Invalid arguments')
-	}
-}
-
-export function checkDefault(opts: Opt[]) {
-	const changes = opts.map((opt) => {
-		return Variable.derive([opt], (value) => value !== opt.initial)
-	})
-
-	const any_changed = Variable.derive(changes, (...change_flags) => change_flags.some(changed => changed))
-
-	return any_changed()
+	return hours
+		? `${hours}:${mm}:${ss}`
+		: `${minutes}:${ss}`
 }
 
 export function range(length: number, start = 1) {
 	return Array.from({ length }, (_, i) => i + start)
 }
 
-export function lookUpIcon(name?: string, size = 16) {
-	if (!name)
-		return null
+export function ensurePath(path: string) {
+	const isDir = path.endsWith("/")
 
-	return Gtk.IconTheme.get_default().lookup_icon(
-		name,
-		size,
-		Gtk.IconLookupFlags.USE_BUILTIN,
-	)
+	if (fileExists(path))
+		return
+
+	const file = Gio.File.new_for_path(path)
+
+	if (isDir) {
+		file.make_directory_with_parents(null)
+	} else {
+		const parent = file.get_parent()
+		if (parent) {
+			const parentPath = parent.get_path()
+			if (parentPath && !GLib.file_test(parentPath, GLib.FileTest.EXISTS)) {
+				parent.make_directory_with_parents(null)
+			}
+		}
+		file.create(Gio.FileCreateFlags.PRIVATE, null)
+	}
 }
 
-export function ensureDir(path: string) {
-	if (!GLib.file_test(path, GLib.FileTest.EXISTS))
-		Gio.File.new_for_path(path).make_directory_with_parents(null)
-}
 
-export function icon(name: string | null, fallback = icons.missing) {
-	if (!name)
-		return fallback || ""
-
-	if (GLib.file_test(name, GLib.FileTest.EXISTS))
+export function icon(name?: string, fallback = icons.missing): string {
+	if (name && env.iconTheme.get().has_icon(name)) {
 		return name
-
-	const icon = (substitutes[name as keyof typeof substitutes] || name)
-	if (lookUpIcon(icon))
-		return icon
+	}
 	return fallback
 }
 
@@ -207,7 +236,7 @@ export function bashSync(strings: TemplateStringsArray | string, ...values: unkn
 }
 
 export async function sh(cmd: string | string[]) {
-	return execAsync(cmd).catch(err => {
+	return execAsync(cmd).catch((err: any) => {
 		console.error(typeof cmd === "string" ? cmd : cmd.join(" "), err)
 		return ""
 	})
@@ -215,46 +244,12 @@ export async function sh(cmd: string | string[]) {
 
 export function launchApp(app: Apps.Application | string) {
 	const exe = typeof app === "string"
-		? app
+		? app.trim()
 		: app.executable
 			.split(/\s+/)
 			.filter(str => !str.startsWith("%") && !str.startsWith("@"))
 			.join(" ")
+			.trim()
 
-	if (typeof app !== "string") {
-		app.frequency += 1
-	}
-
-	hypr.message_async(`dispatch exec ${exe}`, null)
-}
-
-export function getFavoriteApps(): string[] {
-	try {
-		const output = bashSync("dconf read /org/gnome/shell/favorite-apps", { encoding: "utf-8" })
-		const favorites = JSON.parse(output.replace(/'/g, '"'))
-
-		if (Array.isArray(favorites) && favorites.every(item => typeof item === "string")) {
-			return favorites.map(item => item.replace(/\.desktop$/, ""))
-		} else {
-			throw new Error("Unexpected format: dconf output is not a valid array of strings.")
-		}
-	} catch (error) {
-		console.error("Failed to read favorite apps from dconf:", error)
-		return []
-	}
-}
-
-export function notificationBlacklisted(notification?: number | Notifd.Notification) {
-	if (typeof notification === "number") {
-		var notif = notifd.get_notification(notification)
-	} else if (notification) {
-		notif = notification
-	} else {
-		throw new Error("Either 'id' or 'notification' must be provided.")
-	}
-
-	if (options.notifications.blacklist.get().includes(notif.appName || notif.desktopEntry)) {
-		return true
-	}
-	return false
+	hypr.message_async(`dispatch exec '${exe}'`, null)
 }

@@ -1,44 +1,112 @@
-import AstalApps from "gi://AstalApps"
-import { Gio, GLib, register, GObject, property } from "astal"
+import GObject, { register, getter } from "ags/gobject"
+import { timeout } from "ags/time"
 
-@register({ GTypeName: "AppsWatched" })
+import AstalApps from "gi://AstalApps"
+import Gio from "gi://Gio"
+
+import env from "$lib/env"
+import { bashSync, fileExists } from "$lib/utils"
+import { hypr } from "$lib/services"
+
+@register()
 export default class Apps extends GObject.Object {
+	declare static $gtype: GObject.GType<Apps>
 	static instance: Apps
-	static get_default() {
-		if (!this.instance)
-			this.instance = new Apps()
-		return this.instance
+
+	static get_default(): Apps {
+		return this.instance ??= new Apps()
 	}
+
+	#favorites: Array<AstalApps.Application> = []
+	#favortiesSnapshot = ""
 
 	#apps = new AstalApps.Apps
 	#monitors: Gio.FileMonitor[] = []
 
-	@property(Object)
-	get apps() {
+	constructor() {
+		super()
+
+		const stack = [
+			`${env.paths.home}/.local/share/applications/`,
+			`${env.paths.home}/.local/share/flatpak/applications/`,
+			"/var/lib/flatpak/exports/share/applications",
+		]
+
+		const watchDir = (dir: string) => {
+			if (!fileExists(dir)) return
+
+			const file = Gio.File.new_for_path(dir)
+			const monitor = file.monitor_directory(Gio.FileMonitorFlags.NONE, null)
+
+			monitor.set_rate_limit(200)
+
+			monitor.connect("changed", () => {
+				this.#apps.reload()
+				this.notify("list")
+				this.notify("favorites")
+			})
+
+			this.#monitors.push(monitor)
+
+			const iter = file.enumerate_children("standard::name,standard::type", Gio.FileQueryInfoFlags.NONE, null)
+			let info
+			while ((info = iter?.next_file(null))) {
+				if (info.get_file_type() === Gio.FileType.DIRECTORY) {
+					watchDir(`${dir}/${info.get_name()}`)
+				}
+			}
+			iter?.close(null)
+		}
+
+		// When nixos configuration is switched, hyprland is reloaded
+		// This is a decent way to reload apps if packages were changed
+		hypr.connect("config-reloaded", () => {
+			this.#apps.reload()
+			this.notify("list")
+			this.notify("favorites")
+		})
+
+		for (const root of stack) {
+			watchDir(root)
+		}
+	}
+
+	@getter(AstalApps.Apps)
+	get list() {
 		return this.#apps
 	}
 
-	constructor() {
-		super()
-		const home = GLib.get_home_dir()
-		const appDirs = [
-			`${home}/.local/share/applications/`,
-			`${home}/.local/share/flatpak/.changed`,
-		]
+	@getter(Array<AstalApps.Application>)
+	get favorites(): Array<AstalApps.Application> {
+		this.#updateFav()
+		return this.#favorites
+	}
+	readonly #updateFav = () => {
+		try {
+			const raw = bashSync(
+				"dconf read /org/gnome/shell/favorite-apps",
+				{ encoding: "utf-8" }
+			).trim()
 
-		for (const dir of appDirs) {
-			if (GLib.file_test(dir, GLib.FileTest.EXISTS)) {
-				const file = Gio.File.new_for_path(dir);
-				const monitor = GLib.file_test(dir, GLib.FileTest.IS_DIR)
-					? file.monitor_directory(Gio.FileMonitorFlags.NONE, null)
-					: file.monitor_file(Gio.FileMonitorFlags.NONE, null);
-				monitor.set_rate_limit(100)
-				monitor.connect("changed", (_, __, ___, ____) => {
-					this.#apps.reload();
-					this.notify("apps");
-				});
-				this.#monitors.push(monitor)
+			if (raw === this.#favortiesSnapshot) return
+			this.#favortiesSnapshot = raw
+
+			const list = JSON.parse(raw.replace(/'/g, '"'))
+			if (!Array.isArray(list)) throw new Error("not an array")
+
+			const apps: Array<AstalApps.Application> = []
+			for (const item of list) {
+				if (typeof item === "string") {
+					const name = item.replace(/\.desktop$/, "")
+					const match = this.#apps.exact_query(name)[0]
+					if (match) apps.push(match)
+				}
 			}
+
+			this.#favorites = apps
+		} catch (e) {
+			console.error("Failed to get favorite apps:", e)
+			this.#favorites = []
 		}
 	}
 }

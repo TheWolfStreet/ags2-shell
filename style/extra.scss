@@ -15,40 +15,6 @@ separator {
   }
 }
 
-window.popup {
-  >* {
-    border: none;
-    box-shadow: none;
-  }
-
-  menu {
-    color: $fg;
-    background-color: $bg;
-    border-radius: 0 0 $popover-radius * 0.5 $popover-radius * 0.5;
-    padding: $popover-padding * .5;
-    border: $border-width solid $popover-border-color;
-
-    separator {
-      background-color: $border-color;
-    }
-
-    menuitem {
-      @include button($flat: true);
-      border-radius: $radius * .5;
-      padding: $spacing * .5;
-      margin: ($spacing * .5) 0;
-
-      &:first-child {
-        margin-top: 0;
-      }
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-    }
-  }
-}
-
 tooltip {
   * {
     all: unset;

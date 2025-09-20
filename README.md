@@ -2,23 +2,15 @@
 
 ![Demonstration](README.png)
 
-A port of Aylur's AGS shell from AGS v1 to AGS v2, with a subset of features and slight tweaks. Tightly coupled with Hyprland.
+A port of Aylur's AGS shell from AGS v1 to AGS v2 (and now to v3), with a subset of features and slight tweaks. Tightly coupled with Hyprland.
 
 ## Acknowledgments
 Special thanks to [Aylur](https://github.com/Aylur) for the original [AGS v1 shell](https://github.com/Aylur/dotfiles/tree/18b83b2d2c6ef2b9045edefe49a66959f93b358a), [Astal](https://github.com/Aylur/Astal), and the [AGS CLI](https://github.com/Aylur/ags).
 
 Check out and support his latest project **[Marble Shell](https://marble-shell.pages.dev/pages/installation)**, the new and expanded version of the AGS shell with more features and improvements.
 
-## ⚠ Known Issues
-- Duplicate top bar when mirroring or demirroring a screen.
-- Lack of user-friendly feedback when a Bluetooth adapter is locked.
-- Wi-Fi menu simply does not show up when the adapter is in monitor mode due to the absence of dynamic binding.
-- Launcher's app list may not automatically update after installing new apps (a relaunch bind is recommended).
-- The launcher retract animation does not activate during toggle, but works as expected when the launcher loses focus or when the Escape key is pressed.
-
-## 📌 Planned Improvements
-- GTK4 rewrite
-- Decoupling from adw-gtk3-dark theme (styles)
+## ⚠ Planned
+- NixOS configuration for ui?
 
 ## Installation on NixOS
 ### As a bundled package
@@ -30,7 +22,7 @@ flake.nix:
       url = "github:Aylur/ags";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    apple-fonts.url = "github:Lyndeno/apple-fonts.nix";
+
     ags2-shell = {
       url = "github:TheWolfStreet/ags2-shell";
     };
@@ -77,7 +69,7 @@ pkgs,
   imports = [inputs.ags.homeManagerModules.default];
   programs.ags = {
     enable = true;
-    # WARNING: Do not use submodules, nix flakes won't see them, use subtrees
+    # WARNING: For nix flakes to see submodules set inputs.self.submodules = true
     configDir = ../ags2-shell; # Path to this repository
     # And a few expected things in the environment like bash and which
     extraPackages = with pkgs; [
@@ -97,9 +89,8 @@ pkgs,
       hyprpicker # Colorpicker
       pavucontrol # Audio control
       networkmanager # Network control
-      gtk3 # GUI (gjs)
       fd # For searching .scss files
-      inputs.matugen.packages.${system}.default # Dynamic color generation based on wallpaper colors
+      matugen # Dynamic coloring
       # Astal libs
       inputs.ags.packages.${pkgs.system}.apps
       inputs.ags.packages.${pkgs.system}.battery
@@ -114,7 +105,7 @@ pkgs,
       inputs.ags.packages.${pkgs.system}.auth
       inputs.ags.packages.${pkgs.system}.powerprofiles
     ];
-  };
+	};
 }
 ```
 
@@ -206,7 +197,7 @@ wayland.windowManager.hyprland = {
       e = "exec, ags -i ags2-shell";
     in
     [
-      # Restart AGS shell (recommended if the launcher's app list doesn't update)
+      # Restart shell (just in case)
       # WARNING: If a bundle is used, use ags2-shell instead of ags run
       "CTRL ALT, Delete,   ${e} quit; ags run"
       # Open the application launcher
@@ -220,7 +211,7 @@ wayland.windowManager.hyprland = {
       # Start full-screen recording
       "SUPER SHIFT, Print, ${e} request 'record'"
       # Take full-screen screenshot
-      ", Print,            ${e} request 'screenshot-area'"
+      ", Print,            ${e} request 'screenshot'"
       # Take area screenshot
       "SHIFT, Print,       ${e} request 'screenshot-area'"
     ];

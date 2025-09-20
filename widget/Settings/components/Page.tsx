@@ -1,20 +1,28 @@
-import { Gtk } from "astal/gtk3"
+import { FCProps } from "ags"
+import { Gtk } from "ags/gtk4"
 
-import Group from "./Group"
+const { VERTICAL } = Gtk.Orientation
 
-export interface Page extends Gtk.Widget {
-	attr: { name: string, icon: string }
-}
-
-export default function <T>(name: string, icon: string, ...groups: ReturnType<typeof Group<T>>[]): Page {
-	const page = <box className="page" name={name}>
-		<scrollable css="min-height: 300px;">
-			<box className="page-content" vexpand vertical>
-				{groups}
-			</box>
-		</scrollable>
-	</box> as Page
-
-	page.attr = { name, icon }
-	return page
+export function Page({
+	name,
+	iconName,
+	children = [],
+}: FCProps<Gtk.StackPage, {
+	name: string,
+	iconName: string,
+	children?: JSX.Element | Array<JSX.Element>
+}>) {
+	return (
+		<Gtk.StackPage
+			name={name}
+			iconName={iconName}
+			child={
+				<Gtk.ScrolledWindow class="page" css="min-height: 300px;">
+					<box class="page-content" vexpand orientation={VERTICAL}>
+						{children}
+					</box>
+				</Gtk.ScrolledWindow> as Gtk.ScrolledWindow
+			}
+		/>
+	)
 }
