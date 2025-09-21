@@ -131,6 +131,10 @@ window.settings-dialog {
       }
     }
 
+    colorswatch {
+      border-radius: $radius * .25;
+    }
+
     .preview {
       border-radius: $radius;
       min-height: 15em;

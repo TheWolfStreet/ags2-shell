@@ -3,8 +3,12 @@
     background-color: $primary-bg;
   }
 
+  switch {
+    border-radius: $radius * 2;
+  }
+
   slider {
-    border-radius: $radius;
+    border-radius: $radius * 2;
     min-width: 24px;
     min-height: 24px;
   }
