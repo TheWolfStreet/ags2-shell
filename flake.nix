@@ -84,7 +84,8 @@
         '';
         postInstall = ''
           wrapProgram $out/bin/${pname} \
-          	--prefix PATH : ${pkgs.lib.makeBinPath extraPackages}
+          	--prefix PATH : ${pkgs.lib.makeBinPath extraPackages} \
+          	--set AGS2SHELL_DEV $out/share
         '';
       };
     };
