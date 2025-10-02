@@ -85,7 +85,7 @@
         postInstall = ''
           wrapProgram $out/bin/${pname} \
           	--prefix PATH : ${pkgs.lib.makeBinPath extraPackages} \
-          	--set AGS2SHELL_DEV $out/share
+          	--set AGS2SHELL_STYLES $out/share
         '';
       };
     };
@@ -101,7 +101,7 @@
 
         shellHook = ''
           export GIO_EXTRA_MODULES=${pkgs.gvfs}/lib/gio/modules
-          export AGS2SHELL_DEV=$PWD
+          export AGS2SHELL_STYLES=$PWD
         '';
       };
     };

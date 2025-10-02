@@ -14,7 +14,7 @@ const { dark, light, blur, blurOnLight, scheme, padding, spacing, radius, shadow
 const popoverPaddingMul = 1.6
 
 const configDir = (() => {
-	const devDir = GLib.getenv('AGS2SHELL_DEV')
+	const devDir = GLib.getenv('AGS2SHELL_STYLES')
 	if (devDir && GLib.file_test(devDir, GLib.FileTest.IS_DIR)) return devDir
 
 	const url = import.meta.url
