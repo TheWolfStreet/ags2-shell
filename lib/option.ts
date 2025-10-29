@@ -5,7 +5,6 @@ import { readFile, writeFileAsync } from "ags/file"
 import { ensurePath } from "$lib/utils"
 import env from "$lib/env"
 
-// FIXME: Make it not block the UI on batched sets
 namespace Store {
 	export const path = `${env.paths.cache}/options.json`
 

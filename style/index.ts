@@ -1,5 +1,6 @@
 import app from "ags/gtk4/app"
 import { writeFileAsync } from "ags/file"
+import { timeout } from "ags/time"
 
 import GLib from "gi://GLib"
 
@@ -12,6 +13,9 @@ import options from "options"
 const deps = ["font", "theme", "bar.corners", "bar.position"]
 const { dark, light, blur, blurOnLight, scheme, padding, spacing, radius, shadows, widget, border } = options.theme
 const popoverPaddingMul = 1.6
+
+let cssDebounce: any = null
+let lastVariables = ""
 
 const configDir = (() => {
 	const devDir = GLib.getenv('AGS2SHELL_STYLES')
@@ -83,24 +87,35 @@ const variables = () => {
 
 export async function resetCss() {
 	if (!dependencies("sass", "fd")) return
-	try {
-		const vars = `${env.paths.tmp}variables.scss`
-		const scss = `${env.paths.tmp}main.scss`
-		const css = `${env.paths.tmp}main.css`
 
-		if (!fileExists(configDir)) {
-			throw new Error("Config directory missing");
+	const currentVars = variables().join("\n")
+	if (currentVars === lastVariables) return
+
+	if (cssDebounce) cssDebounce.cancel()
+
+	cssDebounce = timeout(100, async () => {
+		try {
+			const vars = `${env.paths.tmp}variables.scss`
+			const scss = `${env.paths.tmp}main.scss`
+			const css = `${env.paths.tmp}main.css`
+
+			if (!fileExists(configDir)) {
+				throw new Error("Config directory missing");
+			}
+
+			const files = (await bash(`fd ".scss" ${configDir}`)).split(/\s+/)
+			ensurePath(env.paths.tmp)
+			writeFileAsync(vars, currentVars)
+			writeFileAsync(scss, [`@import '${vars}';`, ...files.map(f => `@import '${f}';`)].join("\n"))
+			await bash`sass ${scss} ${css}`
+			app.apply_css(css, false)
+			lastVariables = currentVars
+		} catch (err) {
+			logError(err)
+		} finally {
+			cssDebounce = null
 		}
-
-		const files = (await bash(`fd ".scss" ${configDir}`)).split(/\s+/)
-		ensurePath(env.paths.tmp)
-		writeFileAsync(vars, variables().join("\n"))
-		writeFileAsync(scss, [`@import '${vars}';`, ...files.map(f => `@import '${f}';`)].join("\n"))
-		await bash`sass ${scss} ${css}`
-		app.apply_css(css, true)
-	} catch (err) {
-		logError(err)
-	}
+	})
 }
 
 export async function initCss() {

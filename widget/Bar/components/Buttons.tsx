@@ -1,6 +1,6 @@
 import { Gdk, Gtk } from "ags/gtk4"
 import { timeout, Timer } from "ags/time"
-import { Accessor, createBinding, createComputed, createState, For, With } from "ags"
+import { Accessor, createBinding, createComputed, createState, For, With, onCleanup } from "ags"
 
 import AstalTray from "gi://AstalTray"
 import AstalHyprland from "gi://AstalHyprland"
@@ -25,7 +25,8 @@ const { VERTICAL } = Gtk.Orientation
 
 export function Tray() {
 	const items = createComputed([createBinding(tray, "items"), options.bar.systray.ignore], (items, ignore) => {
-		return items.filter(i => !ignore.includes(i.get_title()) && i.get_gicon())
+		const ignoreSet = new Set(ignore)
+		return items.filter(i => !ignoreSet.has(i.get_title()) && i.get_gicon())
 	})
 
 	function init(btn: Gtk.MenuButton, item: AstalTray.TrayItem) {
@@ -110,13 +111,15 @@ export function Tasks() {
 		)
 	}
 
+	const clients = createBinding(hypr, "clients").as(clients =>
+		[...(clients ?? [])]
+			.filter((c): c is AstalHyprland.Client => c != null)
+			.sort((a, b) => (a?.workspace?.id ?? 0) - (b?.workspace?.id ?? 0))
+	)
+
 	return (
 		<box class="tasks">
-			<For each={createBinding(hypr, "clients").as(v =>
-				[...(v ?? [])]
-					.filter((c): c is AstalHyprland.Client => c != null)
-					.sort((a, b) => (a?.workspace?.id ?? 0) - (b?.workspace?.id ?? 0))
-			)}>
+			<For each={clients}>
 				{(app: AstalHyprland.Client) => <Entry client={app} />}
 			</For>
 		</box>
@@ -128,6 +131,13 @@ export function Media() {
 	const [reveal, set_reveal] = createState(false)
 
 	let trackTime: Timer | undefined = undefined
+
+	onCleanup(() => {
+		if (trackTime) {
+			trackTime.cancel()
+			trackTime = undefined
+		}
+	})
 
 	const player = createComputed([createBinding(media, "players"), preferred], (ps, pref) => {
 		return ps.find(p => p.get_bus_name().includes(pref)) || ps[0]
@@ -210,31 +220,50 @@ export function ScreenRecord() {
 export function ColorPicker() {
 	const colors = createBinding(cpick, "colors")
 
-	const css = (color: string) => `
-		* {
-				background-color: ${color};
-				color: transparent;
+	const cssCache = new Map<string, string>()
+	const css = (color: string) => {
+		if (!cssCache.has(color)) {
+			cssCache.set(color, `
+				* {
+					background-color: ${color};
+					color: transparent;
+				}
+				*:hover {
+					color: white;
+					text-shadow: 2px 2px 3px rgba(0,0,0,.8);
+				}`)
 		}
-		*:hover {
-				color: white;
-				text-shadow: 2px 2px 3px rgba(0,0,0,.8);
-		}`
+		return cssCache.get(color)!
+	}
 
-	const popover = <Gtk.Popover hasArrow={false} position={Gtk.PositionType.BOTTOM} /> as Gtk.Popover
-	// TODO: Animate popovers
+	const [revealed, set_revealed] = createState(false)
+
+	const popover = <Gtk.Popover
+		hasArrow={false}
+		position={Gtk.PositionType.BOTTOM}
+		onShow={() => set_revealed(true)}
+		onHide={() => set_revealed(false)}
+	/> as Gtk.Popover
+
 	popover.set_child(
-		<box class="colorpicker vertical" orientation={VERTICAL}>
-			<For each={colors}>
-				{color => (
-					<button label={color} css={css(color)}
-						onClicked={() => {
-							cpick.pick(color)
-							popover.popdown()
-						}}
-					/>
-				)}
-			</For>
-		</box> as Gtk.Box
+		<revealer
+			revealChild={revealed}
+			transitionDuration={options.transition.duration}
+			transitionType={Gtk.RevealerTransitionType.SLIDE_DOWN}
+		>
+			<box class="colorpicker vertical" orientation={VERTICAL}>
+				<For each={colors}>
+					{color => (
+						<button label={color} css={css(color)}
+							onClicked={() => {
+								cpick.pick(color)
+								popover.popdown()
+							}}
+						/>
+					)}
+				</For>
+			</box>
+		</revealer> as Gtk.Revealer
 	)
 
 	return (

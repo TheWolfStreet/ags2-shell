@@ -18,22 +18,18 @@ import options from "options"
 const { COVER } = Gtk.ContentFit
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
-const { SWING_RIGHT, SWING_DOWN, SLIDE_DOWN } = Gtk.RevealerTransitionType
+const { SLIDE_DOWN, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
 const { EXCLUSIVE } = Astal.Exclusivity
 const { TOP, RIGHT } = Astal.WindowAnchor
 
 const MAX_NOTIFICATIONS = 50
 
-// TODO: Refactor
 export namespace Notifications {
-	const [_current, set_current] = createState<Array<AstalNotifd.Notification>>([])
-	export const current = _current
+	const [notifications, set_notifications] = createState<Array<AstalNotifd.Notification>>([])
+	const [dismissingAll, set_dismissingAll] = createState(false)
+	const [popupHovered, set_popupHovered] = createState(false)
 
-	const [hovered, setHovered] = createState(false)
-	const [dismiss, setDismiss] = createState(false)
-
-	const [hidingNotifications, setHidingNotifications] = createState<Set<number>>(new Set())
-	const [autoHiddenNotifications, setAutoHiddenNotifications] = createState<Set<number>>(new Set())
+	export const current = notifications
 
 	const notifyHandler = notifd.connect("notified", (_, id, replaced) => {
 		const notification = notifd.get_notification(id)
@@ -42,42 +38,24 @@ export namespace Notifications {
 
 		if (blacklist.includes(appName)) return
 
-		if (replaced && _current.get().some((n) => n.id === id)) {
-			set_current(ns => ns.map(n => (n.id === id ? notification : n)))
+		if (replaced && notifications.get().some(n => n.id === id)) {
+			set_notifications(ns => ns.map(n => n.id === id ? notification : n))
 		} else {
-			set_current(ns => [notification, ...ns].slice(0, MAX_NOTIFICATIONS))
+			set_notifications(ns => [notification, ...ns].slice(0, MAX_NOTIFICATIONS))
 		}
 	})
 
 	export function dismissAll() {
-		setDismiss(true)
+		set_dismissingAll(true)
 		GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.get(), () => {
-			setDismiss(false)
-			set_current([])
-			setHidingNotifications(new Set())
-			setAutoHiddenNotifications(new Set())
+			set_dismissingAll(false)
+			set_notifications([])
 			return GLib.SOURCE_REMOVE
 		})
 	}
 
-	function hideNotification(notification: AstalNotifd.Notification, onComplete?: () => void) {
-		setHidingNotifications(prev => new Set([...prev, notification.id]))
-
-		GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.get(), () => {
-			set_current(ns => ns.filter(n => n.id !== notification.id))
-			setHidingNotifications(prev => {
-				const newSet = new Set(prev)
-				newSet.delete(notification.id)
-				return newSet
-			})
-			return GLib.SOURCE_REMOVE
-		})
-
-		onComplete?.()
-	}
-
-	function autoHideNotification(notification: AstalNotifd.Notification) {
-		setAutoHiddenNotifications(prev => new Set([...prev, notification.id]))
+	function removeNotification(id: number) {
+		set_notifications(ns => ns.filter(n => n.id !== id))
 	}
 
 	export function formatTime(time: number) {
@@ -100,105 +78,73 @@ export namespace Notifications {
 		}
 	}
 
-	function Entry({ entry: notification, widthRequest, persistent }: { entry: AstalNotifd.Notification, widthRequest?: Accessor<number> | number, persistent?: boolean }) {
-		const [reveal, set_reveal] = createState(false)
-		const [revealActions, set_revealActions] = createState(false)
+	function Entry({ entry: notification, widthRequest, persistent }: {
+		entry: AstalNotifd.Notification,
+		widthRequest?: Accessor<number> | number,
+		persistent?: boolean
+	}) {
+		const [visible, set_visible] = createState(false)
+		const [showActions, set_showActions] = createState(false)
 
-		let closed = false
-		let wasShown = false
-		let dismissTimer: number | undefined
+		let autoHideTimer: number | undefined
+		let mounted = false
 
 		const clearTimer = () => {
-			if (dismissTimer) {
-				GLib.source_remove(dismissTimer)
-				dismissTimer = undefined
+			if (autoHideTimer) {
+				GLib.source_remove(autoHideTimer)
+				autoHideTimer = undefined
 			}
 		}
 
-		const remove = () => {
-			clearTimer()
-			notification.dismiss()
-		}
-
-		const startAutoHide = () => {
+		const scheduleAutoHide = () => {
 			if (persistent) return
 			clearTimer()
-			dismissTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.get(), () => {
-				if (!hovered.get()) {
-					set_reveal(false)
+			autoHideTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.get(), () => {
+				if (!popupHovered.get()) {
+					set_visible(false)
 				}
-				dismissTimer = undefined
+				autoHideTimer = undefined
 				return GLib.SOURCE_REMOVE
 			})
 		}
 
-		const handleDismiss = () => {
-			if (dismiss.get()) {
-				set_reveal(false)
-				GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.get(), () => {
-					notification.dismiss()
-					return GLib.SOURCE_REMOVE
-				})
-			}
-		}
-
-		const hidingUnsub = hidingNotifications.subscribe(() => {
-			if (hidingNotifications.get().has(notification.id)) {
-				set_reveal(false)
-			}
-		})
-
-		const autoHiddenUnsub = autoHiddenNotifications.subscribe(() => {
-			if (!persistent && autoHiddenNotifications.get().has(notification.id)) {
-				set_reveal(false)
-			}
-		})
-
-		const onEnter = () => {
-			if (closed) return
-			set_revealActions(true)
-			if (!persistent) {
-				setHovered(true)
-				clearTimer()
-			}
-		}
-
-		const onLeave = () => {
-			if (closed) return
-			set_revealActions(false)
-			if (!persistent) setHovered(false)
-		}
-
-		const onReveal = (self: Gtk.Revealer) => {
-			if (!self.get_reveal_child() && closed) {
-				remove()
-			} else if (!self.get_reveal_child() && !persistent && autoHiddenNotifications.get().has(notification.id)) {
-				autoHideNotification(notification)
-			} else {
-				startAutoHide()
-			}
-		}
+		let pendingAction: (() => void) | undefined
 
 		const onClose = () => {
-			closed = true
-			hideNotification(notification, () => notification.dismiss())
+			clearTimer()
+			pendingAction = () => {
+				removeNotification(notification.id)
+				notification.dismiss()
+			}
+			set_visible(false)
 		}
 
 		const onActionClick = (actionId: string) => {
-			closed = true
-			hideNotification(notification, () => notification.invoke(actionId))
+			clearTimer()
+			pendingAction = () => {
+				removeNotification(notification.id)
+				notification.invoke(actionId)
+			}
+			set_visible(false)
 		}
 
-		const dismissUnsub = dismiss.subscribe(handleDismiss)
-		const hoveredUnsub = hovered.subscribe(() => {
-			if (!hovered.get() && !persistent && !closed) startAutoHide()
+		const dismissSub = dismissingAll.subscribe(() => {
+			if (dismissingAll.get()) set_visible(false)
+		})
+
+		const hoverSub = popupHovered.subscribe(() => {
+			if (!persistent) {
+				if (popupHovered.get()) {
+					clearTimer()
+				} else if (visible.get()) {
+					scheduleAutoHide()
+				}
+			}
 		})
 
 		onCleanup(() => {
-			dismissUnsub()
-			hoveredUnsub()
-			hidingUnsub()
-			autoHiddenUnsub()
+			dismissSub()
+			hoverSub()
 			clearTimer()
 		})
 
@@ -209,27 +155,39 @@ export namespace Notifications {
 
 		return (
 			<revealer
-				revealChild={reveal}
+				revealChild={visible}
 				transitionDuration={options.transition.duration}
 				transitionType={SLIDE_DOWN}
-				onNotifyChildRevealed={onReveal}
 				onMap={() => {
-					if (!wasShown && (!notifd.get_dont_disturb() || persistent)) {
-						if (!persistent && autoHiddenNotifications.get().has(notification.id)) {
-							return
-						}
-						set_reveal(true)
-						wasShown = true
+					if (!mounted && (!notifd.get_dont_disturb() || persistent)) {
+						set_visible(true)
+						mounted = true
+						if (!persistent) scheduleAutoHide()
+					}
+				}}
+				onNotifyChildRevealed={(self) => {
+					if (!self.get_reveal_child() && pendingAction) {
+						pendingAction()
+						pendingAction = undefined
 					}
 				}}
 			>
 				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} widthRequest={widthRequest}>
-					<Gtk.EventControllerMotion onEnter={onEnter} onLeave={onLeave} />
+					<Gtk.EventControllerMotion
+						onEnter={() => {
+							if (!persistent) set_popupHovered(true)
+							set_showActions(true)
+						}}
+						onLeave={() => {
+							if (!persistent) set_popupHovered(false)
+							set_showActions(false)
+						}}
+					/>
 					<box class="header">
 						<image class="app-icon" iconName={appIcon} useFallback />
 						<label class="app-name" halign={START} maxWidthChars={24} ellipsize={Pango.EllipsizeMode.END} useMarkup label={appName} />
 						<label class="time" halign={END} hexpand label={env.uptime(() => formatTime(notification.time))} />
-						<revealer revealChild={revealActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
+						<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
 							<button class="close-button" onClicked={onClose}>
 								<image iconName={icons.ui.close} halign={CENTER} valign={CENTER} useFallback />
 							</button>
@@ -249,7 +207,7 @@ export namespace Notifications {
 					</box>
 
 					{validActions.length > 0 && (
-						<revealer revealChild={revealActions} transitionType={SWING_DOWN} transitionDuration={options.transition.duration}>
+						<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_DOWN}>
 							<box class="actions horizontal">
 								{validActions.map(({ label, id }) => (
 									<button hexpand label={label} onClicked={() => onActionClick(id)} />
@@ -265,14 +223,14 @@ export namespace Notifications {
 	export function Stack({ persistent = false }: { persistent?: boolean }) {
 		return (
 			<box class="notifications-stack" orientation={VERTICAL} valign={START}>
-				<For each={current}>{(n) => <Entry entry={n} persistent={persistent} />}</For>
+				<For each={notifications}>{(n) => <Entry entry={n} persistent={persistent} />}</For>
 			</box>
 		)
 	}
 
 	export function Button() {
 		return (
-			<PanelButton class="messages" visible={current.as(v => v.length > 0)} tooltipText={current.as(v => `${v.length} pending notification${v.length === 1 ? '' : 's'}`)} onClicked={() => toggleWindow("datemenu")}>
+			<PanelButton class="messages" visible={notifications.as(v => v.length > 0)} tooltipText={notifications.as(v => `${v.length} pending notification${v.length === 1 ? '' : 's'}`)} onClicked={() => toggleWindow("datemenu")}>
 				<image iconName={icons.notifications.message} useFallback />
 			</PanelButton>
 		)

@@ -1,9 +1,12 @@
 import { sh, dependencies, getFileSize } from "$lib/utils"
 import { wp } from "$lib/services"
+import { timeout } from "ags/time"
 
 import options from "options"
 
 export namespace Matugen {
+	let matugenDebounce: any = null
+
 	type Colors = {
 		background: string
 		error: string
@@ -67,25 +70,34 @@ export namespace Matugen {
 		if (!options.autotheme.get() || !dependencies("matugen") || !getFileSize(arg))
 			return
 
-		const colors = await sh(`matugen --dry-run -j hex ${type} ${arg}`)
-		const c = JSON.parse(colors).colors as { light: Colors, dark: Colors }
-		const { dark, light } = options.theme
+		if (matugenDebounce) matugenDebounce.cancel()
 
-		dark.widget.set(c.dark.on_surface)
-		light.widget.set(c.light.on_surface)
-		dark.border.set(c.dark.outline)
-		light.border.set(c.light.outline)
-		dark.bg.set(c.dark.surface)
-		light.bg.set(c.light.surface)
-		dark.fg.set(c.dark.on_surface)
-		light.fg.set(c.light.on_surface)
-		dark.primary.bg.set(c.dark.primary)
-		light.primary.bg.set(c.light.primary)
-		dark.primary.fg.set(c.dark.on_primary)
-		light.primary.fg.set(c.light.on_primary)
-		dark.error.bg.set(c.dark.error)
-		light.error.bg.set(c.light.error)
-		dark.error.fg.set(c.dark.on_error)
-		light.error.fg.set(c.light.on_error)
+		matugenDebounce = timeout(300, async () => {
+			try {
+				const colors = await sh(`matugen --dry-run -j hex ${type} ${arg}`)
+				const c = JSON.parse(colors).colors as { light: Colors, dark: Colors }
+				const { dark, light } = options.theme
+
+				const updates = [
+					() => { dark.widget.set(c.dark.on_surface); light.widget.set(c.light.on_surface) },
+					() => { dark.border.set(c.dark.outline); light.border.set(c.light.outline) },
+					() => { dark.bg.set(c.dark.surface); light.bg.set(c.light.surface) },
+					() => { dark.fg.set(c.dark.on_surface); light.fg.set(c.light.on_surface) },
+					() => { dark.primary.bg.set(c.dark.primary); light.primary.bg.set(c.light.primary) },
+					() => { dark.primary.fg.set(c.dark.on_primary); light.primary.fg.set(c.light.on_primary) },
+					() => { dark.error.bg.set(c.dark.error); light.error.bg.set(c.light.error) },
+					() => { dark.error.fg.set(c.dark.on_error); light.error.fg.set(c.light.on_error) }
+				]
+
+				for (const update of updates) {
+					update()
+					await new Promise(resolve => setTimeout(resolve, 1))
+				}
+			} catch (error) {
+				console.error("Matugen color generation failed:", error)
+			} finally {
+				matugenDebounce = null
+			}
+		})
 	}
 }

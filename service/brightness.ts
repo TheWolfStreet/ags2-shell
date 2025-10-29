@@ -22,6 +22,7 @@ export default class Brightness extends GObject.Object {
 	#displayMax = get("max")
 	#display = get("get") / (get("max") || 1)
 	#displayAvailable = display.length != 0
+	#kbdIntervalId: number | null = null
 
 	constructor() {
 		super()
@@ -97,12 +98,20 @@ export default class Brightness extends GObject.Object {
 
 	readonly #monitorKbd = async (path: string, callback: (v: number) => void, interval = 100) => {
 		let last = await readFileAsync(path)
-		setInterval(async () => {
+		this.#kbdIntervalId = setInterval(async () => {
 			const curr = await readFileAsync(path)
 			if (curr !== last) {
 				last = curr
 				callback(Number(curr))
 			}
 		}, interval)
+	}
+
+	vfunc_finalize() {
+		if (this.#kbdIntervalId) {
+			clearInterval(this.#kbdIntervalId)
+			this.#kbdIntervalId = null
+		}
+		super.vfunc_finalize()
 	}
 }

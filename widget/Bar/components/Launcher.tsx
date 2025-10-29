@@ -37,9 +37,9 @@ export namespace Launcher {
 	}
 
 	function updateRevealers(visibleApps: AstalApps.Application[]) {
+		const visibleNames = new Set(visibleApps.map(app => app.get_name()))
 		appRevealers.forEach((revealer, appName) => {
-			const isVisible = visibleApps.some(app => app.get_name() === appName)
-			revealer.set_reveal_child(isVisible)
+			revealer.set_reveal_child(visibleNames.has(appName))
 		})
 	}
 
@@ -169,10 +169,31 @@ export namespace Launcher {
 			<box
 				orientation={VERTICAL}
 				$={b => {
+					let initialized = false
+
 					function populateApps() {
-						while (b.get_first_child()) b.remove(b.get_first_child()!)
-						desktopInfoCache.clear()
-						allApps.get().forEach(app => b.append(Entry(app, visibleApps, launch)))
+						if (initialized) {
+							const currentApps = new Set(Array.from(b).map(child => child.name))
+							const newApps = new Set(allApps.get().map(app => app.get_name()))
+
+							currentApps.forEach(name => {
+								if (!newApps.has(name)) {
+									const child = Array.from(b).find(c => c.name === name)
+									if (child) b.remove(child)
+									appRevealers.delete(name)
+									desktopInfoCache.delete(name)
+								}
+							})
+
+							allApps.get().forEach(app => {
+								if (!currentApps.has(app.get_name())) {
+									b.append(Entry(app, visibleApps, launch))
+								}
+							})
+						} else {
+							allApps.get().forEach(app => b.append(Entry(app, visibleApps, launch)))
+							initialized = true
+						}
 					}
 
 					populateApps()

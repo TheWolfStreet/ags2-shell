@@ -29,21 +29,11 @@ export type RowProps = FCProps<
 	}
 >
 
-export function Row({
-	opt,
-	title,
-	note,
-	type,
-	enums,
-	max,
-	min,
-}: RowProps) {
+export const Row = ({ opt, title, note, type, enums, max, min }: RowProps) => {
+	const isChanged = opt.as(v => v !== opt.getDefault())
+
 	return (
-		<box
-			class="row"
-			tooltipText={note ? `${note}` : ""}
-			$={(self) => { (self as any).opt = opt }}
-		>
+		<box class="row" tooltipText={note}>
 			<box orientation={VERTICAL} valign={CENTER}>
 				<label class="row-title" xalign={0} label={title} />
 				<label class="id" xalign={0} label={opt.id} />
@@ -52,25 +42,15 @@ export function Row({
 			<box hexpand />
 
 			<box valign={CENTER}>
-				<Setter
-					opt={opt}
-					type={type}
-					enums={enums}
-					max={max}
-					min={min}
-				/>
-				<box valign={CENTER}>
-					<button
-						class="reset"
-						valign={CENTER}
-						onClicked={() => opt.reset()}
-						sensitive={opt.as(
-							(v) => v !== opt.getDefault(),
-						)}
-					>
-						<image iconName={icons.ui.refresh} useFallback />
-					</button>
-				</box>
+				<Setter opt={opt} type={type} enums={enums} max={max} min={min} />
+				<button
+					class="reset"
+					valign={CENTER}
+					onClicked={() => opt.reset()}
+					sensitive={isChanged}
+				>
+					<image iconName={icons.ui.refresh} useFallback />
+				</button>
 			</box>
 		</box>
 	)

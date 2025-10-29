@@ -9,48 +9,51 @@ import { Opt } from "$lib/option"
 
 const { CENTER } = Gtk.Align
 
-const filter = new Gtk.FileFilter()
-filter.add_mime_type('image/*')
+const imageFilter = (() => {
+	const filter = new Gtk.FileFilter()
+	filter.add_mime_type('image/*')
+	return filter
+})()
 
-function toHex(rgba: Gdk.RGBA) {
+const toHex = (rgba: Gdk.RGBA) => {
 	const { red, green, blue } = rgba
 	return `#${[red, green, blue]
-		.map((n) => Math.floor(255 * n).toString(16).padStart(2, '0'))
+		.map(n => Math.floor(255 * n).toString(16).padStart(2, '0'))
 		.join('')}`
 }
 
-function EnumSetter(opt: Opt<string>, values: string[]) {
+const EnumSetter = (opt: Opt<string>, values: string[]) => {
 	const step = (dir: 1 | -1) => {
-		const i = values.findIndex(i => i === opt.get())
-		opt.set(dir > 0
-			? i + dir > values.length - 1 ? values[0] : values[i + dir]
-			: i + dir < 0 ? values[values.length - 1] : values[i + dir],
-		)
+		const i = values.findIndex(v => v === opt.get())
+		const nextIndex = dir > 0
+			? (i + 1) % values.length
+			: (i - 1 + values.length) % values.length
+		opt.set(values[nextIndex])
 	}
 	return (
 		<box class="enum-setter">
-			<label label={opt}></label>
+			<label label={opt} />
 			<button onClicked={() => step(-1)}>
-				<box>
-					<image iconName={icons.ui.arrow.left} />
-				</box>
+				<image iconName={icons.ui.arrow.left} />
 			</button>
-			<button onClicked={() => step(+1)}>
-				<box>
-					<image iconName={icons.ui.arrow.right} />
-				</box>
+			<button onClicked={() => step(1)}>
+				<image iconName={icons.ui.arrow.right} />
 			</button>
 		</box>
 	)
 }
 
-export default function Setter({
-	opt,
-	type = (typeof opt.get() as unknown) as RowProps["type"],
-	enums,
-	max = 1000,
-	min = 0,
+export default function Setter({opt, type, enums, max = 1000, min = 0,
 }: RowProps) {
+	if (!type) {
+		const value = opt.get()
+		const valueType = typeof value
+
+		if (valueType === "boolean") type = "boolean"
+		else if (valueType === "number") type = "number"
+		else if (valueType === "string") type = "string"
+		else type = "object"
+	}
 	switch (type) {
 		case "number": {
 			return (
@@ -58,8 +61,7 @@ export default function Setter({
 					valign={CENTER}
 					adjustment={new Gtk.Adjustment({ lower: min, upper: max, stepIncrement: 1, pageIncrement: 5 })}
 					numeric
-					value={opt.as(v => v as number)}
-					onNotifyText={self => opt.set(self.value)}
+					value={opt}
 					onNotifyValue={self => opt.set(self.value)}
 				/>
 			)
@@ -85,7 +87,7 @@ export default function Setter({
 				<entry
 					valign={CENTER}
 					tooltipText={"Enter text"}
-					text={opt.as(v => v as string)}
+					text={opt}
 					onNotifyText={self => opt.set(self.get_text())}
 				/>
 			)
@@ -109,6 +111,7 @@ export default function Setter({
 							acceptLabel: "_Open",
 							cancelLabel: "_Cancel"
 						})
+						chooser.add_filter(imageFilter)
 
 						chooser.connect("response", (dialog, response) => {
 							if (response === Gtk.ResponseType.ACCEPT) {

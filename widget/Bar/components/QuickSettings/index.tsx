@@ -1,6 +1,7 @@
 import app from "ags/gtk4/app"
 import { Accessor, createBinding, createComputed, createState, For, Node } from "ags"
 import { monitorFile } from "ags/file"
+import { timeout } from "ags/time"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
 import AstalMpris from "gi://AstalMpris"
@@ -143,7 +144,6 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 		<box class="player" vexpand={false}>
 			<Gtk.Picture
 				class="cover-art"
-				// FIXME: Make it cover, not resize
 				paintable={cover.as(url => textureFromFile(url, 100, 100) as Gdk.Paintable)}
 				contentFit={COVER}
 			/>
@@ -222,84 +222,70 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 }
 
 export namespace QuickSettings {
+	const LAYOUT_MAP: Record<string, string> = {
+		"english": "en", "russian": "ru", "hebrew": "he", "arabic": "ar", "chinese": "zh",
+		"japanese": "ja", "korean": "ko", "french": "fr", "german": "de", "spanish": "es",
+		"italian": "it", "portuguese": "pt", "dutch": "nl", "polish": "pl", "turkish": "tr",
+		"greek": "el", "ukrainian": "uk", "czech": "cs", "slovak": "sk", "hungarian": "hu",
+		"romanian": "ro", "bulgarian": "bg", "croatian": "hr", "serbian": "sr", "slovene": "sl",
+		"latvian": "lv", "lithuanian": "lt", "estonian": "et", "finnish": "fi", "swedish": "sv",
+		"norwegian": "no", "danish": "da", "icelandic": "is", "thai": "th", "vietnamese": "vi",
+		"hindi": "hi", "bengali": "bn", "tamil": "ta", "telugu": "te", "urdu": "ur",
+		"persian": "fa", "farsi": "fa", "malayalam": "ml", "malagasy": "mg", "malay": "ms",
+		"swahili": "sw", "yoruba": "yo", "zulu": "zu", "amharic": "am", "mongolian": "mn",
+		"khmer": "km", "lao": "lo", "burmese": "my", "welsh": "cy", "irish": "ga",
+		"basque": "eu", "catalan": "ca", "galician": "gl", "albanian": "sq", "macedonian": "mk",
+		"bosnian": "bs", "montenegrin": "cnr", "belarusian": "be", "azerbaijani": "az",
+		"georgian": "ka", "armenian": "hy", "kazakh": "kk", "kyrgyz": "ky", "uzbek": "uz",
+		"tajik": "tg", "turkmen": "tk", "pashto": "ps", "dari": "prs", "kurdish": "ku",
+		"afrikaans": "af", "akan": "ak", "bambara": "bm", "berber": "ber", "chuvash": "cv",
+		"esperanto": "eo", "ewe": "ee", "faroese": "fo", "filipino": "fil", "friulian": "fur",
+		"fulah": "ff", "gagauz": "gag", "igbo": "ig", "ido": "io", "indonesian": "id",
+		"inuktitut": "iu", "javanese": "jv", "kannada": "kn", "kanuri": "kr", "kashmiri": "ks",
+		"kikuyu": "ki", "kinyarwanda": "rw", "komi": "kv", "maltese": "mt", "maori": "mi",
+		"marathi": "mr", "northern": "se", "yakut": "sah", "abkhazian": "ab", "asturian": "ast",
+		"avatime": "avt", "cherokee": "chr", "crimean": "crh", "dhivehi": "dv"
+	}
+
 	namespace State {
-		const ISO639 = {
-			"abkh": "ab",		// Abkhazian
-			"astu": "ast",	// Asturian
-			"avat": "avt",	// Avatime
-			"akan": "ak",		// Akan
-			"alba": "sq",		// Albanian
-			"arme": "hy",		// Armenian
-			"bamb": "bm",		// Bambara
-			"banb": "bn",		// Bangla
-			"berb": "ber",	// Berber
-			"bosn": "bs",		// Bosnian
-			"bulg": "bg",		// Bulgarian
-			"burm": "my",		// Burmese
-			"cher": "chr",	// Cherokee
-			"chin": "zh",		// Chinese
-			"chuv": "cv",		// Chuvash
-			"crim": "crh",	// Crimean Tatar
-			"croa": "hr",		// Croatian
-			"czec": "cs",		// Czech
-			"dari": "prs",	// Dari
-			"dhiv": "dv",		// Dhivehi
-			"dutc": "nl",		// Dutch
-			"esper": "eo",	// Esperanto
-			"esto": "et",		// Estonian
-			"ewe": "ee",		// Ewe
-			"faro": "fo",		// Faroese
-			"fili": "fil",  // Filipino
-			"friu": "fur",	// Friulian
-			"fula": "ff",		// Fulah
-			"ga": "gaa",		// Ga
-			"gaga": "gag",	// Gagauz
-			"geor": "ka",		// Georgian
-			"germ": "de",		// German
-			"gree": "el",		// Greek
-			"igbo": "ig",		// Igbo
-			"icel": "is",		// Icelandic
-			"ido": "io",		// Ido
-			"indo": "id",		// Indonesian
-			"inuk": "iu",		// Inuktitut
-			"iris": "ga",		// Irish
-			"java": "jv",		// Javanese
-			"kann": "kn",		// Kannada
-			"kanu": "kr",		// Kanuri
-			"kash": "ks",		// Kashmiri
-			"kaza": "kk",		// Kazakh
-			"khme": "km",		// Khmer
-			"kiku": "ki",		// Kikuyu
-			"kiny": "rw",		// Kinyarwanda
-			"kirg": "ky",		// Kirghiz
-			"komi": "kv",		// Komi
-			"kurd": "ku",		// Kurdish
-			"lao": "lo",		// Lao
-			"latv": "lv",		// Latvian
-			"lith": "lt",		// Lithuanian
-			"mace": "mk",		// Macedonian
-			"malt": "mt",		// Maltese
-			"maor": "mi",		// Maori
-			"mara": "mr",		// Marathi
-			"mong": "mn",		// Mongolian
-			"nort": "se",		// Northern Sami
-			"port": "pt",		// Portuguese
-			"yaku": "sah",	// Yakut
+
+		function getLayout() {
+			const output = bashSync("hyprctl devices")
+			const lines = output.split('\n')
+			const layouts: string[] = []
+
+			for (const line of lines) {
+				if (line.includes('active keymap:')) {
+					const match = line.match(/active keymap:\s*(.+)/)
+					if (match) {
+						const fullLayout = match[1].trim()
+						const firstWord = fullLayout.split(/[\s(]/)[0].toLowerCase()
+						layouts.push(firstWord)
+					}
+				}
+			}
+
+			const layoutCounts = new Map<string, number>()
+			layouts.forEach(layout => {
+				layoutCounts.set(layout, (layoutCounts.get(layout) || 0) + 1)
+			})
+
+			let activeLayout = "us"
+			if (layoutCounts.size > 1) {
+				for (const [layout, count] of layoutCounts) {
+					if (count === 1) {
+						activeLayout = layout
+						break
+					}
+				}
+			} else if (layouts.length > 0) {
+				activeLayout = layouts[0]
+			}
+
+			return LAYOUT_MAP[activeLayout] || "us"
 		}
 
 		export function CurrentLayout() {
-			function getLayout() {
-				const layout = bashSync("hyprctl devices | awk '/active keymap:/{a[$3]++} END{min=NR; for(layout in a) if(a[layout]<min){min=a[layout]; minlayout=layout} print minlayout}'")
-					.toLowerCase()
-
-				if (layout == "malagasy") return "mg"
-				if (layout == "malay") return "ms"
-				if (layout == "malayalam") return "ml"
-
-				// @ts-ignore: Valid keys
-				return ISO639[layout.slice(0, 4)] || layout.slice(0, 2)
-			}
-
 			const [layout, set_layout] = createState(getLayout())
 			hypr.connect("keyboard-layout", () => set_layout(getLayout()))
 			return <label label={layout} />
