@@ -17,6 +17,7 @@ import { Network } from "widget/Bar/components/QuickSettings/components/Network"
 import { Date } from "widget/Bar/components/Date"
 import { OSD } from "widget/OSD"
 import { Dock } from "widget/Dock"
+import { Desktop } from "widget/Desktop"
 
 import { scr } from "$lib/services"
 
@@ -44,6 +45,7 @@ app.start({
 						<Bar gdkmonitor={monitor} />
 						<BarCorners gdkmonitor={monitor} />
 						<Dock.Window gdkmonitor={monitor} />
+						<Desktop.Window gdkmonitor={monitor} />
 					</This>
 				)}
 			</For>
