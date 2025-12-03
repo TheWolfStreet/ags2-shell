@@ -28,15 +28,7 @@ export namespace Workspaces {
 		const existing_ids = new Set(ws.map(w => w.id))
 		for (let id = 1; id <= total; id++) {
 			if (!existing_ids.has(id)) {
-				ws.push({
-					id,
-					get_id() { return this.id },
-					disconnect() { },
-					connect() { },
-					focus() { hypr.message_async(`dispatch workspace ${this.id}`, null) },
-					clients: [],
-					monitor: undefined,
-				} as any as AstalHyprland.Workspace)
+				ws.push(AstalHyprland.Workspace.dummy(id, null))
 			}
 		}
 		return ws.sort((a, b) => a.id - b.id)
