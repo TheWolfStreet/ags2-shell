@@ -3,7 +3,7 @@ import { Accessor, createBinding, createComputed, createState, For, onCleanup } 
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 
 import AstalApps from "gi://AstalApps"
-import Gio from "gi://Gio"
+import GioUnix from "gi://GioUnix"
 
 import { Placeholder } from "widget/shared/Placeholder"
 import { PopupWindow } from "widget/shared/PopupWindow"
@@ -26,12 +26,12 @@ const { CENTER, END } = Gtk.Align
 export namespace Launcher {
 	const allApps = createBinding(apps, "list").as(v => v.get_list())
 	const appRevealers = new Map<string, Gtk.Revealer>()
-	const desktopInfoCache = new Map<string, Gio.DesktopAppInfo | null>()
+	const desktopInfoCache = new Map<string, GioUnix.DesktopAppInfo | null>()
 
-	function getDesktopInfo(app: AstalApps.Application): Gio.DesktopAppInfo | undefined {
+	function getDesktopInfo(app: AstalApps.Application): GioUnix.DesktopAppInfo | undefined {
 		const appName = app.get_name()
 		if (!desktopInfoCache.has(appName)) {
-			desktopInfoCache.set(appName, Gio.DesktopAppInfo.new(app.get_entry()))
+			desktopInfoCache.set(appName, GioUnix.DesktopAppInfo.new(app.get_entry()))
 		}
 		return desktopInfoCache.get(appName) ?? undefined
 	}
