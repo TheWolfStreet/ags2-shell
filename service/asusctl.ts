@@ -14,19 +14,28 @@ export namespace Asusctl {
 export default class Asusctl extends GObject.Object {
 	declare static $gtype: GObject.GType<Asusctl>
 	static instance: Asusctl
-
 	static get_default() {
 		return this.instance ??= new Asusctl()
 	}
 
 	#profile: Asusctl.Profile = "Balanced"
 	#mode: Asusctl.Mode = "Hybrid"
-	#available: boolean = bashSync`which asusctl`.trim() !== ""
+	#available: boolean = false
 
 	constructor() {
 		super()
-		if (!this.#available) return
-		this.init()
+		try {
+			const hasAsusctl = bashSync`which asusctl`.trim() !== ""
+			const asusdRunning = hasAsusctl && bashSync`pgrep -x asusd`.trim() !== ""
+			this.#available = asusdRunning
+		} catch {
+			this.#available = false
+		}
+		if (this.#available) {
+			this.init().catch(() => {
+				this.#available = false
+			})
+		}
 	}
 
 	@getter(Array)
@@ -56,48 +65,66 @@ export default class Asusctl extends GObject.Object {
 	}
 
 	readonly setProfile = async (p: Asusctl.Profile) => {
-		await sh(`asusctl profile -P ${p}`)
-		this.#profile = p
-		this.notify("profile")
-		this.updMonitorCfg()
+		if (!this.#available) return
+		try {
+			await sh`asusctl profile -P ${p}`
+			this.#profile = p
+			this.notify("profile")
+			this.updMonitorCfg()
+		} catch {
+			this.#available = false
+		}
 	}
 
 	readonly nextProfile = async () => {
 		if (!this.#available) return
-		await sh("asusctl profile -n")
-		const output = await sh("asusctl profile -p")
-		const p = output.split(" ")[5] as Asusctl.Profile
-		this.#profile = p
-		this.notify("profile")
-		this.updMonitorCfg()
+		try {
+			await sh("asusctl profile -n")
+			const output = await sh("asusctl profile -p")
+			const p = output.split(" ")[5] as Asusctl.Profile
+			this.#profile = p
+			this.notify("profile")
+			this.updMonitorCfg()
+		} catch {
+			this.#available = false
+		}
 	}
 
 	readonly nextMode = async () => {
 		if (!this.#available) return
-		const newMode = this.#mode === "Hybrid" ? "Integrated" : "Hybrid"
-		await sh(`supergfxctl -m ${newMode}`)
-		const modeOut = await sh("supergfxctl -g")
-		this.#mode = modeOut as Asusctl.Mode
-		this.notify("mode")
+		try {
+			const newMode = this.#mode === "Hybrid" ? "Integrated" : "Hybrid"
+			await sh`supergfxctl -m ${newMode}`
+			const modeOut = await sh("supergfxctl -g")
+			this.#mode = modeOut as Asusctl.Mode
+			this.notify("mode")
+		} catch {
+			this.#available = false
+		}
 	}
 
 	readonly updMonitorCfg = async () => {
-		const cmd = this.#profile === "Quiet"
-			? `keyword monitor eDP-1,1920x1200@${options.asus.bat_hz.get()},0x0,1`
-			: `keyword monitor eDP-1,1920x1200@${options.asus.ac_hz.get()},0x0,1`
-
-		hypr.message_async(cmd, null)
+		if (!this.#available) return
+		try {
+			const cmd = this.#profile === "Quiet"
+				? `keyword monitor eDP-1,1920x1200@${options.asus.bat_hz.get()},0x0,1`
+				: `keyword monitor eDP-1,1920x1200@${options.asus.ac_hz.get()},0x0,1`
+			hypr.message_async(cmd, null)
+		} catch { }
 	}
 
 	readonly init = async () => {
-		const p = await sh("asusctl profile -p")
-		this.#profile = p.split(" ")[5] as Asusctl.Profile
-		this.notify("profile")
-
-		const mode = await sh("supergfxctl -g")
-		this.#mode = mode as Asusctl.Mode
-		this.notify("mode")
-
-		this.updMonitorCfg()
+		try {
+			const p = await sh("asusctl profile -p")
+			this.#profile = p.split(" ")[5] as Asusctl.Profile
+			this.notify("profile")
+			const mode = await sh("supergfxctl -g")
+			this.#mode = mode as Asusctl.Mode
+			this.notify("mode")
+			this.updMonitorCfg()
+		} catch {
+			this.#available = false
+			throw new Error("Asusctl initialization failed")
+		}
 	}
 }
