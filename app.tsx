@@ -46,6 +46,7 @@ app.start({
 						<BarCorners gdkmonitor={monitor} />
 						<Dock.Window gdkmonitor={monitor} />
 						<Desktop.Window gdkmonitor={monitor} />
+						<Desktop.ContextMenuWindow gdkmonitor={monitor} />
 					</This>
 				)}
 			</For>
