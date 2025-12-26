@@ -9,6 +9,7 @@ import { Props } from "$lib/utils"
 import options from "options"
 
 const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
+const { KEY_Escape } = Gdk
 
 export type Position =
 	'center' | 'top' | 'top-right' | 'top-center' | 'top-left' |
@@ -22,7 +23,7 @@ function onKeyHandler(
 	w: Gtk.Window,
 	onKey?: (ctrl: Gtk.EventControllerKey, keyval: number, code: number, mod: number, w: Gtk.Window) => void
 ) {
-	if (keyval === Gdk.KEY_Escape) w.hide()
+	if (keyval === KEY_Escape) w.hide()
 	if (onKey) onKey(ctrl, keyval, code, mod, w)
 }
 

@@ -1,56 +1,128 @@
 window#desktop {
-  all: unset;
+  .desktop-container {
+    padding: 40px 20px;
 
-  .desktop {
-    all: unset;
-    padding: 20px;
+    .desktop-icon {
+      padding: 10px;
+      margin: 5px;
+      border-radius: calc($radius * 0.8);
+      min-width: 80px;
+      min-height: 100px;
 
-    .desktop-container {
-      all: unset;
-      padding: 20px;
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+      }
 
-      .desktop-icon {
-        all: unset;
-        padding: 10px;
-        margin: 5px;
-        border-radius: calc($radius * 0.8);
-        min-width: 80px;
-        min-height: 100px;
+      &.selected {
+        background: rgba($primary-bg, 0.3);
+        box-shadow: inset 0 0 0 2px $primary-bg;
+        transform: scale(1.02);
+      }
 
-        &:hover {
-          background: rgba(255, 255, 255, 0.1);
-          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-        }
+      &.dragging {
+        opacity: 0.7;
+        transform: scale(1.05);
+      }
 
-        &.selected {
-          background: rgba($primary-bg, 0.3);
-          box-shadow: inset 0 0 0 1px $primary-bg;
-        }
+      image {
+        margin-bottom: 4px;
+      }
 
-        &.dragging {
-          opacity: 0.7;
-          transform: scale(1.05);
-        }
-
-        image {
-          margin-bottom: 4px;
-        }
-
-        .desktop-icon-label {
-          font-size: 1.1em;
-          color: white;
-          text-shadow:
-            -1px -1px 0 black,
-            1px -1px 0 black,
-            -1px 1px 0 black,
-            1px 1px 0 black,
-            0px -1px 0 black,
-            0px 1px 0 black,
-            -1px 0px 0 black,
-            1px 0px 0 black;
-          font-weight: 500;
-        }
+      .desktop-icon-label {
+        font-size: 1.1em;
+        color: white;
+        text-shadow:
+          -1px -1px 0 black,
+          1px -1px 0 black,
+          -1px 1px 0 black,
+          1px 1px 0 black,
+          0px -1px 0 black,
+          0px 1px 0 black,
+          -1px 0px 0 black,
+          1px 0px 0 black;
+        font-weight: 500;
       }
     }
+  }
+
+  .selection-rectangle {
+    background: rgba($primary-bg, 0.2);
+    border: 1px solid rgba($primary-bg, 0.6);
+    border-radius: 2px;
+  }
+
+  .desktop-context-menu {
+    background: $bg;
+    border-radius: calc($radius * 1.75);
+    padding: 4px 2px 2px 2px;
+    border: $border;
+    @if $shadows {
+      box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.2),
+        0 4px 20px rgba(0, 0, 0, 0.15),
+        0 1px 4px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    } @else {
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    button {
+      all: unset;
+      background: transparent;
+      border: none;
+      padding: $padding * 0.5 $padding * 2;
+      margin: 2px;
+      border-radius: 50%;
+      font-size: 0.9em;
+      color: $fg;
+      transition: background 200ms cubic-bezier(0.23, 1, 0.32, 1), color 200ms cubic-bezier(0.23, 1, 0.32, 1);
+      min-width: 100px;
+
+      &:hover {
+        background: $hover-bg;
+        color: $hover-fg;
+      }
+
+      &:active {
+        background: $hover-bg;
+      }
+
+      &:disabled {
+        opacity: 0.6;
+      }
+    }
+
+    separator {
+      background: rgba(255, 255, 255, 0.2);
+      margin: 4px 8px;
+      min-height: 1px;
+    }
+  }
+}
+
+window#desktop-context-menu {
+  background: transparent;
+
+  .contents {
+    button {
+      all: unset;
+      padding: $padding * 0.5 $padding * 2;
+      color: $fg;
+      background: transparent;
+      transition: $transition;
+
+      &:hover {
+        background: $hover-bg;
+        color: $hover-fg;
+      }
+
+      &:active {
+        background: $hover-bg;
+      }
+    }
+    @include floating-widget;
+    border-radius: $popover-radius * .5;
+    padding: $padding * .5;
   }
 }
