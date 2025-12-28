@@ -1,8 +1,6 @@
 import GObject, { getter, register, setter } from "ags/gobject"
-
 import { sh, bashSync } from "$lib/utils"
 import { hypr } from "$lib/services"
-
 import options from "options"
 
 export namespace Asusctl {
@@ -31,6 +29,7 @@ export default class Asusctl extends GObject.Object {
 		} catch {
 			this.#available = false
 		}
+
 		if (this.#available) {
 			this.init().catch(() => {
 				this.#available = false
@@ -67,7 +66,7 @@ export default class Asusctl extends GObject.Object {
 	readonly setProfile = async (p: Asusctl.Profile) => {
 		if (!this.#available) return
 		try {
-			await sh`asusctl profile -P ${p}`
+			await sh(`asusctl profile -P ${p}`)
 			this.#profile = p
 			this.notify("profile")
 			this.updMonitorCfg()
@@ -81,8 +80,8 @@ export default class Asusctl extends GObject.Object {
 		try {
 			await sh("asusctl profile -n")
 			const output = await sh("asusctl profile -p")
-			const p = output.split(" ")[5] as Asusctl.Profile
-			this.#profile = p
+			const match = output.match(/Active profile is (\w+)/)
+			this.#profile = match?.[1] as Asusctl.Profile
 			this.notify("profile")
 			this.updMonitorCfg()
 		} catch {
@@ -94,7 +93,7 @@ export default class Asusctl extends GObject.Object {
 		if (!this.#available) return
 		try {
 			const newMode = this.#mode === "Hybrid" ? "Integrated" : "Hybrid"
-			await sh`supergfxctl -m ${newMode}`
+			await sh(`supergfxctl -m ${newMode}`)
 			const modeOut = await sh("supergfxctl -g")
 			this.#mode = modeOut as Asusctl.Mode
 			this.notify("mode")
@@ -116,11 +115,14 @@ export default class Asusctl extends GObject.Object {
 	readonly init = async () => {
 		try {
 			const p = await sh("asusctl profile -p")
-			this.#profile = p.split(" ")[5] as Asusctl.Profile
+			const match = p.match(/Active profile is (\w+)/)
+			this.#profile = match?.[1] as Asusctl.Profile
 			this.notify("profile")
+
 			const mode = await sh("supergfxctl -g")
 			this.#mode = mode as Asusctl.Mode
 			this.notify("mode")
+
 			this.updMonitorCfg()
 		} catch {
 			this.#available = false

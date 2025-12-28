@@ -2,6 +2,8 @@ import GObject, { getter, register, setter } from "ags/gobject"
 import { monitorFile, readFileAsync } from "ags/file"
 import { exec, execAsync } from "ags/process"
 
+import GLib from "gi://GLib"
+
 import { bash } from "../lib/utils"
 
 const get = (args: string) => Number(exec(`brightnessctl ${args}`))
@@ -22,7 +24,7 @@ export default class Brightness extends GObject.Object {
 	#displayMax = get("max")
 	#display = get("get") / (get("max") || 1)
 	#displayAvailable = display.length != 0
-	#kbdIntervalId: number | null = null
+	#kbdIntervalId: GLib.Source | null = null
 
 	constructor() {
 		super()

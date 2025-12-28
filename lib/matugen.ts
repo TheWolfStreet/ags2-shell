@@ -7,55 +7,61 @@ import options from "options"
 export namespace Matugen {
 	let matugenDebounce: any = null
 
+	type ColorValue = {
+		light: string
+		dark: string
+		default: string
+	}
+
 	type Colors = {
-		background: string
-		error: string
-		error_container: string
-		inverse_on_surface: string
-		inverse_primary: string
-		inverse_surface: string
-		on_background: string
-		on_error: string
-		on_error_container: string
-		on_primary: string
-		on_primary_container: string
-		on_primary_fixed: string
-		on_primary_fixed_variant: string
-		on_secondary: string
-		on_secondary_container: string
-		on_secondary_fixed: string
-		on_secondary_fixed_variant: string
-		on_surface: string
-		on_surface_variant: string
-		on_tertiary: string
-		on_tertiary_container: string
-		on_tertiary_fixed: string
-		on_tertiary_fixed_variant: string
-		outline: string
-		outline_variant: string
-		primary: string
-		primary_container: string
-		primary_fixed: string
-		primary_fixed_dim: string
-		scrim: string
-		secondary: string
-		secondary_container: string
-		secondary_fixed: string
-		secondary_fixed_dim: string
-		shadow: string
-		surface: string
-		surface_bright: string
-		surface_container: string
-		surface_container_high: string
-		surface_container_highest: string
-		surface_container_low: string
-		surface_container_lowest: string
-		surface_dim: string
-		surface_variant: string
-		tertiary: string
-		tertiary_container: string
-		tertiary_fixed: string
-		tertiary_fixed_dim: string
+		background: ColorValue
+		error: ColorValue
+		error_container: ColorValue
+		inverse_on_surface: ColorValue
+		inverse_primary: ColorValue
+		inverse_surface: ColorValue
+		on_background: ColorValue
+		on_error: ColorValue
+		on_error_container: ColorValue
+		on_primary: ColorValue
+		on_primary_container: ColorValue
+		on_primary_fixed: ColorValue
+		on_primary_fixed_variant: ColorValue
+		on_secondary: ColorValue
+		on_secondary_container: ColorValue
+		on_secondary_fixed: ColorValue
+		on_secondary_fixed_variant: ColorValue
+		on_surface: ColorValue
+		on_surface_variant: ColorValue
+		on_tertiary: ColorValue
+		on_tertiary_container: ColorValue
+		on_tertiary_fixed: ColorValue
+		on_tertiary_fixed_variant: ColorValue
+		outline: ColorValue
+		outline_variant: ColorValue
+		primary: ColorValue
+		primary_container: ColorValue
+		primary_fixed: ColorValue
+		primary_fixed_dim: ColorValue
+		scrim: ColorValue
+		secondary: ColorValue
+		secondary_container: ColorValue
+		secondary_fixed: ColorValue
+		secondary_fixed_dim: ColorValue
+		shadow: ColorValue
+		surface: ColorValue
+		surface_bright: ColorValue
+		surface_container: ColorValue
+		surface_container_high: ColorValue
+		surface_container_highest: ColorValue
+		surface_container_low: ColorValue
+		surface_container_lowest: ColorValue
+		surface_dim: ColorValue
+		surface_variant: ColorValue
+		tertiary: ColorValue
+		tertiary_container: ColorValue
+		tertiary_fixed: ColorValue
+		tertiary_fixed_dim: ColorValue
 	}
 
 	export async function init() {
@@ -75,18 +81,18 @@ export namespace Matugen {
 		matugenDebounce = timeout(300, async () => {
 			try {
 				const colors = await sh(`matugen --dry-run -j hex ${type} ${arg}`)
-				const c = JSON.parse(colors).colors as { light: Colors, dark: Colors }
+				const c = JSON.parse(colors).colors as Colors
 				const { dark, light } = options.theme
 
 				const updates = [
-					() => { dark.widget.set(c.dark.on_surface); light.widget.set(c.light.on_surface) },
-					() => { dark.border.set(c.dark.outline); light.border.set(c.light.outline) },
-					() => { dark.bg.set(c.dark.surface); light.bg.set(c.light.surface) },
-					() => { dark.fg.set(c.dark.on_surface); light.fg.set(c.light.on_surface) },
-					() => { dark.primary.bg.set(c.dark.primary); light.primary.bg.set(c.light.primary) },
-					() => { dark.primary.fg.set(c.dark.on_primary); light.primary.fg.set(c.light.on_primary) },
-					() => { dark.error.bg.set(c.dark.error); light.error.bg.set(c.light.error) },
-					() => { dark.error.fg.set(c.dark.on_error); light.error.fg.set(c.light.on_error) }
+					() => { dark.widget.set(c.on_surface.dark); light.widget.set(c.on_surface.light) },
+					() => { dark.border.set(c.outline.dark); light.border.set(c.outline.light) },
+					() => { dark.bg.set(c.surface.dark); light.bg.set(c.surface.light) },
+					() => { dark.fg.set(c.on_surface.dark); light.fg.set(c.on_surface.light) },
+					() => { dark.primary.bg.set(c.primary.dark); light.primary.bg.set(c.primary.light) },
+					() => { dark.primary.fg.set(c.on_primary.dark); light.primary.fg.set(c.on_primary.light) },
+					() => { dark.error.bg.set(c.error.dark); light.error.bg.set(c.error.light) },
+					() => { dark.error.fg.set(c.on_error.dark); light.error.fg.set(c.on_error.light) }
 				]
 
 				for (const update of updates) {

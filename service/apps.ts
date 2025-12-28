@@ -1,5 +1,4 @@
 import GObject, { register, getter } from "ags/gobject"
-import { timeout } from "ags/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
