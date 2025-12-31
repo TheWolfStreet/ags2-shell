@@ -9,7 +9,7 @@ namespace Store {
 	export const path = `${env.paths.cache}/options.json`
 
 	let saveDebounce: Timer | null = null
-	let cache: Record<string, any> | null = null
+	let cache: Record<string, unknown> | null = null
 
 	function ensureLoaded() {
 		if (cache !== null) return
@@ -20,13 +20,6 @@ namespace Store {
 		} catch {
 			cache = {}
 		}
-	}
-	try {
-		ensurePath(path)
-		const raw = readFile(path) || "{}"
-		cache = JSON.parse(raw)
-	} catch {
-		cache = {}
 	}
 
 	function scheduleSave() {
@@ -43,36 +36,36 @@ namespace Store {
 		})
 	}
 
-	export function get(pathStr: string) {
+	export function get(pathStr: string): unknown {
 		ensureLoaded()
 		const parts = pathStr.split(".")
-		let node: any = cache
+		let node: Record<string, unknown> | null = cache
 		for (const part of parts) {
 			if (!node || typeof node !== "object") return undefined
-			node = node[part]
+			node = node[part] as Record<string, unknown> | null
 		}
 		return node
 	}
 
-	export function set(pathStr: string, value: any) {
+	export function set(pathStr: string, value: unknown): void {
 		ensureLoaded()
 		const parts = pathStr.split(".")
-		let node: any = cache
+		let node = cache as Record<string, unknown>
 		for (let i = 0; i < parts.length - 1; i++) {
 			if (!(parts[i] in node)) node[parts[i]] = {}
-			node = node[parts[i]]
+			node = node[parts[i]] as Record<string, unknown>
 		}
 		node[parts[parts.length - 1]] = value
 		scheduleSave()
 	}
 
-	export function del(pathStr: string) {
+	export function del(pathStr: string): void {
 		ensureLoaded()
 		const parts = pathStr.split(".")
-		let node: any = cache
+		let node = cache as Record<string, unknown>
 		for (let i = 0; i < parts.length - 1; i++) {
 			if (!(parts[i] in node)) return
-			node = node[parts[i]]
+			node = node[parts[i]] as Record<string, unknown>
 		}
 		delete node[parts[parts.length - 1]]
 		scheduleSave()
@@ -133,15 +126,15 @@ type Options<T> =
 
 export function mkOptions<T>(node: T, path = ""): Options<T> {
 	if (isStructured(node)) {
-		const newNode = {} as any
+		const newNode: Record<string, unknown> = {}
 
 		for (const key in node) {
 			if (Object.prototype.hasOwnProperty.call(node, key)) {
 				const subPath = path ? `${path}.${key}` : key
-				newNode[key] = mkOptions((node as any)[key], subPath)
+				newNode[key] = mkOptions(node[key], subPath)
 			}
 		}
-		return newNode
+		return newNode as Options<T>
 	}
 
 	const defaultVal = node
@@ -158,11 +151,11 @@ export function mkOptions<T>(node: T, path = ""): Options<T> {
 	return opt as Options<T>
 }
 
-export function setHandler(
-	opts: Options<any>,
+export function setHandler<T>(
+	opts: Options<T>,
 	deps: string[],
 	callback: () => void,
-) {
+): void {
 	if (opts instanceof Opt) {
 		if (deps.some(d => opts.id.startsWith(d))) opts.subscribe(callback)
 		return

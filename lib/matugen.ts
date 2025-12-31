@@ -1,11 +1,11 @@
 import { sh, dependencies, getFileSize } from "$lib/utils"
 import { wp } from "$lib/services"
-import { timeout } from "ags/time"
+import { timeout, Timer } from "ags/time"
 
 import options from "options"
 
 export namespace Matugen {
-	let matugenDebounce: any = null
+	let matugenDebounce: Timer | null = null
 
 	type ColorValue = {
 		light: string
@@ -84,21 +84,22 @@ export namespace Matugen {
 				const c = JSON.parse(colors).colors as Colors
 				const { dark, light } = options.theme
 
-				const updates = [
-					() => { dark.widget.set(c.on_surface.dark); light.widget.set(c.on_surface.light) },
-					() => { dark.border.set(c.outline.dark); light.border.set(c.outline.light) },
-					() => { dark.bg.set(c.surface.dark); light.bg.set(c.surface.light) },
-					() => { dark.fg.set(c.on_surface.dark); light.fg.set(c.on_surface.light) },
-					() => { dark.primary.bg.set(c.primary.dark); light.primary.bg.set(c.primary.light) },
-					() => { dark.primary.fg.set(c.on_primary.dark); light.primary.fg.set(c.on_primary.light) },
-					() => { dark.error.bg.set(c.error.dark); light.error.bg.set(c.error.light) },
-					() => { dark.error.fg.set(c.on_error.dark); light.error.fg.set(c.on_error.light) }
-				]
-
-				for (const update of updates) {
-					update()
-					await new Promise(resolve => setTimeout(resolve, 1))
-				}
+				dark.widget.set(c.on_surface.dark)
+				light.widget.set(c.on_surface.light)
+				dark.border.set(c.outline.dark)
+				light.border.set(c.outline.light)
+				dark.bg.set(c.surface.dark)
+				light.bg.set(c.surface.light)
+				dark.fg.set(c.on_surface.dark)
+				light.fg.set(c.on_surface.light)
+				dark.primary.bg.set(c.primary.dark)
+				light.primary.bg.set(c.primary.light)
+				dark.primary.fg.set(c.on_primary.dark)
+				light.primary.fg.set(c.on_primary.light)
+				dark.error.bg.set(c.error.dark)
+				light.error.bg.set(c.error.light)
+				dark.error.fg.set(c.on_error.dark)
+				light.error.fg.set(c.on_error.light)
 			} catch (error) {
 				console.error("Matugen color generation failed:", error)
 			} finally {

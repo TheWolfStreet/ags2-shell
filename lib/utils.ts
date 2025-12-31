@@ -44,13 +44,86 @@ export function getFileSize(filePath: string): number | null {
 }
 
 export function textureFromFile(filePath: string, width?: number, height?: number): Gdk.Texture | null {
-	if (!getFileSize(filePath)) return null
-
-	let pixbuf = GdkPixbuf.Pixbuf.new_from_file(filePath)
-	if (width && height) {
-		pixbuf = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)!
+	if (!getFileSize(filePath)) {
+		console.warn(`textureFromFile: File not found or empty: ${filePath}`)
+		return null
 	}
-	return Gdk.Texture.new_for_pixbuf(pixbuf)
+
+	try {
+		let pixbuf = GdkPixbuf.Pixbuf.new_from_file(filePath)
+		if (width && height) {
+			pixbuf = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)!
+		}
+		return Gdk.Texture.new_for_pixbuf(pixbuf)
+	} catch (e) {
+		console.error(`textureFromFile: Failed to load ${filePath}:`, e)
+		return null
+	}
+}
+
+export function textureFromUri(uri: string, width?: number, height?: number): Gdk.Texture | null {
+	if (!uri) return null
+
+	if (uri.startsWith("/") || uri.startsWith("file://")) {
+		const filePath = uri.startsWith("file://") ? uri.slice(7) : uri
+		return textureFromFile(filePath, width, height)
+	}
+
+	if (uri.startsWith("http://") || uri.startsWith("https://")) {
+		try {
+			const cacheDir = GLib.get_user_cache_dir() + "/ags2-shell/covers"
+			GLib.mkdir_with_parents(cacheDir, 0o755)
+
+			const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.MD5, uri, -1)
+			const cachePath = `${cacheDir}/${hash}`
+
+			if (fileExists(cachePath)) {
+				return textureFromFile(cachePath, width, height)
+			}
+
+			const file = Gio.File.new_for_uri(uri)
+			const destFile = Gio.File.new_for_path(cachePath)
+
+			try {
+				file.copy(destFile, Gio.FileCopyFlags.OVERWRITE, null, null)
+				return textureFromFile(cachePath, width, height)
+			} catch (e) {
+				console.error(`textureFromUri: Failed to download ${uri}:`, e)
+				return null
+			}
+		} catch (e) {
+			console.error(`textureFromUri: Error handling HTTP URL ${uri}:`, e)
+			return null
+		}
+	}
+
+	if (uri.startsWith("data:image/") || uri.includes("iVBORw0KGgo") || uri.includes("/9j/")) {
+		try {
+			const base64Data = uri.startsWith("data:") ? uri.split(",")[1] : uri
+			const cleaned = base64Data.replace(/\s/g, "")
+			const bytes = GLib.base64_decode(cleaned)
+
+			const loader = GdkPixbuf.PixbufLoader.new()
+			loader.write_bytes(bytes)
+			loader.close()
+
+			let pixbuf = loader.get_pixbuf()
+			if (!pixbuf) {
+				console.warn("textureFromUri: Failed to decode base64 data")
+				return null
+			}
+
+			if (width && height) {
+				pixbuf = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)!
+			}
+			return Gdk.Texture.new_for_pixbuf(pixbuf)
+		} catch (e) {
+			console.error(`textureFromUri: Failed to process base64 data:`, e)
+			return null
+		}
+	}
+
+	return null
 }
 
 export function fileExists(path: string) { return GLib.file_test(path, GLib.FileTest.EXISTS) }
@@ -121,7 +194,7 @@ export async function notify(opts: {
 			execAsync(result.split("\n")[1]).catch(() => null)
 		}
 		return retId
-	} catch (error: any) {
+	} catch {
 		return undefined
 	}
 }
@@ -141,7 +214,7 @@ export function ignoreInput(widget: Gtk.Window) {
 }
 
 export function onWindowToggle(name: string, callback: (w: Gtk.Window) => void) {
-	app.connect("window-toggled", (_: any, w: Gtk.Window) => {
+	app.connect("window-toggled", (_, w: Gtk.Window) => {
 		if (w.name === name) {
 			callback(w)
 		}
@@ -236,7 +309,7 @@ export function bashSync(strings: TemplateStringsArray | string, ...values: unkn
 }
 
 export async function sh(cmd: string | string[]) {
-	return execAsync(cmd).catch((err: any) => {
+	return execAsync(cmd).catch((err: unknown) => {
 		console.error(typeof cmd === "string" ? cmd : cmd.join(" "), err)
 		return ""
 	})

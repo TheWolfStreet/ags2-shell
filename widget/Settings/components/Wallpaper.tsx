@@ -44,8 +44,8 @@ export default function Wallpaper() {
 				const file = dialog.open_finish(result)
 				const filename = file ? file.get_path() : null
 				if (filename) wp.set_wallpaper(filename)
-			} catch (e: any) {
-				if (e.code !== Gtk.DialogError.DISMISSED) throw e
+			} catch (e: unknown) {
+				if (e && typeof e === 'object' && 'code' in e && e.code !== Gtk.DialogError.DISMISSED) throw e
 			}
 		})
 	}
