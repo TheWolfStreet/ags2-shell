@@ -5,14 +5,6 @@
   background-color: $bg;
   padding: $padding * .3;
 
-  .tasks .focused {
-    background-color: $primary-bg;
-    border-radius: $radius;
-    padding: 1.25pt;
-    margin-top: 1pt;
-    margin-bottom: 1pt;
-  }
-
   .panel-button { 
     @include panel-button;
   }
@@ -76,16 +68,6 @@
         &.active { background-color: $primary-fg; }
       }
     }
-  }
-
-  .media box { @include spacing(.5); }
-
-  .recorder {
-    .horizontal { @include spacing(.5); }
-
-    image { color: color.scale($error-bg, $alpha: -30%); }
-    &:hover image { color: color.scale($error-bg, $alpha: -15%); }
-    &:active image { color: $primary-fg; }
   }
 
   .quicksettings box { @include spacing(1.5); }

@@ -6,7 +6,7 @@ import AstalNotifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
 import Pango from "gi://Pango"
 
-import { PanelButton } from "./PanelButton"
+import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
 import { notifd } from "$lib/services"

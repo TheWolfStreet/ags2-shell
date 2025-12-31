@@ -7,7 +7,7 @@ import GioUnix from "gi://GioUnix"
 
 import { Placeholder } from "widget/shared/Placeholder"
 import { PopupWindow } from "widget/shared/PopupWindow"
-import { PanelButton } from "./PanelButton"
+import { PanelButton } from "../PanelButton"
 
 import { apps } from "$lib/services"
 import icons from "$lib/icons"

@@ -5,6 +5,7 @@ import { exec, execAsync } from "ags/process"
 import GLib from "gi://GLib"
 
 import { bash } from "../lib/utils"
+import { getBrightnessIcon } from "../lib/icons"
 
 const get = (args: string) => Number(exec(`brightnessctl ${args}`))
 const display = await bash`ls -w1 /sys/class/backlight | head -1`
@@ -59,12 +60,7 @@ export default class Brightness extends GObject.Object {
 
 	@getter(String)
 	get kbdIcon(): string {
-		if (this.#kbd == 0) {
-			return "keyboard-brightness-off-symbolic"
-		} else if (this.#kbd == .5) {
-			return "keyboard-brightness-medium-symbolic"
-		}
-		return "keyboard-brightness-high-symbolic"
+		return getBrightnessIcon(this.#kbd, "keyboard")
 	}
 
 	@getter(Number)
@@ -89,12 +85,7 @@ export default class Brightness extends GObject.Object {
 
 	@getter(String)
 	get iconName(): string {
-		if (this.#display < 0.4) {
-			return "display-brightness-low-symbolic"
-		} else if (this.#display < 0.8) {
-			return "display-brightness-medium-symbolic"
-		}
-		return "display-brightness-high-symbolic"
+		return getBrightnessIcon(this.#display, "screen")
 	}
 
 

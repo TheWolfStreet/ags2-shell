@@ -1,0 +1,26 @@
+@use 'sass:color';
+
+.colorpicker {
+  @include spacing (.5);
+  padding: $padding * .5;
+}
+
+.bar .tasks .focused {
+  background-color: $primary-bg;
+  border-radius: $radius;
+  padding: 1.25pt;
+  margin-top: 1pt;
+  margin-bottom: 1pt;
+}
+
+.bar .media box {
+  @include spacing(.5);
+}
+
+.bar .recorder {
+  .horizontal { @include spacing(.5); }
+
+  image { color: color.scale($error-bg, $alpha: -30%); }
+  &:hover image { color: color.scale($error-bg, $alpha: -15%); }
+  &:active image { color: $primary-fg; }
+}

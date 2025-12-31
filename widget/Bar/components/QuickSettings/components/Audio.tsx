@@ -8,7 +8,7 @@ import Pango from "gi://Pango"
 
 import { Arrow, Menu, Settings } from "./shared/MenuElements"
 
-import icons from "$lib/icons"
+import icons, { getIcon } from "$lib/icons"
 import { audio } from "$lib/services"
 import { dependencies } from "$lib/utils"
 
@@ -22,7 +22,7 @@ export namespace Audio {
 		return (
 			<box hexpand class="mixer-item horizontal">
 				<image
-					iconName={createBinding(node, "name")}
+					iconName={createBinding(node, "name").as(name => getIcon(name))}
 					tooltipText={createBinding(node, "description").as((d) => d || "")}
 					useFallback
 				/>
@@ -49,7 +49,7 @@ export namespace Audio {
 			<button hexpand onClicked={() => (endpoint.set_is_default(true))}>
 				<box class="sink-item horizontal">
 					<image
-						iconName={createBinding(endpoint, "icon")}
+						iconName={createBinding(endpoint, "icon").as(icon => getIcon(icon))}
 						tooltipText={createBinding(endpoint, "name")}
 						useFallback
 					/>
@@ -88,7 +88,7 @@ export namespace Audio {
 	export function SinkSelector() {
 		const nodes = createBinding(audio, "nodes").as(nodes => nodes.filter((n): n is AstalWp.Endpoint => n instanceof AstalWp.Endpoint && n.get_media_class() === AUDIO_SINK))
 		return (
-			<Menu name="device-selector" title="Device Selector" iconName={icons.audio.type.headset}>
+			<Menu name="device-selector" title="Device Selector" iconName={icons.audio.devices}>
 				<box orientation={VERTICAL}>
 					<box orientation={VERTICAL}>
 						<For each={nodes}>

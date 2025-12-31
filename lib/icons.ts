@@ -7,12 +7,26 @@ export const substitutes = {
 	"audio-headset-bluetooth": "audio-headphones-symbolic",
 	"audio-card-analog-usb": "audio-speakers-symbolic",
 	"audio-card-analog-pci": "audio-card-symbolic",
+	"audio-card-analog": "audio-card-symbolic",
+	"Playback": "sound-wave-alt-symbolic",
 	"preferences-system": "emblem-system-symbolic",
 	"com.github.Aylur.ags-symbolic": "controls-symbolic",
 	"com.github.Aylur.ags": "controls-symbolic",
 }
 
-export default {
+export function getIcon(name: string, fallback = "image-missing-symbolic"): string {
+	return substitutes[name as keyof typeof substitutes] || name || fallback
+}
+
+export function getBrightnessIcon(percent: number, type: "screen" | "keyboard" = "screen"): string {
+	const icons = type === "keyboard" ? iconList.brightness.keyboard : iconList.brightness.screen
+	if (percent === 0) return icons.off
+	if (percent < 0.4) return icons.low
+	if (percent < 0.8) return icons.medium
+	return icons.high
+}
+
+const iconList = {
 	missing: "image-missing-symbolic",
 	nix: {
 		nix: "nix-snowflake-symbolic",
@@ -30,7 +44,7 @@ export default {
 	ui: {
 		close: "window-close-symbolic",
 		projector: "display-projector-symbolic",
-		colorpicker: "color-select-symbolic",
+		colorpicker: "color-picker-symbolic",
 		info: "info-symbolic",
 		link: "external-link-symbolic",
 		lock: "system-lock-screen-symbolic",
@@ -46,10 +60,10 @@ export default {
 		warning: "dialog-warning-symbolic",
 		avatar: "avatar-default-symbolic",
 		arrow: {
-			right: "pan-end-symbolic",
-			left: "pan-start-symbolic",
-			down: "pan-down-symbolic",
-			up: "pan-up-symbolic",
+			right: "go-right-symbolic",
+			left: "go-left-symbolic",
+			down: "go-down-symbolic",
+			up: "go-up-symbolic",
 		},
 	},
 	audio: {
@@ -58,7 +72,8 @@ export default {
 			speaker: "speakers-symbolic",
 			card: "soundcard-symbolic",
 		},
-		mixer: "mixer-symbolic",
+		mixer: "window-sound-source-symbolic",
+		devices: "audio-headset-symbolic",
 	},
 	powerprofile: {
 		balanced: "power-profile-balanced-symbolic",
@@ -86,8 +101,18 @@ export default {
 	},
 	brightness: {
 		indicator: "display-brightness-symbolic",
-		keyboard: "keyboard-brightness-symbolic",
-		screen: "display-brightness-symbolic",
+		keyboard: {
+			off: "keyboard-brightness-off-symbolic",
+			low: "keyboard-brightness-low-symbolic",
+			medium: "keyboard-brightness-medium-symbolic",
+			high: "keyboard-brightness-high-symbolic",
+		},
+		screen: {
+			off: "display-brightness-off-symbolic",
+			low: "display-brightness-low-symbolic",
+			medium: "display-brightness-medium-symbolic",
+			high: "display-brightness-high-symbolic",
+		},
 	},
 	powermenu: {
 		sleep: "weather-clear-night-symbolic",
@@ -130,3 +155,5 @@ export default {
 		light: "display-brightness-symbolic",
 	},
 }
+
+export default iconList

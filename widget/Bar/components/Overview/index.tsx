@@ -7,7 +7,7 @@ import GObject from "ags/gobject"
 import AstalHyprland from "gi://AstalHyprland"
 
 import { PopupWindow } from "widget/shared/PopupWindow"
-import { PanelButton } from "./PanelButton"
+import { PanelButton } from "../PanelButton"
 
 import { getClientTitle, toggleWindow } from "$lib/utils"
 import { hypr } from "$lib/services"

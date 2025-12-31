@@ -4,8 +4,8 @@ import { createComputed } from "ags"
 
 import { Placeholder } from "widget/shared/Placeholder"
 import { PopupWindow, Position } from "widget/shared/PopupWindow"
-import { Notifications } from "./Notifications"
-import { PanelButton } from "./PanelButton"
+import { Notifications } from "../Notifications"
+import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
 import icons from "$lib/icons"

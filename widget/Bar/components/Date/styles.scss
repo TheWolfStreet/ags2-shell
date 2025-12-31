@@ -1,5 +1,5 @@
 @use 'sass:color';
-@import 'notifications.scss';
+@import '../Notifications/styles.scss';
 
 window#datemenu .datemenu {
   @include floating-widget;

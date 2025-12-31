@@ -3,7 +3,7 @@ import { createBinding, createComputed } from "ags"
 import { Astal, Gtk } from "ags/gtk4"
 
 import { PopupWindow, Position } from "widget/shared/PopupWindow"
-import { PanelButton } from "./PanelButton"
+import { PanelButton } from "../PanelButton"
 
 import { toggleWindow } from "$lib/utils"
 import { bat } from "$lib/services"

@@ -26,6 +26,13 @@ const configDir = (() => {
 		const unescaped = GLib.uri_unescape_string(url.slice(7), null)
 		if (!unescaped) throw new Error("Failed to unescape url")
 		const dir = GLib.path_get_dirname(unescaped)
+
+		const sourceRoot = GLib.build_filenamev([dir, '..'])
+		const widgetDir = GLib.build_filenamev([sourceRoot, 'widget'])
+		if (GLib.file_test(widgetDir, GLib.FileTest.IS_DIR)) {
+			return sourceRoot
+		}
+
 		const nixShared = GLib.build_filenamev([dir, '..', 'share'])
 		if (GLib.file_test(nixShared, GLib.FileTest.IS_DIR)) return nixShared
 	}

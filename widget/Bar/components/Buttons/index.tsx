@@ -6,7 +6,7 @@ import AstalTray from "gi://AstalTray"
 import AstalHyprland from "gi://AstalHyprland"
 import AstalMpris from "gi://AstalMpris"
 import Pango from "gi://Pango"
-import { PanelButton } from "./PanelButton"
+import { PanelButton } from "../PanelButton"
 
 import { cpick, hypr, media, scr, tray } from "$lib/services"
 import icons from "$lib/icons"
