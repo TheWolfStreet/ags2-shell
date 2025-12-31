@@ -129,7 +129,7 @@ export namespace Profiles {
 
 	export namespace State {
 		export function Power() {
-			if (!provider) return <box />
+			if (!provider) return <box visible={false} />
 
 			try {
 				const active = provider.getActive()
@@ -138,12 +138,12 @@ export namespace Profiles {
 				const visible = active.as(p => p !== off)
 				return <image iconName={icon} visible={visible} useFallback />
 			} catch {
-				return <box />
+				return <box visible={false} />
 			}
 		}
 
 		export function Asus() {
-			if (!asusctl.available) return <box />
+			if (!asusctl.available) return <box visible={false} />
 
 			try {
 				const mode = createBinding(asusctl, "mode")
@@ -156,7 +156,7 @@ export namespace Profiles {
 					/>
 				)
 			} catch {
-				return <box />
+				return <box visible={false} />
 			}
 		}
 	}
