@@ -1,0 +1,65 @@
+window#screen-corner:not(.hidden) {
+  --_shadow-size: var(--padding);
+  --_radius: var(--screen-corner-radius);
+  --_margin: 99px;
+  --_negative-margin: -99px;
+  transition: var(--transition);
+
+  box.shadow {
+    margin-right: var(--_negative-margin);
+    margin-left: var(--_negative-margin);
+    box-shadow: inset 0 0 var(--_shadow-size) 0 var(--shadow-color);
+  }
+
+  &.top box.shadow {
+    margin-bottom: var(--_negative-margin);
+  }
+
+  &.bottom box.shadow {
+    margin-top: var(--_negative-margin);
+  }
+
+  box.border {
+    transition: var(--transition);
+    margin-right: var(--_margin);
+    margin-left: var(--_margin);
+  }
+
+  &.top box.border {
+    border-top: var(--border-width) solid var(--bg);
+    border-bottom: none;
+  }
+
+  &.bottom box.border {
+    border-bottom: var(--border-width) solid var(--bg);
+    border-top: none;
+  }
+
+  box.corner {
+    box-shadow: 0 0 0 var(--border-width) var(--border-color);
+  }
+
+  &.corners box.border {
+    box-shadow: 0 0 0 var(--_radius) var(--bg);
+  }
+
+  &.corners.top box.border {
+    border-top-left-radius: var(--_radius);
+    border-top-right-radius: var(--_radius);
+  }
+
+  &.corners.bottom box.border {
+    border-bottom-left-radius: var(--_radius);
+    border-bottom-right-radius: var(--_radius);
+  }
+
+  &.corners.top box.corner {
+    border-top-left-radius: var(--_radius);
+    border-top-right-radius: var(--_radius);
+  }
+
+  &.corners.bottom box.corner {
+    border-bottom-left-radius: var(--_radius);
+    border-bottom-right-radius: var(--_radius);
+  }
+}

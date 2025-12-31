@@ -1,46 +1,19 @@
 import app from "ags/gtk4/app"
 import { writeFileAsync } from "ags/file"
-import { timeout } from "ags/time"
 
 import GLib from "gi://GLib"
 
 import env from "$lib/env"
 import { Opt, setHandler } from "$lib/option"
-import { bash, dependencies, fileExists, ensurePath } from "$lib/utils"
+import { fileExists } from "$lib/utils"
 
 import options from "options"
 
-const deps = ["font", "theme", "bar.corners", "bar.position"]
-const { dark, light, blur, blurOnLight, scheme, padding, spacing, radius, shadows, widget, border } = options.theme
+const deps = ["font", "theme", "bar.corners", "bar.position", "hyprland.gaps", "transition.duration"]
+const { dark, light, blur, blurOnLight, scheme, padding, spacing, radius, border, shadows, widget } = options.theme
 const popoverPaddingMul = 1.6
 
-let cssDebounce: any = null
-let lastVariables = ""
-
-const configDir = (() => {
-	const devDir = GLib.getenv('AGS2SHELL_STYLES')
-	if (devDir && GLib.file_test(devDir, GLib.FileTest.IS_DIR)) return devDir
-
-	const url = import.meta.url
-	if (url.startsWith('file://')) {
-		const unescaped = GLib.uri_unescape_string(url.slice(7), null)
-		if (!unescaped) throw new Error("Failed to unescape url")
-		const dir = GLib.path_get_dirname(unescaped)
-
-		const sourceRoot = GLib.build_filenamev([dir, '..'])
-		const widgetDir = GLib.build_filenamev([sourceRoot, 'widget'])
-		if (GLib.file_test(widgetDir, GLib.FileTest.IS_DIR)) {
-			return sourceRoot
-		}
-
-		const nixShared = GLib.build_filenamev([dir, '..', 'share'])
-		if (GLib.file_test(nixShared, GLib.FileTest.IS_DIR)) return nixShared
-	}
-
-	const cfg = GLib.build_filenamev([env.paths.cfg])
-	if (GLib.file_test(cfg, GLib.FileTest.IS_DIR)) return cfg
-	return ''
-})()
+const configDir = GLib.getenv('AGS2SHELL_STYLES') ?? env.paths.cfg
 
 const value = <T>(v: Opt<T> | T): T =>
 	v instanceof Opt ? v.get() : v
@@ -48,84 +21,87 @@ const value = <T>(v: Opt<T> | T): T =>
 const t = <T>(dark_val: Opt<T> | T, light_val: Opt<T> | T): T =>
 	value(scheme.get().includes("dark") ? dark_val : light_val)
 
-const $ = (name: string, val: string | Opt<any>) =>
-	`$${name}: ${value(val)};`
+export function resetCss() {
+	const css = GLib.build_filenamev([configDir, 'style', 'main.css'])
 
-const variables = () => {
-	const is_dark = scheme.get().includes("dark")
-	const blur_level = blur.get()
-	const bg = blur_level && (is_dark || blurOnLight.get())
-		? `transparentize(${t(dark.bg, light.bg)}, ${blur_level / 100})`
-		: t(dark.bg, light.bg)
+	if (!fileExists(css)) {
+		logError(new Error(`CSS file not found: ${css}`))
+		return
+	}
 
-	return [
-		'@use "sass:color";',
-		$("bg", bg), $("fg", t(dark.fg, light.fg)),
-		$("primary-bg", t(dark.primary.bg, light.primary.bg)),
-		$("primary-fg", t(dark.primary.fg, light.primary.fg)),
-		$("error-bg", t(dark.error.bg, light.error.bg)),
-		$("error-fg", t(dark.error.fg, light.error.fg)),
-		$("scheme", scheme),
-		$("padding", `${padding.get()}pt`),
-		$("spacing", `${spacing.get()}pt`),
-		$("radius", `${radius.get()}px`),
-		$("transition", `${options.transition.duration.get()}ms`),
-		$("shadows", `${shadows.get()}`),
-		$("widget-bg", `transparentize(${t(dark.widget, light.widget)}, ${widget.opacity.get() / 100})`),
-		$("hover-bg", `transparentize(${t(dark.widget, light.widget)}, ${(widget.opacity.get() * 0.9) / 100})`),
-		$("hover-fg", `lighten(${t(dark.fg, light.fg)}, 8%)`),
-		$("border-width", `${border.width.get()}px`),
-		$("border-color", `transparentize(${t(dark.border, light.border)}, ${border.opacity.get() / 100})`),
-		$("border", "$border-width solid $border-color"),
-		$("active-gradient", `linear-gradient(to right, ${t(dark.primary.bg, light.primary.bg)}, darken(${t(dark.primary.bg, light.primary.bg)}, 4%))`),
-		$("shadow-color", t("rgba(0,0,0,.6)", "rgba(0,0,0,.4)")),
-		$("text-shadow", t("2pt 2pt 2pt $shadow-color", "none")),
-		$("box-shadow", t("2pt 2pt 2pt 0 $shadow-color, inset 0 0 0 $border-width $border-color", "none")),
-		$("popover-border-color", `transparentize(${t(dark.border, light.border)}, ${Math.max((border.opacity.get() - 1) / 100, 0)})`),
-		$("popover-padding", `$padding * ${popoverPaddingMul}`),
-		$("popover-radius", radius.get() === 0 ? "0" : "$radius + $popover-padding"),
-		$("font-size", `${options.font.size.get()}pt`),
-		$("font-name", options.font.name.get()),
-		$("bar-position", options.bar.position.get()),
-		$("hyprland-gaps-multiplier", options.hyprland.gaps),
-		$("screen-corner-multiplier", `${options.bar.corners.get() * 0.01}`),
-	]
-}
+		const is_dark = scheme.get().includes("dark")
+		const blur_level = blur.get()
+		const bg = blur_level && (is_dark || blurOnLight.get())
+			? `color-mix(in srgb, ${t(dark.bg, light.bg)} ${Math.round((1 - blur_level / 100) * 100)}%, transparent)`
+			: t(dark.bg, light.bg)
 
-export async function resetCss() {
-	if (!dependencies("sass", "fd")) return
+		const gapsMultiplier = options.hyprland.gaps.get()
+		const cornerMultiplier = options.bar.corners.get() * 0.01
+		const screenCornerRadius = radius.get() * gapsMultiplier * cornerMultiplier
+		const popoverPadding = padding.get() * popoverPaddingMul
+		const popoverRadius = radius.get() + popoverPadding
 
-	const currentVars = variables().join("\n")
-	if (currentVars === lastVariables) return
+		const shadowColor = shadows.get()
+			? (is_dark ? "rgba(0, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.4)")
+			: "transparent"
 
-	if (cssDebounce) cssDebounce.cancel()
+		const primaryBg = t(dark.primary.bg, light.primary.bg)
 
-	cssDebounce = timeout(100, async () => {
-		try {
-			const vars = `${env.paths.tmp}variables.scss`
-			const scss = `${env.paths.tmp}main.scss`
-			const css = `${env.paths.tmp}main.css`
-
-			if (!fileExists(configDir)) {
-				throw new Error("Config directory missing");
-			}
-
-			const files = (await bash(`fd ".scss" ${configDir}`)).split(/\s+/)
-			ensurePath(env.paths.tmp)
-			writeFileAsync(vars, currentVars)
-			writeFileAsync(scss, [`@import '${vars}';`, ...files.map(f => `@import '${f}';`)].join("\n"))
-			await bash`sass ${scss} ${css}`
-			app.apply_css(css, false)
-			lastVariables = currentVars
-		} catch (err) {
-			logError(err)
-		} finally {
-			cssDebounce = null
+		const darkenColor = (color: string) => {
+			const match = color.match(/^#([0-9a-f]{6})$/i)
+			if (!match) return color
+			const hex = match[1]
+			const r = parseInt(hex.substr(0, 2), 16)
+			const g = parseInt(hex.substr(2, 2), 16)
+			const b = parseInt(hex.substr(4, 2), 16)
+			const darker = (c: number) => Math.round(c * 0.96)
+			return `#${[r, g, b].map(darker).map(c => c.toString(16).padStart(2, '0')).join('')}`
 		}
-	})
-}
 
-export async function initCss() {
+		const activeGradient = `linear-gradient(to right, ${primaryBg}, ${darkenColor(primaryBg)})`
+
+		const widgetColor = t(dark.widget, light.widget)
+		const widgetBg = `color-mix(in srgb, ${widgetColor} ${100 - widget.opacity.get()}%, transparent)`
+		const hoverBg = `color-mix(in srgb, ${widgetColor} ${100 - (widget.opacity.get() * 0.9)}%, transparent)`
+		const borderColor = `color-mix(in srgb, ${t(dark.border, light.border)} ${100 - border.opacity.get()}%, transparent)`
+		const popoverBorderColor = `color-mix(in srgb, ${t(dark.border, light.border)} ${100 - Math.max(border.opacity.get() - 1, 0)}%, transparent)`
+
+		const runtimeVars = [
+			`--bg: ${bg};`,
+			`--fg: ${t(dark.fg, light.fg)};`,
+			`--primary-bg: ${primaryBg};`,
+			`--primary-fg: ${t(dark.primary.fg, light.primary.fg)};`,
+			`--error-bg: ${t(dark.error.bg, light.error.bg)};`,
+			`--error-fg: ${t(dark.error.fg, light.error.fg)};`,
+			`--padding: ${padding.get()}pt;`,
+			`--spacing: ${spacing.get()}pt;`,
+			`--radius: ${radius.get()}px;`,
+			`--transition: ${options.transition.duration.get()}ms;`,
+			`--border-width: ${border.width.get()}px;`,
+			`--font-size: ${options.font.size.get()}pt;`,
+			`--font-name: ${options.font.name.get()};`,
+			`--screen-corner-radius: ${screenCornerRadius}px;`,
+			`--popover-padding: ${popoverPadding}pt;`,
+			`--popover-radius: ${popoverRadius}px;`,
+			`--shadow-color: ${shadowColor};`,
+			`--active-gradient: ${activeGradient};`,
+			`--widget-bg: ${widgetBg};`,
+			`--hover-bg: ${hoverBg};`,
+			`--border-color: ${borderColor};`,
+			`--popover-border-color: ${popoverBorderColor};`,
+		].join('\n')
+
+		const runtimeCss = `${env.paths.tmp}runtime-vars.css`
+		writeFileAsync(runtimeCss, `* {\n${runtimeVars}\n}\n`).then(() => {
+			GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+				app.apply_css(css, false)
+				app.apply_css(runtimeCss, false)
+				return GLib.SOURCE_REMOVE
+			})
+		})
+	}
+
+export function initCss() {
 	setHandler(options, deps, resetCss)
-	await resetCss()
+	resetCss()
 }

@@ -5,15 +5,15 @@
     all: unset;
   }
 
-  @if $top and $shadows {
+  @if $top {
     undershoot.top {
-      background: linear-gradient(to bottom, $bg, transparent, transparent, transparent, transparent, transparent);
+      background: linear-gradient(to bottom, var(--bg), transparent, transparent, transparent, transparent, transparent);
     }
   }
 
-  @if $bottom and $shadows {
+  @if $bottom {
     undershoot.bottom {
-      background: linear-gradient(to top, $bg, transparent, transparent, transparent, transparent, transparent);
+      background: linear-gradient(to top, var(--bg), transparent, transparent, transparent, transparent, transparent);
     }
   }
 
@@ -23,24 +23,24 @@
   }
 
   scrollbar.vertical {
-    transition: $transition;
-    background-color: color.scale($bg, $alpha: -70%);
+    transition: var(--transition);
+    background-color: color-mix(in srgb, var(--bg) 30%, transparent);
 
     &:hover {
-      background-color: color.scale($bg, $alpha: -30%);
+      background-color: color-mix(in srgb, var(--bg) 70%, transparent);
 
       slider {
-        background-color: color.scale($fg, $alpha: -30%);
+        background-color: color-mix(in srgb, var(--fg) 70%, transparent);
         min-width: .6em;
       }
     }
   }
 
   scrollbar.vertical slider {
-    background-color: color.scale($fg, $alpha: -50%);
-    border-radius: $radius;
+    background-color: color-mix(in srgb, var(--fg) 50%, transparent);
+    border-radius: var(--radius);
     min-width: .4em;
     min-height: 2em;
-    transition: $transition;
+    transition: var(--transition);
   }
 }

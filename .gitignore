@@ -1,3 +1,5 @@
 @girs/
 node_modules/
 result
+.ags-build.scss
+.sass-cache/

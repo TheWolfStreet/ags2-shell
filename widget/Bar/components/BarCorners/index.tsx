@@ -9,14 +9,14 @@ const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 const { EXCLUSIVE } = Astal.Exclusivity
 const { NONE } = Astal.Keymode
 
-const { corners, transparent } = options.bar
+const { corners, transparent, position } = options.bar
 
 export function BarCorners({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 
 	return (
 		<window
 			name="screen-corner"
-			class={corners.as(v => v ? "corners" : "")}
+			class={position.as(pos => `${corners.get() ? "corners" : ""} ${pos}`)}
 			visible={transparent.as(v => !v)}
 			keymode={NONE}
 			gdkmonitor={gdkmonitor}

@@ -1,5 +1,5 @@
 import { Gtk } from "ags/gtk4"
-import { Accessor, createComputed, Node } from "ags"
+import { Accessor, createComputed } from "ags"
 
 import icons from "$lib/icons"
 import { Opt } from "$lib/option"
@@ -7,25 +7,21 @@ import { Opt } from "$lib/option"
 const { START, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 
-const getOptsFromChildren = (children: JSX.Element | Array<JSX.Element>): Opt<any>[] => {
-	const nodes = Array.isArray(children) ? children : [children]
-	return nodes
-		.filter(child => child && typeof child === 'object' && 'props' in child)
-		.map(child => (child.props as any)?.opt)
-		.filter(opt => opt instanceof Opt)
-}
-
 export default function Group({
 	title,
 	visible = true,
-	children = []
+	children = [],
+	opts = []
 }: {
 	title: Accessor<string> | string
 	visible?: Accessor<boolean> | boolean
 	children?: JSX.Element | Array<JSX.Element>
+	opts?: Opt<any>[]
 }) {
-	const opts = getOptsFromChildren(children)
-	const anyChanged = createComputed(opts, () => opts.some(opt => opt.get() !== opt.getDefault()))
+	const anyChanged = opts.length > 0
+		? createComputed(opts, () => opts.some(opt => opt.get() !== opt.getDefault()))
+		: false
+
 	const resetGroup = () => opts.forEach(opt => opt.reset())
 
 	return (

@@ -1,0 +1,2674 @@
+* {
+  --hover-fg: color-mix(in srgb, var(--fg), white 8%);
+  --border: var(--border-width) solid var(--border-color);
+  font-size: var(--font-size);
+  font-family: var(--font-name);
+}
+
+window.dark {
+  --text-shadow: 2pt 2pt 2pt var(--shadow-color);
+  --box-shadow: 2pt 2pt 2pt 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
+}
+
+window.light {
+  --text-shadow: none;
+  --box-shadow: none;
+}
+
+separator.horizontal {
+  min-height: var(--border-width);
+}
+separator.vertical {
+  min-width: var(--border-width);
+}
+
+tooltip {
+  background-color: transparent;
+  border: none;
+}
+
+tooltip label {
+  background-color: var(--bg);
+  border-radius: var(--radius);
+  border: var(--border-width) solid var(--popover-border-color);
+  color: var(--fg);
+  padding: 8px;
+  margin: 4px;
+  box-shadow: 0 0 3px 0 var(--shadow-color);
+}
+
+window#screen-corner:not(.hidden) {
+  --_shadow-size: var(--padding);
+  --_radius: var(--screen-corner-radius);
+  --_margin: 99px;
+  --_negative-margin: -99px;
+  transition: var(--transition);
+}
+window#screen-corner:not(.hidden) box.shadow {
+  margin-right: var(--_negative-margin);
+  margin-left: var(--_negative-margin);
+  box-shadow: inset 0 0 var(--_shadow-size) 0 var(--shadow-color);
+}
+window#screen-corner:not(.hidden).top box.shadow {
+  margin-bottom: var(--_negative-margin);
+}
+window#screen-corner:not(.hidden).bottom box.shadow {
+  margin-top: var(--_negative-margin);
+}
+window#screen-corner:not(.hidden) box.border {
+  transition: var(--transition);
+  margin-right: var(--_margin);
+  margin-left: var(--_margin);
+}
+window#screen-corner:not(.hidden).top box.border {
+  border-top: var(--border-width) solid var(--bg);
+  border-bottom: none;
+}
+window#screen-corner:not(.hidden).bottom box.border {
+  border-bottom: var(--border-width) solid var(--bg);
+  border-top: none;
+}
+window#screen-corner:not(.hidden) box.corner {
+  box-shadow: 0 0 0 var(--border-width) var(--border-color);
+}
+window#screen-corner:not(.hidden).corners box.border {
+  box-shadow: 0 0 0 var(--_radius) var(--bg);
+}
+window#screen-corner:not(.hidden).corners.top box.border {
+  border-top-left-radius: var(--_radius);
+  border-top-right-radius: var(--_radius);
+}
+window#screen-corner:not(.hidden).corners.bottom box.border {
+  border-bottom-left-radius: var(--_radius);
+  border-bottom-right-radius: var(--_radius);
+}
+window#screen-corner:not(.hidden).corners.top box.corner {
+  border-top-left-radius: var(--_radius);
+  border-top-right-radius: var(--_radius);
+}
+window#screen-corner:not(.hidden).corners.bottom box.corner {
+  border-bottom-left-radius: var(--_radius);
+  border-bottom-right-radius: var(--_radius);
+}
+
+window#bar .battery.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#bar .battery.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar .battery.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar .battery.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#bar .battery.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar .battery.vertical > *:last-child {
+  margin-bottom: 0;
+}
+
+window#batterystate .batterystate {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+}
+window#batterystate .batterystate.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#batterystate .batterystate.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#batterystate .batterystate.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#batterystate .batterystate.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#batterystate .batterystate.vertical > *:first-child {
+  margin-top: 0;
+}
+window#batterystate .batterystate.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#batterystate .batterystate .percentage {
+  all: unset;
+}
+window#batterystate .batterystate .percentage * {
+  all: unset;
+}
+window#batterystate .batterystate .percentage trough {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  border: var(--border);
+  background-color: var(--widget-bg);
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+window#batterystate .batterystate .percentage trough highlight,
+window#batterystate .batterystate .percentage trough progress {
+  border-radius: max(var(--radius) - var(--border-width), 0px);
+  background-image: var(--active-gradient);
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+window#batterystate .batterystate .percentage slider {
+  box-shadow: none;
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  min-height: 0.5em;
+  min-width: 0.5em;
+  margin: -4em;
+}
+window#batterystate .batterystate .percentage:disabled highlight,
+window#batterystate .batterystate .percentage:disabled progress {
+  background-color: color-mix(in srgb, var(--fg) 60%, transparent);
+  background-image: none;
+}
+window#batterystate .batterystate .percentage trough {
+  border: none;
+}
+window#batterystate .batterystate label {
+  font-weight: bold;
+}
+
+.colorpicker.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+.colorpicker.horizontal > *:first-child {
+  margin-left: 0;
+}
+.colorpicker.horizontal > *:last-child {
+  margin-right: 0;
+}
+.colorpicker.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+.colorpicker.vertical > *:first-child {
+  margin-top: 0;
+}
+.colorpicker.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.colorpicker {
+  padding: calc(var(--padding) / 2);
+}
+
+.bar .tasks .focused {
+  background-color: var(--primary-bg);
+  border-radius: var(--radius);
+  padding: 1.25pt;
+  margin-top: 1pt;
+  margin-bottom: 1pt;
+}
+
+.bar .media box.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+.bar .media box.horizontal > *:first-child {
+  margin-left: 0;
+}
+.bar .media box.horizontal > *:last-child {
+  margin-right: 0;
+}
+.bar .media box.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+.bar .media box.vertical > *:first-child {
+  margin-top: 0;
+}
+.bar .media box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+
+.bar .recorder .horizontal.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+.bar .recorder .horizontal.horizontal > *:first-child {
+  margin-left: 0;
+}
+.bar .recorder .horizontal.horizontal > *:last-child {
+  margin-right: 0;
+}
+.bar .recorder .horizontal.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+.bar .recorder .horizontal.vertical > *:first-child {
+  margin-top: 0;
+}
+.bar .recorder .horizontal.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.bar .recorder image {
+  color: color-mix(in srgb, var(--error-bg) 70%, transparent);
+}
+.bar .recorder:hover image {
+  color: color-mix(in srgb, var(--error-bg) 85%, transparent);
+}
+.bar .recorder:active image {
+  color: var(--primary-fg);
+}
+
+window.notifications {
+  all: unset;
+}
+window.notifications .notification.critical {
+  box-shadow: inset 0 0 0.5em 0 var(--error-bg);
+}
+window.notifications .notification:hover button.close-button:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification:hover button.close-button {
+  background-color: color-mix(in srgb, var(--error-bg) 50%, transparent);
+}
+window.notifications .notification .header {
+  margin-bottom: calc(var(--spacing) / 2);
+}
+window.notifications .notification .header .time {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+window.notifications .notification .header .app-icon {
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: calc(var(--spacing) / 2);
+  min-height: 1.5em;
+  min-width: 1.5em;
+}
+window.notifications .notification .header.icon {
+  border: var(--border);
+}
+window.notifications .notification .header .app-name {
+  margin-right: var(--spacing);
+  letter-spacing: -0.5pt;
+  font-size: 0.9em;
+  color: var(--fg);
+}
+window.notifications .notification .content .summary {
+  margin-right: var(--spacing);
+  margin-bottom: calc(var(--spacing) / 2);
+  color: var(--fg);
+  font-weight: bold;
+}
+window.notifications .notification .content .body {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+window.notifications .notification .content .icon {
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: var(--spacing);
+  min-height: 1.5em;
+  min-width: 1.5em;
+}
+window.notifications .notification .content .icon.icon {
+  border: var(--border);
+}
+window.notifications .notification .actions.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.4);
+}
+window.notifications .notification .actions.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.notifications .notification .actions.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.notifications .notification .actions.vertical > * {
+  margin: calc(var(--spacing) * 0.4) 0;
+}
+window.notifications .notification .actions.vertical > *:first-child {
+  margin-top: 0;
+}
+window.notifications .notification .actions.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.notifications .notification .actions {
+  margin-top: var(--spacing);
+}
+window.notifications .notification .actions button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window.notifications .notification .actions button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification .actions button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification .actions button:active:not(popover), window.notifications .notification .actions button.on:not(popover), window.notifications .notification .actions button.active:not(popover), window.notifications .notification .actions button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window.notifications .notification .actions button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window.notifications .notification .actions button {
+  border-radius: calc(var(--radius) * 0.8);
+  font-size: 1.2em;
+  padding: calc(var(--padding) * 0.7);
+}
+window.notifications .notification button.close-button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window.notifications .notification button.close-button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification button.close-button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification button.close-button:active:not(popover), window.notifications .notification button.close-button.on:not(popover), window.notifications .notification button.close-button.active:not(popover), window.notifications .notification button.close-button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window.notifications .notification button.close-button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window.notifications .notification button.close-button {
+  border-radius: var(--radius);
+  padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
+  margin-left: calc(var(--spacing) / 2);
+}
+window.notifications .notification button.close-button:active {
+  background-image: none;
+}
+window.notifications .notification {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+  margin-bottom: 0;
+  border-radius: var(--radius);
+}
+window.notifications .notification .description {
+  min-width: 350px;
+}
+
+window#datemenu .datemenu {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+}
+window#datemenu .datemenu .notifications .notifications-header {
+  margin-bottom: calc(var(--padding) * 1.5);
+  margin-right: calc(var(--padding) * 1.5);
+}
+window#datemenu .datemenu .notifications .notifications-header button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#datemenu .datemenu .notifications .notifications-header button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .notifications .notifications-header button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .notifications .notifications-header button:active:not(popover), window#datemenu .datemenu .notifications .notifications-header button.on:not(popover), window#datemenu .datemenu .notifications .notifications-header button.active:not(popover), window#datemenu .datemenu .notifications .notifications-header button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#datemenu .datemenu .notifications .notifications-header button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#datemenu .datemenu .notifications .notifications-header button {
+  padding: calc(var(--padding) * 0.7) var(--padding);
+}
+window#datemenu .datemenu .notifications .notifications-header button box.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#datemenu .datemenu .notifications .notifications-header button box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#datemenu .datemenu .notifications .notifications-header button box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#datemenu .datemenu .notifications .notifications-header button box.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#datemenu .datemenu .notifications .notifications-header button box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#datemenu .datemenu .notifications .notifications-header button box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#datemenu .datemenu .notifications .notification-scrollable viewport {
+  all: unset;
+}
+window#datemenu .datemenu .notifications .notification-scrollable undershoot.top {
+  background: linear-gradient(to bottom, var(--bg), transparent, transparent, transparent, transparent, transparent);
+}
+window#datemenu .datemenu .notifications .notification-scrollable undershoot.bottom {
+  background: linear-gradient(to top, var(--bg), transparent, transparent, transparent, transparent, transparent);
+}
+window#datemenu .datemenu .notifications .notification-scrollable scrollbar,
+window#datemenu .datemenu .notifications .notification-scrollable scrollbar * {
+  all: unset;
+}
+window#datemenu .datemenu .notifications .notification-scrollable scrollbar.vertical {
+  transition: var(--transition);
+  background-color: color-mix(in srgb, var(--bg) 30%, transparent);
+}
+window#datemenu .datemenu .notifications .notification-scrollable scrollbar.vertical:hover {
+  background-color: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+window#datemenu .datemenu .notifications .notification-scrollable scrollbar.vertical:hover slider {
+  background-color: color-mix(in srgb, var(--fg) 70%, transparent);
+  min-width: 0.6em;
+}
+window#datemenu .datemenu .notifications .notification-scrollable scrollbar.vertical slider {
+  background-color: color-mix(in srgb, var(--fg) 50%, transparent);
+  border-radius: var(--radius);
+  min-width: 0.4em;
+  min-height: 2em;
+  transition: var(--transition);
+}
+window#datemenu .datemenu .notifications .notification-scrollable {
+  margin-right: calc(var(--padding) * 1.5);
+}
+window#datemenu .datemenu .notifications .notification {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+}
+window#datemenu .datemenu .notifications .notification.critical {
+  box-shadow: inset 0 0 0.5em 0 var(--error-bg);
+}
+window#datemenu .datemenu .notifications .notification:hover button.close-button:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .notifications .notification:hover button.close-button {
+  background-color: color-mix(in srgb, var(--error-bg) 50%, transparent);
+}
+window#datemenu .datemenu .notifications .notification .header {
+  margin-bottom: calc(var(--spacing) / 2);
+}
+window#datemenu .datemenu .notifications .notification .header .time {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+window#datemenu .datemenu .notifications .notification .header .app-icon {
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: calc(var(--spacing) / 2);
+  min-height: 1.5em;
+  min-width: 1.5em;
+}
+window#datemenu .datemenu .notifications .notification .header.icon {
+  border: var(--border);
+}
+window#datemenu .datemenu .notifications .notification .header .app-name {
+  margin-right: var(--spacing);
+  letter-spacing: -0.5pt;
+  font-size: 0.9em;
+  color: var(--fg);
+}
+window#datemenu .datemenu .notifications .notification .content .summary {
+  margin-right: var(--spacing);
+  margin-bottom: calc(var(--spacing) / 2);
+  color: var(--fg);
+  font-weight: bold;
+}
+window#datemenu .datemenu .notifications .notification .content .body {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+window#datemenu .datemenu .notifications .notification .content .icon {
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: var(--spacing);
+  min-height: 1.5em;
+  min-width: 1.5em;
+}
+window#datemenu .datemenu .notifications .notification .content .icon.icon {
+  border: var(--border);
+}
+window#datemenu .datemenu .notifications .notification .actions.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.4);
+}
+window#datemenu .datemenu .notifications .notification .actions.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#datemenu .datemenu .notifications .notification .actions.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#datemenu .datemenu .notifications .notification .actions.vertical > * {
+  margin: calc(var(--spacing) * 0.4) 0;
+}
+window#datemenu .datemenu .notifications .notification .actions.vertical > *:first-child {
+  margin-top: 0;
+}
+window#datemenu .datemenu .notifications .notification .actions.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#datemenu .datemenu .notifications .notification .actions {
+  margin-top: var(--spacing);
+}
+window#datemenu .datemenu .notifications .notification .actions button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#datemenu .datemenu .notifications .notification .actions button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .notifications .notification .actions button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .notifications .notification .actions button:active:not(popover), window#datemenu .datemenu .notifications .notification .actions button.on:not(popover), window#datemenu .datemenu .notifications .notification .actions button.active:not(popover), window#datemenu .datemenu .notifications .notification .actions button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#datemenu .datemenu .notifications .notification .actions button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#datemenu .datemenu .notifications .notification .actions button {
+  border-radius: calc(var(--radius) * 0.8);
+  font-size: 1.2em;
+  padding: calc(var(--padding) * 0.7);
+}
+window#datemenu .datemenu .notifications .notification button.close-button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#datemenu .datemenu .notifications .notification button.close-button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .notifications .notification button.close-button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .notifications .notification button.close-button:active:not(popover), window#datemenu .datemenu .notifications .notification button.close-button.on:not(popover), window#datemenu .datemenu .notifications .notification button.close-button.active:not(popover), window#datemenu .datemenu .notifications .notification button.close-button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#datemenu .datemenu .notifications .notification button.close-button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#datemenu .datemenu .notifications .notification button.close-button {
+  border-radius: var(--radius);
+  padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
+  margin-left: calc(var(--spacing) / 2);
+}
+window#datemenu .datemenu .notifications .notification button.close-button:active {
+  background-image: none;
+}
+window#datemenu .datemenu .notifications .notification {
+  padding: var(--padding);
+  margin-bottom: var(--spacing);
+}
+window#datemenu .datemenu separator {
+  background-color: var(--popover-border-color);
+  border-radius: var(--radius);
+  margin-right: calc(var(--padding) * 1.5);
+}
+window#datemenu .datemenu .datemenu.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#datemenu .datemenu .datemenu.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#datemenu .datemenu .datemenu.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#datemenu .datemenu .datemenu.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#datemenu .datemenu .datemenu.vertical > *:first-child {
+  margin-top: 0;
+}
+window#datemenu .datemenu .datemenu.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#datemenu .datemenu .clock-box .clock {
+  font-size: 5em;
+}
+window#datemenu .datemenu .clock-box .uptime {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+  margin-bottom: calc(var(--padding) * 2);
+}
+window#datemenu .datemenu .calendar {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+  padding: var(--padding) var(--padding) 0;
+}
+window#datemenu .datemenu .calendar calendar {
+  all: unset;
+  font-size: 1.1em;
+  padding: 0.3em;
+}
+window#datemenu .datemenu .calendar calendar button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#datemenu .datemenu .calendar calendar button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .calendar calendar button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#datemenu .datemenu .calendar calendar button:active:not(popover), window#datemenu .datemenu .calendar calendar button.on:not(popover), window#datemenu .datemenu .calendar calendar button.active:not(popover), window#datemenu .datemenu .calendar calendar button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#datemenu .datemenu .calendar calendar button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#datemenu .datemenu .calendar calendar button {
+  padding: calc(var(--padding) * 0.6);
+}
+window#datemenu .datemenu .calendar calendar label:selected {
+  background-color: var(--primary-bg);
+  border-radius: calc(var(--radius) * 0.6);
+}
+window#datemenu .datemenu .calendar calendar header {
+  background-color: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--fg) 50%, transparent);
+}
+window#datemenu .datemenu .calendar calendar .day-name {
+  background-color: transparent;
+  color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+}
+window#datemenu .datemenu .calendar calendar .other-month {
+  color: color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+window#launcher .launcher {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+}
+window#launcher .launcher .quicklaunch.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#launcher .launcher .quicklaunch.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#launcher .launcher .quicklaunch.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#launcher .launcher .quicklaunch.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#launcher .launcher .quicklaunch.vertical > *:first-child {
+  margin-top: 0;
+}
+window#launcher .launcher .quicklaunch.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#launcher .launcher .quicklaunch button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#launcher .launcher .quicklaunch button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#launcher .launcher .quicklaunch button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#launcher .launcher .quicklaunch button:active:not(popover), window#launcher .launcher .quicklaunch button.on:not(popover), window#launcher .launcher .quicklaunch button.active:not(popover), window#launcher .launcher .quicklaunch button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#launcher .launcher .quicklaunch button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#launcher .launcher .quicklaunch button {
+  padding: var(--padding);
+}
+window#launcher .launcher entry {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#launcher .launcher entry:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#launcher .launcher entry:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#launcher .launcher entry:active:not(popover), window#launcher .launcher entry.on:not(popover), window#launcher .launcher entry.active:not(popover), window#launcher .launcher entry:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#launcher .launcher entry:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#launcher .launcher entry {
+  padding: var(--padding);
+  margin: var(--spacing);
+}
+window#launcher .launcher entry selection {
+  color: color-mix(in srgb, var(--fg) 50%, var(--bg));
+  background-color: transparent;
+}
+window#launcher .launcher entry label, window#launcher .launcher entry image {
+  color: var(--fg);
+}
+window#launcher .launcher image.spinner {
+  color: var(--primary-bg);
+  margin-right: var(--spacing);
+}
+window#launcher .launcher separator {
+  margin: 4pt 0;
+  background-color: var(--popover-border-color);
+}
+window#launcher .launcher button.app-item {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#launcher .launcher button.app-item:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#launcher .launcher button.app-item {
+  padding: var(--padding);
+  transition: var(--transition);
+}
+window#launcher .launcher button.app-item > box.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#launcher .launcher button.app-item > box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#launcher .launcher button.app-item > box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#launcher .launcher button.app-item > box.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#launcher .launcher button.app-item > box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#launcher .launcher button.app-item > box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#launcher .launcher button.app-item label {
+  transition: var(--transition);
+}
+window#launcher .launcher button.app-item label.title {
+  color: var(--fg);
+}
+window#launcher .launcher button.app-item label.description {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+window#launcher .launcher button.app-item image {
+  transition: var(--transition);
+}
+window#launcher .launcher button.app-item:hover .title, window#launcher .launcher button.app-item:focus .title {
+  color: var(--primary-bg);
+}
+window#launcher .launcher button.app-item:hover .description, window#launcher .launcher button.app-item:focus .description {
+  color: color-mix(in srgb, var(--primary-bg) 60%, transparent);
+}
+window#launcher .launcher button.app-item:hover image, window#launcher .launcher button.app-item:focus image {
+  -gtk-icon-shadow: 2px 2px var(--primary-bg);
+}
+window#launcher .launcher button.app-item:active {
+  background-color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#launcher .launcher button.app-item:active .title {
+  color: var(--fg);
+}
+window#launcher .launcher .launch-hint {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+
+window.notifications {
+  all: unset;
+}
+window.notifications .notification.critical {
+  box-shadow: inset 0 0 0.5em 0 var(--error-bg);
+}
+window.notifications .notification:hover button.close-button:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification:hover button.close-button {
+  background-color: color-mix(in srgb, var(--error-bg) 50%, transparent);
+}
+window.notifications .notification .header {
+  margin-bottom: calc(var(--spacing) / 2);
+}
+window.notifications .notification .header .time {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+window.notifications .notification .header .app-icon {
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: calc(var(--spacing) / 2);
+  min-height: 1.5em;
+  min-width: 1.5em;
+}
+window.notifications .notification .header.icon {
+  border: var(--border);
+}
+window.notifications .notification .header .app-name {
+  margin-right: var(--spacing);
+  letter-spacing: -0.5pt;
+  font-size: 0.9em;
+  color: var(--fg);
+}
+window.notifications .notification .content .summary {
+  margin-right: var(--spacing);
+  margin-bottom: calc(var(--spacing) / 2);
+  color: var(--fg);
+  font-weight: bold;
+}
+window.notifications .notification .content .body {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+window.notifications .notification .content .icon {
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: var(--spacing);
+  min-height: 1.5em;
+  min-width: 1.5em;
+}
+window.notifications .notification .content .icon.icon {
+  border: var(--border);
+}
+window.notifications .notification .actions.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.4);
+}
+window.notifications .notification .actions.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.notifications .notification .actions.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.notifications .notification .actions.vertical > * {
+  margin: calc(var(--spacing) * 0.4) 0;
+}
+window.notifications .notification .actions.vertical > *:first-child {
+  margin-top: 0;
+}
+window.notifications .notification .actions.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.notifications .notification .actions {
+  margin-top: var(--spacing);
+}
+window.notifications .notification .actions button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window.notifications .notification .actions button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification .actions button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification .actions button:active:not(popover), window.notifications .notification .actions button.on:not(popover), window.notifications .notification .actions button.active:not(popover), window.notifications .notification .actions button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window.notifications .notification .actions button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window.notifications .notification .actions button {
+  border-radius: calc(var(--radius) * 0.8);
+  font-size: 1.2em;
+  padding: calc(var(--padding) * 0.7);
+}
+window.notifications .notification button.close-button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window.notifications .notification button.close-button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification button.close-button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.notifications .notification button.close-button:active:not(popover), window.notifications .notification button.close-button.on:not(popover), window.notifications .notification button.close-button.active:not(popover), window.notifications .notification button.close-button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window.notifications .notification button.close-button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window.notifications .notification button.close-button {
+  border-radius: var(--radius);
+  padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
+  margin-left: calc(var(--spacing) / 2);
+}
+window.notifications .notification button.close-button:active {
+  background-image: none;
+}
+window.notifications .notification {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+  margin-bottom: 0;
+  border-radius: var(--radius);
+}
+window.notifications .notification .description {
+  min-width: 350px;
+}
+
+window#overview .overview {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+}
+window#overview .overview.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#overview .overview.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#overview .overview.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#overview .overview.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#overview .overview.vertical > *:first-child {
+  margin-top: 0;
+}
+window#overview .overview.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#overview .overview .active {
+  box-shadow: 0 0 0 1px var(--primary-bg);
+}
+window#overview .overview .workspace {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+  padding: calc(var(--padding) * 0.3);
+  border-radius: var(--radius);
+}
+window#overview .overview .workspace:hover {
+  background-color: var(--hover-bg);
+}
+window#overview .overview .workspace:drop(active) {
+  border-color: var(--primary-bg);
+}
+window#overview .overview .client {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#overview .overview .client:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#overview .overview .client:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#overview .overview .client:active:not(popover), window#overview .overview .client.on:not(popover), window#overview .overview .client.active:not(popover), window#overview .overview .client:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#overview .overview .client:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#overview .overview .client {
+  margin: calc(var(--spacing) * 0.3);
+  border-radius: var(--radius);
+}
+window#overview .overview .client.hidden {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  transform: scale(0);
+}
+window#overview .overview .client.hidden * {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  transform: scale(0);
+}
+window#overview .overview .client.hidden {
+  transition: 0;
+}
+
+window#quicksettings .quicksettings {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+}
+window#quicksettings .quicksettings.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#quicksettings .quicksettings.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings {
+  padding: calc(var(--popover-padding) * 1.4);
+}
+window#quicksettings .quicksettings .avatar {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+  min-width: 65px;
+  min-height: 65px;
+  border-radius: calc(var(--radius) * 3);
+  background-clip: padding-box;
+}
+window#quicksettings .quicksettings .username {
+  font-size: 1.25em;
+  margin-left: calc(var(--spacing) / 2);
+  font-weight: bold;
+}
+window#quicksettings .quicksettings .header.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#quicksettings .quicksettings .header.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings .header.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings .header.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#quicksettings .quicksettings .header.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings .header.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings .header {
+  color: color-mix(in srgb, var(--fg) 85%, transparent);
+}
+window#quicksettings .quicksettings .header button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#quicksettings .quicksettings .header button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .header button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .header button:active:not(popover), window#quicksettings .quicksettings .header button.on:not(popover), window#quicksettings .quicksettings .header button.active:not(popover), window#quicksettings .quicksettings .header button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .header button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#quicksettings .quicksettings .header button {
+  padding: var(--padding);
+}
+window#quicksettings .quicksettings .header button icon:first-child {
+  font-size: 1.4em;
+}
+window#quicksettings .quicksettings .sliders-box {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+  padding: var(--padding);
+}
+window#quicksettings .quicksettings .sliders-box .volume button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#quicksettings .quicksettings .sliders-box .volume button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .sliders-box .volume button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .sliders-box .volume button:active:not(popover), window#quicksettings .quicksettings .sliders-box .volume button.on:not(popover), window#quicksettings .quicksettings .sliders-box .volume button.active:not(popover), window#quicksettings .quicksettings .sliders-box .volume button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .sliders-box .volume button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#quicksettings .quicksettings .sliders-box .volume button {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings .sliders-box .volume button.arrow:last-child {
+  margin-left: calc(var(--spacing) * 0.4);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#quicksettings .quicksettings .sliders-box .control-unit button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit button:active:not(popover), window#quicksettings .quicksettings .sliders-box .control-unit button.on:not(popover), window#quicksettings .quicksettings .sliders-box .control-unit button.active:not(popover), window#quicksettings .quicksettings .sliders-box .control-unit button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit button {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale {
+  all: unset;
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale * {
+  all: unset;
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale trough {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  border: var(--border);
+  background-color: var(--widget-bg);
+  min-height: 0.7em;
+  min-width: 0.7em;
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale trough highlight,
+window#quicksettings .quicksettings .sliders-box .control-unit scale trough progress {
+  border-radius: max(var(--radius) - var(--border-width), 0px);
+  background-image: var(--active-gradient);
+  min-height: 0.7em;
+  min-width: 0.7em;
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale slider {
+  box-shadow: none;
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  min-height: 0.7em;
+  min-width: 0.7em;
+  margin: -0.5em;
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale:hover slider {
+  background-color: var(--fg);
+  border-color: var(--border-color);
+  box-shadow: 0 0 3px 0 var(--shadow-color);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale:disabled highlight,
+window#quicksettings .quicksettings .sliders-box .control-unit scale:disabled progress {
+  background-color: color-mix(in srgb, var(--fg) 60%, transparent);
+  background-image: none;
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale trough:focus {
+  background-color: var(--hover-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale trough:focus slider {
+  background-color: var(--fg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings .sliders-box .control-unit scale.muted highlight {
+  background-image: none;
+  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+window#quicksettings .quicksettings .sliders-box .menu {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#quicksettings .quicksettings .sliders-box .menu.device-selector .sink-item.horizontal > *, window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#quicksettings .quicksettings .sliders-box .menu.device-selector .sink-item.horizontal > *:first-child, window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings .sliders-box .menu.device-selector .sink-item.horizontal > *:last-child, window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings .sliders-box .menu.device-selector .sink-item.vertical > *, window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#quicksettings .quicksettings .sliders-box .menu.device-selector .sink-item.vertical > *:first-child, window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings .sliders-box .menu.device-selector .sink-item.vertical > *:last-child, window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale {
+  all: unset;
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale * {
+  all: unset;
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale trough {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  border: var(--border);
+  background-color: var(--widget-bg);
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale trough highlight,
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale trough progress {
+  border-radius: max(var(--radius) - var(--border-width), 0px);
+  background-image: var(--active-gradient);
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale slider {
+  box-shadow: none;
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  min-height: 0.5em;
+  min-width: 0.5em;
+  margin: -0.5em;
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale:hover slider {
+  background-color: var(--fg);
+  border-color: var(--border-color);
+  box-shadow: 0 0 3px 0 var(--shadow-color);
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale:disabled highlight,
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale:disabled progress {
+  background-color: color-mix(in srgb, var(--fg) 60%, transparent);
+  background-image: none;
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale trough:focus {
+  background-color: var(--hover-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+}
+window#quicksettings .quicksettings .sliders-box .menu.app-mixer .mixer-item scale trough:focus slider {
+  background-color: var(--fg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+}
+window#quicksettings .quicksettings .row.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings .row.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings .row.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings .row.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#quicksettings .quicksettings .row.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings .row.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings .menu {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+}
+window#quicksettings .quicksettings .menu viewport {
+  all: unset;
+}
+window#quicksettings .quicksettings .menu scrollbar,
+window#quicksettings .quicksettings .menu scrollbar * {
+  all: unset;
+}
+window#quicksettings .quicksettings .menu scrollbar.vertical {
+  transition: var(--transition);
+  background-color: color-mix(in srgb, var(--bg) 30%, transparent);
+}
+window#quicksettings .quicksettings .menu scrollbar.vertical:hover {
+  background-color: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+window#quicksettings .quicksettings .menu scrollbar.vertical:hover slider {
+  background-color: color-mix(in srgb, var(--fg) 70%, transparent);
+  min-width: 0.6em;
+}
+window#quicksettings .quicksettings .menu scrollbar.vertical slider {
+  background-color: color-mix(in srgb, var(--fg) 50%, transparent);
+  border-radius: var(--radius);
+  min-width: 0.4em;
+  min-height: 2em;
+  transition: var(--transition);
+}
+window#quicksettings .quicksettings .menu {
+  padding: var(--padding);
+  margin-top: var(--spacing);
+}
+window#quicksettings .quicksettings .menu .icon {
+  margin: 0 calc(var(--spacing) / 2);
+  margin-left: calc(var(--spacing) * 0.2);
+}
+window#quicksettings .quicksettings .menu .title {
+  font-weight: bold;
+}
+window#quicksettings .quicksettings .menu separator {
+  margin: calc(var(--radius) / 2);
+  background-color: var(--border-color);
+}
+window#quicksettings .quicksettings .menu button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#quicksettings .quicksettings .menu button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .menu button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .menu button:active:not(popover), window#quicksettings .quicksettings .menu button.on:not(popover), window#quicksettings .quicksettings .menu button.active:not(popover), window#quicksettings .quicksettings .menu button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .menu button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#quicksettings .quicksettings .menu button {
+  padding: calc(var(--padding) * 0.7);
+}
+window#quicksettings .quicksettings .menu button icon:first-child {
+  margin-right: calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings .menu .device-scroll {
+  min-height: 200px;
+}
+window#quicksettings .quicksettings .menu .settings.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#quicksettings .quicksettings .menu .settings.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings .menu .settings.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings .menu .settings.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#quicksettings .quicksettings .menu .settings.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings .menu .settings.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings .menu switch switch:checked {
+  background-color: var(--primary-bg);
+}
+window#quicksettings .quicksettings .menu switch switch {
+  border-radius: calc(var(--radius) * 2);
+}
+window#quicksettings .quicksettings .menu switch slider {
+  border-radius: calc(var(--radius) * 2);
+  min-width: 24px;
+  min-height: 24px;
+}
+window#quicksettings .quicksettings .menu switch slider:checked {
+  background-color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .menu.bluetooth-selector .bluetooth-item.horizontal > *, window#quicksettings .quicksettings .menu.mirror-selector .mirror-item.horizontal > *, window#quicksettings .quicksettings .menu.profile-selector .profile-item.horizontal > *, window#quicksettings .quicksettings .menu.wifi-selector .wifi-item.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#quicksettings .quicksettings .menu.bluetooth-selector .bluetooth-item.horizontal > *:first-child, window#quicksettings .quicksettings .menu.mirror-selector .mirror-item.horizontal > *:first-child, window#quicksettings .quicksettings .menu.profile-selector .profile-item.horizontal > *:first-child, window#quicksettings .quicksettings .menu.wifi-selector .wifi-item.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings .menu.bluetooth-selector .bluetooth-item.horizontal > *:last-child, window#quicksettings .quicksettings .menu.mirror-selector .mirror-item.horizontal > *:last-child, window#quicksettings .quicksettings .menu.profile-selector .profile-item.horizontal > *:last-child, window#quicksettings .quicksettings .menu.wifi-selector .wifi-item.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings .menu.bluetooth-selector .bluetooth-item.vertical > *, window#quicksettings .quicksettings .menu.mirror-selector .mirror-item.vertical > *, window#quicksettings .quicksettings .menu.profile-selector .profile-item.vertical > *, window#quicksettings .quicksettings .menu.wifi-selector .wifi-item.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#quicksettings .quicksettings .menu.bluetooth-selector .bluetooth-item.vertical > *:first-child, window#quicksettings .quicksettings .menu.mirror-selector .mirror-item.vertical > *:first-child, window#quicksettings .quicksettings .menu.profile-selector .profile-item.vertical > *:first-child, window#quicksettings .quicksettings .menu.wifi-selector .wifi-item.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings .menu.bluetooth-selector .bluetooth-item.vertical > *:last-child, window#quicksettings .quicksettings .menu.mirror-selector .mirror-item.vertical > *:last-child, window#quicksettings .quicksettings .menu.profile-selector .profile-item.vertical > *:last-child, window#quicksettings .quicksettings .menu.wifi-selector .wifi-item.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings .toggle-button,
+window#quicksettings .quicksettings .simple-toggle {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#quicksettings .quicksettings .toggle-button:focus:not(popover),
+window#quicksettings .quicksettings .simple-toggle:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .toggle-button:hover:not(popover),
+window#quicksettings .quicksettings .simple-toggle:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .toggle-button:active:not(popover), window#quicksettings .quicksettings .toggle-button.on:not(popover), window#quicksettings .quicksettings .toggle-button.active:not(popover), window#quicksettings .quicksettings .toggle-button:checked:not(popover),
+window#quicksettings .quicksettings .simple-toggle:active:not(popover),
+window#quicksettings .quicksettings .simple-toggle.on:not(popover),
+window#quicksettings .quicksettings .simple-toggle.active:not(popover),
+window#quicksettings .quicksettings .simple-toggle:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .toggle-button:disabled:not(popover),
+window#quicksettings .quicksettings .simple-toggle:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#quicksettings .quicksettings .toggle-button,
+window#quicksettings .quicksettings .simple-toggle {
+  font-weight: bold;
+}
+window#quicksettings .quicksettings .toggle-button .horizontal.horizontal > *,
+window#quicksettings .quicksettings .simple-toggle .horizontal.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#quicksettings .quicksettings .toggle-button .horizontal.horizontal > *:first-child,
+window#quicksettings .quicksettings .simple-toggle .horizontal.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings .toggle-button .horizontal.horizontal > *:last-child,
+window#quicksettings .quicksettings .simple-toggle .horizontal.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings .toggle-button .horizontal.vertical > *,
+window#quicksettings .quicksettings .simple-toggle .horizontal.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#quicksettings .quicksettings .toggle-button .horizontal.vertical > *:first-child,
+window#quicksettings .quicksettings .simple-toggle .horizontal.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings .toggle-button .horizontal.vertical > *:last-child,
+window#quicksettings .quicksettings .simple-toggle .horizontal.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings .toggle-button button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#quicksettings .quicksettings .toggle-button button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .toggle-button button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .toggle-button button:active:not(popover), window#quicksettings .quicksettings .toggle-button button.on:not(popover), window#quicksettings .quicksettings .toggle-button button.active:not(popover), window#quicksettings .quicksettings .toggle-button button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .toggle-button button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#quicksettings .quicksettings .toggle-button button:first-child {
+  padding: calc(var(--padding) * 1.2);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+window#quicksettings .quicksettings .toggle-button button:last-child {
+  padding: calc(var(--padding) / 2);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+window#quicksettings .quicksettings .toggle-button.active {
+  background-color: var(--primary-bg);
+}
+window#quicksettings .quicksettings .toggle-button.active label,
+window#quicksettings .quicksettings .toggle-button.active image {
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .simple-toggle {
+  padding: calc(var(--padding) * 1.2);
+}
+window#quicksettings .quicksettings .media.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings .media.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings .media.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings .media.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#quicksettings .quicksettings .media.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings .media.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings .media .player {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+  padding: var(--padding);
+}
+window#quicksettings .quicksettings .media .player .cover-art {
+  box-shadow: 2px 2px 2px 0 var(--shadow-color);
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: var(--padding);
+}
+window#quicksettings .quicksettings .media .player .title.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+window#quicksettings .quicksettings .media .player .title.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings .media .player .title.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings .media .player .title.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+window#quicksettings .quicksettings .media .player .title.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings .media .player .title.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings .media .player .title {
+  font-weight: bold;
+}
+window#quicksettings .quicksettings .media .player button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#quicksettings .quicksettings .media .player button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .media .player button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings .media .player button:active:not(popover), window#quicksettings .quicksettings .media .player button.on:not(popover), window#quicksettings .quicksettings .media .player button.active:not(popover), window#quicksettings .quicksettings .media .player button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings .media .player button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#quicksettings .quicksettings .media .player button {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings .media .player button.play-pause {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings .media .player .artist {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+  font-size: 0.9em;
+}
+window#quicksettings .quicksettings .media .player scale {
+  all: unset;
+}
+window#quicksettings .quicksettings .media .player scale * {
+  all: unset;
+}
+window#quicksettings .quicksettings .media .player scale trough {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  border: var(--border);
+  background-color: var(--widget-bg);
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+window#quicksettings .quicksettings .media .player scale trough highlight,
+window#quicksettings .quicksettings .media .player scale trough progress {
+  border-radius: max(var(--radius) - var(--border-width), 0px);
+  background-image: linear-gradient(var(--fg), var(--fg));
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+window#quicksettings .quicksettings .media .player scale slider {
+  box-shadow: none;
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  min-height: 0.5em;
+  min-width: 0.5em;
+  margin: -0.5em;
+}
+window#quicksettings .quicksettings .media .player scale:disabled highlight,
+window#quicksettings .quicksettings .media .player scale:disabled progress {
+  background-color: color-mix(in srgb, var(--fg) 60%, transparent);
+  background-image: none;
+}
+window#quicksettings .quicksettings .media .player scale trough:focus {
+  background-color: var(--hover-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+}
+window#quicksettings .quicksettings .media .player scale {
+  margin-bottom: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings .media .player scale trough {
+  border: none;
+}
+
+.bar {
+  transition: var(--transition);
+  background-color: var(--bg);
+  padding: calc(var(--padding) * 0.3);
+}
+.bar .panel-button {
+  all: unset;
+  color: var(--fg);
+}
+.bar .panel-button > :not(window):not(popover) {
+  border-radius: var(--radius);
+  transition: var(--transition);
+  background-color: transparent;
+  box-shadow: none;
+}
+.bar .panel-button:focus > :not(window):not(popover):not(popover), .bar .panel-button.focused > :not(window):not(popover):not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+.bar .panel-button:hover > :not(window):not(popover):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+.bar .panel-button:active > :not(window):not(popover):not(popover), .bar .panel-button.active > :not(window):not(popover):not(popover), .bar .panel-button.on > :not(window):not(popover):not(popover), .bar .panel-button:checked > :not(window):not(popover):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+.bar .panel-button:active:hover > :not(window):not(popover), .bar .panel-button.active:hover > :not(window):not(popover), .bar .panel-button.on:hover > :not(window):not(popover), .bar .panel-button:checked:hover > :not(window):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), inset 0 0 0 0px var(--hover-bg);
+}
+.bar .panel-button > :not(window) {
+  border-radius: var(--radius);
+  padding: calc(var(--padding) / 2);
+  margin: 0 calc(var(--spacing) * 0.6);
+  font-weight: bold;
+}
+.bar menubutton button {
+  all: unset;
+  color: var(--fg);
+}
+.bar menubutton button > :not(window):not(popover) {
+  border-radius: var(--radius);
+  transition: var(--transition);
+  background-color: transparent;
+  box-shadow: none;
+}
+.bar menubutton button:focus > :not(window):not(popover):not(popover), .bar menubutton button.focused > :not(window):not(popover):not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+.bar menubutton button:hover > :not(window):not(popover):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+.bar menubutton button:active > :not(window):not(popover):not(popover), .bar menubutton button.active > :not(window):not(popover):not(popover), .bar menubutton button.on > :not(window):not(popover):not(popover), .bar menubutton button:checked > :not(window):not(popover):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+.bar menubutton button:active:hover > :not(window):not(popover), .bar menubutton button.active:hover > :not(window):not(popover), .bar menubutton button.on:hover > :not(window):not(popover), .bar menubutton button:checked:hover > :not(window):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), inset 0 0 0 0px var(--hover-bg);
+}
+.bar menubutton button > :not(window) {
+  border-radius: var(--radius);
+  padding: calc(var(--padding) / 2);
+  margin: 0 calc(var(--spacing) * 0.6);
+  font-weight: bold;
+}
+.bar popover contents modelbutton {
+  padding: 0pt calc(var(--padding) * 0.8);
+}
+.bar popover contents {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+  border-radius: calc(var(--popover-radius) / 2);
+  padding: calc(var(--padding) / 2);
+}
+.bar .launcher.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+.bar .launcher.horizontal > *:first-child {
+  margin-left: 0;
+}
+.bar .launcher.horizontal > *:last-child {
+  margin-right: 0;
+}
+.bar .launcher.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+.bar .launcher.vertical > *:first-child {
+  margin-top: 0;
+}
+.bar .launcher.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.bar .launcher .colored {
+  color: color-mix(in srgb, var(--primary-bg) 80%, transparent);
+}
+.bar .launcher:hover .colored {
+  color: var(--primary-bg);
+}
+.bar .launcher:active .colored, .bar .launcher.active .colored {
+  color: var(--primary-fg);
+}
+.bar .workspaces label {
+  font-size: 0;
+  min-width: 5pt;
+  min-height: 5pt;
+  border-radius: calc(var(--radius) * 0.6);
+  box-shadow: inset 0 0 2px var(--border-width) var(--border-color);
+  margin: 0 calc(var(--padding) / 2);
+  transition: calc(var(--transition) / 2);
+  background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+}
+.bar .workspaces label.occupied {
+  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+  min-width: 7pt;
+  min-height: 7pt;
+}
+.bar .workspaces label.active {
+  background-image: var(--active-gradient);
+  min-width: 20pt;
+  min-height: 12pt;
+}
+.bar .workspaces.active label, .bar .workspaces:active label {
+  background-color: color-mix(in srgb, var(--primary-fg) 70%, transparent);
+}
+.bar .workspaces.active label.occupied, .bar .workspaces:active label.occupied {
+  background-color: color-mix(in srgb, var(--primary-fg) 85%, transparent);
+}
+.bar .workspaces.active label.active, .bar .workspaces:active label.active {
+  background-color: var(--primary-fg);
+}
+.bar .quicksettings box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.75);
+}
+.bar .quicksettings box.horizontal > *:first-child {
+  margin-left: 0;
+}
+.bar .quicksettings box.horizontal > *:last-child {
+  margin-right: 0;
+}
+.bar .quicksettings box.vertical > * {
+  margin: calc(var(--spacing) * 0.75) 0;
+}
+.bar .quicksettings box.vertical > *:first-child {
+  margin-top: 0;
+}
+.bar .quicksettings box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.bar .quicksettings:not(.active):not(:active) .bluetooth-connected {
+  color: var(--primary-bg);
+}
+
+.bar.transparent {
+  background-color: transparent;
+}
+.bar.transparent .panel-button:hover > * {
+  box-shadow: 1px 1px 3px 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--bg);
+}
+.bar.transparent .panel-button:not(:hover):not(.active) label, .bar.transparent .panel-button:not(:hover):not(.active) image {
+  -gtk-icon-shadow: var(--text-shadow);
+  text-shadow: var(--text-shadow);
+}
+.bar.transparent .workspaces label {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), 1px 1px 3px 0 var(--shadow-color);
+}
+
+window#state-display .state-display {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+  padding: calc(var(--padding) * 2.25);
+}
+window#state-display .state-display image {
+  padding: var(--popover-padding);
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+}
+window#state-display .state-display .percentage {
+  all: unset;
+}
+window#state-display .state-display .percentage * {
+  all: unset;
+}
+window#state-display .state-display .percentage trough {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  border: var(--border);
+  background-color: var(--widget-bg);
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+window#state-display .state-display .percentage trough highlight,
+window#state-display .state-display .percentage trough progress {
+  border-radius: max(var(--radius) - var(--border-width), 0px);
+  background-image: var(--active-gradient);
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+window#state-display .state-display .percentage slider {
+  box-shadow: none;
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  min-height: 0.5em;
+  min-width: 0.5em;
+  margin: -0.5em;
+}
+window#state-display .state-display .percentage:disabled highlight,
+window#state-display .state-display .percentage:disabled progress {
+  background-color: color-mix(in srgb, var(--fg) 60%, transparent);
+  background-image: none;
+}
+window#state-display .state-display .percentage trough {
+  border: none;
+}
+window#state-display .state-display .percentage.muted trough progress {
+  background-image: none;
+  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+
+window#powermenu,
+window#verification {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+window#verification .verification {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+  padding: calc(var(--popover-padding) * 1.5);
+  min-width: 300px;
+  min-height: 100px;
+}
+window#verification .verification .text-box {
+  margin-bottom: var(--spacing);
+}
+window#verification .verification .text-box .title {
+  font-weight: bold;
+  font-size: 1.3em;
+}
+window#verification .verification .text-box .desc {
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+  font-size: 1.1em;
+}
+window#verification .verification .buttons.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#verification .verification .buttons.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#verification .verification .buttons.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#verification .verification .buttons.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#verification .verification .buttons.vertical > *:first-child {
+  margin-top: 0;
+}
+window#verification .verification .buttons.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#verification .verification .buttons {
+  margin-top: var(--padding);
+}
+window#verification .verification .buttons button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#verification .verification .buttons button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#verification .verification .buttons button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#verification .verification .buttons button:active:not(popover), window#verification .verification .buttons button.on:not(popover), window#verification .verification .buttons button.active:not(popover), window#verification .verification .buttons button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#verification .verification .buttons button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#verification .verification .buttons button {
+  font-size: 1.5em;
+  padding: var(--padding);
+}
+
+window#powermenu .powermenu {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+}
+window#powermenu .powermenu.line {
+  padding: calc(var(--popover-padding) * 1.5);
+}
+window#powermenu .powermenu.line button {
+  padding: var(--popover-padding);
+}
+window#powermenu .powermenu.line label {
+  margin-bottom: calc(var(--spacing) * -0.5);
+}
+window#powermenu .powermenu.box {
+  padding: calc(var(--popover-padding) * 2);
+}
+window#powermenu .powermenu.box button {
+  padding: calc(var(--popover-padding) * 1.5);
+}
+window#powermenu .powermenu.box label {
+  margin-bottom: calc(var(--spacing) * -1);
+}
+window#powermenu .powermenu button {
+  all: unset;
+}
+window#powermenu .powermenu button image {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#powermenu .powermenu button image:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#powermenu .powermenu button image:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#powermenu .powermenu button image:active:not(popover), window#powermenu .powermenu button image.on:not(popover), window#powermenu .powermenu button image.active:not(popover), window#powermenu .powermenu button image:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#powermenu .powermenu button image:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window#powermenu .powermenu button image {
+  border-radius: calc(var(--radius) + var(--popover-padding) * 1.4);
+  min-width: 1.7em;
+  min-height: 1.7em;
+  font-size: 4em;
+}
+window#powermenu .powermenu button label,
+window#powermenu .powermenu button image {
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+}
+window#powermenu .powermenu button label {
+  margin-top: calc(var(--spacing) * 0.8);
+}
+window#powermenu .powermenu button:hover image:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#powermenu .powermenu button:hover label {
+  color: var(--fg);
+}
+window#powermenu .powermenu button:focus image:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#powermenu .powermenu button:active image:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#powermenu .powermenu button:focus label, window#powermenu .powermenu button:active label {
+  color: var(--primary-bg);
+}
+
+window.settings-dialog {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+window.settings-dialog .header .pager.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window.settings-dialog .header .pager.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.settings-dialog .header .pager.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.settings-dialog .header .pager.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window.settings-dialog .header .pager.vertical > *:first-child {
+  margin-top: 0;
+}
+window.settings-dialog .header .pager.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.settings-dialog .header .pager button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window.settings-dialog .header .pager button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.settings-dialog .header .pager button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.settings-dialog .header .pager button:active:not(popover), window.settings-dialog .header .pager button.on:not(popover), window.settings-dialog .header .pager button.active:not(popover), window.settings-dialog .header .pager button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window.settings-dialog .header .pager button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window.settings-dialog .header .pager button {
+  font-weight: bold;
+  padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
+}
+window.settings-dialog .header .pager button > box.horizontal > * {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window.settings-dialog .header .pager button > box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.settings-dialog .header .pager button > box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.settings-dialog .header .pager button > box.vertical > * {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window.settings-dialog .header .pager button > box.vertical > *:first-child {
+  margin-top: 0;
+}
+window.settings-dialog .header .pager button > box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.settings-dialog .header {
+  padding: var(--padding);
+}
+window.settings-dialog .header button.reset,
+window.settings-dialog .header button.close {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window.settings-dialog .header button.reset:focus:not(popover),
+window.settings-dialog .header button.close:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.settings-dialog .header button.reset:hover:not(popover),
+window.settings-dialog .header button.close:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.settings-dialog .header button.reset:active:not(popover), window.settings-dialog .header button.reset.on:not(popover), window.settings-dialog .header button.reset.active:not(popover), window.settings-dialog .header button.reset:checked:not(popover),
+window.settings-dialog .header button.close:active:not(popover),
+window.settings-dialog .header button.close.on:not(popover),
+window.settings-dialog .header button.close.active:not(popover),
+window.settings-dialog .header button.close:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window.settings-dialog .header button.reset:disabled:not(popover),
+window.settings-dialog .header button.close:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window.settings-dialog .header button.reset,
+window.settings-dialog .header button.close {
+  padding: calc(var(--padding) / 2);
+}
+window.settings-dialog .page viewport {
+  all: unset;
+}
+window.settings-dialog .page undershoot.top {
+  background: linear-gradient(to bottom, var(--bg), transparent, transparent, transparent, transparent, transparent);
+}
+window.settings-dialog .page scrollbar,
+window.settings-dialog .page scrollbar * {
+  all: unset;
+}
+window.settings-dialog .page scrollbar.vertical {
+  transition: var(--transition);
+  background-color: color-mix(in srgb, var(--bg) 30%, transparent);
+}
+window.settings-dialog .page scrollbar.vertical:hover {
+  background-color: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+window.settings-dialog .page scrollbar.vertical:hover slider {
+  background-color: color-mix(in srgb, var(--fg) 70%, transparent);
+  min-width: 0.6em;
+}
+window.settings-dialog .page scrollbar.vertical slider {
+  background-color: color-mix(in srgb, var(--fg) 50%, transparent);
+  border-radius: var(--radius);
+  min-width: 0.4em;
+  min-height: 2em;
+  transition: var(--transition);
+}
+window.settings-dialog .page .page-content {
+  padding: calc(var(--padding) * 2);
+  padding-top: 0;
+}
+window.settings-dialog .group .group-title {
+  color: var(--primary-bg);
+  margin-bottom: calc(var(--spacing) / 2);
+}
+window.settings-dialog .group .group-reset {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window.settings-dialog .group .group-reset:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.settings-dialog .group .group-reset:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.settings-dialog .group .group-reset:active:not(popover), window.settings-dialog .group .group-reset.on:not(popover), window.settings-dialog .group .group-reset.active:not(popover), window.settings-dialog .group .group-reset:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window.settings-dialog .group .group-reset:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window.settings-dialog .group .group-reset {
+  margin: calc(var(--spacing) / 2);
+  padding: calc(var(--padding) / 2);
+}
+window.settings-dialog .group .group-reset:disabled {
+  color: transparent;
+}
+window.settings-dialog .group:not(:first-child) {
+  margin-top: var(--spacing);
+}
+window.settings-dialog .row {
+  background-color: var(--widget-bg);
+  padding: var(--padding);
+  border: var(--border);
+  border-top: none;
+}
+window.settings-dialog .row:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+  border: var(--border);
+}
+window.settings-dialog .row:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+window.settings-dialog .row:first-child:last-child {
+  border-radius: var(--radius);
+  border: var(--border);
+}
+window.settings-dialog .row button.reset {
+  margin-left: var(--spacing);
+}
+window.settings-dialog .row label.id,
+window.settings-dialog .row label.note {
+  color: color-mix(in srgb, var(--fg) 60%, transparent);
+}
+window.settings-dialog .row entry,
+window.settings-dialog .row button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window.settings-dialog .row entry:focus:not(popover),
+window.settings-dialog .row button:focus:not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.settings-dialog .row entry:hover:not(popover),
+window.settings-dialog .row button:hover:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.settings-dialog .row entry:active:not(popover), window.settings-dialog .row entry.on:not(popover), window.settings-dialog .row entry.active:not(popover), window.settings-dialog .row entry:checked:not(popover),
+window.settings-dialog .row button:active:not(popover),
+window.settings-dialog .row button.on:not(popover),
+window.settings-dialog .row button.active:not(popover),
+window.settings-dialog .row button:checked:not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window.settings-dialog .row entry:disabled:not(popover),
+window.settings-dialog .row button:disabled:not(popover) {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+window.settings-dialog .row entry,
+window.settings-dialog .row button {
+  padding: var(--padding);
+}
+window.settings-dialog .row switch:checked {
+  background-color: var(--primary-bg);
+}
+window.settings-dialog .row switch {
+  border-radius: calc(var(--radius) * 2);
+}
+window.settings-dialog .row slider {
+  border-radius: calc(var(--radius) * 2);
+  min-width: 24px;
+  min-height: 24px;
+}
+window.settings-dialog .row slider:checked {
+  background-color: var(--primary-fg);
+}
+window.settings-dialog .row spinbutton {
+  all: unset;
+}
+window.settings-dialog .row spinbutton text {
+  padding: calc(var(--padding) / 2);
+  background-color: var(--widget-bg);
+  border-radius: var(--radius) 0 0 var(--radius);
+  border: var(--border);
+}
+window.settings-dialog .row spinbutton button {
+  border-radius: 0;
+}
+window.settings-dialog .row spinbutton button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+window.settings-dialog .row .enum-setter label {
+  background-color: var(--widget-bg);
+  border: var(--border);
+  padding: calc(var(--padding) / 2);
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+window.settings-dialog .row .enum-setter button {
+  padding: calc(var(--padding) / 2);
+  border-radius: 0;
+}
+window.settings-dialog .row .enum-setter button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+window.settings-dialog .row colorswatch {
+  border-radius: calc(var(--radius) / 4);
+}
+window.settings-dialog .row .preview {
+  border-radius: var(--radius);
+  min-height: 15em;
+  min-width: 15em;
+}
+
+.placeholder.horizontal > * {
+  margin: 0 calc(var(--spacing) / 4);
+}
+.placeholder.horizontal > *:first-child {
+  margin-left: 0;
+}
+.placeholder.horizontal > *:last-child {
+  margin-right: 0;
+}
+.placeholder.vertical > * {
+  margin: calc(var(--spacing) / 4) 0;
+}
+.placeholder.vertical > *:first-child {
+  margin-top: 0;
+}
+.placeholder.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.placeholder {
+  padding: calc(var(--padding) * 2);
+}
+.placeholder image {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  margin-bottom: 0.1em;
+}
+.placeholder label {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  font-size: 1.25em;
+}

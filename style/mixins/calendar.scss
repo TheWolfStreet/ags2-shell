@@ -2,7 +2,7 @@
 
 @mixin calendar {
   @include widget;
-  padding: $padding $padding 0;
+  padding: var(--padding) var(--padding) 0;
 
   calendar {
     all: unset;
@@ -11,16 +11,16 @@
 
     button {
       @include button($flat: true);
-      padding: $padding * .6;
+      padding: calc(var(--padding) * 0.6);
     }
 
     label:selected {
-      background-color: $primary-bg;
-      border-radius: $radius * .6;
+      background-color: var(--primary-bg);
+      border-radius: calc(var(--radius) * 0.6);
     }
 
-     header { background-color: transparent; border: none; color: color.scale($fg, $alpha: -50%); }
-    .day-name { background-color: transparent; color: color.scale($primary-bg, $alpha: -50%); }
-    .other-month { color: color.scale($fg, $alpha: -90%); }
+     header { background-color: transparent; border: none; color: color-mix(in srgb, var(--fg) 50%, transparent); }
+    .day-name { background-color: transparent; color: color-mix(in srgb, var(--primary-bg) 50%, transparent); }
+    .other-month { color: color-mix(in srgb, var(--fg) 10%, transparent); }
   }
 }

@@ -1,0 +1,100 @@
+@use "sass:color";
+
+@mixin notification() {
+  &.critical {
+    box-shadow: inset 0 0 .5em 0 var(--error-bg);
+  }
+
+  &:hover button.close-button {
+    @include button-hover;
+    background-color: color-mix(in srgb, var(--error-bg) 50%, transparent);
+  }
+
+  .header {
+    margin-bottom: calc(var(--spacing) / 2);
+
+    .time {
+      color: color-mix(in srgb, var(--fg) 80%, transparent);
+    }
+
+    .app-icon {
+      border-radius: calc(var(--radius) * 0.8);
+      margin-right: calc(var(--spacing) / 2);
+      min-height: 1.5em;
+      min-width: 1.5em;
+    }
+
+    &.icon {
+      border: var(--border);
+    }
+
+    .app-name {
+      margin-right: var(--spacing);
+      letter-spacing: -.50pt;
+      font-size: .9em;
+      color: var(--fg);
+    }
+  }
+
+  .content {
+    .summary {
+      margin-right: var(--spacing);
+      margin-bottom: calc(var(--spacing) / 2);
+      color: var(--fg);
+      font-weight: bold;
+    }
+
+    .body {
+      color: color-mix(in srgb, var(--fg) 80%, transparent);
+    }
+
+    .icon {
+      border-radius: calc(var(--radius) * 0.8);
+      margin-right: var(--spacing);
+      min-height: 1.5em;
+      min-width: 1.5em;
+
+      &.icon {
+        border: var(--border);
+      }
+    }
+  }
+
+  .actions {
+    @include spacing(.8);
+    margin-top: var(--spacing);
+
+    button {
+      @include button;
+      border-radius: calc(var(--radius) * 0.8);
+      font-size: 1.2em;
+      padding: calc(var(--padding) * 0.7);
+    }
+  }
+
+  button.close-button {
+    @include button($flat: true);
+    border-radius: var(--radius);
+    padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
+    margin-left: calc(var(--spacing) / 2);
+
+    &:active {
+      background-image: none;
+    }
+  }
+}
+
+window.notifications {
+  @include unset;
+
+  .notification {
+    @include notification;
+    @include floating-widget;
+    margin-bottom: 0;
+    border-radius: var(--radius);
+
+    .description {
+      min-width: 350px;
+    }
+  }
+}

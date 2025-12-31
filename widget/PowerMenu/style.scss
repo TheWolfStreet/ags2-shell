@@ -1,0 +1,72 @@
+@use "sass:color";
+
+window#powermenu,
+window#verification {
+  background-color: rgba(0, 0, 0, .4); // fraction > hyprland ignorealpha
+}
+
+window#verification .verification {
+  @include floating-widget;
+  padding: calc(var(--popover-padding) * 1.5);
+  min-width: 300px;
+  min-height: 100px;
+
+  .text-box {
+    margin-bottom: var(--spacing);
+
+    .title { font-weight: bold; font-size: 1.3em; }
+    .desc { color: color-mix(in srgb, var(--fg) 90%, transparent); font-size: 1.1em; }
+  }
+
+  .buttons {
+    @include spacing;
+    margin-top: var(--padding);
+
+    button { @include button; font-size: 1.5em; padding: var(--padding); }
+  }
+}
+
+window#powermenu .powermenu {
+  @include floating-widget;
+
+  &.line {
+    padding: calc(var(--popover-padding) * 1.5);
+
+    button { padding: var(--popover-padding); }
+    label { margin-bottom: calc(var(--spacing) * -0.5); }
+  }
+
+  &.box {
+    padding: calc(var(--popover-padding) * 2);
+
+    button { padding: calc(var(--popover-padding) * 1.5); }
+    label { margin-bottom: calc(var(--spacing) * -1); }
+  }
+
+  button {
+    @include unset;
+
+    image {
+      @include button;
+      border-radius: calc(var(--radius) + var(--popover-padding) * 1.4);
+      min-width: 1.7em;
+      min-height: 1.7em;
+      font-size: 4em;
+    }
+
+    label,
+    image { color: color-mix(in srgb, var(--fg) 90%, transparent); }
+    label { margin-top: calc(var(--spacing) * 0.8); }
+
+    &:hover {
+      image { @include button-hover; }
+      label { color: var(--fg); }
+    }
+
+    &:focus image { @include button-focus; }
+    &:active image { @include button-active; }
+
+    &:focus,
+    &:active { label { color: var(--primary-bg); } }
+  }
+}

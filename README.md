@@ -73,7 +73,6 @@ pkgs,
     configDir = ../ags2-shell; # Path to this repository
     # And a few expected things in the environment like bash and which
     extraPackages = with pkgs; [
-      dart-sass # Reapplying styles on settings change
       brightnessctl # Setting brightness
       swww # Wallpaper
       which # Dependency checking
@@ -89,7 +88,6 @@ pkgs,
       hyprpicker # Colorpicker
       pavucontrol # Audio control
       networkmanager # Network control
-      fd # For searching .scss files
       matugen # Dynamic coloring
       # Astal libs
       inputs.ags.packages.${pkgs.system}.apps

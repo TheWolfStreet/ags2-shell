@@ -2,19 +2,19 @@
 
 @import './unset';
 
-@mixin slider($width: .7em, $slider-width: .5em, $gradient: $active-gradient, $slider: true, $hoverable: false, $focusable: true, $radius: $radius) {
+@mixin slider($width: .7em, $slider-width: .5em, $gradient: var(--active-gradient), $slider: true, $hoverable: false, $focusable: true, $radius: var(--radius)) {
   @include unset($rec: true);
   trough {
-    transition: $transition;
+    transition: var(--transition);
     border-radius: $radius;
-    border: $border;
-    background-color: $widget-bg;
+    border: var(--border);
+    background-color: var(--widget-bg);
     min-height: $width;
     min-width: $width;
 
     highlight,
     progress {
-      border-radius: max($radius - $border-width, 0);
+      border-radius: max(calc($radius - var(--border-width)), 0px);
       background-image: $gradient;
       min-height: $width;
       min-width: $width;
@@ -24,8 +24,8 @@
   slider {
     box-shadow: none;
     background-color: transparent;
-    border: $border-width solid transparent;
-    transition: $transition;
+    border: var(--border-width) solid transparent;
+    transition: var(--transition);
     border-radius: $radius;
     min-height: $width;
     min-width: $width;
@@ -35,18 +35,15 @@
   &:hover {
     @if $hoverable {
       trough {
-        background-color: $hover-bg;
+        background-color: var(--hover-bg);
       }
     }
 
     slider {
       @if $slider {
-        background-color: $fg;
-        border-color: $border-color;
-
-        @if $shadows {
-          box-shadow: 0 0 3px 0 $shadow-color;
-        }
+        background-color: var(--fg);
+        border-color: var(--border-color);
+        box-shadow: 0 0 3px 0 var(--shadow-color);
       }
     }
   }
@@ -55,20 +52,20 @@
 
     highlight,
     progress {
-      background-color: color.scale($fg, $alpha: -40%);
+      background-color: color-mix(in srgb, var(--fg) 60%, transparent);
       background-image: none;
     }
   }
 
   @if $focusable {
     trough:focus {
-      background-color: $hover-bg;
-      box-shadow: inset 0 0 0 $border-width $primary-bg;
+      background-color: var(--hover-bg);
+      box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
 
       slider {
         @if $slider {
-          background-color: $fg;
-          box-shadow: inset 0 0 0 $border-width $primary-bg;
+          background-color: var(--fg);
+          box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
         }
       }
     }

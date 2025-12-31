@@ -3,27 +3,27 @@ window#overview .overview {
   @include spacing;
 
   .active {
-    box-shadow: 0 0 0 1px $primary-bg;
+    box-shadow: 0 0 0 1px var(--primary-bg);
   }
 
   .workspace {
       @include widget;
-      padding: $padding * .3;
-      border-radius: $radius;
+      padding: calc(var(--padding) * 0.3);
+      border-radius: var(--radius);
 
       &:hover {
-        background-color: $hover-bg;
+        background-color: var(--hover-bg);
       }
 
       &:drop(active) {
-        border-color: $primary-bg;
+        border-color: var(--primary-bg);
       }
   }
 
   .client {
     @include button;
-    margin: $spacing * .3;
-    border-radius: $radius;
+    margin: calc(var(--spacing) * 0.3);
+    border-radius: var(--radius);
 
     &.hidden {
       @include hidden;

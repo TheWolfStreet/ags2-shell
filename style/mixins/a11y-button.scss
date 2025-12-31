@@ -2,11 +2,11 @@
 
 @mixin accs-button($reactive: true) {
   @include unset;
-  color: $fg;
+  color: var(--fg);
 
   > :not(window):not(popover) {
-    border-radius: $radius;
-    transition: $transition;
+    border-radius: var(--radius);
+    transition: var(--transition);
     background-color: transparent;
     box-shadow: none;
   }
@@ -30,8 +30,8 @@
       }
 
       &:hover > :not(window):not(popover) {
-        box-shadow: inset 0 0 0 $border-width $border-color,
-                    inset 0 0 0 0px $hover-bg;
+        box-shadow: inset 0 0 0 var(--border-width) var(--border-color),
+                    inset 0 0 0 0px var(--hover-bg);
       }
     }
   }

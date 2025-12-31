@@ -3,29 +3,29 @@
 window#quicksettings .quicksettings {
   @include floating-widget;
   @include spacing;
-  padding: $popover-padding * 1.4;
+  padding: calc(var(--popover-padding) * 1.4);
 
   .avatar {
     @include widget;
     min-width: 65px;
     min-height: 65px;
-    border-radius: $radius * 3;
+    border-radius: calc(var(--radius) * 3);
     background-clip: padding-box;
   }
 
   .username {
     font-size: 1.25em;
-    margin-left: $spacing * .5;
+    margin-left: calc(var(--spacing) / 2);
     font-weight: bold;
   }
 
   .header {
     @include spacing(.5);
-    color: color.scale($fg, $alpha: -15%);
+    color: color-mix(in srgb, var(--fg) 85%, transparent);
 
     button {
       @include button;
-      padding: $padding;
+      padding: var(--padding);
 
       icon:first-child {
         font-size: 1.4em;
@@ -35,16 +35,16 @@ window#quicksettings .quicksettings {
 
   .sliders-box {
     @include widget;
-    padding: $padding;
+    padding: var(--padding);
 
     .volume {
       button {
         @include button($flat: true);
-        padding: $padding * .5;
+        padding: calc(var(--padding) / 2);
       }
 
       button.arrow:last-child {
-        margin-left: $spacing * .4;
+        margin-left: calc(var(--spacing) * 0.4);
       }
     }
 
@@ -52,24 +52,24 @@ window#quicksettings .quicksettings {
     .control-unit {
       button {
         @include button($flat: true);
-        padding: $padding * .5;
+        padding: calc(var(--padding) / 2);
       }
 
-      padding: $padding * .5;
+      padding: calc(var(--padding) / 2);
 
       scale {
         @include slider;
-        margin: 0 ($spacing * .5);
+        margin: 0 (calc(var(--spacing) / 2));
 
         &.muted highlight {
           background-image: none;
-          background-color: color.scale($fg, $alpha: -20%);
+          background-color: color-mix(in srgb, var(--fg) 80%, transparent);
         }
       }
     }
 
     .menu {
-      margin: ($spacing * .5) 0;
+      margin: (calc(var(--spacing) / 2)) 0;
 
       &.device-selector .sink-item,
       &.app-mixer .mixer-item {
@@ -77,7 +77,7 @@ window#quicksettings .quicksettings {
       }
 
       &.app-mixer .mixer-item {
-        padding: $padding * .5;
+        padding: calc(var(--padding) / 2);
 
         scale {
           @include slider($width: .5em);
@@ -94,12 +94,12 @@ window#quicksettings .quicksettings {
     @include unset;
     @include widget;
     @include scrollable;
-    padding: $padding;
-    margin-top: $spacing;
+    padding: var(--padding);
+    margin-top: var(--spacing);
 
     .icon {
-      margin: 0 ($spacing * .5);
-      margin-left: $spacing * .2;
+      margin: 0 (calc(var(--spacing) / 2));
+      margin-left: calc(var(--spacing) * 0.2);
     }
 
     .title {
@@ -107,16 +107,16 @@ window#quicksettings .quicksettings {
     }
 
     separator {
-      margin: $radius * .5;
-      background-color: $border-color;
+      margin: calc(var(--radius) / 2);
+      background-color: var(--border-color);
     }
 
     button {
       @include button($flat: true);
-      padding: $padding * .7;
+      padding: calc(var(--padding) * 0.7);
 
       icon:first-child {
-        margin-right: $spacing * .5;
+        margin-right: calc(var(--spacing) / 2);
       }
     }
 
@@ -155,30 +155,30 @@ window#quicksettings .quicksettings {
       @include button($flat: true);
 
       &:first-child {
-        padding: $padding * 1.2;
+        padding: calc(var(--padding) * 1.2);
         border-top-right-radius: 0;
         border-bottom-right-radius: 0;
       }
 
       &:last-child {
-        padding: $padding * .5;
+        padding: calc(var(--padding) / 2);
         border-top-left-radius: 0;
         border-bottom-left-radius: 0;
       }
     }
 
     &.active {
-      background-color: $primary-bg;
+      background-color: var(--primary-bg);
 
       label,
       image {
-        color: $primary-fg;
+        color: var(--primary-fg);
       }
     }
   }
 
   .simple-toggle {
-    padding: $padding * 1.2;
+    padding: calc(var(--padding) * 1.2);
   }
 
   .media {

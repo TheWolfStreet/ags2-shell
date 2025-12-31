@@ -2,15 +2,12 @@
 
 @mixin media() {
   @include widget;
-  padding: $padding;
+  padding: var(--padding);
 
   .cover-art {
-    @if $shadows {
-      box-shadow: 2px 2px 2px 0 $shadow-color;
-    }
-
-    border-radius: $radius * .8;
-    margin-right: $padding;
+    box-shadow: 2px 2px 2px 0 var(--shadow-color);
+    border-radius: calc(var(--radius) * 0.8);
+    margin-right: var(--padding);
   }
 
   .title {
@@ -20,21 +17,21 @@
 
   button {
     @include button($flat: true);
-    padding: $padding * .5;
+    padding: calc(var(--padding) / 2);
 
     &.play-pause {
-      margin: 0 ($spacing * .5);
+      margin: 0 (calc(var(--spacing) / 2));
     }
   }
 
   .artist {
-    color: color.scale($fg, $alpha: -20%);
+    color: color-mix(in srgb, var(--fg) 80%, transparent);
     font-size: .9em;
   }
 
   scale {
-    @include slider($width: .5em, $slider: false, $gradient: linear-gradient($fg, $fg));
-    margin-bottom: $padding * .5;
+    @include slider($width: .5em, $slider: false, $gradient: linear-gradient(var(--fg), var(--fg)));
+    margin-bottom: calc(var(--padding) / 2);
 
     trough {
       border: none;

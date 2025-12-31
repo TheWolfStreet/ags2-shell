@@ -1,19 +1,19 @@
 @mixin switch {
   switch:checked {
-    background-color: $primary-bg;
+    background-color: var(--primary-bg);
   }
 
   switch {
-    border-radius: $radius * 2;
+    border-radius: calc(var(--radius) * 2);
   }
 
   slider {
-    border-radius: $radius * 2;
+    border-radius: calc(var(--radius) * 2);
     min-width: 24px;
     min-height: 24px;
   }
 
   slider:checked {
-    background-color: $primary-fg;
+    background-color: var(--primary-fg);
   }
 }

@@ -2,15 +2,15 @@
 
 .placeholder {
   @include spacing(.5);
-  padding: $padding * 2;
+  padding: calc(var(--padding) * 2);
 
   image {
-    color: color.scale($fg, $alpha: -30%);
+    color: color-mix(in srgb, var(--fg) 70%, transparent);
     margin-bottom: .1em;
   }
 
   label {
-    color: color.scale($fg, $alpha: -30%);
+    color: color-mix(in srgb, var(--fg) 70%, transparent);
     font-size: 1.25em;
   }
 }

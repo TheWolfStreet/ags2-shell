@@ -36,13 +36,13 @@
       powerprofiles
     ];
 
-    extraPackages = with pkgs;
+    # Runtime packages (no build-time deps like sass/fd)
+    runtimePackages = with pkgs;
       astalPackages
       ++ [
         matugen
         libadwaita
         libsoup_3
-        dart-sass
         brightnessctl
         swww
         which
@@ -56,8 +56,9 @@
         hyprpicker
         pavucontrol
         networkmanager
-        fd
       ];
+
+    extraPackages = runtimePackages ++ [pkgs.dart-sass];
   in {
     packages.${system} = {
       default = pkgs.stdenv.mkDerivation {
@@ -68,9 +69,20 @@
           wrapGAppsHook4
           gobject-introspection
           ags.packages.${system}.default
+          dart-sass
+          nodejs
         ];
 
-        buildInputs = extraPackages ++ [pkgs.gjs];
+        buildInputs = runtimePackages ++ [pkgs.gjs];
+
+        buildPhase = ''
+          runHook preBuild
+
+          # Compile SCSS to CSS
+          node style/build.ts
+
+          runHook postBuild
+        '';
 
         installPhase = ''
           runHook preInstall
@@ -84,7 +96,7 @@
         '';
         postInstall = ''
           wrapProgram $out/bin/${pname} \
-          	--prefix PATH : ${pkgs.lib.makeBinPath extraPackages} \
+          	--prefix PATH : ${pkgs.lib.makeBinPath runtimePackages} \
           	--set AGS2SHELL_STYLES $out/share
         '';
       };

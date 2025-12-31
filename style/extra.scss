@@ -1,35 +1,42 @@
-@import './mixins/button.scss';
-
 * {
-  font-size: $font-size;
-  font-family: $font-name;
+  --hover-fg: color-mix(in srgb, var(--fg), white 8%);
+  --border: var(--border-width) solid var(--border-color);
+
+  font-size: var(--font-size);
+  font-family: var(--font-name);
+}
+
+window.dark {
+  --text-shadow: 2pt 2pt 2pt var(--shadow-color);
+  --box-shadow: 2pt 2pt 2pt 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
+}
+
+window.light {
+  --text-shadow: none;
+  --box-shadow: none;
 }
 
 separator {
   &.horizontal {
-    min-height: $border-width;
+    min-height: var(--border-width);
   }
 
   &.vertical {
-    min-width: $border-width;
+    min-width: var(--border-width);
   }
 }
 
 tooltip {
-  * {
-    all: unset;
-  }
-
   background-color: transparent;
   border: none;
+}
 
-  >*>* {
-    background-color: $bg;
-    border-radius: $radius;
-    border: $border-width solid $popover-border-color;
-    color: $fg;
-    padding: 8px;
-    margin: 4px;
-    box-shadow: 0 0 3px 0 $shadow-color;
-  }
+tooltip label {
+  background-color: var(--bg);
+  border-radius: var(--radius);
+  border: var(--border-width) solid var(--popover-border-color);
+  color: var(--fg);
+  padding: 8px;
+  margin: 4px;
+  box-shadow: 0 0 3px 0 var(--shadow-color);
 }

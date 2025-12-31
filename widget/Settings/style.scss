@@ -1,0 +1,144 @@
+@use "sass:color";
+
+window.settings-dialog {
+  background-color: var(--bg);
+  color: var(--fg);
+
+  .header {
+    .pager {
+      @include spacing();
+        button {
+          @include button;
+          font-weight: bold;
+          padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
+
+          >box {
+            @include spacing($spacing: .3em);
+          }
+        }
+    }
+
+    padding: var(--padding);
+
+    button.reset,
+    button.close{
+      @include button;
+      padding: calc(var(--padding) / 2);
+    }
+  }
+
+  .page {
+    @include scrollable($top: true);
+
+    .page-content {
+      padding: calc(var(--padding) * 2);
+      padding-top: 0;
+    }
+  }
+
+  .group {
+    .group-title {
+      color: var(--primary-bg);
+      margin-bottom: calc(var(--spacing) / 2);
+    }
+
+    .group-reset {
+      @include button($flat: true);
+      margin: calc(var(--spacing) / 2);
+      padding: calc(var(--padding) / 2);
+
+      &:disabled {
+        color: transparent;
+      }
+    }
+
+    &:not(:first-child) {
+      margin-top: var(--spacing);
+    }
+  }
+
+  .row {
+    background-color: var(--widget-bg);
+    padding: var(--padding);
+    border: var(--border);
+    border-top: none;
+
+    &:first-child {
+      border-radius: var(--radius) var(--radius) 0 0;
+      border: var(--border);
+    }
+
+    &:last-child {
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
+
+    &:first-child:last-child {
+      border-radius: var(--radius);
+      border: var(--border);
+    }
+
+    button.reset {
+      margin-left: var(--spacing);
+    }
+
+    label.id,
+    label.note {
+      color: color-mix(in srgb, var(--fg) 60%, transparent)
+    }
+
+    entry,
+    button {
+      @include button;
+      padding: var(--padding);
+    }
+
+    @include switch;
+
+    spinbutton {
+      @include unset;
+      text {
+        padding: calc(var(--padding) / 2);
+        background-color: var(--widget-bg);
+        border-radius: var(--radius) 0 0 var(--radius);
+        border: var(--border);
+      }
+
+      button {
+        border-radius: 0;
+      }
+
+      button:last-child {
+        border-radius: 0 var(--radius) var(--radius) 0;
+      }
+    }
+
+    .enum-setter {
+      label {
+        background-color: var(--widget-bg);
+        border: var(--border);
+        padding: calc(var(--padding) / 2);
+        border-radius: var(--radius) 0 0 var(--radius);
+      }
+
+
+      button {
+        padding: calc(var(--padding) / 2);
+        border-radius: 0;
+      }
+
+      button:last-child {
+        border-radius: 0 var(--radius) var(--radius) 0;
+      }
+    }
+
+    colorswatch {
+      border-radius: calc(var(--radius) / 4);
+    }
+
+    .preview {
+      border-radius: var(--radius);
+      min-height: 15em;
+      min-width: 15em;
+    }
+  }
+}
