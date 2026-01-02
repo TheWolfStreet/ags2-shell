@@ -1,9 +1,0 @@
-@mixin floating-widget {
-  box-shadow: 0 0 5px 0 var(--shadow-color);
-  margin: max(var(--spacing), 8px);
-  border: var(--border-width) solid var(--popover-border-color);
-  background-color: var(--bg);
-  color: var(--fg);
-  border-radius: var(--popover-radius);
-  padding: var(--popover-padding);
-}

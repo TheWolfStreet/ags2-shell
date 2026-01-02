@@ -20,8 +20,8 @@ export default class Capturer extends GObject.Object {
 		return this.instance ??= new Capturer()
 	}
 
-	#recordings = `${env.paths.home}/Videos/Screencasting`
-	#screenshots = `${env.paths.home}/Pictures/Screenshots`
+	#recordings = `${env.paths.home}/Videos/Screencasting/`
+	#screenshots = `${env.paths.home}/Pictures/Screenshots/`
 	recFile = ""
 	scrFile = ""
 	#interval = new AstalIO.Time
@@ -77,7 +77,7 @@ export default class Capturer extends GObject.Object {
 		if (this.#recording) return
 
 		ensurePath(this.#recordings)
-		this.recFile = `"${this.#recordings}/${now()}.mkv"`
+		this.recFile = `"${this.#recordings}${now()}.mkv"`
 
 		const area = select ? await bash("slurp").catch(() => "").then(o => o && `-g "${o}"`) : ""
 		if (select && !area) return

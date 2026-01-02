@@ -1,54 +1,51 @@
 @use "sass:color";
+@use '../../../../style/shared/base' as *;
 
-@mixin notification() {
+.notification {
   &.critical {
-    box-shadow: inset 0 0 .5em 0 var(--error-bg);
+    box-shadow: inset 0 0 0.5em 0 var(--error-bg);
   }
 
-  &:hover button.close-button {
-    @include button-hover;
-    background-color: color-mix(in srgb, var(--error-bg) 50%, transparent);
-  }
-
-  .header {
+  box.header {
     margin-bottom: calc(var(--spacing) / 2);
 
-    .time {
+    label.time {
       color: color-mix(in srgb, var(--fg) 80%, transparent);
     }
 
-    .app-icon {
+    image.app-icon {
       border-radius: calc(var(--radius) * 0.8);
       margin-right: calc(var(--spacing) / 2);
       min-height: 1.5em;
       min-width: 1.5em;
+
+      &.icon {
+        border: var(--border);
+      }
     }
 
-    &.icon {
-      border: var(--border);
-    }
-
-    .app-name {
+    label.app-name {
       margin-right: var(--spacing);
-      letter-spacing: -.50pt;
-      font-size: .9em;
+      letter-spacing: -0.50pt;
+      font-size: 0.9em;
       color: var(--fg);
     }
   }
 
-  .content {
-    .summary {
+  box.content {
+    label.summary {
       margin-right: var(--spacing);
       margin-bottom: calc(var(--spacing) / 2);
       color: var(--fg);
       font-weight: bold;
     }
 
-    .body {
+    label.body {
       color: color-mix(in srgb, var(--fg) 80%, transparent);
     }
 
-    .icon {
+    image.icon,
+    picture.icon {
       border-radius: calc(var(--radius) * 0.8);
       margin-right: var(--spacing);
       min-height: 1.5em;
@@ -60,12 +57,12 @@
     }
   }
 
-  .actions {
-    @include spacing(.8);
+  box.actions {
+    @include spacing(0.8);
     margin-top: var(--spacing);
 
     button {
-      @include button;
+      @extend .outlined-button;
       border-radius: calc(var(--radius) * 0.8);
       font-size: 1.2em;
       padding: calc(var(--padding) * 0.7);
@@ -73,27 +70,30 @@
   }
 
   button.close-button {
-    @include button($flat: true);
-    border-radius: var(--radius);
+    @extend .outlined-button;
+    background-image: none;
     padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
     margin-left: calc(var(--spacing) / 2);
 
+    &:hover {
+      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+    }
+
     &:active {
-      background-image: none;
+      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
     }
   }
 }
 
 window.notifications {
-  @include unset;
+  all: unset;
 
-  .notification {
-    @include notification;
-    @include floating-widget;
-    margin-bottom: 0;
+  box.notification {
+    @extend .floating;
     border-radius: var(--radius);
+    margin-bottom: 0;
 
-    .description {
+    box.description {
       min-width: 350px;
     }
   }

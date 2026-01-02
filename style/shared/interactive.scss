@@ -1,0 +1,218 @@
+@use "sass:color";
+@use '../shared/base' as *;
+
+button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+
+  &:not(popover):focus {
+    box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+    background-color: var(--hover-bg);
+    color: var(--hover-fg);
+  }
+
+  &:not(popover):hover {
+    box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+    background-color: var(--hover-bg);
+    color: var(--hover-fg);
+  }
+
+  &:not(popover):active,
+  &:not(popover).on,
+  &:not(popover).active,
+  &:not(popover):checked {
+    box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+    background-image: var(--active-gradient);
+    background-color: var(--primary-bg);
+    color: var(--primary-fg);
+  }
+
+  &:not(popover):disabled {
+    box-shadow: none;
+    background-color: transparent;
+    color: color-mix(in srgb, var(--fg) 30%, transparent);
+  }
+
+  &.outlined {
+    background-color: var(--widget-bg);
+    box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  }
+}
+
+scale {
+  all: unset;
+
+  trough,
+  highlight,
+  progress,
+  slider {
+    all: unset;
+  }
+
+  trough {
+    transition: var(--transition);
+    border-radius: var(--radius);
+    border: var(--border);
+    background-color: var(--widget-bg);
+    min-height: 0.7em;
+    min-width: 0.7em;
+
+    highlight,
+    progress {
+      border-radius: max(calc(var(--radius) - var(--border-width)), 0px);
+      background-color: var(--primary-bg);
+      background-image: var(--active-gradient);
+      min-height: 0.7em;
+      min-width: 0.7em;
+    }
+  }
+
+  slider {
+    box-shadow: none;
+    background-color: transparent;
+    border: var(--border-width) solid transparent;
+    transition: var(--transition);
+    border-radius: var(--radius);
+    min-height: 0.7em;
+    min-width: 0.7em;
+    margin: -0.5em;
+  }
+
+  &:hover slider {
+    background-color: var(--fg);
+    border-color: var(--border-color);
+    box-shadow: 0 0 3px 0 var(--shadow-color);
+  }
+
+  &:disabled {
+    highlight,
+    progress {
+      background-color: color-mix(in srgb, var(--fg) 60%, transparent);
+      background-image: none;
+    }
+  }
+
+  trough:focus {
+    background-color: var(--hover-bg);
+    box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+
+    ~ slider {
+      background-color: var(--fg);
+      box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+    }
+  }
+}
+
+switch {
+  border-radius: calc(var(--radius) * 2);
+
+  &:checked {
+    background-color: var(--primary-bg);
+  }
+
+  slider {
+    border-radius: calc(var(--radius) * 2);
+    min-width: 24px;
+    min-height: 24px;
+
+    &:checked {
+      background-color: var(--primary-fg);
+    }
+  }
+}
+
+entry {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  padding: var(--padding);
+}
+
+spinbutton {
+  all: unset;
+
+  text {
+    padding: calc(var(--padding) / 2);
+    background-color: var(--widget-bg);
+    border-radius: var(--radius) 0 0 var(--radius);
+    border: var(--border);
+  }
+
+  button {
+    @extend .outlined-button;
+    padding: var(--padding);
+    border-radius: 0;
+  }
+
+  button:last-child {
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+}
+
+colordialogbutton,
+fontdialogbutton {
+  button {
+    @extend .outlined-button;
+    padding: calc(var(--padding) / 2);
+  }
+}
+
+box.enum-setter {
+  label {
+    background-color: var(--widget-bg);
+    border: var(--border);
+    padding: calc(var(--padding) / 2);
+    border-radius: var(--radius) 0 0 var(--radius);
+  }
+
+  button {
+    border-radius: 0;
+
+    &:hover {
+      background-color: var(--hover-bg);
+      color: var(--hover-fg);
+    }
+
+    &:active {
+      background-image: var(--active-gradient);
+      background-color: var(--primary-bg);
+      color: var(--primary-fg);
+    }
+  }
+
+  button:last-child {
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+}
+
+progressbar {
+  trough {
+    transition: var(--transition);
+    border-radius: var(--radius);
+    background-color: var(--widget-bg);
+    min-height: 0.5em;
+    min-width: 0.5em;
+    border: none;
+
+    highlight,
+    progress {
+      border-radius: max(calc(var(--radius) - var(--border-width)), 0px);
+      background-image: var(--active-gradient);
+      min-height: 0.5em;
+      min-width: 0.5em;
+    }
+
+    &.muted trough progress {
+      background-image: none;
+      background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+    }
+  }
+}

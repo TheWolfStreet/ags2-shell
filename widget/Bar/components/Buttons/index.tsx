@@ -1,6 +1,6 @@
 import { Gdk, Gtk } from "ags/gtk4"
 import { timeout, Timer } from "ags/time"
-import { Accessor, createBinding, createComputed, createState, For, With, onCleanup } from "ags"
+import { createBinding, createComputed, createState, For, With, onCleanup } from "ags"
 
 import AstalTray from "gi://AstalTray"
 import AstalHyprland from "gi://AstalHyprland"

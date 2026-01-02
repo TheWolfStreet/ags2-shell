@@ -1,26 +1,48 @@
 @use 'sass:color';
+@use '../../../../style/shared/base' as *;
 
-.colorpicker {
-  @include spacing (.5);
+box.colorpicker {
+  @include spacing(0.5);
   padding: calc(var(--padding) / 2);
 }
 
-.bar .tasks .focused {
-  background-color: var(--primary-bg);
-  border-radius: var(--radius);
-  padding: 1.25pt;
-  margin-top: 1pt;
-  margin-bottom: 1pt;
-}
+window#bar {
+  box.tasks {
+    @include spacing(0.5);
 
-.bar .media box {
-  @include spacing(.5);
-}
+    button {
+      .focused {
+        all: unset;
+        background-color: var(--primary-bg);
+        border-radius: var(--radius);
+        padding: 1.25pt;
+        margin-top: 1pt;
+        margin-bottom: 1pt;
+      }
+    }
+  }
 
-.bar .recorder {
-  .horizontal { @include spacing(.5); }
+  button {
+    &.media box {
+      @include spacing(0.5);
+    }
 
-  image { color: color-mix(in srgb, var(--error-bg) 70%, transparent); }
-  &:hover image { color: color-mix(in srgb, var(--error-bg) 85%, transparent); }
-  &:active image { color: var(--primary-fg); }
+    &.recorder {
+      box {
+        @include spacing(0.5);
+      }
+
+      image {
+        color: color-mix(in srgb, var(--error-bg) 70%, transparent);
+      }
+
+      &:hover image {
+        color: color-mix(in srgb, var(--error-bg) 85%, transparent);
+      }
+
+      &:active image {
+        color: var(--primary-fg);
+      }
+    }
+  }
 }

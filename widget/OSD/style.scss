@@ -1,7 +1,12 @@
 @use "sass:color";
+@use '../../style/shared/base' as *;
 
-window#state-display .state-display {
-  @include floating-widget;
+window#state-display {
+  background-color: transparent;
+}
+
+window#state-display box.state-display {
+  @extend .floating;
   padding: calc(var(--padding) * 2.25);
 
   image {
@@ -9,17 +14,14 @@ window#state-display .state-display {
     color: color-mix(in srgb, var(--fg) 90%, transparent);
   }
 
-  .percentage {
-    @include slider($width: .5em, $focusable: false, $slider: false);
+  progressbar.percentage {
     trough {
       border: none;
     }
 
-    &.muted {
-      trough progress {
-        background-image: none;
-        background-color: color-mix(in srgb, var(--fg) 80%, transparent);
-      }
+    &.muted trough progress {
+      background-image: none;
+      background-color: color-mix(in srgb, var(--fg) 80%, transparent);
     }
   }
 }

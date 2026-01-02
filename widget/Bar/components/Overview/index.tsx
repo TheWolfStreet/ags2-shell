@@ -37,7 +37,7 @@ export namespace Workspaces {
 	function Client({ entry: c, update }: { entry: AstalHyprland.Client, update: (self: Gtk.Widget) => void }) {
 
 		const className = createBinding(hypr, "focusedClient").as(fc => {
-			const classes: string[] = ["client"]
+			const classes: string[] = ["client", "outlined"]
 			if (fc && fc.address === c.address) classes.push("active")
 			return classes.join(" ")
 		})
@@ -53,6 +53,8 @@ export namespace Workspaces {
 				updateScheduled = false
 			})
 		}
+
+		let imageWidget: Gtk.Image
 
 		return (
 			<button class={className} tooltipText={title}
@@ -82,6 +84,7 @@ export namespace Workspaces {
 				}}
 			>
 				<image
+					$={self => imageWidget = self}
 					vexpand hexpand
 					valign={CENTER} halign={CENTER}
 					iconName={c.get_class()} pixelSize={16}
@@ -89,6 +92,12 @@ export namespace Workspaces {
 				<Gtk.DragSource
 					actions={MOVE}
 					content={contentProvider}
+					onDragBegin={(source) => {
+						if (imageWidget) {
+							const paintable = Gtk.WidgetPaintable.new(imageWidget)
+							source.set_icon(paintable, 8, 8)
+						}
+					}}
 				/>
 			</button>
 		)
@@ -96,7 +105,7 @@ export namespace Workspaces {
 
 	function Workspace({ entry: ws }: { entry: AstalHyprland.Workspace }) {
 		const className = createBinding(hypr, "focusedWorkspace").as(fws => {
-			const classes: string[] = ["workspace"]
+			const classes: string[] = ["workspace", "outlined"]
 			if (fws?.id === ws?.id) classes.push("active")
 			return classes.join(" ")
 		})

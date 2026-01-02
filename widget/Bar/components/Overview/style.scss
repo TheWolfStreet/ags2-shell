@@ -1,33 +1,22 @@
-window#overview .overview {
-  @include floating-widget;
-  @include spacing;
+@use '../../../../style/shared/base' as *;
 
-  .active {
-    box-shadow: 0 0 0 1px var(--primary-bg);
-  }
+window#overview {
+  background-color: transparent;
+  box.overview {
+    @extend .floating;
+    @include spacing;
 
-  .workspace {
-      @include widget;
-      padding: calc(var(--padding) * 0.3);
+    box.workspace {
+      @extend .widget;
+    }
+
+    button.client {
       border-radius: var(--radius);
+      margin: calc(var(--spacing) * 0.25);
 
-      &:hover {
-        background-color: var(--hover-bg);
-      }
-
-      &:drop(active) {
+      &.active {
         border-color: var(--primary-bg);
       }
-  }
-
-  .client {
-    @include button;
-    margin: calc(var(--spacing) * 0.3);
-    border-radius: var(--radius);
-
-    &.hidden {
-      @include hidden;
-      transition: 0;
     }
   }
 }

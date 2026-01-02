@@ -36,7 +36,6 @@
       powerprofiles
     ];
 
-    # Runtime packages (no build-time deps like sass/fd)
     runtimePackages = with pkgs;
       astalPackages
       ++ [
@@ -57,8 +56,6 @@
         pavucontrol
         networkmanager
       ];
-
-    extraPackages = runtimePackages ++ [pkgs.dart-sass];
   in {
     packages.${system} = {
       default = pkgs.stdenv.mkDerivation {
@@ -77,10 +74,7 @@
 
         buildPhase = ''
           runHook preBuild
-
-          # Compile SCSS to CSS
-          node style/build.ts
-
+          node style/compile/build.ts
           runHook postBuild
         '';
 
@@ -106,8 +100,9 @@
       default = pkgs.mkShell {
         buildInputs = [
           (ags.packages.${system}.default.override {
-            inherit extraPackages;
+            extraPackages = runtimePackages;
           })
+          pkgs.dart-sass
           pkgs.vtsls
         ];
 

@@ -22,7 +22,7 @@ const t = <T>(dark_val: Opt<T> | T, light_val: Opt<T> | T): T =>
 	value(scheme.get().includes("dark") ? dark_val : light_val)
 
 export function resetCss() {
-	const css = GLib.build_filenamev([configDir, 'style', 'main.css'])
+	const css = GLib.build_filenamev([configDir, 'style', 'compile', 'main.css'])
 
 	if (!fileExists(css)) {
 		logError(new Error(`CSS file not found: ${css}`))

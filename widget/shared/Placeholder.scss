@@ -1,4 +1,5 @@
 @use 'sass:color';
+@use '../../style/shared/base' as *;
 
 .placeholder {
   @include spacing(.5);
@@ -15,3 +16,13 @@
   }
 }
 
+window.placeholder {
+  box {
+    @include spacing(0.5);
+  }
+
+  label {
+    font-size: 72pt;
+    font-weight: bold;
+  }
+}

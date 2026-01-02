@@ -26,29 +26,24 @@ function findScssFiles(dir: string): string[] {
   return results
 }
 
-const scssFiles = [
-  ...findScssFiles(resolve(cwd, 'style/mixins')),
-  resolve(cwd, 'style/extra.scss'),
-  ...findScssFiles(resolve(cwd, 'widget')),
-]
+const widgetFiles = findScssFiles(resolve(cwd, 'widget'))
 
-console.log(`Found ${scssFiles.length} SCSS files`)
+console.log(`Found ${widgetFiles.length} widget SCSS files`)
 
-const mainScss = [
-  '@use "sass:color";',
-  '@use "sass:math";',
-  '',
-  ...scssFiles.map(f => `@import '${f}';`)
-].join('\n')
+const widgetsIndex = widgetFiles.map(f => {
+  const relativePath = f.replace(cwd + '/', '')
+  return `@use '../${relativePath}' as *;`
+}).join('\n')
 
-const tempFile = resolve(cwd, '.ags-build.scss')
-const outputFile = resolve(cwd, 'style/main.css')
+const widgetsIndexFile = resolve(cwd, 'style/widgets.scss')
+writeFileSync(widgetsIndexFile, widgetsIndex)
+console.log(`Generated ${widgetsIndexFile}`)
 
-writeFileSync(tempFile, mainScss)
-console.log(`Generated ${tempFile}`)
+const inputFile = resolve(cwd, 'style/compile/main.scss')
+const outputFile = resolve(cwd, 'style/compile/main.css')
 
 try {
-  execSync(`sass ${tempFile} ${outputFile} --style=expanded --no-source-map`, {
+  execSync(`sass ${inputFile} ${outputFile} --style=expanded`, {
     stdio: 'inherit',
     cwd
   })

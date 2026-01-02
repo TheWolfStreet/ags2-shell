@@ -1,42 +1,96 @@
 @use 'sass:color';
+@use '../../style/shared/base' as *;
 
-.bar {
+window#bar {
   transition: var(--transition);
   background-color: var(--bg);
   padding: calc(var(--padding) * 0.3);
 
-  .panel-button { 
-    @include panel-button;
-  }
-
+  button.panel-button,
+  overlay.panel-button,
+  menubutton button.panel-button,
   menubutton {
-    button {
-      @include panel-button;
-    }
-  }
+    all: unset;
+    color: var(--fg);
 
-  popover {
-    contents {
-      modelbutton {
-        padding: 0pt calc(var(--padding) * 0.8);
-      }
-      @include floating-widget;
-      border-radius: calc(var(--popover-radius) / 2);
+    > :not(window):not(popover) {
+      transition: var(--transition);
+      border-radius: var(--radius);
+      color: var(--fg);
+      background-color: transparent;
+      background-image: none;
+      box-shadow: none;
       padding: calc(var(--padding) / 2);
+      margin: 0 calc(var(--spacing) * 0.6);
+      font-weight: bold;
+    }
+
+    &:focus > :not(window):not(popover),
+    &.focused > :not(window):not(popover) {
+      box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+      background-color: var(--hover-bg);
+      color: var(--hover-fg);
+    }
+
+    &:hover > :not(window):not(popover) {
+      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+      background-color: var(--hover-bg);
+      color: var(--hover-fg);
+    }
+
+    &:active > :not(window):not(popover),
+    &.active > :not(window):not(popover),
+    &.on > :not(window):not(popover),
+    &:checked > :not(window):not(popover) {
+      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+      background-image: var(--active-gradient);
+      background-color: var(--primary-bg);
+      color: var(--primary-fg);
+    }
+
+    &:active:hover > :not(window):not(popover),
+    &.active:hover > :not(window):not(popover) {
+      box-shadow: inset 0 0 0 var(--border-width) var(--border-color),
+                  inset 0 0 0 0px var(--hover-bg);
     }
   }
 
-  .launcher {
+  popover contents {
+    box-shadow: 0 0 5px 0 var(--shadow-color);
+    margin: max(var(--spacing), 8px);
+    border: var(--border-width) solid var(--popover-border-color);
+    background-color: var(--bg);
+    color: var(--fg);
+    border-radius: calc(var(--popover-radius) / 2);
+    padding: calc(var(--padding) / 2);
+
+    modelbutton {
+      padding: 0pt calc(var(--padding) * 0.8);
+    }
+  }
+
+  box.launcher {
     @include spacing;
 
-    .colored { color: color-mix(in srgb, var(--primary-bg) 80%, transparent); }
+    .colored {
+      color: color-mix(in srgb, var(--primary-bg) 80%, transparent);
+    }
 
-    &:hover .colored { color: var(--primary-bg); }
-    &:active .colored,
-    &.active .colored { color: var(--primary-fg); }
+    button:hover .colored {
+      color: var(--primary-bg);
+    }
+
+    button:active .colored,
+    button.active .colored {
+      color: var(--primary-fg);
+    }
   }
 
-  .workspaces {
+  button.workspaces {
+    box {
+      @include spacing;
+    }
+
     label {
       font-size: 0;
       min-width: 5pt;
@@ -60,44 +114,47 @@
       }
     }
 
-    &.active, &:active {
-      label {
-        background-color: color-mix(in srgb, var(--primary-fg) 70%, transparent);
+    &.active label,
+    &:active label {
+      background-color: color-mix(in srgb, var(--primary-fg) 70%, transparent);
 
-        &.occupied { background-color: color-mix(in srgb, var(--primary-fg) 85%, transparent); }
-        &.active { background-color: var(--primary-fg); }
+      &.occupied {
+        background-color: color-mix(in srgb, var(--primary-fg) 85%, transparent);
+      }
+
+      &.active {
+        background-color: var(--primary-fg);
       }
     }
   }
 
-  .quicksettings box { @include spacing(1.5); }
+  button.quicksettings box,
+  box.quicksettings box {
+    @include spacing(1.5);
+  }
 
-  .quicksettings:not(.active):not(:active) {
-    .bluetooth-connected {
-      color: var(--primary-bg);
-    }
+  button.quicksettings:not(.active):not(:active) .bluetooth-connected {
+    color: var(--primary-bg);
   }
 }
 
-.bar.transparent {
+window#bar.transparent {
   background-color: transparent;
 
-  .panel-button {
-    &:hover > * {
-      box-shadow: 1px 1px 3px 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
-      background-color: var(--bg);
-    }
+  button:hover > * {
+    box-shadow: 1px 1px 3px 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
+    background-color: var(--bg);
+  }
 
-    &:not(:hover):not(.active) {
-      label, image {
-        -gtk-icon-shadow: var(--text-shadow);
-        text-shadow: var(--text-shadow);
-      }
+  button:not(:hover):not(.active) {
+    label,
+    image {
+      -gtk-icon-shadow: var(--text-shadow);
+      text-shadow: var(--text-shadow);
     }
   }
 
-  .workspaces label {
-    box-shadow: inset 0 0 0 var(--border-width) var(--border-color),
-      1px 1px 3px 0 var(--shadow-color);
+  box.workspaces label {
+    box-shadow: inset 0 0 0 var(--border-width) var(--border-color), 1px 1px 3px 0 var(--shadow-color);
   }
 }

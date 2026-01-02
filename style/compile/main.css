@@ -1,0 +1,1738 @@
+.outlined-button, window.settings-dialog box.header button.close, window.settings-dialog box.row button, window#verification box.verification box.buttons button, window#quicksettings .quicksettings box.header button, window#quicksettings .quicksettings button.simple-toggle, .notification box.actions button, .notification button.close-button, spinbutton button, colordialogbutton button,
+fontdialogbutton button {
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+.outlined-button:hover, window.settings-dialog box.header button.close:hover, window.settings-dialog box.row button:hover, window#verification box.verification box.buttons button:hover, window#quicksettings .quicksettings box.header button:hover, window#quicksettings .quicksettings button.simple-toggle:hover, .notification box.actions button:hover, .notification button.close-button:hover, spinbutton button:hover, colordialogbutton button:hover,
+fontdialogbutton button:hover {
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+.outlined-button:active, window.settings-dialog box.header button.close:active, window.settings-dialog box.row button:active, window#verification box.verification box.buttons button:active, window#quicksettings .quicksettings box.header button:active, window#quicksettings .quicksettings button.simple-toggle:active, .notification box.actions button:active, .notification button.close-button:active, spinbutton button:active, colordialogbutton button:active,
+fontdialogbutton button:active {
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+.reset-button, window.settings-dialog box.header button.reset, window.settings-dialog box.group button.group-reset, window.settings-dialog box.row button.reset {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+.reset-button:active, window.settings-dialog box.header button.reset:active, window.settings-dialog box.group button.group-reset:active, window.settings-dialog box.row button.reset:active {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+* {
+  --hover-fg: color-mix(in srgb, var(--fg), white 8%);
+  --border: var(--border-width) solid var(--border-color);
+  font-size: var(--font-size);
+  font-family: var(--font-name);
+}
+
+window {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+window.dark {
+  --text-shadow: 2pt 2pt 2pt var(--shadow-color);
+  --box-shadow: 2pt 2pt 2pt 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
+}
+
+window.light {
+  --text-shadow: none;
+  --box-shadow: none;
+}
+
+separator.horizontal {
+  min-height: var(--border-width);
+}
+separator.vertical {
+  min-width: var(--border-width);
+}
+
+tooltip {
+  background-color: transparent;
+  border: none;
+}
+tooltip label {
+  background-color: var(--bg);
+  border-radius: var(--radius);
+  border: var(--border-width) solid var(--popover-border-color);
+  color: var(--fg);
+  padding: 8px;
+  margin: 4px;
+  box-shadow: 0 0 3px 0 var(--shadow-color);
+}
+
+.widget, window#quicksettings .quicksettings picture.avatar, window#quicksettings .quicksettings box.sliders-box, window#quicksettings .quicksettings box.menu, window#quicksettings .quicksettings box.media box.player, window#overview box.overview box.workspace, window#datemenu box.datemenu box.notifications box.notification, window#datemenu box.datemenu box.calendar {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+}
+
+.floating, window#verification box.verification, window#powermenu box.powermenu, window#state-display box.state-display, window#quicksettings .quicksettings, window#overview box.overview, window.notifications box.notification, window#launcher box.launcher, window#datemenu box.datemenu, window#batterystate box.batterystate {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+}
+
+box.compact.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+box.compact.horizontal > *:first-child {
+  margin-left: 0;
+}
+box.compact.horizontal > *:last-child {
+  margin-right: 0;
+}
+box.compact.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+box.compact.vertical > *:first-child {
+  margin-top: 0;
+}
+box.compact.vertical > *:last-child {
+  margin-bottom: 0;
+}
+
+.hidden {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  transform: scale(0);
+}
+.hidden * {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  transform: scale(0);
+}
+
+button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+button:not(popover):focus {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+button:not(popover):hover {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+button:not(popover):active, button:not(popover).on, button:not(popover).active, button:not(popover):checked {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+button:not(popover):disabled {
+  box-shadow: none;
+  background-color: transparent;
+  color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+button.outlined {
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+
+scale {
+  all: unset;
+}
+scale trough,
+scale highlight,
+scale progress,
+scale slider {
+  all: unset;
+}
+scale trough {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  border: var(--border);
+  background-color: var(--widget-bg);
+  min-height: 0.7em;
+  min-width: 0.7em;
+}
+scale trough highlight,
+scale trough progress {
+  border-radius: max(var(--radius) - var(--border-width), 0px);
+  background-color: var(--primary-bg);
+  background-image: var(--active-gradient);
+  min-height: 0.7em;
+  min-width: 0.7em;
+}
+scale slider {
+  box-shadow: none;
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  min-height: 0.7em;
+  min-width: 0.7em;
+  margin: -0.5em;
+}
+scale:hover slider {
+  background-color: var(--fg);
+  border-color: var(--border-color);
+  box-shadow: 0 0 3px 0 var(--shadow-color);
+}
+scale:disabled highlight,
+scale:disabled progress {
+  background-color: color-mix(in srgb, var(--fg) 60%, transparent);
+  background-image: none;
+}
+scale trough:focus {
+  background-color: var(--hover-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+}
+scale trough:focus ~ slider {
+  background-color: var(--fg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+}
+
+switch {
+  border-radius: calc(var(--radius) * 2);
+}
+switch:checked {
+  background-color: var(--primary-bg);
+}
+switch slider {
+  border-radius: calc(var(--radius) * 2);
+  min-width: 24px;
+  min-height: 24px;
+}
+switch slider:checked {
+  background-color: var(--primary-fg);
+}
+
+entry {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  padding: var(--padding);
+}
+
+spinbutton {
+  all: unset;
+}
+spinbutton text {
+  padding: calc(var(--padding) / 2);
+  background-color: var(--widget-bg);
+  border-radius: var(--radius) 0 0 var(--radius);
+  border: var(--border);
+}
+spinbutton button {
+  padding: var(--padding);
+  border-radius: 0;
+}
+spinbutton button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+colordialogbutton button,
+fontdialogbutton button {
+  padding: calc(var(--padding) / 2);
+}
+
+box.enum-setter label {
+  background-color: var(--widget-bg);
+  border: var(--border);
+  padding: calc(var(--padding) / 2);
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+box.enum-setter button {
+  border-radius: 0;
+}
+box.enum-setter button:hover {
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+box.enum-setter button:active {
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+box.enum-setter button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+progressbar trough {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  background-color: var(--widget-bg);
+  min-height: 0.5em;
+  min-width: 0.5em;
+  border: none;
+}
+progressbar trough highlight,
+progressbar trough progress {
+  border-radius: max(var(--radius) - var(--border-width), 0px);
+  background-image: var(--active-gradient);
+  min-height: 0.5em;
+  min-width: 0.5em;
+}
+progressbar trough.muted trough progress {
+  background-image: none;
+  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+
+scrolledwindow viewport {
+  all: unset;
+}
+scrolledwindow undershoot.top {
+  background: linear-gradient(to bottom, var(--bg), transparent, transparent, transparent, transparent, transparent);
+}
+scrolledwindow undershoot.bottom {
+  background: linear-gradient(to top, var(--bg), transparent, transparent, transparent, transparent, transparent);
+}
+scrolledwindow scrollbar,
+scrolledwindow scrollbar * {
+  all: unset;
+}
+scrolledwindow scrollbar.vertical {
+  transition: var(--transition);
+  background-color: color-mix(in srgb, var(--bg) 30%, transparent);
+}
+scrolledwindow scrollbar.vertical:hover {
+  background-color: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+scrolledwindow scrollbar.vertical:hover slider {
+  background-color: color-mix(in srgb, var(--fg) 70%, transparent);
+  min-width: 0.6em;
+}
+scrolledwindow scrollbar.vertical slider {
+  background-color: color-mix(in srgb, var(--fg) 50%, transparent);
+  border-radius: var(--radius);
+  min-width: 0.4em;
+  min-height: 2em;
+  transition: var(--transition);
+}
+
+window#screen-corner {
+  background-color: transparent;
+}
+
+window#screen-corner:not(.hidden) {
+  --_shadow-size: var(--padding);
+  --_radius: var(--screen-corner-radius);
+  --_margin: 99px;
+  --_negative-margin: -99px;
+  transition: var(--transition);
+}
+window#screen-corner:not(.hidden) box.shadow {
+  margin-right: var(--_negative-margin);
+  margin-left: var(--_negative-margin);
+  box-shadow: inset 0 0 var(--_shadow-size) 0 var(--shadow-color);
+}
+window#screen-corner:not(.hidden).top box.shadow {
+  margin-bottom: var(--_negative-margin);
+}
+window#screen-corner:not(.hidden).bottom box.shadow {
+  margin-top: var(--_negative-margin);
+}
+window#screen-corner:not(.hidden) box.border {
+  transition: var(--transition);
+  margin-right: var(--_margin);
+  margin-left: var(--_margin);
+}
+window#screen-corner:not(.hidden).top box.border {
+  border-top: var(--border-width) solid var(--bg);
+  border-bottom: none;
+}
+window#screen-corner:not(.hidden).bottom box.border {
+  border-bottom: var(--border-width) solid var(--bg);
+  border-top: none;
+}
+window#screen-corner:not(.hidden) box.corner {
+  box-shadow: 0 0 0 var(--border-width) var(--border-color);
+}
+window#screen-corner:not(.hidden).corners box.border {
+  box-shadow: 0 0 0 var(--_radius) var(--bg);
+}
+window#screen-corner:not(.hidden).corners.top box.border {
+  border-top-left-radius: var(--_radius);
+  border-top-right-radius: var(--_radius);
+}
+window#screen-corner:not(.hidden).corners.bottom box.border {
+  border-bottom-left-radius: var(--_radius);
+  border-bottom-right-radius: var(--_radius);
+}
+window#screen-corner:not(.hidden).corners.top box.corner {
+  border-top-left-radius: var(--_radius);
+  border-top-right-radius: var(--_radius);
+}
+window#screen-corner:not(.hidden).corners.bottom box.corner {
+  border-bottom-left-radius: var(--_radius);
+  border-bottom-right-radius: var(--_radius);
+}
+
+window#bar box.battery.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#bar box.battery.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar box.battery.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar box.battery.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#bar box.battery.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar box.battery.vertical > *:last-child {
+  margin-bottom: 0;
+}
+
+window#batterystate {
+  background-color: transparent;
+}
+window#batterystate box.batterystate.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#batterystate box.batterystate.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#batterystate box.batterystate.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#batterystate box.batterystate.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#batterystate box.batterystate.vertical > *:first-child {
+  margin-top: 0;
+}
+window#batterystate box.batterystate.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#batterystate box.batterystate label {
+  font-weight: bold;
+}
+
+box.colorpicker.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+box.colorpicker.horizontal > *:first-child {
+  margin-left: 0;
+}
+box.colorpicker.horizontal > *:last-child {
+  margin-right: 0;
+}
+box.colorpicker.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+box.colorpicker.vertical > *:first-child {
+  margin-top: 0;
+}
+box.colorpicker.vertical > *:last-child {
+  margin-bottom: 0;
+}
+box.colorpicker {
+  padding: calc(var(--padding) / 2);
+}
+
+window#bar box.tasks.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#bar box.tasks.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar box.tasks.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar box.tasks.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#bar box.tasks.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar box.tasks.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#bar box.tasks button .focused {
+  all: unset;
+  background-color: var(--primary-bg);
+  border-radius: var(--radius);
+  padding: 1.25pt;
+  margin-top: 1pt;
+  margin-bottom: 1pt;
+}
+window#bar button.media box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#bar button.media box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar button.media box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar button.media box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#bar button.media box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar button.media box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#bar button.recorder box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#bar button.recorder box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar button.recorder box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar button.recorder box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#bar button.recorder box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar button.recorder box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#bar button.recorder image {
+  color: color-mix(in srgb, var(--error-bg) 70%, transparent);
+}
+window#bar button.recorder:hover image {
+  color: color-mix(in srgb, var(--error-bg) 85%, transparent);
+}
+window#bar button.recorder:active image {
+  color: var(--primary-fg);
+}
+
+window#datemenu {
+  background-color: transparent;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header {
+  margin-bottom: calc(var(--padding) * 1.5);
+  margin-right: calc(var(--padding) * 1.5);
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button {
+  padding: calc(var(--padding) * 0.7) var(--padding);
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#datemenu box.datemenu box.notifications scrolledwindow.notification-scrollable {
+  margin-right: calc(var(--padding) * 1.5);
+}
+window#datemenu box.datemenu box.notifications box.notification {
+  padding: var(--padding);
+  margin-bottom: var(--spacing);
+}
+window#datemenu box.datemenu separator {
+  background-color: var(--popover-border-color);
+  border-radius: var(--radius);
+  margin-right: calc(var(--padding) * 1.5);
+}
+window#datemenu box.datemenu box.clock-box label.clock {
+  font-size: 5em;
+}
+window#datemenu box.datemenu box.clock-box label.uptime {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+  margin-bottom: calc(var(--padding) * 2);
+}
+window#datemenu box.datemenu box.calendar {
+  padding: var(--padding) var(--padding) 0;
+}
+window#datemenu box.datemenu box.calendar calendar {
+  all: unset;
+  font-size: 1.1em;
+  padding: 0.3em;
+}
+window#datemenu box.datemenu box.calendar calendar button.flat {
+  padding: calc(var(--padding) * 0.6);
+}
+window#datemenu box.datemenu box.calendar calendar label:selected {
+  background-color: var(--primary-bg);
+  border-radius: calc(var(--radius) * 0.6);
+}
+window#datemenu box.datemenu box.calendar calendar header {
+  background-color: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--fg) 50%, transparent);
+}
+window#datemenu box.datemenu box.calendar calendar label.day-name {
+  background-color: transparent;
+  color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+}
+window#datemenu box.datemenu box.calendar calendar label.other-month {
+  color: color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+window#launcher {
+  background-color: transparent;
+}
+window#launcher box.launcher box.quicklaunch.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#launcher box.launcher box.quicklaunch.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#launcher box.launcher box.quicklaunch.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#launcher box.launcher box.quicklaunch.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#launcher box.launcher box.quicklaunch.vertical > *:first-child {
+  margin-top: 0;
+}
+window#launcher box.launcher box.quicklaunch.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#launcher box.launcher box.quicklaunch {
+  margin-top: var(--spacing);
+}
+window#launcher box.launcher entry {
+  margin: var(--spacing);
+}
+window#launcher box.launcher entry selection {
+  color: color-mix(in srgb, var(--fg) 50%, var(--bg));
+  background-color: transparent;
+}
+window#launcher box.launcher entry label,
+window#launcher box.launcher entry image {
+  color: var(--fg);
+}
+window#launcher box.launcher image.spinner {
+  color: var(--primary-bg);
+  margin-right: var(--spacing);
+}
+window#launcher box.launcher separator {
+  margin: 4pt 0;
+  background-color: var(--popover-border-color);
+}
+window#launcher box.launcher button.app-item {
+  padding: var(--padding);
+  transition: var(--transition);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+window#launcher box.launcher button.app-item > box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#launcher box.launcher button.app-item > box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#launcher box.launcher button.app-item > box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#launcher box.launcher button.app-item > box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#launcher box.launcher button.app-item > box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#launcher box.launcher button.app-item > box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#launcher box.launcher button.app-item label {
+  transition: var(--transition);
+}
+window#launcher box.launcher button.app-item label.title {
+  color: var(--fg);
+}
+window#launcher box.launcher button.app-item label.description {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+window#launcher box.launcher button.app-item image {
+  transition: var(--transition);
+}
+window#launcher box.launcher button.app-item:hover label.title, window#launcher box.launcher button.app-item:focus label.title {
+  color: var(--primary-bg);
+}
+window#launcher box.launcher button.app-item:hover label.description, window#launcher box.launcher button.app-item:focus label.description {
+  color: color-mix(in srgb, var(--primary-bg) 60%, transparent);
+}
+window#launcher box.launcher button.app-item:hover image, window#launcher box.launcher button.app-item:focus image {
+  -gtk-icon-shadow: 2px 2px var(--primary-bg);
+}
+window#launcher box.launcher button.app-item:active {
+  background-color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#launcher box.launcher button.app-item:active label.title {
+  color: var(--fg);
+}
+window#launcher box.launcher label.launch-hint {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+
+.notification.critical {
+  box-shadow: inset 0 0 0.5em 0 var(--error-bg);
+}
+.notification box.header {
+  margin-bottom: calc(var(--spacing) / 2);
+}
+.notification box.header label.time {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+.notification box.header image.app-icon {
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: calc(var(--spacing) / 2);
+  min-height: 1.5em;
+  min-width: 1.5em;
+}
+.notification box.header image.app-icon.icon {
+  border: var(--border);
+}
+.notification box.header label.app-name {
+  margin-right: var(--spacing);
+  letter-spacing: -0.5pt;
+  font-size: 0.9em;
+  color: var(--fg);
+}
+.notification box.content label.summary {
+  margin-right: var(--spacing);
+  margin-bottom: calc(var(--spacing) / 2);
+  color: var(--fg);
+  font-weight: bold;
+}
+.notification box.content label.body {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+.notification box.content image.icon,
+.notification box.content picture.icon {
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: var(--spacing);
+  min-height: 1.5em;
+  min-width: 1.5em;
+}
+.notification box.content image.icon.icon,
+.notification box.content picture.icon.icon {
+  border: var(--border);
+}
+.notification box.actions.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.8 / 2);
+}
+.notification box.actions.horizontal > *:first-child {
+  margin-left: 0;
+}
+.notification box.actions.horizontal > *:last-child {
+  margin-right: 0;
+}
+.notification box.actions.vertical > * {
+  margin: calc(var(--spacing) * 0.8 / 2) 0;
+}
+.notification box.actions.vertical > *:first-child {
+  margin-top: 0;
+}
+.notification box.actions.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.notification box.actions {
+  margin-top: var(--spacing);
+}
+.notification box.actions button {
+  border-radius: calc(var(--radius) * 0.8);
+  font-size: 1.2em;
+  padding: calc(var(--padding) * 0.7);
+}
+.notification button.close-button {
+  background-image: none;
+  padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
+  margin-left: calc(var(--spacing) / 2);
+}
+.notification button.close-button:hover {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+.notification button.close-button:active {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+
+window.notifications {
+  all: unset;
+}
+window.notifications box.notification {
+  border-radius: var(--radius);
+  margin-bottom: 0;
+}
+window.notifications box.notification box.description {
+  min-width: 350px;
+}
+
+window#overview {
+  background-color: transparent;
+}
+window#overview box.overview.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#overview box.overview.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#overview box.overview.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#overview box.overview.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#overview box.overview.vertical > *:first-child {
+  margin-top: 0;
+}
+window#overview box.overview.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#overview box.overview button.client {
+  border-radius: var(--radius);
+  margin: calc(var(--spacing) * 0.25);
+}
+window#overview box.overview button.client.active {
+  border-color: var(--primary-bg);
+}
+
+window#quicksettings {
+  background-color: transparent;
+}
+window#quicksettings .quicksettings.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#quicksettings .quicksettings.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#quicksettings .quicksettings.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings {
+  padding: calc(var(--popover-padding) * 1.4);
+}
+window#quicksettings .quicksettings picture.avatar {
+  border-radius: calc(var(--radius) * 3);
+  min-width: 65px;
+  min-height: 65px;
+  background-clip: padding-box;
+}
+window#quicksettings .quicksettings label.username {
+  font-size: 1.25em;
+  margin-left: calc(var(--spacing) / 2);
+  font-weight: bold;
+}
+window#quicksettings .quicksettings box.header.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.header.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.header.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.header.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.header.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.header.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.header {
+  color: color-mix(in srgb, var(--fg) 85%, transparent);
+}
+window#quicksettings .quicksettings box.header button {
+  padding: var(--padding);
+}
+window#quicksettings .quicksettings box.header button icon:first-child {
+  font-size: 1.4em;
+}
+window#quicksettings .quicksettings box.sliders-box {
+  padding: var(--padding);
+}
+window#quicksettings .quicksettings box.sliders-box box.volume button {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings box.sliders-box box.volume button.arrow:last-child {
+  margin-left: calc(var(--spacing) * 0.4);
+}
+window#quicksettings .quicksettings box.sliders-box box.control-unit {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings box.sliders-box box.control-unit button {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings box.sliders-box box.control-unit scale {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings box.sliders-box box.control-unit scale.muted highlight {
+  background-image: none;
+  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+window#quicksettings .quicksettings box.sliders-box box.menu {
+  margin: calc(var(--spacing) / 2) 0;
+}
+window#quicksettings .quicksettings box.sliders-box box.menu.device-selector box.sink-item.horizontal > *, window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.sliders-box box.menu.device-selector box.sink-item.horizontal > *:first-child, window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.sliders-box box.menu.device-selector box.sink-item.horizontal > *:last-child, window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.sliders-box box.menu.device-selector box.sink-item.vertical > *, window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.sliders-box box.menu.device-selector box.sink-item.vertical > *:first-child, window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.sliders-box box.menu.device-selector box.sink-item.vertical > *:last-child, window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item {
+  padding: calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item scale trough highlight,
+window#quicksettings .quicksettings box.sliders-box box.menu.app-mixer box.mixer-item scale trough progress {
+  background-color: var(--primary-bg);
+}
+window#quicksettings .quicksettings box.row.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#quicksettings .quicksettings box.row.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.row.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.row.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#quicksettings .quicksettings box.row.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.row.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.menu {
+  padding: var(--padding);
+  margin-top: var(--spacing);
+}
+window#quicksettings .quicksettings box.menu box.vertical.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.menu box.vertical.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.menu box.vertical.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.menu box.vertical.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.menu box.vertical.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.menu box.vertical.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.menu box.title-box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.menu box.title-box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.menu box.title-box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.menu box.title-box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.menu box.title-box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.menu box.title-box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.menu icon.icon {
+  margin-left: calc(var(--spacing) * 0.2);
+}
+window#quicksettings .quicksettings box.menu label.title {
+  font-weight: bold;
+}
+window#quicksettings .quicksettings box.menu separator {
+  margin: calc(var(--radius) / 2);
+  background-color: var(--border-color);
+}
+window#quicksettings .quicksettings box.menu button {
+  padding: calc(var(--padding) * 0.7);
+}
+window#quicksettings .quicksettings box.menu button icon:first-child {
+  margin-right: calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings box.menu scrolledwindow {
+  min-height: 200px;
+}
+window#quicksettings .quicksettings box.menu box.settings.horizontal > *,
+window#quicksettings .quicksettings box.menu box.bluetooth-item.horizontal > *,
+window#quicksettings .quicksettings box.menu box.mirror-item.horizontal > *,
+window#quicksettings .quicksettings box.menu box.profile-item.horizontal > *,
+window#quicksettings .quicksettings box.menu box.wifi-item.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.menu box.settings.horizontal > *:first-child,
+window#quicksettings .quicksettings box.menu box.bluetooth-item.horizontal > *:first-child,
+window#quicksettings .quicksettings box.menu box.mirror-item.horizontal > *:first-child,
+window#quicksettings .quicksettings box.menu box.profile-item.horizontal > *:first-child,
+window#quicksettings .quicksettings box.menu box.wifi-item.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.menu box.settings.horizontal > *:last-child,
+window#quicksettings .quicksettings box.menu box.bluetooth-item.horizontal > *:last-child,
+window#quicksettings .quicksettings box.menu box.mirror-item.horizontal > *:last-child,
+window#quicksettings .quicksettings box.menu box.profile-item.horizontal > *:last-child,
+window#quicksettings .quicksettings box.menu box.wifi-item.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.menu box.settings.vertical > *,
+window#quicksettings .quicksettings box.menu box.bluetooth-item.vertical > *,
+window#quicksettings .quicksettings box.menu box.mirror-item.vertical > *,
+window#quicksettings .quicksettings box.menu box.profile-item.vertical > *,
+window#quicksettings .quicksettings box.menu box.wifi-item.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.menu box.settings.vertical > *:first-child,
+window#quicksettings .quicksettings box.menu box.bluetooth-item.vertical > *:first-child,
+window#quicksettings .quicksettings box.menu box.mirror-item.vertical > *:first-child,
+window#quicksettings .quicksettings box.menu box.profile-item.vertical > *:first-child,
+window#quicksettings .quicksettings box.menu box.wifi-item.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.menu box.settings.vertical > *:last-child,
+window#quicksettings .quicksettings box.menu box.bluetooth-item.vertical > *:last-child,
+window#quicksettings .quicksettings box.menu box.mirror-item.vertical > *:last-child,
+window#quicksettings .quicksettings box.menu box.profile-item.vertical > *:last-child,
+window#quicksettings .quicksettings box.menu box.wifi-item.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.toggle-button,
+window#quicksettings .quicksettings button.simple-toggle {
+  font-weight: bold;
+}
+window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > *,
+window#quicksettings .quicksettings button.simple-toggle box.horizontal.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > *:first-child,
+window#quicksettings .quicksettings button.simple-toggle box.horizontal.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > *:last-child,
+window#quicksettings .quicksettings button.simple-toggle box.horizontal.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > *,
+window#quicksettings .quicksettings button.simple-toggle box.horizontal.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > *:first-child,
+window#quicksettings .quicksettings button.simple-toggle box.horizontal.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > *:last-child,
+window#quicksettings .quicksettings button.simple-toggle box.horizontal.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.toggle-button {
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  border-radius: var(--radius);
+  transition: var(--transition);
+}
+window#quicksettings .quicksettings box.toggle-button:hover {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings box.toggle-button button {
+  all: unset;
+  transition: var(--transition);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  padding: calc(var(--padding) * 1.2);
+}
+window#quicksettings .quicksettings box.toggle-button button:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+  border-right: var(--border-width) solid var(--border-color);
+}
+window#quicksettings .quicksettings box.toggle-button button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+window#quicksettings .quicksettings box.toggle-button button:hover {
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#quicksettings .quicksettings box.toggle-button button:active {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings box.toggle-button button.arrow {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings box.toggle-button.active {
+  background-color: var(--primary-bg);
+}
+window#quicksettings .quicksettings box.toggle-button.active label,
+window#quicksettings .quicksettings box.toggle-button.active image {
+  color: var(--primary-fg);
+}
+window#quicksettings .quicksettings button.simple-toggle {
+  padding: calc(var(--padding) * 1.2);
+}
+window#quicksettings .quicksettings box.media.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#quicksettings .quicksettings box.media.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.media.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.media.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#quicksettings .quicksettings box.media.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.media.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.media box.player {
+  padding: var(--padding);
+}
+window#quicksettings .quicksettings box.media box.player picture.cover-art {
+  box-shadow: 2px 2px 2px 0 var(--shadow-color);
+  border-radius: calc(var(--radius) * 0.8);
+  margin-right: var(--padding);
+}
+window#quicksettings .quicksettings box.media box.player > box.vertical.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0 / 2);
+}
+window#quicksettings .quicksettings box.media box.player > box.vertical.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.media box.player > box.vertical.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.media box.player > box.vertical.vertical > * {
+  margin: calc(var(--spacing) * 0 / 2) 0;
+}
+window#quicksettings .quicksettings box.media box.player > box.vertical.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.media box.player > box.vertical.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.media box.player box.title.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.media box.player box.title.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.media box.player box.title.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.media box.player box.title.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.media box.player box.title.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.media box.player box.title.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.media box.player box.title {
+  font-weight: bold;
+}
+window#quicksettings .quicksettings box.media box.player label.artist {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+  font-size: 0.9em;
+}
+window#quicksettings .quicksettings box.media box.player button {
+  padding: calc(var(--padding) / 2);
+}
+window#quicksettings .quicksettings box.media box.player button.play-pause {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings box.media box.player scale {
+  margin: 0 calc(var(--spacing) / 2);
+}
+window#quicksettings .quicksettings box.media box.player scale trough {
+  border: none;
+  min-height: 0.5em;
+  margin-bottom: var(--spacing);
+}
+window#quicksettings .quicksettings box.media box.player scale trough highlight,
+window#quicksettings .quicksettings box.media box.player scale trough progress {
+  min-height: 0.5em;
+}
+window#quicksettings .quicksettings box.media box.player scale slider {
+  min-height: 0.6em;
+  min-width: 0.6em;
+  margin: -0.35em;
+}
+window#quicksettings .quicksettings box.media box.player box.horizontal.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.media box.player box.horizontal.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.media box.player box.horizontal.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.media box.player box.horizontal.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.media box.player box.horizontal.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.media box.player box.horizontal.vertical > *:last-child {
+  margin-bottom: 0;
+}
+
+window#bar {
+  transition: var(--transition);
+  background-color: var(--bg);
+  padding: calc(var(--padding) * 0.3);
+}
+window#bar button.panel-button,
+window#bar overlay.panel-button,
+window#bar menubutton button.panel-button,
+window#bar menubutton {
+  all: unset;
+  color: var(--fg);
+}
+window#bar button.panel-button > :not(window):not(popover),
+window#bar overlay.panel-button > :not(window):not(popover),
+window#bar menubutton button.panel-button > :not(window):not(popover),
+window#bar menubutton > :not(window):not(popover) {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  padding: calc(var(--padding) / 2);
+  margin: 0 calc(var(--spacing) * 0.6);
+  font-weight: bold;
+}
+window#bar button.panel-button:focus > :not(window):not(popover), window#bar button.panel-button.focused > :not(window):not(popover),
+window#bar overlay.panel-button:focus > :not(window):not(popover),
+window#bar overlay.panel-button.focused > :not(window):not(popover),
+window#bar menubutton button.panel-button:focus > :not(window):not(popover),
+window#bar menubutton button.panel-button.focused > :not(window):not(popover),
+window#bar menubutton:focus > :not(window):not(popover),
+window#bar menubutton.focused > :not(window):not(popover) {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#bar button.panel-button:hover > :not(window):not(popover),
+window#bar overlay.panel-button:hover > :not(window):not(popover),
+window#bar menubutton button.panel-button:hover > :not(window):not(popover),
+window#bar menubutton:hover > :not(window):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#bar button.panel-button:active > :not(window):not(popover), window#bar button.panel-button.active > :not(window):not(popover), window#bar button.panel-button.on > :not(window):not(popover), window#bar button.panel-button:checked > :not(window):not(popover),
+window#bar overlay.panel-button:active > :not(window):not(popover),
+window#bar overlay.panel-button.active > :not(window):not(popover),
+window#bar overlay.panel-button.on > :not(window):not(popover),
+window#bar overlay.panel-button:checked > :not(window):not(popover),
+window#bar menubutton button.panel-button:active > :not(window):not(popover),
+window#bar menubutton button.panel-button.active > :not(window):not(popover),
+window#bar menubutton button.panel-button.on > :not(window):not(popover),
+window#bar menubutton button.panel-button:checked > :not(window):not(popover),
+window#bar menubutton:active > :not(window):not(popover),
+window#bar menubutton.active > :not(window):not(popover),
+window#bar menubutton.on > :not(window):not(popover),
+window#bar menubutton:checked > :not(window):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#bar button.panel-button:active:hover > :not(window):not(popover), window#bar button.panel-button.active:hover > :not(window):not(popover),
+window#bar overlay.panel-button:active:hover > :not(window):not(popover),
+window#bar overlay.panel-button.active:hover > :not(window):not(popover),
+window#bar menubutton button.panel-button:active:hover > :not(window):not(popover),
+window#bar menubutton button.panel-button.active:hover > :not(window):not(popover),
+window#bar menubutton:active:hover > :not(window):not(popover),
+window#bar menubutton.active:hover > :not(window):not(popover) {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), inset 0 0 0 0px var(--hover-bg);
+}
+window#bar popover contents {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: calc(var(--popover-radius) / 2);
+  padding: calc(var(--padding) / 2);
+}
+window#bar popover contents modelbutton {
+  padding: 0pt calc(var(--padding) * 0.8);
+}
+window#bar box.launcher.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#bar box.launcher.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar box.launcher.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar box.launcher.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#bar box.launcher.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar box.launcher.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#bar box.launcher .colored {
+  color: color-mix(in srgb, var(--primary-bg) 80%, transparent);
+}
+window#bar box.launcher button:hover .colored {
+  color: var(--primary-bg);
+}
+window#bar box.launcher button:active .colored,
+window#bar box.launcher button.active .colored {
+  color: var(--primary-fg);
+}
+window#bar button.workspaces box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#bar button.workspaces box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar button.workspaces box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar button.workspaces box.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#bar button.workspaces box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar button.workspaces box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#bar button.workspaces label {
+  font-size: 0;
+  min-width: 5pt;
+  min-height: 5pt;
+  border-radius: calc(var(--radius) * 0.6);
+  box-shadow: inset 0 0 2px var(--border-width) var(--border-color);
+  margin: 0 calc(var(--padding) / 2);
+  transition: calc(var(--transition) / 2);
+  background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+}
+window#bar button.workspaces label.occupied {
+  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+  min-width: 7pt;
+  min-height: 7pt;
+}
+window#bar button.workspaces label.active {
+  background-image: var(--active-gradient);
+  min-width: 20pt;
+  min-height: 12pt;
+}
+window#bar button.workspaces.active label, window#bar button.workspaces:active label {
+  background-color: color-mix(in srgb, var(--primary-fg) 70%, transparent);
+}
+window#bar button.workspaces.active label.occupied, window#bar button.workspaces:active label.occupied {
+  background-color: color-mix(in srgb, var(--primary-fg) 85%, transparent);
+}
+window#bar button.workspaces.active label.active, window#bar button.workspaces:active label.active {
+  background-color: var(--primary-fg);
+}
+window#bar button.quicksettings box.horizontal > *,
+window#bar box.quicksettings box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1.5 / 2);
+}
+window#bar button.quicksettings box.horizontal > *:first-child,
+window#bar box.quicksettings box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar button.quicksettings box.horizontal > *:last-child,
+window#bar box.quicksettings box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar button.quicksettings box.vertical > *,
+window#bar box.quicksettings box.vertical > * {
+  margin: calc(var(--spacing) * 1.5 / 2) 0;
+}
+window#bar button.quicksettings box.vertical > *:first-child,
+window#bar box.quicksettings box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar button.quicksettings box.vertical > *:last-child,
+window#bar box.quicksettings box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#bar button.quicksettings:not(.active):not(:active) .bluetooth-connected {
+  color: var(--primary-bg);
+}
+
+window#bar.transparent {
+  background-color: transparent;
+}
+window#bar.transparent button:hover > * {
+  box-shadow: 1px 1px 3px 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--bg);
+}
+window#bar.transparent button:not(:hover):not(.active) label,
+window#bar.transparent button:not(:hover):not(.active) image {
+  -gtk-icon-shadow: var(--text-shadow);
+  text-shadow: var(--text-shadow);
+}
+window#bar.transparent box.workspaces label {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), 1px 1px 3px 0 var(--shadow-color);
+}
+
+window#state-display {
+  background-color: transparent;
+}
+
+window#state-display box.state-display {
+  padding: calc(var(--padding) * 2.25);
+}
+window#state-display box.state-display image {
+  padding: var(--popover-padding);
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+}
+window#state-display box.state-display progressbar.percentage trough {
+  border: none;
+}
+window#state-display box.state-display progressbar.percentage.muted trough progress {
+  background-image: none;
+  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+
+window#powermenu,
+window#verification {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+window#verification box.verification {
+  padding: calc(var(--popover-padding) * 1.5);
+  min-width: 300px;
+  min-height: 100px;
+}
+window#verification box.verification box.text-box {
+  margin-bottom: var(--spacing);
+}
+window#verification box.verification box.text-box label.title {
+  font-weight: bold;
+  font-size: 1.3em;
+}
+window#verification box.verification box.text-box label.desc {
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+  font-size: 1.1em;
+}
+window#verification box.verification box.buttons.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#verification box.verification box.buttons.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#verification box.verification box.buttons.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#verification box.verification box.buttons.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#verification box.verification box.buttons.vertical > *:first-child {
+  margin-top: 0;
+}
+window#verification box.verification box.buttons.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#verification box.verification box.buttons {
+  margin-top: var(--padding);
+}
+window#verification box.verification box.buttons button {
+  padding: var(--padding);
+}
+
+window#powermenu box.powermenu.line {
+  padding: calc(var(--popover-padding) * 1.5);
+}
+window#powermenu box.powermenu.line button {
+  padding: var(--popover-padding);
+}
+window#powermenu box.powermenu.line label {
+  margin-bottom: calc(var(--spacing) * -0.5);
+}
+window#powermenu box.powermenu.box {
+  padding: calc(var(--popover-padding) * 2);
+}
+window#powermenu box.powermenu.box button {
+  padding: calc(var(--popover-padding) * 1.5);
+}
+window#powermenu box.powermenu.box label {
+  margin-bottom: calc(var(--spacing) * -1);
+}
+window#powermenu box.powermenu button {
+  all: unset;
+}
+window#powermenu box.powermenu button image {
+  border-radius: calc(var(--radius) + var(--popover-padding) * 1.4);
+  min-width: 1.7em;
+  min-height: 1.7em;
+  font-size: 4em;
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  transition: var(--transition);
+}
+window#powermenu box.powermenu button label,
+window#powermenu box.powermenu button image {
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+}
+window#powermenu box.powermenu button label {
+  margin-top: calc(var(--spacing) * 0.8);
+}
+window#powermenu box.powermenu button:hover image {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#powermenu box.powermenu button:hover label {
+  color: var(--fg);
+}
+window#powermenu box.powermenu button:focus image {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#powermenu box.powermenu button:active image {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#powermenu box.powermenu button:focus label, window#powermenu box.powermenu button:active label {
+  color: var(--primary-bg);
+}
+
+window.settings-dialog {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+window.settings-dialog box.header {
+  padding: var(--padding);
+}
+window.settings-dialog box.header box.pager.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window.settings-dialog box.header box.pager.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.settings-dialog box.header box.pager.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.settings-dialog box.header box.pager.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window.settings-dialog box.header box.pager.vertical > *:first-child {
+  margin-top: 0;
+}
+window.settings-dialog box.header box.pager.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.settings-dialog box.header box.pager button {
+  font-weight: bold;
+  padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
+}
+window.settings-dialog box.header box.pager button > box.horizontal > * {
+  margin: 0 0.15em;
+}
+window.settings-dialog box.header box.pager button > box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.settings-dialog box.header box.pager button > box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.settings-dialog box.header box.pager button > box.vertical > * {
+  margin: 0.15em 0;
+}
+window.settings-dialog box.header box.pager button > box.vertical > *:first-child {
+  margin-top: 0;
+}
+window.settings-dialog box.header box.pager button > box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.settings-dialog box.header button.reset {
+  padding: calc(var(--padding) / 2);
+}
+window.settings-dialog box.header button.close {
+  padding: calc(var(--padding) / 2);
+}
+window.settings-dialog scrolledwindow.page box.page-content {
+  padding: calc(var(--padding) * 2);
+  padding-top: 0;
+}
+window.settings-dialog box.group label.group-title {
+  color: var(--primary-bg);
+  margin-bottom: calc(var(--spacing) / 2);
+}
+window.settings-dialog box.group button.group-reset {
+  padding: calc(var(--padding) / 2);
+  margin: calc(var(--spacing) / 2);
+}
+window.settings-dialog box.group button.group-reset:disabled {
+  color: transparent;
+}
+window.settings-dialog box.group:not(:first-child) {
+  margin-top: var(--spacing);
+}
+window.settings-dialog box.row {
+  background-color: var(--widget-bg);
+  padding: var(--padding);
+  border: var(--border);
+  border-top: none;
+}
+window.settings-dialog box.row:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+  border: var(--border);
+}
+window.settings-dialog box.row:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+window.settings-dialog box.row:first-child:last-child {
+  border-radius: var(--radius);
+  border: var(--border);
+}
+window.settings-dialog box.row label.id,
+window.settings-dialog box.row label.note {
+  color: color-mix(in srgb, var(--fg) 60%, transparent);
+}
+window.settings-dialog box.row button {
+  padding: var(--padding);
+}
+window.settings-dialog box.row button.reset {
+  padding: calc(var(--padding) / 2);
+  margin-left: var(--spacing);
+}
+window.settings-dialog box.row colorswatch {
+  border-radius: calc(var(--radius) / 4);
+}
+window.settings-dialog box.row picture.preview {
+  border-radius: var(--radius);
+  min-height: 15em;
+  min-width: 15em;
+}
+
+.placeholder.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+.placeholder.horizontal > *:first-child {
+  margin-left: 0;
+}
+.placeholder.horizontal > *:last-child {
+  margin-right: 0;
+}
+.placeholder.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+.placeholder.vertical > *:first-child {
+  margin-top: 0;
+}
+.placeholder.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.placeholder {
+  padding: calc(var(--padding) * 2);
+}
+.placeholder image {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  margin-bottom: 0.1em;
+}
+.placeholder label {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  font-size: 1.25em;
+}
+
+window.placeholder box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window.placeholder box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.placeholder box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.placeholder box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window.placeholder box.vertical > *:first-child {
+  margin-top: 0;
+}
+window.placeholder box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.placeholder label {
+  font-size: 72pt;
+  font-weight: bold;
+}
+
+/*# sourceMappingURL=main.css.map */

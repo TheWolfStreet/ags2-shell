@@ -104,8 +104,32 @@ export function ArrowToggleButton({
 	}
 	const isAccessor = typeof label == "function"
 	const tooltipText = isAccessor ? label.as(l => l.length > 13 ? l : "") : (label && label.length > 13 ? label : "")
+
+	let deg = 0
+	let open = false
+	const [css, set_css] = createState("")
+	const getName = typeof name === "function" ? () => name.get() : () => name || ""
+
+	const animate = (step: number) => {
+		for (let i = 0; i < 9; i++) {
+			timeout(options.transition.duration.get() * 0.075 * i, () => {
+				deg += step
+				set_css(`transform: rotate(${deg}deg);`)
+			})
+		}
+	}
+
+	const unsub = opened.subscribe(() => {
+		const current = getName()
+		if ((opened.get() === current && !open) || (opened.get() !== current && open)) {
+			animate(opened.get() === current ? 10 : -10)
+			open = !open
+		}
+	})
+	onCleanup(unsub)
+
 	return (
-		<box class="toggle-button" $={self => {
+		<box class="toggle-button outlined" $={self => {
 			toggleClass(self, "active", connection?.get() ?? false)
 			connection?.subscribe(() => toggleClass(self, "active", connection.get()))
 		}} >
@@ -117,7 +141,13 @@ export function ArrowToggleButton({
 					<label class="label" ellipsize={END} maxWidthChars={11} label={label} />
 				</box>
 			</button>
-			<Arrow name={name} activate={activateOnArrow ? activate : undefined} visible />
+			<button class="arrow" visible onClicked={() => {
+				const current = getName()
+				set_opened(opened.get() === current ? "" : current)
+				if (activateOnArrow && typeof activate === "function") activate()
+			}}>
+				<image iconName={icons.ui.arrow.right} useFallback css={css} />
+			</button>
 		</box >
 	)
 }
@@ -141,7 +171,7 @@ export function Menu({ name, iconName, title, headerChild, children }: MenuProps
 			vexpand={false} hexpand={false}
 		>
 			<box class={`menu ${name}`} orientation={VERTICAL}>
-				<box class="title-box">
+				<box class="title-box horizontal">
 					<image class="icon" iconName={iconName} useFallback />
 					<label class="title" label={title} />
 					{headerChild}

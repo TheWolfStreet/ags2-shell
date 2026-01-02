@@ -1,42 +1,87 @@
 @use 'sass:color';
-@import '../Notifications/style.scss';
+@use '../../../../style/shared/base' as *;
 
-window#datemenu .datemenu {
-  @include floating-widget;
+window#datemenu {
+  background-color: transparent;
+  box.datemenu {
+    @extend .floating;
 
-  .notifications {
-    .notifications-header {
-      margin-bottom: calc(var(--padding) * 1.5);
-      margin-right: calc(var(--padding) * 1.5);
+    box.notifications {
+      box.notifications-header {
+        margin-bottom: calc(var(--padding) * 1.5);
+        margin-right: calc(var(--padding) * 1.5);
 
-      button {
-        @include button;
-        padding: calc(var(--padding) * 0.7) var(--padding);
+        button {
+          padding: calc(var(--padding) * 0.7) var(--padding);
 
-        box { @include spacing(.5); }
+          box {
+            @include spacing(0.5);
+          }
+        }
+      }
+
+      scrolledwindow.notification-scrollable {
+        margin-right: calc(var(--padding) * 1.5);
+      }
+
+      box.notification {
+        @extend .widget;
+        padding: var(--padding);
+        margin-bottom: var(--spacing);
       }
     }
 
-    .notification-scrollable {
-      @include scrollable($top: true, $bottom: true);
+    separator {
+      background-color: var(--popover-border-color);
+      border-radius: var(--radius);
       margin-right: calc(var(--padding) * 1.5);
     }
 
-    .notification { @include widget; @include notification; padding: var(--padding); margin-bottom: var(--spacing); }
+
+    box.clock-box {
+      label.clock {
+        font-size: 5em;
+      }
+
+      label.uptime {
+        color: color-mix(in srgb, var(--fg) 80%, transparent);
+        margin-bottom: calc(var(--padding) * 2);
+      }
+    }
+
+    box.calendar {
+      @extend .widget;
+      padding: var(--padding) var(--padding) 0;
+
+      calendar {
+        all: unset;
+        font-size: 1.1em;
+        padding: 0.3em;
+
+        button.flat {
+          padding: calc(var(--padding) * 0.6);
+        }
+
+        label:selected {
+          background-color: var(--primary-bg);
+          border-radius: calc(var(--radius) * 0.6);
+        }
+
+        header {
+          background-color: transparent;
+          border: none;
+          color: color-mix(in srgb, var(--fg) 50%, transparent);
+        }
+
+        label.day-name {
+          background-color: transparent;
+          color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+        }
+
+        label.other-month {
+          color: color-mix(in srgb, var(--fg) 10%, transparent);
+        }
+      }
+    }
   }
-
-  separator {
-    background-color: var(--popover-border-color);
-    border-radius: var(--radius);
-    margin-right: calc(var(--padding) * 1.5);
-  }
-
-  .datemenu { @include spacing; }
-
-  .clock-box {
-    .clock { font-size: 5em; }
-    .uptime { color: color-mix(in srgb, var(--fg) 80%, transparent); margin-bottom: calc(var(--padding) * 2); }
-  }
-
-  .calendar { @include calendar; }
 }

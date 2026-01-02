@@ -1,51 +1,72 @@
 @use "sass:color";
+@use '../../style/shared/base' as *;
 
 window.settings-dialog {
   background-color: var(--bg);
   color: var(--fg);
 
-  .header {
-    .pager {
-      @include spacing();
-        button {
-          @include button;
-          font-weight: bold;
-          padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
-
-          >box {
-            @include spacing($spacing: .3em);
-          }
-        }
-    }
-
+  box.header {
     padding: var(--padding);
 
-    button.reset,
-    button.close{
-      @include button;
+    box.pager {
+      @include spacing;
+
+      button {
+        font-weight: bold;
+        padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
+
+        > box.horizontal > * {
+          margin: 0 0.15em;
+
+          &:first-child {
+            margin-left: 0;
+          }
+
+          &:last-child {
+            margin-right: 0;
+          }
+        }
+
+        > box.vertical > * {
+          margin: 0.15em 0;
+
+          &:first-child {
+            margin-top: 0;
+          }
+
+          &:last-child {
+            margin-bottom: 0;
+          }
+        }
+      }
+    }
+
+    button.reset {
+      @extend .reset-button;
+      padding: calc(var(--padding) / 2);
+    }
+
+    button.close {
+      @extend .outlined-button;
       padding: calc(var(--padding) / 2);
     }
   }
 
-  .page {
-    @include scrollable($top: true);
-
-    .page-content {
-      padding: calc(var(--padding) * 2);
-      padding-top: 0;
-    }
+  scrolledwindow.page box.page-content {
+    padding: calc(var(--padding) * 2);
+    padding-top: 0;
   }
 
-  .group {
-    .group-title {
+  box.group {
+    label.group-title {
       color: var(--primary-bg);
       margin-bottom: calc(var(--spacing) / 2);
     }
 
-    .group-reset {
-      @include button($flat: true);
-      margin: calc(var(--spacing) / 2);
+    button.group-reset {
+      @extend .reset-button;
       padding: calc(var(--padding) / 2);
+      margin: calc(var(--spacing) / 2);
 
       &:disabled {
         color: transparent;
@@ -57,7 +78,7 @@ window.settings-dialog {
     }
   }
 
-  .row {
+  box.row {
     background-color: var(--widget-bg);
     padding: var(--padding);
     border: var(--border);
@@ -77,65 +98,28 @@ window.settings-dialog {
       border: var(--border);
     }
 
-    button.reset {
-      margin-left: var(--spacing);
-    }
-
     label.id,
     label.note {
-      color: color-mix(in srgb, var(--fg) 60%, transparent)
+      color: color-mix(in srgb, var(--fg) 60%, transparent);
     }
 
-    entry,
+
     button {
-      @include button;
+      @extend .outlined-button;
       padding: var(--padding);
     }
 
-    @include switch;
-
-    spinbutton {
-      @include unset;
-      text {
-        padding: calc(var(--padding) / 2);
-        background-color: var(--widget-bg);
-        border-radius: var(--radius) 0 0 var(--radius);
-        border: var(--border);
-      }
-
-      button {
-        border-radius: 0;
-      }
-
-      button:last-child {
-        border-radius: 0 var(--radius) var(--radius) 0;
-      }
-    }
-
-    .enum-setter {
-      label {
-        background-color: var(--widget-bg);
-        border: var(--border);
-        padding: calc(var(--padding) / 2);
-        border-radius: var(--radius) 0 0 var(--radius);
-      }
-
-
-      button {
-        padding: calc(var(--padding) / 2);
-        border-radius: 0;
-      }
-
-      button:last-child {
-        border-radius: 0 var(--radius) var(--radius) 0;
-      }
+    button.reset {
+      @extend .reset-button;
+      padding: calc(var(--padding) / 2);
+      margin-left: var(--spacing);
     }
 
     colorswatch {
       border-radius: calc(var(--radius) / 4);
     }
 
-    .preview {
+    picture.preview {
       border-radius: var(--radius);
       min-height: 15em;
       min-width: 15em;

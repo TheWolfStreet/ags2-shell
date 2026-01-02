@@ -1,21 +1,17 @@
-window#bar {
-  .battery{
-    @include spacing(.5);
-  }
+@use '../../../../style/shared/base' as *;
+
+window#bar box.battery {
+  @include spacing(0.5);
 }
 
-window#batterystate .batterystate {
-  @include floating-widget;
-  @include spacing(.5);
+window#batterystate {
+  background-color: transparent;
+  box.batterystate {
+    @extend .floating;
+    @include spacing(0.5);
 
-  .percentage {
-    @include slider($width: .5em, $slider-width: 4em, $hoverable: false, $focusable: false, $slider: false);
-    trough {
-      border: none;
+    label {
+      font-weight: bold;
     }
-  }
-
-  label {
-    font-weight: bold;
   }
 }

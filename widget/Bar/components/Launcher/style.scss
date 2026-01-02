@@ -1,78 +1,96 @@
 @use "sass:math";
 @use "sass:color";
+@use '../../../../style/shared/base' as *;
 
-window#launcher .launcher {
-  @include floating-widget;
-  .quicklaunch {
-    @include spacing;
+window#launcher {
+  background-color: transparent;
+  box.launcher {
+    @extend .floating;
 
-    button {
-      @include button($flat: true);
+    box.quicklaunch {
+      @include spacing;
+      margin-top: var(--spacing);
+    }
+
+    entry {
+      margin: var(--spacing);
+
+      selection {
+        color: color-mix(in srgb, var(--fg) 50%, var(--bg));
+        background-color: transparent;
+      }
+
+      label,
+      image {
+        color: var(--fg);
+      }
+    }
+
+    image.spinner {
+      color: var(--primary-bg);
+      margin-right: var(--spacing);
+    }
+
+    separator {
+      margin: 4pt 0;
+      background-color: var(--popover-border-color);
+    }
+
+    button.app-item {
       padding: var(--padding);
-    }
-  }
-
-  entry {
-    @include button;
-    padding: var(--padding);
-    margin: var(--spacing);
-
-    selection {
-      color: color-mix(in srgb, var(--fg) 50%, var(--bg));
+      transition: var(--transition);
       background-color: transparent;
+      background-image: none;
+      box-shadow: none;
+
+      > box {
+        @include spacing(0.5);
+      }
+
+      label {
+        transition: var(--transition);
+
+        &.title {
+          color: var(--fg);
+        }
+
+        &.description {
+          color: color-mix(in srgb, var(--fg) 70%, transparent);
+        }
+      }
+
+      image {
+        transition: var(--transition);
+      }
+
+      &:hover,
+      &:focus {
+        label.title {
+          color: var(--primary-bg);
+        }
+
+        label.description {
+          color: color-mix(in srgb, var(--primary-bg) 60%, transparent);
+        }
+
+        image {
+          -gtk-icon-shadow: 2px 2px var(--primary-bg);
+        }
+      }
+
+      &:active {
+        background-color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+        border-radius: var(--radius);
+        box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+
+        label.title {
+          color: var(--fg);
+        }
+      }
     }
 
-    label, image {
-      color: var(--fg);
+    label.launch-hint {
+      color: color-mix(in srgb, var(--fg) 70%, transparent);
     }
-  }
-
-  image.spinner {
-    color: var(--primary-bg);
-    margin-right: var(--spacing);
-  }
-
-  separator {
-    margin: 4pt 0;
-    background-color: var(--popover-border-color);
-  }
-
-  button.app-item {
-    @include button($flat: true, $reactive: false);
-
-    padding: var(--padding);
-    transition: var(--transition);
-
-    >box {
-      @include spacing(.5);
-    }
-
-    label {
-      transition: var(--transition);
-      &.title { color: var(--fg); }
-      &.description { color: color-mix(in srgb, var(--fg) 70%, transparent); }
-    }
-
-    image {
-      transition: var(--transition);
-    }
-
-    &:hover, &:focus {
-      .title { color: var(--primary-bg); }
-      .description { color: color-mix(in srgb, var(--primary-bg) 60%, transparent); }
-      image { -gtk-icon-shadow: 2px 2px var(--primary-bg); }
-    }
-
-    &:active {
-      background-color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
-      border-radius: var(--radius);
-      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-
-      .title { color: var(--fg); }
-    }
-  }
-
-  .launch-hint {
-    color: color-mix(in srgb, var(--fg) 70%, transparent);
   }
 }

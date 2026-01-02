@@ -33,6 +33,7 @@ export namespace Date {
 	function ClearButton() {
 		return (
 			<button
+				class="outlined"
 				onClicked={() =>
 					Notifications.dismissAll()
 				}

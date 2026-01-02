@@ -1,3 +1,7 @@
+window#screen-corner {
+  background-color: transparent;
+}
+
 window#screen-corner:not(.hidden) {
   --_shadow-size: var(--padding);
   --_radius: var(--screen-corner-radius);

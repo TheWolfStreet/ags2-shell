@@ -1,191 +1,272 @@
 @use "sass:color";
+@use '../../../../style/shared/base' as *;
 
-window#quicksettings .quicksettings {
-  @include floating-widget;
-  @include spacing;
-  padding: calc(var(--popover-padding) * 1.4);
-
-  .avatar {
-    @include widget;
-    min-width: 65px;
-    min-height: 65px;
-    border-radius: calc(var(--radius) * 3);
-    background-clip: padding-box;
-  }
-
-  .username {
-    font-size: 1.25em;
-    margin-left: calc(var(--spacing) / 2);
-    font-weight: bold;
-  }
-
-  .header {
-    @include spacing(.5);
-    color: color-mix(in srgb, var(--fg) 85%, transparent);
-
-    button {
-      @include button;
-      padding: var(--padding);
-
-      icon:first-child {
-        font-size: 1.4em;
-      }
-    }
-  }
-
-  .sliders-box {
-    @include widget;
-    padding: var(--padding);
-
-    .volume {
-      button {
-        @include button($flat: true);
-        padding: calc(var(--padding) / 2);
-      }
-
-      button.arrow:last-child {
-        margin-left: calc(var(--spacing) * 0.4);
-      }
-    }
-
-
-    .control-unit {
-      button {
-        @include button($flat: true);
-        padding: calc(var(--padding) / 2);
-      }
-
-      padding: calc(var(--padding) / 2);
-
-      scale {
-        @include slider;
-        margin: 0 (calc(var(--spacing) / 2));
-
-        &.muted highlight {
-          background-image: none;
-          background-color: color-mix(in srgb, var(--fg) 80%, transparent);
-        }
-      }
-    }
-
-    .menu {
-      margin: (calc(var(--spacing) / 2)) 0;
-
-      &.device-selector .sink-item,
-      &.app-mixer .mixer-item {
-        @include spacing(.5);
-      }
-
-      &.app-mixer .mixer-item {
-        padding: calc(var(--padding) / 2);
-
-        scale {
-          @include slider($width: .5em);
-        }
-      }
-    }
-  }
-
-  .row {
+window#quicksettings {
+  background-color: transparent;
+  .quicksettings {
+    @extend .floating;
     @include spacing;
-  }
+    padding: calc(var(--popover-padding) * 1.4);
 
-  .menu {
-    @include unset;
-    @include widget;
-    @include scrollable;
-    padding: var(--padding);
-    margin-top: var(--spacing);
 
-    .icon {
-      margin: 0 (calc(var(--spacing) / 2));
-      margin-left: calc(var(--spacing) * 0.2);
+    picture.avatar {
+      @extend .widget;
+      border-radius: calc(var(--radius) * 3);
+      min-width: 65px;
+      min-height: 65px;
+      background-clip: padding-box;
     }
 
-    .title {
+    label.username {
+      font-size: 1.25em;
+      margin-left: calc(var(--spacing) / 2);
       font-weight: bold;
     }
 
-    separator {
-      margin: calc(var(--radius) / 2);
-      background-color: var(--border-color);
-    }
+    box.header {
+      @include spacing(0.5);
+      color: color-mix(in srgb, var(--fg) 85%, transparent);
 
-    button {
-      @include button($flat: true);
-      padding: calc(var(--padding) * 0.7);
+      button {
+        @extend .outlined-button;
+        padding: var(--padding);
 
-      icon:first-child {
-        margin-right: calc(var(--spacing) / 2);
+        icon:first-child {
+          font-size: 1.4em;
+        }
       }
     }
 
-    .device-scroll {
-      min-height: 200px;
-    }
+    box.sliders-box {
+      @extend .widget;
+      padding: var(--padding);
 
-    .settings {
-      @include spacing(.5);
-    }
-
-    switch {
-      @include switch;
-    }
-
-    &.bluetooth-selector .bluetooth-item,
-    &.mirror-selector .mirror-item,
-    &.profile-selector .profile-item,
-    &.wifi-selector .wifi-item {
-      @include spacing(.5);
-    }
-  }
-
-  .toggle-button,
-  .simple-toggle {
-    @include button;
-    font-weight: bold;
-
-    .horizontal {
-      @include spacing(.5);
-    }
-  }
-
-  .toggle-button {
-    button {
-      @include button($flat: true);
-
-      &:first-child {
-        padding: calc(var(--padding) * 1.2);
-        border-top-right-radius: 0;
-        border-bottom-right-radius: 0;
-      }
-
-      &:last-child {
+      box.volume button {
         padding: calc(var(--padding) / 2);
-        border-top-left-radius: 0;
-        border-bottom-left-radius: 0;
+
+        &.arrow:last-child {
+          margin-left: calc(var(--spacing) * 0.4);
+        }
+      }
+
+      box.control-unit {
+        padding: calc(var(--padding) / 2);
+
+        button {
+          padding: calc(var(--padding) / 2);
+        }
+
+        scale {
+          margin: 0 calc(var(--spacing) / 2);
+
+          &.muted highlight {
+            background-image: none;
+            background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+          }
+        }
+      }
+
+      box.menu {
+        margin: calc(var(--spacing) / 2) 0;
+
+        &.device-selector box.sink-item,
+        &.app-mixer box.mixer-item {
+          @include spacing(0.5);
+        }
+
+        &.app-mixer box.mixer-item {
+          padding: calc(var(--spacing) / 2);
+
+          scale trough highlight,
+          scale trough progress {
+            background-color: var(--primary-bg);
+          }
+        }
       }
     }
 
-    &.active {
-      background-color: var(--primary-bg);
 
-      label,
-      image {
-        color: var(--primary-fg);
+    box.row {
+      @include spacing;
+    }
+
+    box.menu {
+      @extend .widget;
+      padding: var(--padding);
+      margin-top: var(--spacing);
+
+      box.vertical {
+        @include spacing(0.5);
+      }
+
+      box.title-box {
+        @include spacing(0.5);
+      }
+
+      icon.icon {
+        margin-left: calc(var(--spacing) * 0.2);
+      }
+
+      label.title {
+        font-weight: bold;
+      }
+
+      separator {
+        margin: calc(var(--radius) / 2);
+        background-color: var(--border-color);
+      }
+
+      button {
+        padding: calc(var(--padding) * 0.7);
+
+        icon:first-child {
+          margin-right: calc(var(--spacing) / 2);
+        }
+      }
+
+      scrolledwindow {
+        min-height: 200px;
+      }
+
+      box.settings,
+      box.bluetooth-item,
+      box.mirror-item,
+      box.profile-item,
+      box.wifi-item {
+        @include spacing(0.5);
       }
     }
-  }
 
-  .simple-toggle {
-    padding: calc(var(--padding) * 1.2);
-  }
+    box.toggle-button,
+    button.simple-toggle {
+      font-weight: bold;
 
-  .media {
-    @include spacing;
+      box.horizontal {
+        @include spacing(0.5);
+      }
+    }
 
-    .player {
-      @include media;
+    box.toggle-button {
+      background-color: var(--widget-bg);
+      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+      border-radius: var(--radius);
+      transition: var(--transition);
+
+      &:hover {
+        box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+        background-color: var(--hover-bg);
+        color: var(--hover-fg);
+      }
+
+      button {
+        all: unset;
+        transition: var(--transition);
+        color: var(--fg);
+        background-color: transparent;
+        background-image: none;
+        box-shadow: none;
+        padding: calc(var(--padding) * 1.2);
+
+        &:first-child {
+          border-radius: var(--radius) 0 0 var(--radius);
+          border-right: var(--border-width) solid var(--border-color);
+        }
+
+        &:last-child {
+          border-radius: 0 var(--radius) var(--radius) 0;
+        }
+
+        &:hover {
+          background-color: var(--hover-bg);
+          color: var(--hover-fg);
+        }
+
+        &:active {
+          box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+          background-image: var(--active-gradient);
+          background-color: var(--primary-bg);
+          color: var(--primary-fg);
+        }
+      }
+
+      button.arrow {
+        padding: calc(var(--padding) / 2);
+      }
+
+      &.active {
+        background-color: var(--primary-bg);
+
+        label,
+        image {
+          color: var(--primary-fg);
+        }
+      }
+    }
+
+    button.simple-toggle {
+      @extend .outlined-button;
+      padding: calc(var(--padding) * 1.2);
+    }
+
+    box.media {
+      @include spacing;
+
+      box.player {
+        @extend .widget;
+        padding: var(--padding);
+
+        picture.cover-art {
+          box-shadow: 2px 2px 2px 0 var(--shadow-color);
+          border-radius: calc(var(--radius) * 0.8);
+          margin-right: var(--padding);
+        }
+
+        > box.vertical {
+          @include spacing(0);
+        }
+
+        box.title {
+          @include spacing(0.5);
+          font-weight: bold;
+        }
+
+        label.artist {
+          color: color-mix(in srgb, var(--fg) 80%, transparent);
+          font-size: 0.9em;
+        }
+
+        button {
+          padding: calc(var(--padding) / 2);
+
+          &.play-pause {
+            margin: 0 calc(var(--spacing) / 2);
+          }
+        }
+
+        scale {
+          margin: 0 calc(var(--spacing) / 2);
+          trough {
+            border: none;
+            min-height: 0.5em;
+            margin-bottom: var(--spacing);
+
+            highlight,
+            progress {
+              min-height: 0.5em;
+            }
+          }
+
+          slider {
+            min-height: 0.6em;
+            min-width: 0.6em;
+            margin: -0.35em;
+          }
+        }
+
+        box.horizontal {
+          @include spacing(0.5);
+        }
+      }
     }
   }
 }
