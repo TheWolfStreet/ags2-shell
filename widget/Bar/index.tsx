@@ -40,17 +40,17 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 			}}
 		>
 			<centerbox>
-				<box $type="start">
+				<box $type="start" class="horizontal">
 					<Launcher.Button />
 					<Workspaces.Button />
 					<Tasks />
 				</box>
 
-				<box $type="center">
+				<box $type="center" class="horizontal">
 					<Date.Button />
 				</box>
 
-				<box $type="end">
+				<box $type="end" class="horizontal">
 					<Media />
 					<Notifications.Button />
 					<ColorPicker />

@@ -20,8 +20,8 @@ const { preferred } = options.bar.media
 const { PLAYING } = AstalMpris.PlaybackStatus
 const { SLIDE_LEFT } = Gtk.RevealerTransitionType
 
-const { CENTER, END } = Gtk.Align
-const { VERTICAL } = Gtk.Orientation
+const { CENTER, START } = Gtk.Align
+const { VERTICAL, HORIZONTAL } = Gtk.Orientation
 
 export function Tray() {
 	const items = createComputed([createBinding(tray, "items"), options.bar.systray.ignore], (items, ignore) => {
@@ -73,7 +73,7 @@ export function Tasks() {
 		})
 
 		return (
-			<overlay class="panel-button" tooltipText={getClientTitle(client)} visible={visible}>
+			<overlay tooltipText={getClientTitle(client)} visible={visible}>
 				<Gtk.GestureClick
 					button={0}
 					onPressed={self => {
@@ -105,7 +105,7 @@ export function Tasks() {
 					$type="overlay"
 					visible={focused}
 					halign={CENTER}
-					valign={END}
+					valign={START}
 				/>
 			</overlay>
 		)
@@ -118,7 +118,7 @@ export function Tasks() {
 	)
 
 	return (
-		<box class="tasks">
+		<box class="tasks horizontal">
 			<For each={clients}>
 				{(app: AstalHyprland.Client) => <Entry client={app} />}
 			</For>
@@ -152,13 +152,9 @@ export function Media() {
 						<PanelButton
 							visible
 							name="media"
-							class="media"
 							onClicked={() => p.get_playback_status() === PLAYING ? p.pause() : p.play()}
 						>
-							<box class="horizontal">
-								<image valign={CENTER} iconName={
-									createBinding(p, "entry").as(e => e || "audio-x-generic-symbolic")
-								} useFallback />
+							<box class="test">
 								<Gtk.EventControllerMotion
 									onLeave={() => set_reveal(false)}
 									onEnter={() => {
@@ -166,6 +162,9 @@ export function Media() {
 										set_reveal(true)
 									}}
 								/>
+								<image valign={CENTER} iconName={
+									createBinding(p, "entry").as(e => e || "audio-x-generic-symbolic")
+								} useFallback />
 								<revealer
 									transitionType={SLIDE_LEFT}
 									revealChild={reveal}

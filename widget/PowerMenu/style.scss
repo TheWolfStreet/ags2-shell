@@ -1,5 +1,5 @@
 @use "sass:color";
-@use '../../style/shared/base' as *;
+@use '../../style/base' as *;
 
 window#powermenu,
 window#verification {
@@ -29,9 +29,6 @@ window#verification box.verification {
   box.buttons {
     @include spacing;
     margin-top: var(--padding);
-    button {
-      @extend .outlined-button;
-    }
   }
 }
 

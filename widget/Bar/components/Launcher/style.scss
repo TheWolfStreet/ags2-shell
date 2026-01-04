@@ -1,6 +1,6 @@
 @use "sass:math";
 @use "sass:color";
-@use '../../../../style/shared/base' as *;
+@use '../../../../style/base' as *;
 
 window#launcher {
   background-color: transparent;
@@ -10,6 +10,11 @@ window#launcher {
     box.quicklaunch {
       @include spacing;
       margin-top: var(--spacing);
+
+      button {
+        @extend .flat-button;
+        padding: calc(var(--padding) / 2);
+      }
     }
 
     entry {
@@ -56,6 +61,7 @@ window#launcher {
 
         &.description {
           color: color-mix(in srgb, var(--fg) 70%, transparent);
+          font-weight: normal;
         }
       }
 

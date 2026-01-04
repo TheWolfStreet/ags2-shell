@@ -1,4 +1,4 @@
-@use '../../../../style/shared/base' as *;
+@use '../../../../style/base' as *;
 
 window#bar box.battery {
   @include spacing(0.5);

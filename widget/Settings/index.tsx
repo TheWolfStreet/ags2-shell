@@ -88,7 +88,7 @@ export namespace Settings {
 						<box class="pager horizontal" $type="center">
 							{layout.map(({ name, iconName }) => (
 								<button
-									class={currentPage.as(v => v === name ? `outlined-button active` : "outlined-button")}
+									class={currentPage.as(v => v === name ? `active` : "")}
 									valign={CENTER}
 									onClicked={() => setCurrentPage(name)}
 								>

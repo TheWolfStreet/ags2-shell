@@ -1,7 +1,5 @@
 @use "sass:color";
 @use "sass:math";
 
-@use '../shared/base';
-@use '../shared/interactive';
-@use '../shared/scrollable';
+@use '../base';
 @use '../widgets';

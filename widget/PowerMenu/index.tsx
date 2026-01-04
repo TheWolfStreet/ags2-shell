@@ -1,4 +1,4 @@
-import { Accessor, createState, With } from "ags"
+import { createState, With } from "ags"
 import { exec } from "ags/process"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"

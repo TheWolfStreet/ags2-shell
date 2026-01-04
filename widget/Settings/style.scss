@@ -1,5 +1,18 @@
 @use "sass:color";
-@use '../../style/shared/base' as *;
+@use '../../style/base' as *;
+
+%reset-button {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+
+  &:active {
+    box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+    background-image: var(--active-gradient);
+    background-color: var(--primary-bg);
+    color: var(--primary-fg);
+  }
+}
 
 window.settings-dialog {
   background-color: var(--bg);
@@ -12,7 +25,6 @@ window.settings-dialog {
       @include spacing;
 
       button {
-        font-weight: bold;
         padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
 
         > box.horizontal > * {
@@ -42,12 +54,11 @@ window.settings-dialog {
     }
 
     button.reset {
-      @extend .reset-button;
+      @extend %reset-button;
       padding: calc(var(--padding) / 2);
     }
 
     button.close {
-      @extend .outlined-button;
       padding: calc(var(--padding) / 2);
     }
   }
@@ -58,23 +69,20 @@ window.settings-dialog {
   }
 
   box.group {
-    label.group-title {
-      color: var(--primary-bg);
-      margin-bottom: calc(var(--spacing) / 2);
-    }
-
-    button.group-reset {
-      @extend .reset-button;
-      padding: calc(var(--padding) / 2);
-      margin: calc(var(--spacing) / 2);
-
-      &:disabled {
-        color: transparent;
+    .header {
+      label.title {
+        color: var(--primary-bg);
+        font-weight: bold;
       }
-    }
 
-    &:not(:first-child) {
-      margin-top: var(--spacing);
+      button.reset {
+        @extend %reset-button;
+        padding: calc(var(--padding) / 2);
+
+        &:disabled {
+          color: transparent;
+        }
+      }
     }
   }
 
@@ -104,12 +112,9 @@ window.settings-dialog {
     }
 
 
-    button {
-      @extend .outlined-button;
-    }
 
     button.reset {
-      @extend .reset-button;
+      @extend %reset-button;
       padding: calc(var(--padding) / 2);
       margin-left: var(--spacing);
     }

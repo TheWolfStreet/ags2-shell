@@ -1,5 +1,5 @@
 @use 'sass:color';
-@use '../../style/shared/base' as *;
+@use '../../style/base' as *;
 
 .placeholder {
   @include spacing(.5);

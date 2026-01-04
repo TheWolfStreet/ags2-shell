@@ -1,58 +1,24 @@
 @use 'sass:color';
-@use '../../style/shared/base' as *;
+@use '../../style/base' as *;
 
 window#bar {
   transition: var(--transition);
   background-color: var(--bg);
   padding: calc(var(--padding) * 0.3);
+  >box {
+    margin: 0 calc(var(--spacing) / 2);
+  }
+  .horizontal {
+    @include spacing;
+  }
 
-  button.panel-button,
-  overlay.panel-button,
-  menubutton button.panel-button,
+  button {
+    @extend .flat-button;
+    padding: calc(var(--padding) / 2);
+  }
+
   menubutton {
     all: unset;
-    color: var(--fg);
-
-    > :not(window):not(popover) {
-      transition: var(--transition);
-      border-radius: var(--radius);
-      color: var(--fg);
-      background-color: transparent;
-      background-image: none;
-      box-shadow: none;
-      padding: calc(var(--padding) / 2);
-      margin: 0 calc(var(--spacing) * 0.6);
-      font-weight: bold;
-    }
-
-    &:focus > :not(window):not(popover),
-    &.focused > :not(window):not(popover) {
-      box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
-      background-color: var(--hover-bg);
-      color: var(--hover-fg);
-    }
-
-    &:hover > :not(window):not(popover) {
-      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-      background-color: var(--hover-bg);
-      color: var(--hover-fg);
-    }
-
-    &:active > :not(window):not(popover),
-    &.active > :not(window):not(popover),
-    &.on > :not(window):not(popover),
-    &:checked > :not(window):not(popover) {
-      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-      background-image: var(--active-gradient);
-      background-color: var(--primary-bg);
-      color: var(--primary-fg);
-    }
-
-    &:active:hover > :not(window):not(popover),
-    &.active:hover > :not(window):not(popover) {
-      box-shadow: inset 0 0 0 var(--border-width) var(--border-color),
-                  inset 0 0 0 0px var(--hover-bg);
-    }
   }
 
   popover contents {
@@ -128,9 +94,30 @@ window#bar {
     }
   }
 
+  box.tasks {
+    @include spacing;
+
+    overlay {
+      @extend .flat-button;
+      padding: calc(var(--padding) / 2);
+      border-radius: calc(var(--radius) * 1.5);
+    }
+
+    box.focused {
+      padding: 1.25pt;
+      margin: 15pt 0;
+      border-radius: var(--radius);
+      background-color: var(--primary-bg);
+    }
+  }
+
   button.quicksettings box,
   box.quicksettings box {
     @include spacing(1.5);
+  }
+
+  button.media box {
+    @include spacing(0.75);
   }
 
   button.quicksettings:not(.active):not(:active) .bluetooth-connected {

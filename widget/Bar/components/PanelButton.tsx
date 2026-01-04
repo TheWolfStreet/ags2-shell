@@ -14,7 +14,7 @@ export function PanelButton({
 		<button
 			name={name}
 			valign={CENTER}
-			class={`panel-button ${name ?? ""} ${className}`}
+			class={`${name ?? ""} ${className ?? ""}`}
 			canFocus={false}
 			{...props}
 			$={self => {

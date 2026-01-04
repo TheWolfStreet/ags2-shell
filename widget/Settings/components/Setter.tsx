@@ -33,10 +33,10 @@ const EnumSetter = (opt: Opt<string>, values: string[]) => {
 	return (
 		<box class="enum-setter">
 			<label label={opt} />
-			<button class="outlined-button" onClicked={() => step(-1)}>
+			<button onClicked={() => step(-1)}>
 				<image iconName={icons.ui.arrow.left} />
 			</button>
-			<button class="outlined-button" onClicked={() => step(1)}>
+			<button onClicked={() => step(1)}>
 				<image iconName={icons.ui.arrow.right} />
 			</button>
 		</box>

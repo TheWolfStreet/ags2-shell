@@ -1,14 +1,10 @@
-@use '../../../../style/shared/base' as *;
+@use '../../../../style/base' as *;
 
 window#overview {
   background-color: transparent;
   box.overview {
     @extend .floating;
     @include spacing;
-
-    button {
-      @extend .outlined-button;
-    }
 
     button.workspace {
       padding: calc(var(--spacing) * 0.25);
@@ -19,7 +15,7 @@ window#overview {
       margin: calc(var(--spacing) * 0.25);
     }
 
-    button.outlined-button.active {
+    button.active {
       background-color: var(--widget-bg);
       background-image: none;
       box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);

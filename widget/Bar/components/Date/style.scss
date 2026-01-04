@@ -1,5 +1,5 @@
 @use 'sass:color';
-@use '../../../../style/shared/base' as *;
+@use '../../../../style/base' as *;
 
 window#datemenu {
   background-color: transparent;
@@ -58,8 +58,9 @@ window#datemenu {
         font-size: 1.1em;
         padding: 0.3em;
 
-        button.flat {
-          padding: calc(var(--padding) * 0.6);
+        button {
+          @extend .flat-button;
+          padding: calc(var(--padding) / 2);
         }
 
         label:selected {

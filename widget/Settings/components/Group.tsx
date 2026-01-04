@@ -4,7 +4,7 @@ import { Accessor, createComputed } from "ags"
 import icons from "$lib/icons"
 import { Opt } from "$lib/option"
 
-const { START, END } = Gtk.Align
+const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 
 export default function Group({
@@ -26,16 +26,16 @@ export default function Group({
 
 	return (
 		<box class="group" orientation={VERTICAL} visible={visible}>
-			<centerbox>
+			<centerbox class="header" valign={CENTER}>
 				<label
-					class="group-title"
+					class="title"
 					$type="start"
 					halign={START}
 					valign={END}
 					label={title}
 				/>
 				<button
-					class="group-reset"
+					class="reset"
 					$type="end"
 					halign={END}
 					onClicked={resetGroup}

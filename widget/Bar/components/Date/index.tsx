@@ -33,13 +33,13 @@ export namespace Date {
 	function ClearButton() {
 		return (
 			<button
-				class="outlined-button"
+				class=""
 				onClicked={() =>
 					Notifications.dismissAll()
 				}
 				valign={CENTER}
 			>
-				<box class="horizontal">
+				<box>
 					<label label="Clear" />
 					<image iconName={Notifications.current.as(v => icons.trash[v.length ? "full" : "empty"])} useFallback />
 				</box>

@@ -1,42 +1,164 @@
 @use "sass:color";
-@use '../shared/base' as *;
 
-button {
+@mixin spacing($multiplier: 1) {
+  &.horizontal > * {
+    margin: 0 calc(var(--spacing) * $multiplier / 2);
+
+    &:first-child {
+      margin-left: 0;
+    }
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+
+  &.vertical > * {
+    margin: calc(var(--spacing) * $multiplier / 2) 0;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+%outlined-button {
   all: unset;
   transition: var(--transition);
   border-radius: var(--radius);
   color: var(--fg);
-  background-color: transparent;
-  background-image: none;
-  box-shadow: none;
+  padding: var(--padding);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  font-weight: bold;
 
-  &:not(popover):focus {
+  &:hover:not(.active) {
+    background-color: var(--hover-bg);
+    color: var(--hover-fg);
+  }
+
+  &:focus {
     box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
     background-color: var(--hover-bg);
     color: var(--hover-fg);
   }
 
-  &:not(popover):hover {
-    box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-    background-color: var(--hover-bg);
-    color: var(--hover-fg);
-  }
-
-  &:not(popover):active,
-  &:not(popover).on,
-  &:not(popover).active,
-  &:not(popover):checked {
-    box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  &:active,
+  &.on,
+  &.active,
+  &:checked {
     background-image: var(--active-gradient);
     background-color: var(--primary-bg);
     color: var(--primary-fg);
   }
 
-  &:not(popover):disabled {
+  &:disabled {
     box-shadow: none;
     background-color: transparent;
     color: color-mix(in srgb, var(--fg) 30%, transparent);
   }
+}
+
+.flat-button {
+  @extend %outlined-button;
+
+  background-color: transparent;
+  box-shadow: none;
+}
+
+* {
+  --hover-fg: color-mix(in srgb, var(--fg), white 8%);
+  --border: var(--border-width) solid var(--border-color);
+
+  font-size: var(--font-size);
+  font-family: var(--font-name);
+}
+
+window {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+window.dark {
+  --text-shadow: 2pt 2pt 2pt var(--shadow-color);
+  --box-shadow: 2pt 2pt 2pt 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
+}
+
+window.light {
+  --text-shadow: none;
+  --box-shadow: none;
+}
+
+separator {
+  &.horizontal {
+    min-height: var(--border-width);
+  }
+
+  &.vertical {
+    min-width: var(--border-width);
+  }
+}
+
+tooltip {
+  background-color: transparent;
+  border: none;
+
+  label {
+    background-color: var(--bg);
+    border-radius: var(--radius);
+    border: var(--border-width) solid var(--popover-border-color);
+    color: var(--fg);
+    padding: 8px;
+    margin: 4px;
+    box-shadow: 0 0 3px 0 var(--shadow-color);
+  }
+}
+
+.widget {
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  background-color: var(--widget-bg);
+  border: var(--border);
+}
+
+.floating {
+  box-shadow: 0 0 5px 0 var(--shadow-color);
+  margin: max(var(--spacing), 8px);
+  border: var(--border-width) solid var(--popover-border-color);
+  background-color: var(--bg);
+  color: var(--fg);
+  border-radius: var(--popover-radius);
+  padding: var(--popover-padding);
+}
+
+box.compact {
+  @include spacing(0.5);
+}
+
+.hidden {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  transform: scale(0);
+
+  * {
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: none;
+    transform: scale(0);
+  }
+}
+
+// Interactive elements
+button {
+  @extend %outlined-button;
 }
 
 scale {
@@ -142,7 +264,6 @@ spinbutton {
   }
 
   button {
-    @extend .outlined-button;
     border-radius: 0;
   }
 
@@ -154,7 +275,6 @@ spinbutton {
 colordialogbutton,
 fontdialogbutton {
   button {
-    @extend .outlined-button;
     padding: calc(var(--padding) / 2);
   }
 }
@@ -207,6 +327,48 @@ progressbar {
     &.muted trough progress {
       background-image: none;
       background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+    }
+  }
+}
+
+// Scrolled windows
+scrolledwindow {
+  viewport {
+    all: unset;
+  }
+
+  undershoot.top {
+    background: linear-gradient(to bottom, var(--bg), transparent, transparent, transparent, transparent, transparent);
+  }
+
+  undershoot.bottom {
+    background: linear-gradient(to top, var(--bg), transparent, transparent, transparent, transparent, transparent);
+  }
+
+  scrollbar,
+  scrollbar * {
+    all: unset;
+  }
+
+  scrollbar.vertical {
+    transition: var(--transition);
+    background-color: color-mix(in srgb, var(--bg) 30%, transparent);
+
+    &:hover {
+      background-color: color-mix(in srgb, var(--bg) 70%, transparent);
+
+      slider {
+        background-color: color-mix(in srgb, var(--fg) 70%, transparent);
+        min-width: 0.6em;
+      }
+    }
+
+    slider {
+      background-color: color-mix(in srgb, var(--fg) 50%, transparent);
+      border-radius: var(--radius);
+      min-width: 0.4em;
+      min-height: 2em;
+      transition: var(--transition);
     }
   }
 }

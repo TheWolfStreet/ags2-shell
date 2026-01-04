@@ -1,5 +1,5 @@
 @use "sass:color";
-@use '../../../../style/shared/base' as *;
+@use '../../../../style/base' as *;
 
 window#quicksettings {
   background-color: transparent;
@@ -26,10 +26,6 @@ window#quicksettings {
     box.header {
       @include spacing(0.5);
       color: color-mix(in srgb, var(--fg) 85%, transparent);
-
-      button {
-        @extend .outlined-button;
-      }
     }
 
     box.sliders-box {
@@ -37,6 +33,7 @@ window#quicksettings {
       padding: var(--padding);
 
       box.volume button {
+        @extend .flat-button;
         padding: calc(var(--padding) / 2);
 
         &.arrow:last-child {
@@ -48,6 +45,7 @@ window#quicksettings {
         padding: calc(var(--padding) / 2);
 
         button {
+          @extend .flat-button;
           padding: calc(var(--padding) / 2);
         }
 
@@ -96,6 +94,8 @@ window#quicksettings {
 
       box.title-box {
         @include spacing(0.5);
+        margin-left: calc(var(--padding) * 0.7);
+        margin-right: calc(var(--padding) * 0.7);
       }
 
       icon.icon {
@@ -112,7 +112,13 @@ window#quicksettings {
       }
 
       button {
+        @extend .flat-button;
         padding: calc(var(--padding) * 0.7);
+        font-weight: normal;
+
+        box.settings {
+          font-weight: bold;
+        }
 
         icon:first-child {
           margin-right: calc(var(--spacing) / 2);
@@ -134,8 +140,6 @@ window#quicksettings {
 
     box.toggle-button,
     button.simple-toggle {
-      font-weight: bold;
-
       box.horizontal {
         @include spacing(0.5);
       }
@@ -155,6 +159,7 @@ window#quicksettings {
 
       button {
         all: unset;
+        font-weight: bold;
         transition: var(--transition);
         color: var(--fg);
         background-color: transparent;
@@ -199,7 +204,6 @@ window#quicksettings {
     }
 
     button.simple-toggle {
-      @extend .outlined-button;
       padding: calc(var(--padding) * 1.2);
     }
 
@@ -231,6 +235,7 @@ window#quicksettings {
         }
 
         button {
+          @extend .flat-button;
           padding: calc(var(--padding) / 2);
 
           &.play-pause {
