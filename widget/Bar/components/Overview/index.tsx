@@ -148,7 +148,9 @@ export namespace Workspaces {
 				<Gtk.Fixed $={self => fixed = self}>
 					<For each={clients}>
 						{c => <Client entry={c} update={self => {
-							if (self.get_parent() === fixed) fixed.move(self, scale(c.get_x()), scale(c.get_y()))
+							if (self.get_parent() === fixed) {
+								fixed.move(self, scale(c.get_x()), scale(c.get_y()))
+							}
 						}} />
 						}
 					</For>

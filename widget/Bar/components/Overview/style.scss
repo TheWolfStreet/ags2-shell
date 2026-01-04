@@ -6,17 +6,19 @@ window#overview {
     @extend .floating;
     @include spacing;
 
-    box.workspace {
-      @extend .widget;
+    button.workspace {
+      padding: calc(var(--spacing) * 0.25);
     }
 
     button.client {
       border-radius: var(--radius);
       margin: calc(var(--spacing) * 0.25);
+    }
 
-      &.active {
-        border-color: var(--primary-bg);
-      }
+    button.outlined.active {
+      background-color: var(--widget-bg);
+      background-image: none;
+      box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
     }
   }
 }

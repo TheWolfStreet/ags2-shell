@@ -70,7 +70,7 @@ tooltip label {
   box-shadow: 0 0 3px 0 var(--shadow-color);
 }
 
-.widget, window#quicksettings .quicksettings picture.avatar, window#quicksettings .quicksettings box.sliders-box, window#quicksettings .quicksettings box.menu, window#quicksettings .quicksettings box.media box.player, window#overview box.overview box.workspace, window#datemenu box.datemenu box.notifications box.notification, window#datemenu box.datemenu box.calendar {
+.widget, window#quicksettings .quicksettings picture.avatar, window#quicksettings .quicksettings box.sliders-box, window#quicksettings .quicksettings box.menu, window#quicksettings .quicksettings box.media box.player, window#datemenu box.datemenu box.notifications box.notification, window#datemenu box.datemenu box.calendar {
   transition: var(--transition);
   border-radius: var(--radius);
   color: var(--fg);
@@ -818,12 +818,17 @@ window#overview box.overview.vertical > *:first-child {
 window#overview box.overview.vertical > *:last-child {
   margin-bottom: 0;
 }
+window#overview box.overview button.workspace {
+  padding: calc(var(--spacing) * 0.25);
+}
 window#overview box.overview button.client {
   border-radius: var(--radius);
   margin: calc(var(--spacing) * 0.25);
 }
-window#overview box.overview button.client.active {
-  border-color: var(--primary-bg);
+window#overview box.overview button.outlined.active {
+  background-color: var(--widget-bg);
+  background-image: none;
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
 }
 
 window#quicksettings {
