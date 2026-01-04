@@ -33,17 +33,17 @@ const EnumSetter = (opt: Opt<string>, values: string[]) => {
 	return (
 		<box class="enum-setter">
 			<label label={opt} />
-			<button class="outlined" onClicked={() => step(-1)}>
+			<button class="outlined-button" onClicked={() => step(-1)}>
 				<image iconName={icons.ui.arrow.left} />
 			</button>
-			<button class="outlined" onClicked={() => step(1)}>
+			<button class="outlined-button" onClicked={() => step(1)}>
 				<image iconName={icons.ui.arrow.right} />
 			</button>
 		</box>
 	)
 }
 
-export default function Setter({opt, type, enums, max = 1000, min = 0,
+export default function Setter({ opt, type, enums, max = 1000, min = 0,
 }: RowProps) {
 	if (!type) {
 		const value = opt.get()

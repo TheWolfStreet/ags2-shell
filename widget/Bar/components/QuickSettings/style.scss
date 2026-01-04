@@ -29,11 +29,6 @@ window#quicksettings {
 
       button {
         @extend .outlined-button;
-        padding: var(--padding);
-
-        icon:first-child {
-          font-size: 1.4em;
-        }
       }
     }
 

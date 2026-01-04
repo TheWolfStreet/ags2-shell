@@ -45,7 +45,7 @@ export default class Capturer extends GObject.Object {
 		} else if (!dependencies("wayshot")) return
 
 		ensurePath(this.#screenshots)
-		this.scrFile = `${this.#screenshots}/${now()}.png`
+		this.scrFile = `${this.#screenshots}${now()}.png`
 
 		const area = select ? await bash("slurp").catch(() => "") : ""
 		if (select && !area) return

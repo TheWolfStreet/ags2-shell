@@ -1,14 +1,15 @@
-.outlined-button, window.settings-dialog box.header button.close, window.settings-dialog box.row button, window#verification box.verification box.buttons button, window#quicksettings .quicksettings box.header button, window#quicksettings .quicksettings button.simple-toggle, .notification box.actions button, .notification button.close-button, spinbutton button, colordialogbutton button,
+.outlined-button, window.settings-dialog box.header button.close, window.settings-dialog box.row button, window#verification box.verification box.buttons button, window#quicksettings .quicksettings box.header button, window#quicksettings .quicksettings button.simple-toggle, window#overview box.overview button, .notification box.actions button, .notification button.close-button, box.colorpicker button, spinbutton button, colordialogbutton button,
 fontdialogbutton button {
   background-color: var(--widget-bg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  padding: var(--padding);
 }
-.outlined-button:hover, window.settings-dialog box.header button.close:hover, window.settings-dialog box.row button:hover, window#verification box.verification box.buttons button:hover, window#quicksettings .quicksettings box.header button:hover, window#quicksettings .quicksettings button.simple-toggle:hover, .notification box.actions button:hover, .notification button.close-button:hover, spinbutton button:hover, colordialogbutton button:hover,
-fontdialogbutton button:hover {
+.outlined-button:hover:not(.active), window.settings-dialog box.header button.close:hover:not(.active), window.settings-dialog box.row button:hover:not(.active), window#verification box.verification box.buttons button:hover:not(.active), window#quicksettings .quicksettings box.header button:hover:not(.active), window#quicksettings .quicksettings button.simple-toggle:hover:not(.active), window#overview box.overview button:hover:not(.active), .notification box.actions button:hover:not(.active), .notification button.close-button:hover:not(.active), box.colorpicker button:hover:not(.active), spinbutton button:hover:not(.active), colordialogbutton button:hover:not(.active),
+fontdialogbutton button:hover:not(.active) {
   background-color: var(--hover-bg);
   color: var(--hover-fg);
 }
-.outlined-button:active, window.settings-dialog box.header button.close:active, window.settings-dialog box.row button:active, window#verification box.verification box.buttons button:active, window#quicksettings .quicksettings box.header button:active, window#quicksettings .quicksettings button.simple-toggle:active, .notification box.actions button:active, .notification button.close-button:active, spinbutton button:active, colordialogbutton button:active,
+.outlined-button:active, window.settings-dialog box.header button.close:active, window.settings-dialog box.row button:active, window#verification box.verification box.buttons button:active, window#quicksettings .quicksettings box.header button:active, window#quicksettings .quicksettings button.simple-toggle:active, window#overview box.overview button:active, .notification box.actions button:active, .notification button.close-button:active, box.colorpicker button:active, spinbutton button:active, colordialogbutton button:active,
 fontdialogbutton button:active {
   background-image: var(--active-gradient);
   background-color: var(--primary-bg);
@@ -152,10 +153,6 @@ button:not(popover):disabled {
   background-color: transparent;
   color: color-mix(in srgb, var(--fg) 30%, transparent);
 }
-button.outlined {
-  background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-}
 
 scale {
   all: unset;
@@ -246,7 +243,6 @@ spinbutton text {
   border: var(--border);
 }
 spinbutton button {
-  padding: var(--padding);
   border-radius: 0;
 }
 spinbutton button:last-child {
@@ -454,6 +450,9 @@ box.colorpicker.vertical > *:last-child {
 }
 box.colorpicker {
   padding: calc(var(--padding) / 2);
+}
+box.colorpicker button {
+  padding: calc(var(--padding) / 2) calc(var(--padding) * 2);
 }
 
 window#bar box.tasks.horizontal > * {
@@ -730,7 +729,6 @@ window#launcher box.launcher label.launch-hint {
 }
 .notification box.content label.summary {
   margin-right: var(--spacing);
-  margin-bottom: calc(var(--spacing) / 2);
   color: var(--fg);
   font-weight: bold;
 }
@@ -825,7 +823,7 @@ window#overview box.overview button.client {
   border-radius: var(--radius);
   margin: calc(var(--spacing) * 0.25);
 }
-window#overview box.overview button.outlined.active {
+window#overview box.overview button.outlined-button.active, window#overview box.overview button.active {
   background-color: var(--widget-bg);
   background-image: none;
   box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
@@ -886,12 +884,6 @@ window#quicksettings .quicksettings box.header.vertical > *:last-child {
 }
 window#quicksettings .quicksettings box.header {
   color: color-mix(in srgb, var(--fg) 85%, transparent);
-}
-window#quicksettings .quicksettings box.header button {
-  padding: var(--padding);
-}
-window#quicksettings .quicksettings box.header button icon:first-child {
-  font-size: 1.4em;
 }
 window#quicksettings .quicksettings box.sliders-box {
   padding: var(--padding);
@@ -1515,10 +1507,6 @@ window#verification box.verification box.buttons.vertical > *:last-child {
 window#verification box.verification box.buttons {
   margin-top: var(--padding);
 }
-window#verification box.verification box.buttons button {
-  padding: var(--padding);
-}
-
 window#powermenu box.powermenu.line {
   padding: calc(var(--popover-padding) * 1.5);
 }
@@ -1670,9 +1658,6 @@ window.settings-dialog box.row:first-child:last-child {
 window.settings-dialog box.row label.id,
 window.settings-dialog box.row label.note {
   color: color-mix(in srgb, var(--fg) 60%, transparent);
-}
-window.settings-dialog box.row button {
-  padding: var(--padding);
 }
 window.settings-dialog box.row button.reset {
   padding: calc(var(--padding) / 2);

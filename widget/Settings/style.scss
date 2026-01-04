@@ -106,7 +106,6 @@ window.settings-dialog {
 
     button {
       @extend .outlined-button;
-      padding: var(--padding);
     }
 
     button.reset {

@@ -129,7 +129,7 @@ export function ArrowToggleButton({
 	onCleanup(unsub)
 
 	return (
-		<box class="toggle-button outlined" $={self => {
+		<box class="toggle-button" $={self => {
 			toggleClass(self, "active", connection?.get() ?? false)
 			connection?.subscribe(() => toggleClass(self, "active", connection.get()))
 		}} >

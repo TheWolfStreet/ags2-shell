@@ -37,7 +37,7 @@ export namespace Workspaces {
 	function Client({ entry: c, update }: { entry: AstalHyprland.Client, update: (self: Gtk.Widget) => void }) {
 
 		const className = createBinding(hypr, "focusedClient").as(fc => {
-			const classes: string[] = ["client", "outlined"]
+			const classes: string[] = ["client"]
 			if (fc && fc.address === c.address) classes.push("active")
 			return classes.join(" ")
 		})
@@ -105,7 +105,7 @@ export namespace Workspaces {
 
 	function Workspace({ entry: ws }: { entry: AstalHyprland.Workspace }) {
 		const className = createBinding(hypr, "focusedWorkspace").as(fws => {
-			const classes: string[] = ["workspace", "outlined"]
+			const classes: string[] = ["workspace"]
 			if (fws?.id === ws?.id) classes.push("active")
 			return classes.join(" ")
 		})

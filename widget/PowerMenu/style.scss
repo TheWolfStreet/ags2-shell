@@ -31,7 +31,6 @@ window#verification box.verification {
     margin-top: var(--padding);
     button {
       @extend .outlined-button;
-      padding: var(--padding);
     }
   }
 }

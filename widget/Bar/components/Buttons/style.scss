@@ -4,6 +4,10 @@
 box.colorpicker {
   @include spacing(0.5);
   padding: calc(var(--padding) / 2);
+  button {
+    @extend .outlined-button;
+    padding: calc(var(--padding) / 2) calc(var(--padding) * 2);
+  }
 }
 
 window#bar {
