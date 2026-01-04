@@ -1,19 +1,24 @@
 {
-	"$schema": "https://json.schemastore.org/tsconfig",
-	"compilerOptions": {
-		"strict": true,
-		"module": "ES2022",
-		"target": "ES2020",
-		"lib": ["ES2023"],
-		"moduleResolution": "Bundler",
-		// "checkJs": true,
-		// "allowJs": true,
-		"jsx": "react-jsx",
-		"jsxImportSource": "ags/gtk4",
-		"baseUrl": ".",
-		"paths": {
-			"$lib/*": ["lib/*"],
-			"$service/*": ["service/*"]
-		}
-	}
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "react-jsx",
+    "jsxImportSource": "ags/gtk4",
+    "lib": [
+      "ES2023"
+    ],
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "$lib/*": [
+        "lib/*"
+      ],
+      "$service/*": [
+        "service/*"
+      ]
+    },
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2020"
+  }
 }

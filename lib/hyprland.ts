@@ -37,9 +37,9 @@ const deps = [
 ]
 
 function primary() {
-	return scheme.get() === "dark"
-		? darkActive.get()
-		: lightActive.get()
+	return scheme.peek() === "dark"
+		? darkActive.peek()
+		: lightActive.peek()
 }
 
 function rgba(color: string) {
@@ -55,10 +55,10 @@ async function sendBatch(batch: string[]) {
 }
 
 async function setHyprland() {
-	const gaps = Math.floor(hyprland.gaps.get() * spacing.get());
-	const darkMode = scheme.get().includes("dark");
-	const blurPolicy = darkMode || blurOnLight.get();
-	const blurEnabled = blur.get() > 0 && blurPolicy;
+	const gaps = Math.floor(hyprland.gaps.peek() * spacing.peek());
+	const darkMode = scheme.peek().includes("dark");
+	const blurPolicy = darkMode || blurOnLight.peek();
+	const blurEnabled = blur.peek() > 0 && blurPolicy;
 
 	const baseRules = [
 		"layerrule unset, *",
@@ -71,13 +71,13 @@ async function setHyprland() {
 	];
 
 	const generalRules = [
-		`general:border_size ${width.get()}`,
+		`general:border_size ${width.peek()}`,
 		`general:gaps_out ${gaps}`,
 		`general:gaps_in ${Math.floor(gaps / 2)}`,
 		`general:col.active_border ${rgba(primary())}`,
-		`general:col.inactive_border ${rgba(hyprland.inactiveBorder.get())}`,
-		`decoration:rounding ${radius.get()}`,
-		`decoration:shadow:enabled ${shadows.get() ? "yes" : "no"}`,
+		`general:col.inactive_border ${rgba(hyprland.inactiveBorder.peek())}`,
+		`decoration:rounding ${radius.peek()}`,
+		`decoration:shadow:enabled ${shadows.peek() ? "yes" : "no"}`,
 		"layerrule noanim, gtk4-layer-shell",
 	];
 

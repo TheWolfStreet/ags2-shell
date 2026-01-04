@@ -105,9 +105,10 @@ export default class Asusctl extends GObject.Object {
 	readonly updMonitorCfg = async () => {
 		if (!this.#available) return
 		try {
+			const resolution = options.asus.resolution.peek()
 			const cmd = this.#profile === "Quiet"
-				? `keyword monitor eDP-1,1920x1200@${options.asus.bat_hz.get()},0x0,1`
-				: `keyword monitor eDP-1,1920x1200@${options.asus.ac_hz.get()},0x0,1`
+				? `keyword monitor eDP-1,${resolution}@${options.asus.bat_hz.peek()},0x0,1`
+				: `keyword monitor eDP-1,${resolution}@${options.asus.ac_hz.peek()},0x0,1`
 			hypr.message_async(cmd, null)
 		} catch { }
 	}
@@ -124,6 +125,10 @@ export default class Asusctl extends GObject.Object {
 			this.notify("mode")
 
 			this.updMonitorCfg()
+
+			options.asus.resolution.subscribe(() => this.updMonitorCfg())
+			options.asus.ac_hz.subscribe(() => this.updMonitorCfg())
+			options.asus.bat_hz.subscribe(() => this.updMonitorCfg())
 		} catch {
 			this.#available = false
 			throw new Error("Asusctl initialization failed")

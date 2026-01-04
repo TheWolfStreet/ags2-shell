@@ -11,7 +11,7 @@ import { bat } from "$lib/services"
 import options from "options"
 
 const { bar, batterystate } = options
-const layout = createComputed([bar.position, batterystate.position], (bar, bs) => `${bar}-${bs}` as Position)
+const layout = createComputed(() => `${bar.position()}-${batterystate.position()}` as Position)
 const percentage = createBinding(bat, "percentage")
 
 export namespace Battery {
@@ -32,26 +32,27 @@ export namespace Battery {
 	}
 
 	export function Window() {
-		const remainingTime = createComputed(
-			[createBinding(bat, "charging"), percentage, createBinding(bat, "timeToEmpty"), createBinding(bat, "timeToFull")],
-			(charging: any, percent: number, drainRemaining: any, chargeRemaining: any) => {
-				const time = charging ? chargeRemaining : drainRemaining
+		const charging = createBinding(bat, "charging")
+		const timeToEmpty = createBinding(bat, "timeToEmpty")
+		const timeToFull = createBinding(bat, "timeToFull")
+		const remainingTime = createComputed(() => {
+			const time = charging() ? timeToFull() : timeToEmpty()
+			const percent = percentage()
 
-				let result = []
-				if (time != 0) {
-					const d = Math.floor(time / (24 * 60 * 60))
-					const h = Math.floor((time % (24 * 60 * 60)) / (60 * 60))
-					const m = Math.floor((time % (60 * 60)) / 60)
-					const s = time % 60
-					if (d > 0) result.push(`${d}d`)
-					if (h > 0 || d > 0) result.push(`${h}h`)
-					if (m > 0 || h > 0 || d > 0) result.push(`${m}m`)
-					result.push(`${s}s`)
-				}
-
-				return percent == 1 ? "Fully charged" : (charging ? "Charging " : "Draining ") + (time == 0 ? "" : result.join(' '))
+			let result = []
+			if (time != 0) {
+				const d = Math.floor(time / (24 * 60 * 60))
+				const h = Math.floor((time % (24 * 60 * 60)) / (60 * 60))
+				const m = Math.floor((time % (60 * 60)) / 60)
+				const s = time % 60
+				if (d > 0) result.push(`${d}d`)
+				if (h > 0 || d > 0) result.push(`${h}h`)
+				if (m > 0 || h > 0 || d > 0) result.push(`${m}m`)
+				result.push(`${s}s`)
 			}
-		)
+
+			return percent == 1 ? "Fully charged" : (charging() ? "Charging " : "Draining ") + (time == 0 ? "" : result.join(' '))
+		})
 
 		return (
 			<PopupWindow

@@ -67,14 +67,13 @@
           gobject-introspection
           ags.packages.${system}.default
           dart-sass
-          nodejs
         ];
 
         buildInputs = runtimePackages ++ [pkgs.gjs];
 
         buildPhase = ''
           runHook preBuild
-          node style/compile/build.ts
+          style/compile/build.sh
           runHook postBuild
         '';
 

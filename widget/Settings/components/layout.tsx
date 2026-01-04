@@ -74,13 +74,12 @@ const Theme = () => (
 			<Row opt={border.width} title="Border Width" max={100} />
 		</Group>
 
-		<Group title="UI" opts={[padding, spacing, radius, transition.duration, font.size, font.name]}>
+		<Group title="UI" opts={[padding, spacing, radius, transition.duration, font]}>
 			<Row opt={padding} title="Padding" />
 			<Row opt={spacing} title="Spacing" />
 			<Row opt={radius} title="Roundness" />
 			<Row opt={transition.duration} title="Animation Duration" />
-			<Row opt={font.size} title="Font Size" />
-			<Row opt={font.name} title="Font Name" type="font" />
+			<Row opt={font} title="Font" type="font" />
 		</Group>
 	</Page>
 ) as Gtk.StackPage
@@ -135,7 +134,8 @@ const General = () => (
 			<Row opt={pm.labels} title="Show Labels" />
 		</Group>
 
-		<Group title="ASUS" visible={asusctl.available} opts={[s.ac_hz, s.bat_hz]}>
+		<Group title="ASUS" visible={asusctl.available} opts={[s.resolution, s.ac_hz, s.bat_hz]}>
+			<Row opt={s.resolution} title="Screen Resolution" type="string" note="Format: WIDTHxHEIGHT (e.g., 1920x1200)" />
 			<Row opt={s.ac_hz} title="Screen Refresh Rate (AC)" min={60} note="60HZ is the minimum to avoid breakage" />
 			<Row opt={s.bat_hz} title="Screen Refresh Rate (Battery)" min={60} note="60HZ is the minimum to avoid breakage" />
 		</Group>

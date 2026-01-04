@@ -19,17 +19,13 @@ import { hypr } from "$lib/services"
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
 
 export function getClientTitle(c: AstalHyprland.Client) {
-	return createComputed(
-		[
-			createBinding(c, "title"),
-			createBinding(c, "class")
-		],
-		(title, className) => {
-			if (title?.length) return title
-			const name = (className || "Unknown").split(".").pop()!
-			return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
-		}
-	)
+	const title = createBinding(c, "title")
+	const className = createBinding(c, "class")
+	return createComputed(() => {
+		if (title()?.length) return title()
+		const name = (className() || "Unknown").split(".").pop()!
+		return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
+	})
 }
 
 export function getFileSize(filePath: string): number | null {
@@ -262,7 +258,7 @@ export function ensurePath(path: string) {
 
 
 export function icon(name?: string, fallback = icons.missing): string {
-	if (name && env.iconTheme.get().has_icon(name)) {
+	if (name && env.iconTheme.peek().has_icon(name)) {
 		return name
 	}
 	return fallback

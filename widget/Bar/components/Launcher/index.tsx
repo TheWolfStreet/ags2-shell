@@ -81,7 +81,7 @@ export namespace Launcher {
 		text,
 		launch,
 	}: {
-		favorites: Accessor<AstalApps.Application>
+		favorites: Accessor<AstalApps.Application[]>
 		text: Accessor<string>
 		launch: (a: AstalApps.Application) => void
 	}) {
@@ -174,7 +174,7 @@ export namespace Launcher {
 					function populateApps() {
 						if (initialized) {
 							const currentApps = new Set(Array.from(b).map(child => child.name))
-							const newApps = new Set(allApps.get().map(app => app.get_name()))
+							const newApps = new Set(allApps.peek().map(app => app.get_name()))
 
 							currentApps.forEach(name => {
 								if (!newApps.has(name)) {
@@ -185,13 +185,13 @@ export namespace Launcher {
 								}
 							})
 
-							allApps.get().forEach(app => {
+							allApps.peek().forEach(app => {
 								if (!currentApps.has(app.get_name())) {
 									b.append(Entry(app, visibleApps, launch))
 								}
 							})
 						} else {
-							allApps.get().forEach(app => b.append(Entry(app, visibleApps, launch)))
+							allApps.peek().forEach(app => b.append(Entry(app, visibleApps, launch)))
 							initialized = true
 						}
 					}
@@ -221,14 +221,14 @@ export namespace Launcher {
 
 		const [text, setText] = createState("")
 		const favorites = createBinding(apps, "favorites")
-		const visibleApps = createComputed([text, allApps], (searchText, apps) => {
-			if (!searchText) return []
+		const visibleApps = createComputed(() => {
+			if (!text()) return []
 
-			const maxVisible = options.launcher.apps.max.get() || 9
-			const query = searchText.toLowerCase()
+			const maxVisible = options.launcher.apps.max.peek() || 9
+			const query = text().toLowerCase()
 			const results: AstalApps.Application[] = []
 
-			for (const app of apps) {
+			for (const app of allApps()) {
 				if (app.get_name().toLowerCase().includes(query)) {
 					results.push(app)
 					if (results.length >= maxVisible) break
@@ -237,9 +237,7 @@ export namespace Launcher {
 			return results
 		})
 
-		const notFound = createComputed([text, visibleApps], (t, apps) =>
-			t.length > 0 && apps.length === 0
-		)
+		const notFound = createComputed(() => text().length > 0 && visibleApps().length === 0)
 
 		return (
 			<PopupWindow
@@ -249,7 +247,7 @@ export namespace Launcher {
 				layer={OVERLAY}
 				layout="top-center"
 				application={app}
-				onKey={(_ctrl, keyval, _code, mod) => onKeyHandler(win, keyval, mod, visibleApps.get(), favorites.get())}
+				onKey={(_ctrl, keyval, _code, mod) => onKeyHandler(win, keyval, mod, visibleApps.peek(), favorites.peek())}
 				$={w => (win = w)}
 				onNotifyVisible={w => {
 					if (w.visible) {
@@ -269,7 +267,7 @@ export namespace Launcher {
 						primaryIconName="system-search-symbolic"
 						onNotifyText={e => {
 							setText(e.text)
-							updateRevealers(visibleApps.get())
+							updateRevealers(visibleApps.peek())
 						}}
 					/>
 					<revealer

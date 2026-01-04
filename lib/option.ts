@@ -79,7 +79,7 @@ export class Opt<T> extends Accessor<T> {
 
 	constructor(initial: T) {
 		const [acc, set] = createState(initial)
-		super(() => acc.get(), (cb) => acc.subscribe(cb))
+		super(() => acc.peek(), (cb) => acc.subscribe(cb))
 		this.#setter = set
 		this.#default = initial
 	}
@@ -108,11 +108,11 @@ export class Opt<T> extends Accessor<T> {
 	}
 
 	toString(): string {
-		return `${this.get()}`
+		return `${this.peek()}`
 	}
 
 	toJSON() {
-		return `opt:${this.get()}`
+		return `opt:${this.peek()}`
 	}
 }
 
@@ -120,9 +120,11 @@ function isStructured(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-type Options<T> =
+type WidenLiterals<T> = T extends boolean ? boolean : T extends string ? string : T extends number ? number : T
+
+export type Options<T> =
 	T extends Record<string, unknown> ? { [K in keyof T]: Options<T[K]> } :
-	Opt<T>
+	Opt<WidenLiterals<T>>
 
 export function mkOptions<T>(node: T, path = ""): Options<T> {
 	if (isStructured(node)) {
@@ -151,8 +153,8 @@ export function mkOptions<T>(node: T, path = ""): Options<T> {
 	return opt as Options<T>
 }
 
-export function setHandler<T>(
-	opts: Options<T>,
+export function setHandler(
+	opts: Opt<any> | Record<string, any>,
 	deps: string[],
 	callback: () => void,
 ): void {
@@ -163,8 +165,7 @@ export function setHandler<T>(
 
 	for (const key in opts) {
 		if (Object.prototype.hasOwnProperty.call(opts, key)) {
-			const next = opts[key]
-			setHandler(next, deps, callback)
+			setHandler(opts[key], deps, callback)
 		}
 	}
 }

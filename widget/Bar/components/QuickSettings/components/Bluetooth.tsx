@@ -18,22 +18,18 @@ const { CENTER } = Gtk.Align
 export namespace Bluetooth {
 	function Entry({ device }: { device: AstalBluetooth.Device }) {
 		const connecting = createBinding(device, "connecting")
-		const label = createComputed(
-			[
-				createBinding(device, "name"),
-				createBinding(device, "address"),
-				createBinding(device, "batteryPercentage"),
-				createBinding(device, "paired")
-			],
-			(name, address, battery, paired) => {
-				const displayName = name ?? address
-				const bat = paired && battery != undefined
-					? ` ${(battery * 100)}%`.replace(/-/g, "")
-					: ""
-				const isPaired = paired ? " • Paired" : ""
-				return `${displayName}${bat}${isPaired}`
-			}
-		)
+		const name = createBinding(device, "name")
+		const address = createBinding(device, "address")
+		const battery = createBinding(device, "batteryPercentage")
+		const paired = createBinding(device, "paired")
+		const label = createComputed(() => {
+			const displayName = name() ?? address()
+			const bat = paired() && battery() != undefined
+				? ` ${(battery() * 100)}%`.replace(/-/g, "")
+				: ""
+			const isPaired = paired() ? " • Paired" : ""
+			return `${displayName}${bat}${isPaired}`
+		})
 
 		let btn: Gtk.Button
 
@@ -74,10 +70,10 @@ export namespace Bluetooth {
 		const connected = createBinding(bt, "isConnected")
 		const adapters = createBinding(bt, "adapters")
 
-		const label = createComputed([powered, connected, adapters], (p, c, a) => {
-			if (a.length == 0) return "No Device"
-			if (!p) return "Disabled"
-			if (c) return bt.devices.filter(d => d.connected).at(0)?.name ?? ""
+		const label = createComputed(() => {
+			if (adapters().length == 0) return "No Device"
+			if (!powered()) return "Disabled"
+			if (connected()) return bt.devices.filter(d => d.connected).at(0)?.name ?? ""
 			return "Not Connected"
 		})
 
@@ -87,7 +83,7 @@ export namespace Bluetooth {
 				label={label}
 				iconName={powered.as(p => p ? icons.bluetooth.enabled : icons.bluetooth.disabled)}
 				activateOnArrow={true}
-				activate={() => !powered.get() && bt.toggle()}
+				activate={() => !powered.peek() && bt.toggle()}
 				deactivate={() => bt.toggle()}
 				connection={powered}
 			/>
@@ -118,7 +114,7 @@ export namespace Bluetooth {
 
 							const onToggleDiscover = () => {
 								if (!adapter.powered) adapter.set_powered(true)
-								if (discovering.get()) adapter.stop_discovery()
+								if (discovering.peek()) adapter.stop_discovery()
 								else adapter.start_discovery()
 							}
 

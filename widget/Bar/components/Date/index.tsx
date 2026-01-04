@@ -18,10 +18,7 @@ const { NEVER } = Gtk.PolicyType
 const { EXCLUSIVE } = Astal.Exclusivity
 const { VERTICAL } = Gtk.Orientation
 
-const layout = createComputed(
-	[options.bar.position, options.datemenu.position],
-	(bar, dm) => `${bar}-${dm}` as Position
-)
+const layout = createComputed(() => `${options.bar.position()}-${options.datemenu.position()}` as Position)
 
 function up(up: number) {
 	const h = Math.floor(up / 60)
@@ -101,7 +98,7 @@ export namespace Date {
 			>
 				<label
 					valign={CENTER}
-					label={env.clock((v) => v.format(options.bar.date.format.get()) ?? "")}
+					label={env.clock((v) => v.format(options.bar.date.format.peek()) ?? "")}
 				/>
 			</PanelButton >
 		)

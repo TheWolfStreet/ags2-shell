@@ -111,7 +111,7 @@ export namespace Power {
 						</button>
 						<button
 							onClicked={() => {
-								exec(cmd.get())
+								exec(cmd.peek())
 								toggleWindow("verification")
 								toggleWindow("powermenu")
 							}}

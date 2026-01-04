@@ -19,7 +19,7 @@ const { MOVE } = Gdk.DragAction
 const { OVERLAY } = Astal.Layer
 
 function scale(size: number) {
-	return (options.overview.scale.get() / 100) * size
+	return (options.overview.scale.peek() / 100) * size
 }
 
 export namespace Workspaces {
@@ -110,14 +110,13 @@ export namespace Workspaces {
 			return classes.join(" ")
 		})
 
-		const css = createComputed(
-			[options.overview.scale, createBinding(ws, "monitor")],
-			(scale, monitor) => {
-				const width = monitor?.get_width() ?? 1920
-				const height = monitor?.get_height() ?? 1080
-				return `min-width: ${(scale / 100) * width}px; min-height: ${(scale / 100) * height}px;`
-			}
-		)
+		const monitor = createBinding(ws, "monitor")
+		const css = createComputed(() => {
+			const scale = options.overview.scale()
+			const width = monitor()?.get_width() ?? 1920
+			const height = monitor()?.get_height() ?? 1080
+			return `min-width: ${(scale / 100) * width}px; min-height: ${(scale / 100) * height}px;`
+		})
 
 		const clients = createBinding(ws, "clients")
 		let fixed: Gtk.Fixed
@@ -160,9 +159,9 @@ export namespace Workspaces {
 	}
 
 	export function Button() {
-		const workspaces = createComputed(
-			[createBinding(hypr, "workspaces"), options.bar.workspaces.count],
-			(ws, fill) => dummyWorkspaces(ws.filter(w => w?.id !== -99).sort((a, b) => a?.id - b?.id), fill)
+		const hyprWorkspaces = createBinding(hypr, "workspaces")
+		const workspaces = createComputed(() =>
+			dummyWorkspaces(hyprWorkspaces().filter(w => w?.id !== -99).sort((a, b) => a?.id - b?.id), options.bar.workspaces.count())
 		)
 
 		return (
@@ -191,9 +190,9 @@ export namespace Workspaces {
 	}
 
 	export function Window() {
-		const workspaces = createComputed(
-			[createBinding(hypr, "workspaces"), options.overview.workspaces],
-			(ws, fill) => dummyWorkspaces(ws.filter(w => w.id !== -99).sort((a, b) => a.id - b.id), fill)
+		const hyprWorkspaces = createBinding(hypr, "workspaces")
+		const workspaces = createComputed(() =>
+			dummyWorkspaces(hyprWorkspaces().filter(w => w.id !== -99).sort((a, b) => a.id - b.id), options.overview.workspaces())
 		)
 
 		return (

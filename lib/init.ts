@@ -17,7 +17,7 @@ const settings = new Gio.Settings({
 })
 
 function gtk() {
-	const desired = `prefer-${scheme.get()}`;
+	const desired = `prefer-${scheme.peek()}`;
 	if (settings.get_string("color-scheme") !== desired) {
 		settings.set_string("color-scheme", desired);
 	}
@@ -25,7 +25,7 @@ function gtk() {
 
 async function tmux() {
 	const hex =
-		scheme.get() === "dark" ? dark.primary.bg.get() : light.primary.bg.get()
+		scheme.peek() === "dark" ? dark.primary.bg.peek() : light.primary.bg.peek()
 
 	await bash(`tmux set -g @main_accent "${hex}"`).catch(() => { })
 

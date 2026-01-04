@@ -59,6 +59,8 @@ const iconList = {
 		toolbars: "toolbars-symbolic",
 		warning: "dialog-warning-symbolic",
 		avatar: "avatar-default-symbolic",
+		eye: "view-reveal-symbolic",
+		hidden: "view-conceal-symbolic",
 		arrow: {
 			right: "go-right-symbolic",
 			left: "go-left-symbolic",
@@ -92,6 +94,7 @@ const iconList = {
 		},
 	},
 	wifi: {
+		enabled: "network-wireless-symbolic",
 		scanning: "network-wireless-no-route-symbolic",
 		offline: "network-wireless-offline-symbolic",
 	},

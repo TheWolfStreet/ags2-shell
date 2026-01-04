@@ -255,16 +255,29 @@ entry {
 
 spinbutton {
   all: unset;
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  border-radius: var(--radius);
 
   text {
     padding: calc(var(--padding) / 2);
     background-color: var(--widget-bg);
     border-radius: var(--radius) 0 0 var(--radius);
-    border: var(--border);
   }
 
   button {
     border-radius: 0;
+    box-shadow: none;
+
+    &:hover {
+      background-color: var(--hover-bg);
+      color: var(--hover-fg);
+    }
+
+    &:active {
+      background-image: var(--active-gradient);
+      background-color: var(--primary-bg);
+      color: var(--primary-fg);
+    }
   }
 
   button:last-child {
@@ -280,15 +293,18 @@ fontdialogbutton {
 }
 
 box.enum-setter {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  border-radius: var(--radius);
+
   label {
     background-color: var(--widget-bg);
-    border: var(--border);
     padding: calc(var(--padding) / 2);
     border-radius: var(--radius) 0 0 var(--radius);
   }
 
   button {
     border-radius: 0;
+    box-shadow: none;
 
     &:hover {
       background-color: var(--hover-bg);

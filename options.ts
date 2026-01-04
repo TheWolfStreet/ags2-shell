@@ -19,7 +19,7 @@ const options = mkOptions({
 			bg: "#171717",
 			fg: "#eeeeee",
 			widget: "#eeeeee",
-			border: "#eeeeee",
+			border: "#9a9996",
 		},
 		light: {
 			primary: {
@@ -55,10 +55,7 @@ const options = mkOptions({
 		duration: 200,
 	},
 
-	font: {
-		size: 11,
-		name: "SFProDisplay Nerd Font",
-	},
+	font: "SFProDisplay Nerd Font 11",
 
 	bar: {
 		position: "top",
@@ -110,6 +107,7 @@ const options = mkOptions({
 	},
 
 	asus: {
+		resolution: "1920x1200",
 		ac_hz: 144,
 		bat_hz: 60,
 	},

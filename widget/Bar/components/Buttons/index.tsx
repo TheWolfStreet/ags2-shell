@@ -21,12 +21,13 @@ const { PLAYING } = AstalMpris.PlaybackStatus
 const { SLIDE_LEFT } = Gtk.RevealerTransitionType
 
 const { CENTER, START } = Gtk.Align
-const { VERTICAL, HORIZONTAL } = Gtk.Orientation
+const { VERTICAL } = Gtk.Orientation
 
 export function Tray() {
-	const items = createComputed([createBinding(tray, "items"), options.bar.systray.ignore], (items, ignore) => {
-		const ignoreSet = new Set(ignore)
-		return items.filter(i => !ignoreSet.has(i.get_title()) && i.get_gicon())
+	const trayItems = createBinding(tray, "items")
+	const items = createComputed(() => {
+		const ignoreSet = new Set(options.bar.systray.ignore())
+		return trayItems().filter(i => !ignoreSet.has(i.get_title()) && i.get_gicon())
 	})
 
 	function init(btn: Gtk.MenuButton, item: AstalTray.TrayItem) {
@@ -61,9 +62,11 @@ export function Tasks() {
 			return <box visible={false} />
 		}
 
-		const visible = createComputed([createBinding(client, "workspace"), createBinding(hypr, "focusedWorkspace"), exclusive], (w, focused, exclusive) => {
-			if (exclusive) {
-				return w?.id == focused?.id
+		const clientWorkspace = createBinding(client, "workspace")
+		const focusedWorkspace = createBinding(hypr, "focusedWorkspace")
+		const visible = createComputed(() => {
+			if (exclusive()) {
+				return clientWorkspace()?.id == focusedWorkspace()?.id
 			}
 			return true
 		})
@@ -73,7 +76,7 @@ export function Tasks() {
 		})
 
 		return (
-			<overlay tooltipText={getClientTitle(client)} visible={visible}>
+			<overlay tooltipText={getClientTitle(client)} visible={visible} valign={CENTER}>
 				<Gtk.GestureClick
 					button={0}
 					onPressed={self => {
@@ -139,8 +142,9 @@ export function Media() {
 		}
 	})
 
-	const player = createComputed([createBinding(media, "players"), preferred], (ps, pref) => {
-		return ps.find(p => p.get_bus_name().includes(pref)) || ps[0]
+	const players = createBinding(media, "players")
+	const player = createComputed(() => {
+		return players().find(p => p.get_bus_name().includes(preferred())) || players()[0]
 	})
 
 	return (
@@ -148,6 +152,8 @@ export function Media() {
 			<With value={player}>
 				{p => {
 					if (!p) return <box visible={false} />
+					const title = createBinding(p, "title")
+					const artist = createBinding(p, "artist")
 					return (
 						<PanelButton
 							visible
@@ -180,7 +186,7 @@ export function Media() {
 													trackTime.cancel()
 												}
 
-												trackTime = timeout(options.notifications.dismiss.get(), () => {
+												trackTime = timeout(options.notifications.dismiss.peek(), () => {
 													if (!self.in_destruction()) {
 														set_reveal(false)
 													}
@@ -191,9 +197,7 @@ export function Media() {
 									}}
 								>
 									<label valign={CENTER} ellipsize={END} maxWidthChars={45} label={
-										createComputed([createBinding(p, "title"), createBinding(p, "artist")], (title, artist) => {
-											return `${title || "Untitled"}${artist ? ` - ${artist}` : ""}`
-										})
+										createComputed(() => `${title() || "Untitled"}${artist() ? ` - ${artist()}` : ""}`)
 									} />
 								</revealer>
 							</box>

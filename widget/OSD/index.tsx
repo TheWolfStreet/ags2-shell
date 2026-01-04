@@ -36,7 +36,7 @@ function show(v: number, i: string, m: boolean) {
 		current.cancel()
 	}
 
-	current = timeout(options.notifications.dismiss.get() / 3, () => {
+	current = timeout(options.notifications.dismiss.peek() / 3, () => {
 		set_reveal(false)
 	})
 }

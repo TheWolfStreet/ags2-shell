@@ -19,7 +19,7 @@ export default function Group({
 	opts?: Opt<any>[]
 }) {
 	const anyChanged = opts.length > 0
-		? createComputed(opts, () => opts.some(opt => opt.get() !== opt.getDefault()))
+		? createComputed(() => opts.some(opt => opt() !== opt.getDefault()))
 		: false
 
 	const resetGroup = () => opts.forEach(opt => opt.reset())

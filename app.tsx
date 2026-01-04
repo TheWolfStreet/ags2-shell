@@ -13,6 +13,7 @@ import { Notifications } from "widget/Bar/components/Notifications"
 import { Battery } from "widget/Bar/components/Battery"
 import { Workspaces } from "widget/Bar/components/Overview"
 import { QuickSettings } from "widget/Bar/components/QuickSettings"
+import { Network } from "widget/Bar/components/QuickSettings/components/Network"
 import { Date } from "widget/Bar/components/Date"
 import { OSD } from "widget/OSD"
 
@@ -22,7 +23,7 @@ app.start({
 	instanceName: env.appName,
 	main() {
 		const monitors = createBinding(app, "monitors");
-		init()
+		init().catch(err => console.error("Init error:", err))
 		Date.Window()
 		Launcher.Window()
 		Power.Window()
@@ -31,6 +32,7 @@ app.start({
 		Battery.Window()
 		Workspaces.Window()
 		QuickSettings.Window()
+		Network.Wifi.Window()
 		Settings.Window()
 		OSD()
 

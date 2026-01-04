@@ -33,12 +33,14 @@ export namespace Notifications {
 
 	const notifyHandler = notifd.connect("notified", (_, id, replaced) => {
 		const notification = notifd.get_notification(id)
-		const blacklist = options.notifications.blacklist.get() || []
+		if (!notification) return
+
+		const blacklist = options.notifications.blacklist.peek() || []
 		const appName = notification.get_app_name() || notification.get_desktop_entry()
 
 		if (blacklist.includes(appName)) return
 
-		if (replaced && notifications.get().some(n => n.id === id)) {
+		if (replaced && notifications.peek().some(n => n.id === id)) {
 			set_notifications(ns => ns.map(n => n.id === id ? notification : n))
 		} else {
 			set_notifications(ns => [notification, ...ns].slice(0, MAX_NOTIFICATIONS))
@@ -47,7 +49,7 @@ export namespace Notifications {
 
 	export function dismissAll() {
 		set_dismissingAll(true)
-		GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.get(), () => {
+		GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.peek(), () => {
 			set_dismissingAll(false)
 			set_notifications([])
 			return GLib.SOURCE_REMOVE
@@ -99,8 +101,8 @@ export namespace Notifications {
 		const scheduleAutoHide = () => {
 			if (persistent) return
 			clearTimer()
-			autoHideTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.get(), () => {
-				if (!popupHovered.get()) {
+			autoHideTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.peek(), () => {
+				if (!popupHovered.peek()) {
 					set_visible(false)
 				}
 				autoHideTimer = undefined
@@ -129,14 +131,14 @@ export namespace Notifications {
 		}
 
 		const dismissSub = dismissingAll.subscribe(() => {
-			if (dismissingAll.get()) set_visible(false)
+			if (dismissingAll.peek()) set_visible(false)
 		})
 
 		const hoverSub = popupHovered.subscribe(() => {
 			if (!persistent) {
-				if (popupHovered.get()) {
+				if (popupHovered.peek()) {
 					clearTimer()
-				} else if (visible.get()) {
+				} else if (visible.peek()) {
 					scheduleAutoHide()
 				}
 			}
@@ -220,9 +222,9 @@ export namespace Notifications {
 		)
 	}
 
-	export function Stack({ persistent = false }: { persistent?: boolean }) {
+	export function Stack({ persistent = false, class: className }: { persistent?: boolean, class?: string }) {
 		return (
-			<box class="notifications-stack" orientation={VERTICAL} valign={START}>
+			<box class={className || "notifications-stack"} orientation={VERTICAL} valign={START}>
 				<For each={notifications}>{(n) => <Entry entry={n} persistent={persistent} />}</For>
 			</box>
 		)

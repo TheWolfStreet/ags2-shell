@@ -40,11 +40,11 @@ export function Arrow(
 	let open = false
 
 	const [css, set_css] = createState("")
-	const getName = typeof name === "function" ? () => name.get() : () => name || ""
+	const getName = typeof name === "function" ? () => name.peek() : () => name || ""
 
 	const animate = (step: number) => {
 		for (let i = 0; i < 9; i++) {
-			timeout(options.transition.duration.get() * 0.075 * i, () => {
+			timeout(options.transition.duration.peek() * 0.075 * i, () => {
 				deg += step
 				set_css(`transform: rotate(${deg}deg);`)
 			})
@@ -53,8 +53,8 @@ export function Arrow(
 
 	const unsub = opened.subscribe(() => {
 		const current = getName()
-		if ((opened.get() === current && !open) || (opened.get() !== current && open)) {
-			animate(opened.get() === current ? 10 : -10)
+		if ((opened.peek() === current && !open) || (opened.peek() !== current && open)) {
+			animate(opened.peek() === current ? 10 : -10)
 			open = !open
 		}
 	})
@@ -67,7 +67,7 @@ export function Arrow(
 			tooltipText={tooltipText ?? ""}
 			onClicked={() => {
 				const current = getName()
-				set_opened(opened.get() === current ? "" : current)
+				set_opened(opened.peek() === current ? "" : current)
 				if (typeof activate === "function") activate()
 			}}
 		>
@@ -97,9 +97,9 @@ export function ArrowToggleButton({
 	deactivate?: () => void
 }) {
 	const toggleActive = () => {
-		if (connection?.get()) {
+		if (connection?.peek()) {
 			deactivate?.()
-			if (opened.get() === name) set_opened("")
+			if (opened.peek() === name) set_opened("")
 		} else activate?.()
 	}
 	const isAccessor = typeof label == "function"
@@ -108,11 +108,11 @@ export function ArrowToggleButton({
 	let deg = 0
 	let open = false
 	const [css, set_css] = createState("")
-	const getName = typeof name === "function" ? () => name.get() : () => name || ""
+	const getName = typeof name === "function" ? () => name.peek() : () => name || ""
 
 	const animate = (step: number) => {
 		for (let i = 0; i < 9; i++) {
-			timeout(options.transition.duration.get() * 0.075 * i, () => {
+			timeout(options.transition.duration.peek() * 0.075 * i, () => {
 				deg += step
 				set_css(`transform: rotate(${deg}deg);`)
 			})
@@ -121,8 +121,8 @@ export function ArrowToggleButton({
 
 	const unsub = opened.subscribe(() => {
 		const current = getName()
-		if ((opened.get() === current && !open) || (opened.get() !== current && open)) {
-			animate(opened.get() === current ? 10 : -10)
+		if ((opened.peek() === current && !open) || (opened.peek() !== current && open)) {
+			animate(opened.peek() === current ? 10 : -10)
 			open = !open
 		}
 	})
@@ -130,8 +130,8 @@ export function ArrowToggleButton({
 
 	return (
 		<box class="toggle-button" $={self => {
-			toggleClass(self, "active", connection?.get() ?? false)
-			connection?.subscribe(() => toggleClass(self, "active", connection.get()))
+			toggleClass(self, "active", connection?.peek() ?? false)
+			connection?.subscribe(() => toggleClass(self, "active", connection.peek()))
 		}} >
 			<button onClicked={toggleActive}
 				tooltipText={tooltipText}
@@ -143,7 +143,7 @@ export function ArrowToggleButton({
 			</button>
 			<button class="arrow" visible onClicked={() => {
 				const current = getName()
-				set_opened(opened.get() === current ? "" : current)
+				set_opened(opened.peek() === current ? "" : current)
 				if (activateOnArrow && typeof activate === "function") activate()
 			}}>
 				<image iconName={icons.ui.arrow.right} useFallback css={css} />
@@ -204,7 +204,7 @@ export function SimpleToggleButton({
 			class="simple-toggle"
 			onClicked={toggle}
 			tooltipText={tooltipText}
-			$={self => { connection.subscribe(() => toggleClass(self, "active", connection.get())) }}
+			$={self => { connection.subscribe(() => toggleClass(self, "active", connection.peek())) }}
 		>
 			<box class="horizontal">
 				<image iconName={iconName} useFallback />

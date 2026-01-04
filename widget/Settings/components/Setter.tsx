@@ -24,7 +24,7 @@ const toHex = (rgba: Gdk.RGBA) => {
 
 const EnumSetter = (opt: Opt<string>, values: string[]) => {
 	const step = (dir: 1 | -1) => {
-		const i = values.findIndex(v => v === opt.get())
+		const i = values.findIndex(v => v === opt.peek())
 		const nextIndex = dir > 0
 			? (i + 1) % values.length
 			: (i - 1 + values.length) % values.length
@@ -46,7 +46,7 @@ const EnumSetter = (opt: Opt<string>, values: string[]) => {
 export default function Setter({ opt, type, enums, max = 1000, min = 0,
 }: RowProps) {
 	if (!type) {
-		const value = opt.get()
+		const value = opt.peek()
 		const valueType = typeof value
 
 		if (valueType === "boolean") type = "boolean"
@@ -76,7 +76,7 @@ export default function Setter({ opt, type, enums, max = 1000, min = 0,
 						try {
 							opt.set(JSON.parse(self.text || ""))
 						} catch (e) {
-							self.text = JSON.stringify(opt.get(), null, 2)
+							self.text = JSON.stringify(opt.peek(), null, 2)
 						}
 					}}
 				/>
@@ -127,15 +127,24 @@ export default function Setter({ opt, type, enums, max = 1000, min = 0,
 			)
 		}
 		case "font": {
+			const fontString = String(opt.peek())
 			return (
 				<Gtk.FontDialogButton
 					valign={CENTER}
 					tooltipText={"Select a font"}
-					useSize={false}
+					useSize={true}
 					dialog={new Gtk.FontDialog}
-					fontDesc={Pango.FontDescription.from_string(opt.get())}
+					fontDesc={Pango.FontDescription.from_string(fontString)}
 					onNotifyFontDesc={(self) => {
-						opt.set(self.get_font_desc()?.get_family())
+						const desc = self.get_font_desc()
+						if (desc) {
+							opt.set(desc.to_string())
+						}
+					}}
+					$={(self) => {
+						opt.subscribe(() => {
+							self.set_font_desc(Pango.FontDescription.from_string(String(opt.peek())))
+						})
 					}}
 				/>
 			)

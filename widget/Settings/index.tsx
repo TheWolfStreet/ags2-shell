@@ -55,7 +55,7 @@ export namespace Settings {
 		const layout = createLayout()
 		const [currentPage, setCurrentPage] = createState(layout[0].name)
 
-		const anyChanged = createComputed(allOpts, () => allOpts.some(opt => opt.get() !== opt.getDefault()))
+		const anyChanged = createComputed(() => allOpts.some(opt => opt() !== opt.getDefault()))
 
 		function resetAll() {
 			allOpts.forEach(opt => opt.reset())

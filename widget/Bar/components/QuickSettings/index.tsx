@@ -1,7 +1,6 @@
 import app from "ags/gtk4/app"
 import { Accessor, createBinding, createComputed, createState, For, Node } from "ags"
 import { monitorFile } from "ags/file"
-import { timeout } from "ags/time"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
 import AstalMpris from "gi://AstalMpris"
@@ -31,7 +30,7 @@ const { COVER } = Gtk.ContentFit
 
 const { EXCLUSIVE } = Astal.Exclusivity
 
-const layout = createComputed([bar.position, quicksettings.position], (bar, qs) => `${bar}-${qs}` as Position)
+const layout = createComputed(() => `${bar.position()}-${quicksettings.position()}` as Position)
 
 const { scheme } = options.theme
 
@@ -74,7 +73,7 @@ function DarkModeToggle() {
 			iconName={scheme.as((s: string) => icons.color[s])}
 			label={scheme.as(s => s === "dark" ? "Dark" : "Light")}
 			toggle={() => {
-				const invert = scheme.get() === "dark" ? "light" : "dark"
+				const invert = scheme.peek() === "dark" ? "light" : "dark"
 				scheme.set(invert)
 			}}
 			connection={scheme.as(s => s === "dark")}
@@ -101,7 +100,7 @@ function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const next = createBinding(player, "canGoNext")
 	const prev = createBinding(player, "canGoPrevious")
 
-	const remaining = createComputed([pos, len], (p, l) => Math.max(0, l - p))
+	const remaining = createComputed(() => Math.max(0, len() - pos()))
 
 	const playIcon = status.as(s => s === PLAYING ? icons.mpris.playing : icons.mpris.paused)
 	const loopIcon = loop.as(s => {

@@ -53,7 +53,7 @@ export default class ColorPicker extends GObject.Object {
 
 
 		if (!existing) {
-			const max = options.colorpicker.maxColors.get()
+			const max = options.colorpicker.maxColors.peek()
 			const colors = [...this.#colors]
 
 			if (!colors.includes(color)) {

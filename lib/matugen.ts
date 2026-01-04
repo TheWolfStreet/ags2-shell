@@ -73,7 +73,7 @@ export namespace Matugen {
 		type: "image" | "color" = "image",
 		arg = wp.get_wallpaper(),
 	) {
-		if (!options.autotheme.get() || !dependencies("matugen") || !getFileSize(arg))
+		if (!options.autotheme.peek() || !dependencies("matugen") || !getFileSize(arg))
 			return
 
 		if (matugenDebounce) matugenDebounce.cancel()

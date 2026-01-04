@@ -59,8 +59,8 @@ function getPosConfig(pos: Position) {
 
 interface PopupProps extends Astal.Window.ConstructorProps {
 	children: JSX.Element | Array<JSX.Element>
-	layout: Position
-	transitionType: Gtk.RevealerTransitionType
+	layout?: Position | import("ags").Accessor<Position>
+	transitionType?: Gtk.RevealerTransitionType
 }
 
 class Impl extends Astal.Window {
@@ -101,29 +101,16 @@ export function PopupWindow({
 	$,
 	...props
 }: Props<Impl, PopupProps> & {
-	onKey?: (
-		ctrl: Gtk.EventControllerKey,
-		keyval: number,
-		code: number,
-		mod: number,
-		w: Gtk.Window
-	) => void
-	onClick?: (
-		ctrl: Gtk.GestureClick,
-		n: number,
-		x: number,
-		y: number,
-		w: Gtk.Window,
-		content: Gtk.Widget
-	) => void
 	handleClosing?: boolean
+	onKey?: (ctrl: Gtk.EventControllerKey, keyval: number, code: number, mod: number, w: Gtk.Window) => void
+	onClick?: (ctrl: Gtk.GestureClick, n: number, x: number, y: number, w: Gtk.Window, content: Gtk.Widget) => void
 }) {
 	let content: Gtk.Revealer
 	let win: Impl
 
 	const alignment = typeof layout === 'function'
-		? layout.as(getPosConfig)
-		: getPosConfig(layout)
+		? (layout as import("ags").Accessor<Position>).as(getPosConfig)
+		: getPosConfig(layout ?? 'center')
 
 	const isAccessor = typeof alignment === 'function'
 
@@ -148,9 +135,9 @@ export function PopupWindow({
 
 			<Gtk.Revealer
 				transitionDuration={options.transition.duration}
-				transitionType={transitionType ?? (isAccessor ? alignment.as(v => v.transitionType) : alignment.transitionType)}
-				halign={isAccessor ? alignment.as(v => v.halign) : alignment.halign}
-				valign={isAccessor ? alignment.as(v => v.valign) : alignment.valign}
+				transitionType={transitionType ?? (isAccessor ? alignment.as((v: ReturnType<typeof getPosConfig>) => v.transitionType) : alignment.transitionType)}
+				halign={isAccessor ? alignment.as((v: ReturnType<typeof getPosConfig>) => v.halign) : alignment.halign}
+				valign={isAccessor ? alignment.as((v: ReturnType<typeof getPosConfig>) => v.valign) : alignment.valign}
 				onNotifyChildRevealed={(self) => {
 					if (!self.get_child_revealed()) {
 						win.performHide()
