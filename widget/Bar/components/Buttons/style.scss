@@ -1,15 +1,16 @@
 @use 'sass:color';
 @use '../../../../style/base' as *;
 
-box.colorpicker {
-  @include spacing(0.5);
-  button {
-    padding: calc(var(--padding) / 2) calc(var(--padding) * 2);
-  }
-  padding: calc(var(--padding) / 2);
-}
-
 window#bar {
+
+  box.colorpicker {
+    @include spacing(0.5);
+    button {
+      padding: calc(var(--padding) / 2) calc(var(--padding));
+    }
+    padding: calc(var(--padding) / 2);
+  }
+
   button.recorder {
     box {
       @include spacing(0.5);

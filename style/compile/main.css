@@ -404,31 +404,30 @@ window#batterystate box.batterystate label {
   font-weight: bold;
 }
 
-box.colorpicker.horizontal > * {
+window#bar box.colorpicker.horizontal > * {
   margin: 0 calc(var(--spacing) * 0.5 / 2);
 }
-box.colorpicker.horizontal > *:first-child {
+window#bar box.colorpicker.horizontal > *:first-child {
   margin-left: 0;
 }
-box.colorpicker.horizontal > *:last-child {
+window#bar box.colorpicker.horizontal > *:last-child {
   margin-right: 0;
 }
-box.colorpicker.vertical > * {
+window#bar box.colorpicker.vertical > * {
   margin: calc(var(--spacing) * 0.5 / 2) 0;
 }
-box.colorpicker.vertical > *:first-child {
+window#bar box.colorpicker.vertical > *:first-child {
   margin-top: 0;
 }
-box.colorpicker.vertical > *:last-child {
+window#bar box.colorpicker.vertical > *:last-child {
   margin-bottom: 0;
 }
-box.colorpicker button {
-  padding: calc(var(--padding) / 2) calc(var(--padding) * 2);
+window#bar box.colorpicker button {
+  padding: calc(var(--padding) / 2) calc(var(--padding));
 }
-box.colorpicker {
+window#bar box.colorpicker {
   padding: calc(var(--padding) / 2);
 }
-
 window#bar button.recorder box.horizontal > * {
   margin: 0 calc(var(--spacing) * 0.5 / 2);
 }

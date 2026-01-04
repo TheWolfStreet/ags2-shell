@@ -266,7 +266,7 @@ export function ColorPicker() {
 	)
 
 	return (
-		<PanelButton name="color-picker"
+		<PanelButton
 			tooltipText={createBinding(cpick, "colors").as(v =>
 				`${v.length} color${v.length === 1 ? "" : "s"}`)}
 
