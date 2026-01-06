@@ -39,7 +39,7 @@ export function Tray() {
 	}
 
 	return (
-		<box>
+		<box visible={items.as(v => v.length > 0)}>
 			<For each={items}>
 				{(item) => (
 					<menubutton valign={CENTER} halign={CENTER}
