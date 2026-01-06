@@ -67,11 +67,13 @@ export namespace Launcher {
 			}
 		}
 
-		for (let i = 0; i < Math.min(favorites.length, 9); i++) {
-			const key = (Gdk as any)[`KEY_${i + 1}`]
-			if (keyval === key) {
-				launchApp(win, favorites[i])
-				return
+		if (visibleApps.length == 0) {
+			for (let i = 0; i < Math.min(favorites.length, 9); i++) {
+				const key = (Gdk as any)[`KEY_${i + 1}`]
+				if (keyval === key) {
+					launchApp(win, favorites[i])
+					return
+				}
 			}
 		}
 	}
@@ -168,18 +170,18 @@ export namespace Launcher {
 		return (
 			<box
 				orientation={VERTICAL}
-				$={b => {
+				$={self => {
 					let initialized = false
 
 					function populateApps() {
 						if (initialized) {
-							const currentApps = new Set(Array.from(b).map(child => child.name))
+							const currentApps = new Set(Array.from(self).map(child => child.name))
 							const newApps = new Set(allApps.peek().map(app => app.get_name()))
 
 							currentApps.forEach(name => {
 								if (!newApps.has(name)) {
-									const child = Array.from(b).find(c => c.name === name)
-									if (child) b.remove(child)
+									const child = Array.from(self).find(c => c.name === name)
+									if (child) self.remove(child)
 									appRevealers.delete(name)
 									desktopInfoCache.delete(name)
 								}
@@ -187,11 +189,11 @@ export namespace Launcher {
 
 							allApps.peek().forEach(app => {
 								if (!currentApps.has(app.get_name())) {
-									b.append(Entry(app, visibleApps, launch))
+									self.append(Entry(app, visibleApps, launch))
 								}
 							})
 						} else {
-							allApps.peek().forEach(app => b.append(Entry(app, visibleApps, launch)))
+							allApps.peek().forEach(app => self.append(Entry(app, visibleApps, launch)))
 							initialized = true
 						}
 					}
@@ -251,8 +253,9 @@ export namespace Launcher {
 				$={w => (win = w)}
 				onNotifyVisible={w => {
 					if (w.visible) {
-						entry.set_text("")
 						entry.grab_focus()
+					} else {
+						entry.set_text("")
 					}
 				}}
 			>
