@@ -36,8 +36,37 @@ export namespace Launcher {
 		return desktopInfoCache.get(appName) ?? undefined
 	}
 
+	let appListContainer: Gtk.Box | undefined
+	let lastVisibleOrder: string[] = []
+
 	function updateRevealers(visibleApps: AstalApps.Application[]) {
 		const visibleNames = new Set(visibleApps.map(app => app.get_name()))
+		const visibleOrder = visibleApps.map(app => app.get_name())
+
+		if (!appListContainer) {
+			appRevealers.forEach((revealer, appName) => {
+				revealer.set_reveal_child(visibleNames.has(appName))
+			})
+			return
+		}
+
+		const orderChanged = visibleOrder.length !== lastVisibleOrder.length ||
+			visibleOrder.some((name, idx) => name !== lastVisibleOrder[idx])
+
+		if (orderChanged) {
+			for (let idx = 0; idx < visibleOrder.length; idx++) {
+				const revealer = appRevealers.get(visibleOrder[idx])
+				if (revealer && !revealer.get_reveal_child()) {
+					appListContainer.reorder_child_after(
+						revealer,
+						idx === 0 ? null : appRevealers.get(visibleOrder[idx - 1]) ?? null
+					)
+				}
+			}
+
+			lastVisibleOrder = visibleOrder
+		}
+
 		appRevealers.forEach((revealer, appName) => {
 			revealer.set_reveal_child(visibleNames.has(appName))
 		})
@@ -171,6 +200,7 @@ export namespace Launcher {
 			<box
 				orientation={VERTICAL}
 				$={self => {
+					appListContainer = self
 					let initialized = false
 
 					function populateApps() {
@@ -228,15 +258,22 @@ export namespace Launcher {
 
 			const maxVisible = options.launcher.apps.max.peek() || 9
 			const query = text().toLowerCase()
-			const results: AstalApps.Application[] = []
+			const results: Array<[AstalApps.Application, number, string]> = []
 
 			for (const app of allApps()) {
-				if (app.get_name().toLowerCase().includes(query)) {
-					results.push(app)
-					if (results.length >= maxVisible) break
+				const name = app.get_name().toLowerCase()
+				const idx = name.indexOf(query)
+				if (idx >= 0) {
+					results.push([app, idx, name])
 				}
 			}
-			return results
+
+			results.sort((a, b) => {
+				if (a[1] !== b[1]) return a[1] - b[1]
+				return a[2].localeCompare(b[2])
+			})
+
+			return results.slice(0, maxVisible).map(r => r[0])
 		})
 
 		const notFound = createComputed(() => text().length > 0 && visibleApps().length === 0)
