@@ -103,11 +103,13 @@
           })
           pkgs.dart-sass
           pkgs.vtsls
+          pkgs.inotify-tools
         ];
 
         shellHook = ''
           export GIO_EXTRA_MODULES=${pkgs.gvfs}/lib/gio/modules
           export AGS2SHELL_STYLES=$PWD
+          export GTK_DEBUG=interactive
         '';
       };
     };
