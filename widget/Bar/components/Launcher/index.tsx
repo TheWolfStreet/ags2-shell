@@ -154,7 +154,10 @@ export namespace Launcher {
 				transitionType={SLIDE_DOWN}
 				transitionDuration={options.transition.duration}
 				revealChild={false}
-				$={r => appRevealers.set(appName, r)}
+				$={r => {
+					appRevealers.set(appName, r)
+					onCleanup(() => appRevealers.delete(appName))
+				}}
 			>
 				<box orientation={VERTICAL}>
 					<Gtk.Separator />
@@ -201,39 +204,18 @@ export namespace Launcher {
 				orientation={VERTICAL}
 				$={self => {
 					appListContainer = self
-					let initialized = false
-
-					function populateApps() {
-						if (initialized) {
-							const currentApps = new Set(Array.from(self).map(child => child.name))
-							const newApps = new Set(allApps.peek().map(app => app.get_name()))
-
-							currentApps.forEach(name => {
-								if (!newApps.has(name)) {
-									const child = Array.from(self).find(c => c.name === name)
-									if (child) self.remove(child)
-									appRevealers.delete(name)
-									desktopInfoCache.delete(name)
-								}
-							})
-
-							allApps.peek().forEach(app => {
-								if (!currentApps.has(app.get_name())) {
-									self.append(Entry(app, visibleApps, launch))
-								}
-							})
-						} else {
-							allApps.peek().forEach(app => self.append(Entry(app, visibleApps, launch)))
-							initialized = true
-						}
-					}
-
-					populateApps()
-					const unsub = createBinding(apps, "list").subscribe(populateApps)
-
-					onCleanup(unsub)
+					const unsub = visibleApps.subscribe(() => updateRevealers(visibleApps.peek()))
+					onCleanup(() => {
+						unsub()
+						appRevealers.clear()
+						desktopInfoCache.clear()
+					})
 				}}
-			/>
+			>
+				<For each={allApps}>
+					{(app: AstalApps.Application) => Entry(app, visibleApps, launch)}
+				</For>
+			</box>
 		)
 	}
 
