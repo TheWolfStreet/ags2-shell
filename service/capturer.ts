@@ -127,11 +127,11 @@ export default class Capturer extends GObject.Object {
 	}
 
 	private readonly prepare_capture = async (select: boolean, mainTool: string) => {
-		// TODO: Get rid of the error logs when no selection or selection cancelled
 		if (select) {
-			if (await bash("pidof slurp")) return null
+			const slurpRunning = await execAsync(["pidof", "slurp"]).catch(() => "")
+			if (slurpRunning) return null
 			if (!dependencies(mainTool, "slurp")) return null
-			return await bash("slurp").catch(() => "") || null
+			return await execAsync(["slurp"]).catch(() => "") || null
 		} else if (!dependencies(mainTool)) return ""
 		return ""
 	}
