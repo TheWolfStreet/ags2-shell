@@ -138,6 +138,23 @@ const options = mkOptions({
 	hyprland: {
 		gaps: 2.4,
 		inactiveBorder: "#282828",
-	}
+	},
+
+	desktop: {
+		enabled: false,
+		iconSize: 64,
+		grid: {
+			enabled: true,
+			cellWidth: 120,
+			cellHeight: 120,
+			rows: 8,
+		},
+	},
+
+	dock: {
+		style: "bar",
+		position: "bottom",
+		autohide: "ignore",
+	},
 })
 export default options

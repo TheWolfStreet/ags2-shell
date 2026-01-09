@@ -20,6 +20,8 @@ const {
 	powermenu: pm,
 	hyprland: h,
 	asus: s,
+	desktop: d,
+	dock,
 } = options
 
 const {
@@ -138,6 +140,19 @@ const General = () => (
 			<Row opt={s.resolution} title="Screen Resolution" type="string" note="Format: WIDTHxHEIGHT (e.g., 1920x1200)" />
 			<Row opt={s.ac_hz} title="Screen Refresh Rate (AC)" min={60} note="60HZ is the minimum to avoid breakage" />
 			<Row opt={s.bat_hz} title="Screen Refresh Rate (Battery)" min={60} note="60HZ is the minimum to avoid breakage" />
+		</Group>
+
+		<Group title="Desktop" opts={[d.enabled, d.iconSize, d.grid.enabled, d.grid.cellWidth, d.grid.cellHeight]}>
+			<Row opt={d.enabled} title="Enable Desktop Icons" />
+			<Row opt={d.iconSize} title="Icon Size" type="number" min={32} max={128} />
+			<Row opt={d.grid.enabled} title="Grid Snapping" />
+			<Row opt={d.grid.cellWidth} title="Grid Cell Width" type="number" min={80} max={200} />
+			<Row opt={d.grid.cellHeight} title="Grid Cell Height" type="number" min={80} max={200} />
+		</Group>
+
+		<Group title="Dock" opts={[dock.style, dock.autohide]}>
+			<Row opt={dock.style} title="Dock Style" type="enum" enums={["bottom", "bar"]} />
+			<Row opt={dock.autohide} title="Autohide Mode" type="enum" enums={["hover", "exclusive", "ignore"]} />
 		</Group>
 	</Page>
 ) as Gtk.StackPage

@@ -1,3 +1,5 @@
+@use '../../style/base' as *;
+
 window#desktop {
   .desktop-container {
     padding: 40px 20px;
@@ -5,7 +7,7 @@ window#desktop {
     .desktop-icon {
       padding: 10px;
       margin: 5px;
-      border-radius: calc($radius * 0.8);
+      border-radius: calc(var(--radius) * 0.8);
       min-width: 80px;
       min-height: 100px;
 
@@ -15,8 +17,8 @@ window#desktop {
       }
 
       &.selected {
-        background: rgba($primary-bg, 0.3);
-        box-shadow: inset 0 0 0 2px $primary-bg;
+        background: color-mix(in srgb, var(--primary-bg) 30%, transparent);
+        box-shadow: inset 0 0 0 2px var(--primary-bg);
         transform: scale(1.02);
       }
 
@@ -47,45 +49,35 @@ window#desktop {
   }
 
   .selection-rectangle {
-    background: rgba($primary-bg, 0.2);
-    border: 1px solid rgba($primary-bg, 0.6);
+    background: color-mix(in srgb, var(--primary-bg) 20%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary-bg) 60%, transparent);
     border-radius: 2px;
   }
 
   .desktop-context-menu {
-    background: $bg;
-    border-radius: calc($radius * 1.75);
-    padding: 4px 2px 2px 2px;
-    border: $border;
-    @if $shadows {
-      box-shadow:
-        0 10px 40px rgba(0, 0, 0, 0.2),
-        0 4px 20px rgba(0, 0, 0, 0.15),
-        0 1px 4px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    } @else {
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    }
+    @extend .floating;
 
     button {
       all: unset;
-      background: transparent;
+      box-shadow: none;
+      background-color: transparent;
+      background-image: none;
       border: none;
-      padding: $padding * 0.5 $padding * 2;
+      padding: calc(var(--padding) * 0.5) calc(var(--padding) * 2);
       margin: 2px;
       border-radius: 50%;
       font-size: 0.9em;
-      color: $fg;
+      color: var(--fg);
       transition: background 200ms cubic-bezier(0.23, 1, 0.32, 1), color 200ms cubic-bezier(0.23, 1, 0.32, 1);
       min-width: 100px;
 
       &:hover {
-        background: $hover-bg;
-        color: $hover-fg;
+        background: var(--hover-bg);
+        color: var(--hover-fg);
       }
 
       &:active {
-        background: $hover-bg;
+        background: var(--hover-bg);
       }
 
       &:disabled {
@@ -105,24 +97,28 @@ window#desktop-context-menu {
   background: transparent;
 
   .contents {
+    @extend .floating;
+    border-radius: calc(var(--popover-radius) * 0.5);
+    padding: calc(var(--padding) * 0.5);
+
     button {
       all: unset;
-      padding: $padding * 0.5 $padding * 2;
-      color: $fg;
-      background: transparent;
-      transition: $transition;
+      box-shadow: none;
+      background-color: transparent;
+      background-image: none;
+      border: none;
+      padding: calc(var(--padding) * 0.5) calc(var(--padding) * 2);
+      color: var(--fg);
+      transition: var(--transition);
 
       &:hover {
-        background: $hover-bg;
-        color: $hover-fg;
+        background: var(--hover-bg);
+        color: var(--hover-fg);
       }
 
       &:active {
-        background: $hover-bg;
+        background: var(--hover-bg);
       }
     }
-    @include floating-widget;
-    border-radius: $popover-radius * .5;
-    padding: $padding * .5;
   }
 }

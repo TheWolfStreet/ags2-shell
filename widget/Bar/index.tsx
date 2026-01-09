@@ -1,6 +1,6 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
-import { onCleanup } from "ags"
+import { onCleanup, With } from "ags"
 
 import { Date } from "./components/Date"
 import { Battery } from "./components/Battery"
@@ -47,7 +47,9 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 				<box $type="start" class="horizontal" valign={CENTER}>
 					<Launcher.Button />
 					<Workspaces.Button />
-					<Tasks />
+					<With value={options.dock.style}>
+						{(style) => style === "bar" && <Tasks />}
+					</With>
 				</box>
 
 				<box $type="center" class="horizontal" valign={CENTER}>

@@ -1,11 +1,13 @@
 import app from "ags/gtk4/app"
-import { createBinding, createState, For, createComputed } from "ags"
+import { createBinding, createState, For, createComputed, onCleanup } from "ags"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
+import { timeout, Timer } from "ags/time"
 
 import AstalApps from "gi://AstalApps"
 import AstalHyprland from "gi://AstalHyprland"
 
 import { apps, hypr } from "$lib/services"
+import options from "options"
 
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { CENTER } = Gtk.Align
@@ -222,18 +224,59 @@ export namespace Dock {
 	}
 
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
+		const [revealed, setRevealed] = createState(false)
+		let hoverTimeout: Timer | undefined
+		let win: Astal.Window
+
+		const unsubscribe = options.dock.autohide.subscribe(() => {
+			if (win) {
+				win.queue_draw()
+			}
+		})
+
+		onCleanup(() => {
+			unsubscribe()
+			if (hoverTimeout) hoverTimeout.cancel()
+		})
+
+		const dockClass = createComputed([options.dock.autohide, revealed], (mode, isRevealed) => {
+			if (mode === "hover") {
+				return isRevealed ? "visible" : "hidden"
+			}
+			return ""
+		})
+
 		return (
 			<window
+				$={self => win = self}
 				name="dock"
 				layer={Astal.Layer.TOP}
-				exclusivity={Astal.Exclusivity.IGNORE}
-				anchor={Astal.WindowAnchor.BOTTOM}
+				exclusivity={options.dock.autohide.as(mode =>
+					mode === "exclusive" ? Astal.Exclusivity.EXCLUSIVE : Astal.Exclusivity.IGNORE
+				)}
+				anchor={options.dock.position.as(pos =>
+					pos === "bottom" ? Astal.WindowAnchor.BOTTOM : Astal.WindowAnchor.TOP
+				)}
+				visible={options.dock.style.as(s => s === "bottom")}
 				application={app}
-				visible={true}
 				marginBottom={4}
 				gdkmonitor={gdkmonitor}
 			>
-				<box class="dock" orientation={HORIZONTAL} halign={CENTER}>
+				<Gtk.EventControllerMotion
+					onEnter={() => {
+						if (options.dock.autohide.peek() === "hover") {
+							if (hoverTimeout) hoverTimeout.cancel()
+							setRevealed(true)
+						}
+					}}
+					onLeave={() => {
+						if (options.dock.autohide.peek() === "hover") {
+							if (hoverTimeout) hoverTimeout.cancel()
+							hoverTimeout = timeout(500, () => setRevealed(false))
+						}
+					}}
+				/>
+				<box class={dockClass.as(c => c ? `dock ${c}` : "dock")} orientation={HORIZONTAL} halign={CENTER}>
 					<DockContainer />
 				</box>
 			</window>

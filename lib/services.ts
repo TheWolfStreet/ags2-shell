@@ -15,6 +15,7 @@ import ColorPicker from "$service/colorpicker"
 import Wallpaper from "$service/wallpaper"
 import Capturer from "$service/capturer"
 import NotificationManager from "$service/notifications"
+import Desktop from "$service/desktop"
 
 export const media = Media.get_default()
 export const hypr = Hyprland.get_default()
@@ -33,3 +34,4 @@ export const cpick = ColorPicker.get_default()
 export const wp = Wallpaper.get_default()
 export const scr = Capturer.get_default()
 export const notifications = NotificationManager.get_default()
+export const desktop = Desktop.get_default()

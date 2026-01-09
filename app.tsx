@@ -20,6 +20,7 @@ import { Dock } from "widget/Dock"
 import { Desktop } from "widget/Desktop"
 
 import { scr } from "$lib/services"
+import options from "options"
 
 app.start({
 	instanceName: env.appName,

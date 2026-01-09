@@ -55,5 +55,14 @@ export default async function init() {
 	Matugen.init()
 	hyprinit()
 
+	function syncDockPosition() {
+		const barPos = options.bar.position.peek()
+		const dockPos = barPos === "bottom" ? "top" : "bottom"
+		options.dock.position.set(dockPos)
+	}
+
+	syncDockPosition()
+	options.bar.position.subscribe(syncDockPosition)
+
 	initCss()
 }

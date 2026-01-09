@@ -1,10 +1,11 @@
 import app from "ags/gtk4/app"
-import { createState, For, createComputed, Accessor } from "ags"
+import { createState, For, createComputed, Accessor, onCleanup } from "ags"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import Gio from "gi://Gio"
 import Pango from "gi://Pango"
 import GObject from "gi://GObject"
 import env from "$lib/env"
+import options from "options"
 
 const { BUTTON_PRIMARY, BUTTON_SECONDARY, DragAction, KEY_Escape } = Gdk
 const { Orientation, GestureClick } = Gtk
@@ -101,8 +102,9 @@ export namespace Desktop {
 			currentOrder.map(path => allFiles.find(f => f.path === path)).filter(Boolean) as DesktopFile[] :
 			allFiles
 
-		const cellSize = 120
-		const rows = 8
+		const cellWidth = options.desktop.grid.cellWidth.peek()
+		const cellHeight = options.desktop.grid.cellHeight.peek()
+		const rows = options.desktop.grid.rows.peek()
 		const gridStartX = 40
 		const gridStartY = 40
 
@@ -110,10 +112,10 @@ export namespace Desktop {
 			const row = Math.floor(index / rows)
 			const col = index % rows
 
-			const iconX = gridStartX + (col * cellSize)
-			const iconY = gridStartY + (row * cellSize)
-			const iconRight = iconX + cellSize
-			const iconBottom = iconY + cellSize
+			const iconX = gridStartX + (col * cellWidth)
+			const iconY = gridStartY + (row * cellHeight)
+			const iconRight = iconX + cellWidth
+			const iconBottom = iconY + cellHeight
 
 			if (iconRight >= minX && iconX <= maxX && iconBottom >= minY && iconY <= maxY) {
 				selectedFiles.push(file.path)
@@ -355,6 +357,8 @@ export namespace Desktop {
 	}
 
 	function initFiles() {
+		if (!options.desktop.enabled.peek()) return
+
 		const loaded = loadDesktopFiles()
 		setFiles(loaded)
 
@@ -368,7 +372,23 @@ export namespace Desktop {
 		}
 	}
 
-	initFiles()
+	if (options.desktop.enabled.peek()) {
+		initFiles()
+	}
+
+	const unsubscribe = options.desktop.enabled.subscribe(enabled => {
+		if (enabled) {
+			initFiles()
+		} else {
+			setFiles([])
+			setOrder([])
+			clearSelection()
+		}
+	})
+
+	onCleanup(() => {
+		unsubscribe()
+	})
 
 	const orderedFiles = createComputed([files, order], (allFiles, userOrder) => {
 		const hasNoOrder = userOrder.length === 0
@@ -537,7 +557,7 @@ export namespace Desktop {
 				/>
 				<image
 					iconName={file.icon}
-					pixelSize={64}
+					pixelSize={options.desktop.iconSize}
 					useFallback
 				/>
 				<label
@@ -554,8 +574,9 @@ export namespace Desktop {
 	}
 
 	function FileGrid() {
-		const cellSize = 120
-		const rows = 8
+		const cellWidth = options.desktop.grid.cellWidth
+		const cellHeight = options.desktop.grid.cellHeight
+		const rows = options.desktop.grid.rows
 
 		return (
 			<Gtk.Grid
@@ -564,13 +585,14 @@ export namespace Desktop {
 				<For each={orderedFiles}>
 					{(file: DesktopFile, index: Accessor<number>) => {
 						const itemIndex = index.get()
-						const row = Math.floor(itemIndex / rows)
-						const col = itemIndex % rows
+						const rowCount = rows.peek()
+						const row = Math.floor(itemIndex / rowCount)
+						const col = itemIndex % rowCount
 
 						return (
 							<box
-								widthRequest={cellSize}
-								heightRequest={cellSize}
+								widthRequest={cellWidth}
+								heightRequest={cellHeight}
 								$={(self: Gtk.Widget) => {
 									const grid = self.get_parent() as Gtk.Grid
 									grid?.attach(self, col, row, 1, 1)
@@ -603,6 +625,8 @@ export namespace Desktop {
 	}
 
 	export function ContextMenuWindow({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
+		const menuVisible = createComputed([options.desktop.enabled, showMenu], (enabled, show) => enabled && show)
+
 		return (
 			<window
 				name="desktop-context-menu"
@@ -611,7 +635,7 @@ export namespace Desktop {
 				anchor={WindowAnchor.TOP | WindowAnchor.LEFT}
 				application={app}
 				gdkmonitor={gdkmonitor}
-				visible={showMenu}
+				visible={menuVisible}
 				keymode={Keymode.ON_DEMAND}
 				marginLeft={menuPosition.as(pos => pos.x)}
 				marginTop={menuPosition.as(pos => pos.y)}
@@ -637,10 +661,9 @@ export namespace Desktop {
 				layer={Layer.BACKGROUND}
 				exclusivity={Exclusivity.IGNORE}
 				anchor={WindowAnchor.TOP | WindowAnchor.BOTTOM | WindowAnchor.LEFT | WindowAnchor.RIGHT}
+				visible={options.desktop.enabled}
 				application={app}
 				gdkmonitor={gdkmonitor}
-				visible={true}
-				// NOTE: This isn't in the main style file because it flickers at start, not a real fix though, the style system needs to be reworked
 				css="background: transparent;"
 			>
 				<GestureClick
