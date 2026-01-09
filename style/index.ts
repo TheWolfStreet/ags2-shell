@@ -1,6 +1,6 @@
 import app from "ags/gtk4/app"
 import { writeFileAsync, monitorFile } from "ags/file"
-import { timeout, idle } from "ags/time"
+import { timeout, idle, Timer } from "ags/time"
 import GLib from "gi://GLib"
 
 import env from "$lib/env"
@@ -9,7 +9,7 @@ import { fileExists } from "$lib/utils"
 import options from "options"
 
 let cssFilePath = ''
-let cssReloadTimeout: GLib.Source | null = null
+let cssReloadTimeout: Timer | undefined
 
 function unwrapOption<T>(option: Opt<T> | T): T {
 	return option instanceof Opt ? option.peek() : option
@@ -114,10 +114,10 @@ export function resetCss() {
 	}
 
 	if (cssReloadTimeout) {
-		clearTimeout(cssReloadTimeout)
+		cssReloadTimeout.cancel()
 	}
 
-	cssReloadTimeout = setTimeout(() => {
+	cssReloadTimeout = timeout(100, () => {
 		const cssVariables = buildCssVariables()
 		const runtimeCssPath = `${env.paths.tmp}runtime-vars.css`
 		const runtimeCssContent = `* {\n${cssVariables}\n}\n`
@@ -129,8 +129,8 @@ export function resetCss() {
 			})
 		})
 
-		cssReloadTimeout = null
-	}, 100)
+		cssReloadTimeout = undefined
+	})
 }
 
 function onRecompile() {

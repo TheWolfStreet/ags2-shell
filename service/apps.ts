@@ -1,9 +1,8 @@
 import GObject, { register, getter } from "ags/gobject"
-import { idle } from "ags/time"
+import { idle, timeout, Timer } from "ags/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
-import GLib from "gi://GLib"
 
 import env from "$lib/env"
 import { bashSync, fileExists } from "$lib/utils"
@@ -22,7 +21,7 @@ export default class Apps extends GObject.Object {
 	#favortiesSnapshot: string
 	#apps: AstalApps.Apps
 	#monitors: Gio.FileMonitor[]
-	#reloadTimeout: GLib.Source | null
+	#reloadTimeout: Timer | undefined
 
 	constructor() {
 		super()
@@ -31,21 +30,21 @@ export default class Apps extends GObject.Object {
 		this.#favortiesSnapshot = ""
 		this.#apps = new AstalApps.Apps()
 		this.#monitors = []
-		this.#reloadTimeout = null
+		this.#reloadTimeout = undefined
 
 		const reloadApps = () => {
 			if (this.#reloadTimeout) {
-				clearTimeout(this.#reloadTimeout)
+				this.#reloadTimeout.cancel()
 			}
 
-			this.#reloadTimeout = setTimeout(() => {
+			this.#reloadTimeout = timeout(500, () => {
 				idle(() => {
 					this.#apps.reload()
 					this.notify("list")
 					this.notify("favorites")
 				})
-				this.#reloadTimeout = null
-			}, 500)
+				this.#reloadTimeout = undefined
+			})
 		}
 
 		const watchAppDir = (dir: string) => {
@@ -132,8 +131,8 @@ export default class Apps extends GObject.Object {
 
 	vfunc_finalize() {
 		if (this.#reloadTimeout) {
-			clearTimeout(this.#reloadTimeout)
-			this.#reloadTimeout = null
+			this.#reloadTimeout.cancel()
+			this.#reloadTimeout = undefined
 		}
 
 		for (const monitor of this.#monitors) {

@@ -1,6 +1,7 @@
 import { Accessor, createState, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
+import { timeout, Timer } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
@@ -49,10 +50,9 @@ export namespace Notifications {
 
 	export function dismissAll() {
 		set_dismissingAll(true)
-		GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.transition.duration.peek(), () => {
+		timeout(options.transition.duration.peek(), () => {
 			set_dismissingAll(false)
 			set_notifications([])
-			return GLib.SOURCE_REMOVE
 		})
 	}
 
@@ -88,12 +88,12 @@ export namespace Notifications {
 		const [visible, set_visible] = createState(false)
 		const [showActions, set_showActions] = createState(false)
 
-		let autoHideTimer: number | undefined
+		let autoHideTimer: Timer | undefined
 		let mounted = false
 
 		const clearTimer = () => {
 			if (autoHideTimer) {
-				GLib.source_remove(autoHideTimer)
+				autoHideTimer.cancel()
 				autoHideTimer = undefined
 			}
 		}
@@ -101,12 +101,11 @@ export namespace Notifications {
 		const scheduleAutoHide = () => {
 			if (persistent) return
 			clearTimer()
-			autoHideTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, options.notifications.dismiss.peek(), () => {
+			autoHideTimer = timeout(options.notifications.dismiss.peek(), () => {
 				if (!popupHovered.peek()) {
 					set_visible(false)
 				}
 				autoHideTimer = undefined
-				return GLib.SOURCE_REMOVE
 			})
 		}
 
