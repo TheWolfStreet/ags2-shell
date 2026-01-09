@@ -1,6 +1,6 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk } from "ags/gtk4"
-import { createComputed } from "ags"
+import { createBinding, createComputed } from "ags"
 
 import { Placeholder } from "widget/shared/Placeholder"
 import { PopupWindow, Position } from "widget/shared/PopupWindow"
@@ -8,6 +8,7 @@ import { Notifications } from "../Notifications"
 import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
+import { notifications as manager } from "$lib/services"
 import icons from "$lib/icons"
 import { toggleWindow } from "$lib/utils"
 
@@ -28,6 +29,8 @@ function up(up: number) {
 
 export namespace Date {
 	function ClearButton() {
+		const notificationsList = createBinding(manager, "notifications")
+		const trashIcon = notificationsList.as(n => icons.trash[n.length ? "full" : "empty"])
 		return (
 			<button
 				class=""
@@ -38,7 +41,7 @@ export namespace Date {
 			>
 				<box>
 					<label label="Clear" />
-					<image iconName={Notifications.current.as(v => icons.trash[v.length ? "full" : "empty"])} useFallback />
+					<image iconName={trashIcon} useFallback />
 				</box>
 			</button>
 		)
@@ -54,13 +57,15 @@ export namespace Date {
 	}
 
 	function NotifyColumn() {
+		const notificationsList = createBinding(manager, "notifications")
+		const noNotifications = notificationsList.as(n => n.length === 0)
 		return (
 			<box class="notifications" orientation={VERTICAL} vexpand>
 				<Header />
 				<Gtk.ScrolledWindow class="notification-scrollable" hscrollbarPolicy={NEVER}>
 					<box vexpand orientation={VERTICAL}>
 						<Notifications.Stack class="notification-list vertical" persistent={true} />
-						<revealer revealChild={Notifications.current.as(ns => ns.length == 0)} transitionDuration={options.transition.duration}>
+						<revealer revealChild={noNotifications} transitionDuration={options.transition.duration}>
 							<Placeholder iconName={icons.notifications.silent} label={"No new notifications"} />
 						</revealer>
 					</box>

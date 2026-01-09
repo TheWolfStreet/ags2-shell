@@ -14,6 +14,7 @@ import Brightness from "$service/brightness"
 import ColorPicker from "$service/colorpicker"
 import Wallpaper from "$service/wallpaper"
 import Capturer from "$service/capturer"
+import NotificationManager from "$service/notifications"
 
 export const media = Media.get_default()
 export const hypr = Hyprland.get_default()
@@ -31,3 +32,4 @@ export const brightness = Brightness.get_default()
 export const cpick = ColorPicker.get_default()
 export const wp = Wallpaper.get_default()
 export const scr = Capturer.get_default()
+export const notifications = NotificationManager.get_default()

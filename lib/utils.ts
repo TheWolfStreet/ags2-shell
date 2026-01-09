@@ -230,6 +230,17 @@ export function duration(length: number) {
 		: `${minutes}:${ss}`
 }
 
+export function formatTime(time: number) {
+	const now = GLib.DateTime.new_now_local()
+	const then = GLib.DateTime.new_from_unix_local(time)
+	if (!then) return ""
+	const diff = now.to_unix() - then.to_unix()
+	if (diff < 60) return "now"
+	if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+	if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+	return `${Math.floor(diff / 86400)}d ago`
+}
+
 export function range(length: number, start = 1) {
 	return Array.from({ length }, (_, i) => i + start)
 }

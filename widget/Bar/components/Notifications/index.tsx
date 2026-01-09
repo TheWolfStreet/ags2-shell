@@ -1,18 +1,17 @@
-import { Accessor, createState, For, onCleanup } from "ags"
+import { Accessor, createState, createBinding, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 import { timeout, Timer } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
-import GLib from "gi://GLib"
 import Pango from "gi://Pango"
 
 import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
-import { notifd } from "$lib/services"
 import icons from "$lib/icons"
-import { fileExists, textureFromFile, toggleWindow } from "$lib/utils"
+import { fileExists, formatTime, textureFromFile, toggleWindow } from "$lib/utils"
+import { notifications as notificationManager } from "$lib/services"
 
 import options from "options"
 
@@ -23,52 +22,25 @@ const { SLIDE_DOWN, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
 const { EXCLUSIVE } = Astal.Exclusivity
 const { TOP, RIGHT } = Astal.WindowAnchor
 
-const MAX_NOTIFICATIONS = 50
-
 export namespace Notifications {
-	const [notifications, set_notifications] = createState<Array<AstalNotifd.Notification>>([])
-	const [dismissingAll, set_dismissingAll] = createState(false)
-	const [popupHovered, set_popupHovered] = createState(false)
+	const manager = notificationManager
+	const notifications = createBinding(manager, "notifications")
+	const dismissingAll = createBinding(manager, "dismissingAll")
+	const popupHovered = createBinding(manager, "popupHovered")
 
 	export const current = notifications
 
-	const notifyHandler = notifd.connect("notified", (_, id, replaced) => {
-		const notification = notifd.get_notification(id)
-		if (!notification) return
+	function staggerDelay(index: number) {
+		return index * 50 + Math.random() * 100
+	}
 
-		const blacklist = options.notifications.blacklist.peek() || []
-		const appName = notification.get_app_name() || notification.get_desktop_entry()
-
-		if (blacklist.includes(appName)) return
-
-		if (replaced && notifications.peek().some(n => n.id === id)) {
-			set_notifications(ns => ns.map(n => n.id === id ? notification : n))
-		} else {
-			set_notifications(ns => [notification, ...ns].slice(0, MAX_NOTIFICATIONS))
-		}
-	})
+	function maxStaggerDelay() {
+		const count = notifications.peek().length
+		return count > 0 ? count * 50 + 100 : 0
+	}
 
 	export function dismissAll() {
-		set_dismissingAll(true)
-		timeout(options.transition.duration.peek(), () => {
-			set_dismissingAll(false)
-			set_notifications([])
-		})
-	}
-
-	function removeNotification(id: number) {
-		set_notifications(ns => ns.filter(n => n.id !== id))
-	}
-
-	export function formatTime(time: number) {
-		const now = GLib.DateTime.new_now_local()
-		const then = GLib.DateTime.new_from_unix_local(time)
-		if (!then) return ""
-		const diff = now.to_unix() - then.to_unix()
-		if (diff < 60) return "now"
-		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-		return `${Math.floor(diff / 86400)}d ago`
+		manager.dismissAll(options.transition.duration.peek(), maxStaggerDelay())
 	}
 
 	export function urgency(n: AstalNotifd.Notification): string {
@@ -80,10 +52,11 @@ export namespace Notifications {
 		}
 	}
 
-	function Entry({ entry: notification, widthRequest, persistent }: {
+	function Entry({ entry: notification, widthRequest, persistent, index }: {
 		entry: AstalNotifd.Notification,
 		widthRequest?: Accessor<number> | number,
-		persistent?: boolean
+		persistent?: boolean,
+		index?: Accessor<number> | number
 	}) {
 		const [visible, set_visible] = createState(false)
 		const [showActions, set_showActions] = createState(false)
@@ -98,10 +71,17 @@ export namespace Notifications {
 			}
 		}
 
-		const scheduleAutoHide = () => {
+		const getIndex = () => {
+			if (index === undefined) return undefined
+			return typeof index === "function" ? index.peek() : index
+		}
+
+		const scheduleAutoHide = (stagger: boolean = false) => {
 			if (persistent) return
 			clearTimer()
-			autoHideTimer = timeout(options.notifications.dismiss.peek(), () => {
+			const idx = getIndex()
+			const delay = options.notifications.dismiss.peek() + (stagger && idx !== undefined ? staggerDelay(idx) : 0)
+			autoHideTimer = timeout(delay, () => {
 				if (!popupHovered.peek()) {
 					set_visible(false)
 				}
@@ -111,10 +91,10 @@ export namespace Notifications {
 
 		let pendingAction: (() => void) | undefined
 
-		const onClose = () => {
+		const dismiss = () => {
 			clearTimer()
 			pendingAction = () => {
-				removeNotification(notification.id)
+				manager.removeNotification(notification.id)
 				notification.dismiss()
 			}
 			set_visible(false)
@@ -123,14 +103,17 @@ export namespace Notifications {
 		const onActionClick = (actionId: string) => {
 			clearTimer()
 			pendingAction = () => {
-				removeNotification(notification.id)
+				manager.removeNotification(notification.id)
 				notification.invoke(actionId)
 			}
 			set_visible(false)
 		}
 
 		const dismissSub = dismissingAll.subscribe(() => {
-			if (dismissingAll.peek()) set_visible(false)
+			const idx = getIndex()
+			if (dismissingAll.peek() && idx !== undefined) {
+				timeout(staggerDelay(idx), () => set_visible(false))
+			}
 		})
 
 		const hoverSub = popupHovered.subscribe(() => {
@@ -138,7 +121,7 @@ export namespace Notifications {
 				if (popupHovered.peek()) {
 					clearTimer()
 				} else if (visible.peek()) {
-					scheduleAutoHide()
+					scheduleAutoHide(true)
 				}
 			}
 		})
@@ -160,7 +143,7 @@ export namespace Notifications {
 				transitionDuration={options.transition.duration}
 				transitionType={SLIDE_DOWN}
 				onMap={() => {
-					if (!mounted && (!notifd.get_dont_disturb() || persistent)) {
+					if (!mounted && (!manager.dontDisturb || persistent)) {
 						set_visible(true)
 						mounted = true
 						if (!persistent) scheduleAutoHide()
@@ -176,11 +159,11 @@ export namespace Notifications {
 				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} widthRequest={widthRequest}>
 					<Gtk.EventControllerMotion
 						onEnter={() => {
-							if (!persistent) set_popupHovered(true)
+							if (!persistent) manager.popupHovered = true
 							set_showActions(true)
 						}}
 						onLeave={() => {
-							if (!persistent) set_popupHovered(false)
+							if (!persistent) manager.popupHovered = false
 							set_showActions(false)
 						}}
 					/>
@@ -189,7 +172,7 @@ export namespace Notifications {
 						<label class="app-name" halign={START} maxWidthChars={24} ellipsize={Pango.EllipsizeMode.END} useMarkup label={appName} />
 						<label class="time" halign={END} hexpand label={env.uptime(() => formatTime(notification.time))} />
 						<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
-							<button class="close-button" onClicked={onClose}>
+							<button class="close-button" onClicked={dismiss}>
 								<image iconName={icons.ui.close} halign={CENTER} valign={CENTER} useFallback />
 							</button>
 						</revealer>
@@ -224,7 +207,7 @@ export namespace Notifications {
 	export function Stack({ persistent = false, class: className }: { persistent?: boolean, class?: string }) {
 		return (
 			<box class={className || "notifications-stack"} orientation={VERTICAL} valign={START}>
-				<For each={notifications}>{(n) => <Entry entry={n} persistent={persistent} />}</For>
+				<For each={notifications}>{(n, i) => <Entry entry={n} persistent={persistent} index={i} />}</For>
 			</box>
 		)
 	}
@@ -238,7 +221,6 @@ export namespace Notifications {
 	}
 
 	export function Window() {
-		onCleanup(() => notifd.disconnect(notifyHandler))
 		return (
 			<window visible resizable={false} heightRequest={1} widthRequest={350} name="notifications" class="notifications" application={app} exclusivity={EXCLUSIVE} anchor={TOP | RIGHT}>
 				<Stack persistent={false} />
