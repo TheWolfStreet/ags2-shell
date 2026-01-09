@@ -26,7 +26,7 @@ if [ ! -f "$CSS_FILE" ] || [ -n "$(find style widget -name '*.scss' -newer "$CSS
 fi
 
 log_watch "Watching SCSS files for changes"
-while inotifywait -qre modify,create,delete --include '\.scss$' style widget 2>/dev/null; do
+while inotifywait -qre modify,create,delete,close_write,moved_to --include '\.scss$' style widget 2>/dev/null; do
   ./style/compile/build.sh
 done &
 
