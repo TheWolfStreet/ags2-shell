@@ -94,7 +94,7 @@ function buildCssVariables(): string {
 		`--transition: ${options.transition.duration.peek()}ms;`,
 		`--border-width: ${theme.border.width.peek()}px;`,
 		`--font-size: ${font.size}pt;`,
-		`--font-name: ${font.name};`,
+		`--font-name: "${font.name}";`,
 		`--screen-corner-radius: ${screenCornerRadius}px;`,
 		`--popover-padding: ${paddingValue * 1.6}pt;`,
 		`--popover-radius: ${radiusValue * 2}px;`,
