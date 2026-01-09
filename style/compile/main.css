@@ -1718,17 +1718,26 @@ window#bar button.quicksettings:not(.active):not(:active) .bluetooth-connected {
 window#bar.transparent {
   background-color: transparent;
 }
-window#bar.transparent button:hover > * {
-  box-shadow: 1px 1px 3px 0 var(--shadow-color), inset 0 0 0 var(--border-width) var(--border-color);
-  background-color: var(--bg);
+window#bar.transparent button:not(.active) label,
+window#bar.transparent button:not(.active) image,
+window#bar.transparent button:not(.active) text {
+  -gtk-icon-shadow: 0 1px 2px var(--shadow-color);
+  text-shadow: 0 1px 2px var(--shadow-color);
 }
-window#bar.transparent button:not(:hover):not(.active) label,
-window#bar.transparent button:not(:hover):not(.active) image {
-  -gtk-icon-shadow: var(--text-shadow);
-  text-shadow: var(--text-shadow);
+window#bar.transparent box.tasks overlay:not(.active) label,
+window#bar.transparent box.tasks overlay:not(.active) image,
+window#bar.transparent box.tasks overlay:not(.active) text {
+  -gtk-icon-shadow: 0 1px 2px var(--shadow-color);
+  text-shadow: 0 1px 2px var(--shadow-color);
 }
-window#bar.transparent box.workspaces label {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), 1px 1px 3px 0 var(--shadow-color);
+window#bar.transparent button.overview:not(.active) label,
+window#bar.transparent button.overview:not(.active) image,
+window#bar.transparent button.overview:not(.active) text {
+  -gtk-icon-shadow: 0 1px 2px var(--shadow-color);
+  text-shadow: 0 1px 2px var(--shadow-color);
+}
+window#bar.transparent button.workspaces label {
+  filter: drop-shadow(0 1px 2px var(--shadow-color));
 }
 
 /*# sourceMappingURL=main.css.map */
