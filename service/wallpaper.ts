@@ -14,11 +14,17 @@ export default class Wallpaper extends GObject.Object {
 	static get_default() {
 		return this.instance ??= new Wallpaper()
 	}
-	@property(String) wallpaper = `${env.paths.home}/.config/background`
+
+	@property(String) wallpaper: string
+	#available: boolean
 
 	constructor() {
 		super()
-		if (!dependencies("swww")) return this
+
+		this.wallpaper = `${env.paths.home}/.config/background`
+		this.#available = dependencies("swww")
+
+		if (!this.#available) return
 
 		this.#apply()
 
@@ -44,8 +50,7 @@ export default class Wallpaper extends GObject.Object {
 	}
 
 	async set_wallpaper(img_path: string) {
-		if (!dependencies("swww"))
-			return
+		if (!this.#available) return
 
 		const isHeic = img_path.toLowerCase().endsWith(".heic")
 

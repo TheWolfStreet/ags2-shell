@@ -20,13 +20,25 @@ export default class Capturer extends GObject.Object {
 		return this.instance ??= new Capturer()
 	}
 
-	#recordings = `${env.paths.home}/Videos/Screencasting/`
-	#screenshots = `${env.paths.home}/Pictures/Screenshots/`
-	recFile = ""
-	scrFile = ""
-	#interval = new AstalIO.Time
-	#recording = false
-	#timer = 0
+	#recordings: string
+	#screenshots: string
+	#interval: AstalIO.Time
+	#recording: boolean
+	#timer: number
+	recFile: string
+	scrFile: string
+
+	constructor() {
+		super()
+
+		this.#recordings = `${env.paths.home}/Videos/Screencasting/`
+		this.#screenshots = `${env.paths.home}/Pictures/Screenshots/`
+		this.#interval = new AstalIO.Time()
+		this.#recording = false
+		this.#timer = 0
+		this.recFile = ""
+		this.scrFile = ""
+	}
 
 	@getter(Number)
 	get timer() {
@@ -39,79 +51,91 @@ export default class Capturer extends GObject.Object {
 	}
 
 	readonly screenshot = async (select = false) => {
-		if (select) {
-			if (await bash("pidof slurp")) return
-			if (!dependencies("wayshot", "slurp")) return
-		} else if (!dependencies("wayshot")) return
+		try {
+			if (select) {
+				if (await bash("pidof slurp")) return
+				if (!dependencies("wayshot", "slurp")) return
+			} else if (!dependencies("wayshot")) return
 
-		ensurePath(this.#screenshots)
-		this.scrFile = `${this.#screenshots}${now()}.png`
+			ensurePath(this.#screenshots)
+			this.scrFile = `${this.#screenshots}${now()}.png`
 
-		const area = select ? await bash("slurp").catch(() => "") : ""
-		if (select && !area) return
+			const area = select ? await bash("slurp").catch(() => "") : ""
+			if (select && !area) return
 
-		await execAsync(`wayshot -f "${this.scrFile}"${area ? ` -s "${area}"` : ""}`)
-		bash(`wl-copy < "${this.scrFile}"`)
+			await execAsync(`wayshot -f "${this.scrFile}"${area ? ` -s "${area}"` : ""}`)
+			bash(`wl-copy < "${this.scrFile}"`)
 
-		notify({
-			appIcon: icons.fallback.image,
-			appName: "Screenshot",
-			summary: "Screenshot taken",
-			body: this.scrFile,
-			hints: { "string:image-path": this.scrFile },
-			actions: {
-				"Show in Files": `bash -c 'xdg-open "${this.#screenshots}"'`,
-				"View": `bash -c 'xdg-open "${this.scrFile}"'`,
-				"Edit": `swappy -f "${this.scrFile}"`,
-			},
-		})
+			notify({
+				appIcon: icons.fallback.image,
+				appName: "Screenshot",
+				summary: "Screenshot taken",
+				body: this.scrFile,
+				hints: { "string:image-path": this.scrFile },
+				actions: {
+					"Show in Files": `bash -c 'xdg-open "${this.#screenshots}"'`,
+					"View": `bash -c 'xdg-open "${this.scrFile}"'`,
+					"Edit": `swappy -f "${this.scrFile}"`,
+				},
+			})
+		} catch (e) {
+			console.error("Failed to take screenshot:", e)
+		}
 	}
 
 	readonly startRecord = async (select: boolean = false) => {
-		if (select && !dependencies("wf-recorder", "slurp")) {
-			return
-		} else if (!dependencies("wf-recorder")) {
-			return
+		try {
+			if (select && !dependencies("wf-recorder", "slurp")) {
+				return
+			} else if (!dependencies("wf-recorder")) {
+				return
+			}
+
+			if (this.#recording) return
+
+			ensurePath(this.#recordings)
+			this.recFile = `"${this.#recordings}${now()}.mkv"`
+
+			const area = select ? await bash("slurp").catch(() => "").then(o => o && `-g "${o}"`) : ""
+			if (select && !area) return
+			execAsync(`wf-recorder ${area} -f ${this.recFile} --pixel-format yuv420p`)
+
+			this.#recording = true
+			this.notify("recording")
+
+			this.#timer = 0
+			this.#interval = interval(1000, () => {
+				this.notify("timer")
+				this.#timer++
+			})
+		} catch (e) {
+			console.error("Failed to start recording:", e)
 		}
-
-		if (this.#recording) return
-
-		ensurePath(this.#recordings)
-		this.recFile = `"${this.#recordings}${now()}.mkv"`
-
-		const area = select ? await bash("slurp").catch(() => "").then(o => o && `-g "${o}"`) : ""
-		if (select && !area) return
-		execAsync(`wf-recorder ${area} -f ${this.recFile} --pixel-format yuv420p`)
-
-		this.#recording = true
-		this.notify("recording")
-
-		this.#timer = 0
-		this.#interval = interval(1000, () => {
-			this.notify("timer")
-			this.#timer++
-		})
 	}
 
 	readonly stopRecord = async () => {
-		if (!this.#recording)
-			return
+		try {
+			if (!this.#recording)
+				return
 
-		await bash("pkill --signal SIGINT wf-recorder").catch(() => null)
-		this.#recording = false
-		this.notify("recording")
-		this.#interval.cancel()
+			await bash("pkill --signal SIGINT wf-recorder").catch(() => null)
+			this.#recording = false
+			this.notify("recording")
+			this.#interval.cancel()
 
-		notify({
-			appIcon: icons.fallback.video,
-			appName: "Recorder",
-			summary: "Recording saved",
-			body: `${this.recFile}`,
-			actions: {
-				"Show in Files": `bash -c 'xdg-open "${this.#recordings}"'`,
-				"View": `bash -c 'xdg-open "${this.recFile}"'`,
-			},
-		})
+			notify({
+				appIcon: icons.fallback.video,
+				appName: "Recorder",
+				summary: "Recording saved",
+				body: `${this.recFile}`,
+				actions: {
+					"Show in Files": `bash -c 'xdg-open "${this.#recordings}"'`,
+					"View": `bash -c 'xdg-open "${this.recFile}"'`,
+				},
+			})
+		} catch (e) {
+			console.error("Failed to stop recording:", e)
+		}
 	}
 
 }

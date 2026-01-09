@@ -4,12 +4,10 @@ import { exec, execAsync } from "ags/process"
 
 import GLib from "gi://GLib"
 
-import { bash } from "../lib/utils"
+import { bashSync } from "../lib/utils"
 import { getBrightnessIcon } from "../lib/icons"
 
 const get = (args: string) => Number(exec(`brightnessctl ${args}`))
-const display = await bash`ls -w1 /sys/class/backlight | head -1`
-const kbd = await bash`ls -w1 /sys/class/leds | head -1`
 
 @register()
 export default class Brightness extends GObject.Object {
@@ -20,51 +18,74 @@ export default class Brightness extends GObject.Object {
 		return this.instance ??= new Brightness()
 	}
 
-	#kbdMax = get(`--device ${kbd} max`)
-	#kbd = get(`--device ${kbd} get`)
-	#displayMax = get("max")
-	#display = get("get") / (get("max") || 1)
-	#displayAvailable = display.length != 0
+	#display: string
+	#kbd: string
+	#kbdMax: number
+	#kbdValue: number
+	#displayMax: number
+	#displayValue: number
+	#displayAvailable: boolean
 	#kbdIntervalId: GLib.Source | null = null
 
 	constructor() {
 		super()
 
-		const displayPath = `/sys/class/backlight/${display}/brightness`
-		const kbdPath = `/sys/class/leds/${kbd}/brightness`
+		this.#display = ""
+		this.#kbd = ""
+		this.#kbdMax = 0
+		this.#kbdValue = 0
+		this.#displayMax = 1
+		this.#displayValue = 0
+		this.#displayAvailable = false
 
-		monitorFile(displayPath, async f => {
-			const v = await readFileAsync(f)
-			this.#display = Number(v) / this.#displayMax
-			this.notify("display")
-		})
+		try {
+			this.#display = bashSync`ls -w1 /sys/class/backlight | head -1`.trim()
+			this.#kbd = bashSync`ls -w1 /sys/class/leds | head -1`.trim()
 
-		this.#monitorKbd(kbdPath, (v) => {
-			this.#kbd = v / this.#kbdMax
-			this.notify("kbd")
-		})
+			this.#kbdMax = get(`--device ${this.#kbd} max`)
+			this.#kbdValue = get(`--device ${this.#kbd} get`)
+			this.#displayMax = get("max")
+			this.#displayValue = get("get") / (get("max") || 1)
+			this.#displayAvailable = this.#display.length != 0
+
+			const displayPath = `/sys/class/backlight/${this.#display}/brightness`
+			const kbdPath = `/sys/class/leds/${this.#kbd}/brightness`
+
+			monitorFile(displayPath, async f => {
+				const v = await readFileAsync(f)
+				this.#displayValue = Number(v) / this.#displayMax
+				this.notify("display")
+			})
+
+			this.#monitorKbd(kbdPath, (v) => {
+				this.#kbdValue = v / this.#kbdMax
+				this.notify("kbd")
+			})
+		} catch (e) {
+			console.error("Failed to initialize brightness service:", e)
+		}
 	}
 
 	@getter(Number)
-	get kbd() { return this.#kbd }
+	get kbd() { return this.#kbdValue }
 
 	@setter(Number)
 	set kbd(value) {
 		if (value < 0 || value > this.#kbdMax)
 			return
 
-		execAsync(`brightnessctl -d ${kbd} s ${value} -q`).then(() => {
-			this.#kbd = value
+		execAsync(`brightnessctl -d ${this.#kbd} s ${value} -q`).then(() => {
+			this.#kbdValue = value
 		})
 	}
 
 	@getter(String)
 	get kbdIcon(): string {
-		return getBrightnessIcon(this.#kbd, "keyboard")
+		return getBrightnessIcon(this.#kbdValue, "keyboard")
 	}
 
 	@getter(Number)
-	get display() { return this.#display }
+	get display() { return this.#displayValue }
 
 	@setter(Number)
 	set display(percent) {
@@ -75,7 +96,7 @@ export default class Brightness extends GObject.Object {
 			percent = 1
 
 		execAsync(`brightnessctl set ${Math.floor(percent * 100)}% -q`).then(() => {
-			this.#display = percent
+			this.#displayValue = percent
 		})
 	}
 
@@ -85,7 +106,7 @@ export default class Brightness extends GObject.Object {
 
 	@getter(String)
 	get iconName(): string {
-		return getBrightnessIcon(this.#display, "screen")
+		return getBrightnessIcon(this.#displayValue, "screen")
 	}
 
 

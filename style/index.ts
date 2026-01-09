@@ -1,6 +1,6 @@
 import app from "ags/gtk4/app"
 import { writeFileAsync, monitorFile } from "ags/file"
-import { timeout } from "ags/time"
+import { timeout, idle } from "ags/time"
 import GLib from "gi://GLib"
 
 import env from "$lib/env"
@@ -9,6 +9,7 @@ import { fileExists } from "$lib/utils"
 import options from "options"
 
 let cssFilePath = ''
+let cssReloadTimeout: GLib.Source | null = null
 
 function unwrapOption<T>(option: Opt<T> | T): T {
 	return option instanceof Opt ? option.peek() : option
@@ -112,16 +113,24 @@ export function resetCss() {
 		return
 	}
 
-	const cssVariables = buildCssVariables()
-	const runtimeCssPath = `${env.paths.tmp}runtime-vars.css`
-	const runtimeCssContent = `* {\n${cssVariables}\n}\n`
+	if (cssReloadTimeout) {
+		clearTimeout(cssReloadTimeout)
+	}
 
-	writeFileAsync(runtimeCssPath, runtimeCssContent).then(() => {
-		timeout(0, () => {
-			app.apply_css(cssFilePath, false)
-			app.apply_css(runtimeCssPath, false)
+	cssReloadTimeout = setTimeout(() => {
+		const cssVariables = buildCssVariables()
+		const runtimeCssPath = `${env.paths.tmp}runtime-vars.css`
+		const runtimeCssContent = `* {\n${cssVariables}\n}\n`
+
+		writeFileAsync(runtimeCssPath, runtimeCssContent).then(() => {
+			idle(() => {
+				app.apply_css(cssFilePath, false)
+				app.apply_css(runtimeCssPath, false)
+			})
 		})
-	})
+
+		cssReloadTimeout = null
+	}, 100)
 }
 
 function onRecompile() {

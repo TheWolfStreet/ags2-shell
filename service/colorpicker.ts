@@ -16,18 +16,22 @@ export default class ColorPicker extends GObject.Object {
 	declare static $gtype: GObject.GType<ColorPicker>
 	static instance: ColorPicker
 
-	constructor() {
-		ensurePath(cacheFile)
-		super()
-	}
-
 	static get_default() {
 		return this.instance ??= new ColorPicker()
 	}
 
-	#notifId = 0
-	#saveDebounce: Timer | null = null
-	#colors = JSON.parse(readFile(cacheFile) || "[]") as string[]
+	#notifId: number
+	#saveDebounce: Timer | null
+	#colors: string[]
+
+	constructor() {
+		super()
+
+		ensurePath(cacheFile)
+		this.#notifId = 0
+		this.#saveDebounce = null
+		this.#colors = JSON.parse(readFile(cacheFile) || "[]") as string[]
+	}
 
 	@getter(Array)
 	get colors() {

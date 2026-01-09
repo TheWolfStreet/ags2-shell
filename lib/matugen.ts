@@ -1,6 +1,6 @@
 import { sh, dependencies, getFileSize } from "$lib/utils"
 import { wp } from "$lib/services"
-import { timeout, Timer } from "ags/time"
+import { timeout, idle, Timer } from "ags/time"
 
 import options from "options"
 
@@ -82,24 +82,27 @@ export namespace Matugen {
 			try {
 				const colors = await sh(`matugen --dry-run -j hex ${type} ${arg}`)
 				const c = JSON.parse(colors).colors as Colors
-				const { dark, light } = options.theme
 
-				dark.widget.set(c.on_surface.dark)
-				light.widget.set(c.on_surface.light)
-				dark.border.set(c.outline.dark)
-				light.border.set(c.outline.light)
-				dark.bg.set(c.surface.dark)
-				light.bg.set(c.surface.light)
-				dark.fg.set(c.on_surface.dark)
-				light.fg.set(c.on_surface.light)
-				dark.primary.bg.set(c.primary.dark)
-				light.primary.bg.set(c.primary.light)
-				dark.primary.fg.set(c.on_primary.dark)
-				light.primary.fg.set(c.on_primary.light)
-				dark.error.bg.set(c.error.dark)
-				light.error.bg.set(c.error.light)
-				dark.error.fg.set(c.on_error.dark)
-				light.error.fg.set(c.on_error.light)
+				idle(() => {
+					const { dark, light } = options.theme
+
+					dark.widget.set(c.on_surface.dark)
+					light.widget.set(c.on_surface.light)
+					dark.border.set(c.outline.dark)
+					light.border.set(c.outline.light)
+					dark.bg.set(c.surface.dark)
+					light.bg.set(c.surface.light)
+					dark.fg.set(c.on_surface.dark)
+					light.fg.set(c.on_surface.light)
+					dark.primary.bg.set(c.primary.dark)
+					light.primary.bg.set(c.primary.light)
+					dark.primary.fg.set(c.on_primary.dark)
+					light.primary.fg.set(c.on_primary.light)
+					dark.error.bg.set(c.error.dark)
+					light.error.bg.set(c.error.light)
+					dark.error.fg.set(c.on_error.dark)
+					light.error.fg.set(c.on_error.light)
+				})
 			} catch (error) {
 				console.error("Matugen color generation failed:", error)
 			} finally {

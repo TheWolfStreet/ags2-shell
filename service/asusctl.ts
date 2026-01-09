@@ -12,26 +12,34 @@ export namespace Asusctl {
 export default class Asusctl extends GObject.Object {
 	declare static $gtype: GObject.GType<Asusctl>
 	static instance: Asusctl
+
 	static get_default() {
 		return this.instance ??= new Asusctl()
 	}
 
-	#profile: Asusctl.Profile = "Balanced"
-	#mode: Asusctl.Mode = "Hybrid"
-	#available: boolean = false
+	#profile: Asusctl.Profile
+	#mode: Asusctl.Mode
+	#available: boolean
 
 	constructor() {
 		super()
+
+		this.#profile = "Balanced"
+		this.#mode = "Hybrid"
+		this.#available = false
+
 		try {
 			const hasAsusctl = bashSync`which asusctl`.trim() !== ""
 			const asusdRunning = hasAsusctl && bashSync`pgrep -x asusd`.trim() !== ""
 			this.#available = asusdRunning
-		} catch {
+		} catch (e) {
+			console.error("Failed to check asusctl availability:", e)
 			this.#available = false
 		}
 
 		if (this.#available) {
-			this.init().catch(() => {
+			this.init().catch((e) => {
+				console.error("Failed to initialize asusctl:", e)
 				this.#available = false
 			})
 		}
@@ -70,7 +78,8 @@ export default class Asusctl extends GObject.Object {
 			this.#profile = p
 			this.notify("profile")
 			this.updMonitorCfg()
-		} catch {
+		} catch (e) {
+			console.error("Failed to set asusctl profile:", e)
 			this.#available = false
 		}
 	}
@@ -84,7 +93,8 @@ export default class Asusctl extends GObject.Object {
 			this.#profile = match?.[1] as Asusctl.Profile
 			this.notify("profile")
 			this.updMonitorCfg()
-		} catch {
+		} catch (e) {
+			console.error("Failed to cycle asusctl profile:", e)
 			this.#available = false
 		}
 	}
@@ -97,7 +107,8 @@ export default class Asusctl extends GObject.Object {
 			const modeOut = await sh("supergfxctl -g")
 			this.#mode = modeOut as Asusctl.Mode
 			this.notify("mode")
-		} catch {
+		} catch (e) {
+			console.error("Failed to cycle GPU mode:", e)
 			this.#available = false
 		}
 	}
@@ -110,7 +121,9 @@ export default class Asusctl extends GObject.Object {
 				? `keyword monitor eDP-1,${resolution}@${options.asus.bat_hz.peek()},0x0,1`
 				: `keyword monitor eDP-1,${resolution}@${options.asus.ac_hz.peek()},0x0,1`
 			hypr.message_async(cmd, null)
-		} catch { }
+		} catch (e) {
+			console.error("Failed to update monitor config:", e)
+		}
 	}
 
 	readonly init = async () => {

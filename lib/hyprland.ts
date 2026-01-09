@@ -1,7 +1,10 @@
 import { hypr } from "./services"
 import { setHandler } from "./option"
+import { idle, timeout, Timer } from "ags/time"
 
 import options from "options"
+
+let hyprUpdateTimeout: Timer | null = null
 
 const {
 	hyprland,
@@ -55,34 +58,44 @@ async function sendBatch(batch: string[]) {
 }
 
 async function setHyprland() {
-	const gaps = Math.floor(hyprland.gaps.peek() * spacing.peek());
-	const darkMode = scheme.peek().includes("dark");
-	const blurPolicy = darkMode || blurOnLight.peek();
-	const blurEnabled = blur.peek() > 0 && blurPolicy;
+	if (hyprUpdateTimeout) {
+		hyprUpdateTimeout.cancel()
+	}
 
-	const baseRules = [
-		"layerrule unset, *",
-	];
+	hyprUpdateTimeout = timeout(100, () => {
+		idle(() => {
+			const gaps = Math.floor(hyprland.gaps.peek() * spacing.peek());
+			const darkMode = scheme.peek().includes("dark");
+			const blurPolicy = darkMode || blurOnLight.peek();
+			const blurEnabled = blur.peek() > 0 && blurPolicy;
 
-	const blurRules = [
-		"layerrule blur, gtk4-layer-shell",
-		"layerrule blurpopups, gtk4-layer-shell",
-		"layerrule ignorealpha .29, gtk4-layer-shell",
-	];
+			const baseRules = [
+				"layerrule unset, *",
+			];
 
-	const generalRules = [
-		`general:border_size ${width.peek()}`,
-		`general:gaps_out ${gaps}`,
-		`general:gaps_in ${Math.floor(gaps / 2)}`,
-		`general:col.active_border ${rgba(primary())}`,
-		`general:col.inactive_border ${rgba(hyprland.inactiveBorder.peek())}`,
-		`decoration:rounding ${radius.peek()}`,
-		`decoration:shadow:enabled ${shadows.peek() ? "yes" : "no"}`,
-		"layerrule noanim, gtk4-layer-shell",
-	];
+			const blurRules = [
+				"layerrule blur, gtk4-layer-shell",
+				"layerrule blurpopups, gtk4-layer-shell",
+				"layerrule ignorealpha .29, gtk4-layer-shell",
+			];
 
-	sendBatch(blurEnabled ? [...baseRules, ...blurRules] : baseRules);
-	sendBatch(generalRules);
+			const generalRules = [
+				`general:border_size ${width.peek()}`,
+				`general:gaps_out ${gaps}`,
+				`general:gaps_in ${Math.floor(gaps / 2)}`,
+				`general:col.active_border ${rgba(primary())}`,
+				`general:col.inactive_border ${rgba(hyprland.inactiveBorder.peek())}`,
+				`decoration:rounding ${radius.peek()}`,
+				`decoration:shadow:enabled ${shadows.peek() ? "yes" : "no"}`,
+				"layerrule noanim, gtk4-layer-shell",
+			];
+
+			sendBatch(blurEnabled ? [...baseRules, ...blurRules] : baseRules);
+			sendBatch(generalRules);
+		})
+
+		hyprUpdateTimeout = null
+	})
 }
 
 export default function hyprinit() {

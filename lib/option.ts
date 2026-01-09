@@ -38,7 +38,7 @@ namespace Store {
 
 	export function get(pathStr: string): unknown {
 		ensureLoaded()
-		const parts = pathStr.split(".")
+		const parts = splitPath(pathStr)
 		let node: Record<string, unknown> | null = cache
 		for (const part of parts) {
 			if (!node || typeof node !== "object") return undefined
@@ -47,9 +47,18 @@ namespace Store {
 		return node
 	}
 
+	const pathCache = new Map<string, string[]>()
+
+	function splitPath(pathStr: string): string[] {
+		if (!pathCache.has(pathStr)) {
+			pathCache.set(pathStr, pathStr.split("."))
+		}
+		return pathCache.get(pathStr)!
+	}
+
 	export function set(pathStr: string, value: unknown): void {
 		ensureLoaded()
-		const parts = pathStr.split(".")
+		const parts = splitPath(pathStr)
 		let node = cache as Record<string, unknown>
 		for (let i = 0; i < parts.length - 1; i++) {
 			if (!(parts[i] in node)) node[parts[i]] = {}
@@ -61,7 +70,7 @@ namespace Store {
 
 	export function del(pathStr: string): void {
 		ensureLoaded()
-		const parts = pathStr.split(".")
+		const parts = splitPath(pathStr)
 		let node = cache as Record<string, unknown>
 		for (let i = 0; i < parts.length - 1; i++) {
 			if (!(parts[i] in node)) return

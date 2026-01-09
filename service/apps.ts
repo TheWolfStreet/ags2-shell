@@ -1,7 +1,9 @@
 import GObject, { register, getter } from "ags/gobject"
+import { idle } from "ags/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
+import GLib from "gi://GLib"
 
 import env from "$lib/env"
 import { bashSync, fileExists } from "$lib/utils"
@@ -16,58 +18,77 @@ export default class Apps extends GObject.Object {
 		return this.instance ??= new Apps()
 	}
 
-	#favorites: Array<AstalApps.Application> = []
-	#favortiesSnapshot = ""
-
-	#apps = new AstalApps.Apps
-	#monitors: Gio.FileMonitor[] = []
+	#favorites: Array<AstalApps.Application>
+	#favortiesSnapshot: string
+	#apps: AstalApps.Apps
+	#monitors: Gio.FileMonitor[]
+	#reloadTimeout: GLib.Source | null
 
 	constructor() {
 		super()
 
-		const stack = [
-			`${env.paths.home}/.local/share/applications/`,
-			`${env.paths.home}/.local/share/flatpak/applications/`,
-			"/var/lib/flatpak/exports/share/applications",
-		]
+		this.#favorites = []
+		this.#favortiesSnapshot = ""
+		this.#apps = new AstalApps.Apps()
+		this.#monitors = []
+		this.#reloadTimeout = null
 
-		const watchDir = (dir: string) => {
+		const reloadApps = () => {
+			if (this.#reloadTimeout) {
+				clearTimeout(this.#reloadTimeout)
+			}
+
+			this.#reloadTimeout = setTimeout(() => {
+				idle(() => {
+					this.#apps.reload()
+					this.notify("list")
+					this.notify("favorites")
+				})
+				this.#reloadTimeout = null
+			}, 500)
+		}
+
+		const watchAppDir = (dir: string) => {
 			if (!fileExists(dir)) return
 
-			const file = Gio.File.new_for_path(dir)
-			const monitor = file.monitor_directory(Gio.FileMonitorFlags.NONE, null)
+			try {
+				const file = Gio.File.new_for_path(dir)
+				const monitor = file.monitor_directory(Gio.FileMonitorFlags.NONE, null)
 
-			monitor.set_rate_limit(200)
+				monitor.set_rate_limit(300)
 
-			monitor.connect("changed", () => {
-				this.#apps.reload()
-				this.notify("list")
-				this.notify("favorites")
-			})
+				monitor.connect("changed", (_mon, file, _other, event_type) => {
+					if (event_type === Gio.FileMonitorEvent.CREATED) {
+						const fileName = file.get_basename()
+						if (fileName && !fileName.startsWith(".")) {
+							reloadApps()
+						}
+					} else if (event_type === Gio.FileMonitorEvent.DELETED) {
+						reloadApps()
+					}
+				})
 
-			this.#monitors.push(monitor)
-
-			const iter = file.enumerate_children("standard::name,standard::type", Gio.FileQueryInfoFlags.NONE, null)
-			let info
-			while ((info = iter?.next_file(null))) {
-				if (info.get_file_type() === Gio.FileType.DIRECTORY) {
-					watchDir(`${dir}/${info.get_name()}`)
-				}
+				this.#monitors.push(monitor)
+			} catch (e) {
+				console.error(`Failed to watch directory ${dir}:`, e)
 			}
-			iter?.close(null)
 		}
 
-		// When nixos configuration is switched, hyprland is reloaded
-		// This is a decent way to reload apps if packages were changed
-		hypr.connect("config-reloaded", () => {
-			this.#apps.reload()
-			this.notify("list")
-			this.notify("favorites")
-		})
+		const appDirs = [
+			`${env.paths.home}/.local/share/applications/`,
+			`${env.paths.home}/.local/share/flatpak/exports/share/applications/`,
+			`${env.paths.home}/.local/share/flatpak/app/`,
+			"/usr/share/applications/",
+			"/usr/local/share/applications/",
+			"/var/lib/flatpak/exports/share/applications/",
+			"/var/lib/flatpak/app/",
+		]
 
-		for (const root of stack) {
-			watchDir(root)
+		for (const dir of appDirs) {
+			watchAppDir(dir)
 		}
+
+		hypr.connect("config-reloaded", reloadApps)
 	}
 
 	@getter(AstalApps.Apps)
@@ -107,5 +128,18 @@ export default class Apps extends GObject.Object {
 			console.error("Failed to get favorite apps:", e)
 			this.#favorites = []
 		}
+	}
+
+	vfunc_finalize() {
+		if (this.#reloadTimeout) {
+			clearTimeout(this.#reloadTimeout)
+			this.#reloadTimeout = null
+		}
+
+		for (const monitor of this.#monitors) {
+			monitor.cancel()
+		}
+		this.#monitors = []
+		super.vfunc_finalize()
 	}
 }
