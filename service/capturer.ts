@@ -52,15 +52,10 @@ export default class Capturer extends GObject.Object {
 
 	readonly screenshot = async (select = false) => {
 		try {
-			if (select) {
-				if (await bash("pidof slurp")) return
-				if (!dependencies("wayshot", "slurp")) return
-			} else if (!dependencies("wayshot")) return
-
 			ensurePath(this.#screenshots)
 			this.scrFile = `${this.#screenshots}${now()}.png`
 
-			const area = select ? await bash("slurp").catch(() => "") : ""
+			const area = await this.prepare_capture(select, "wayshot")
 			if (select && !area) return
 
 			await execAsync(`wayshot -f "${this.scrFile}"${area ? ` -s "${area}"` : ""}`)
@@ -85,19 +80,12 @@ export default class Capturer extends GObject.Object {
 
 	readonly startRecord = async (select: boolean = false) => {
 		try {
-			if (select && !dependencies("wf-recorder", "slurp")) {
-				return
-			} else if (!dependencies("wf-recorder")) {
-				return
-			}
-
-			if (this.#recording) return
-
 			ensurePath(this.#recordings)
 			this.recFile = `"${this.#recordings}${now()}.mkv"`
 
-			const area = select ? await bash("slurp").catch(() => "").then(o => o && `-g "${o}"`) : ""
+			const area = await this.prepare_capture(select, "wf-recorder").then(o => o && `-g "${o}"`)
 			if (select && !area) return
+
 			execAsync(`wf-recorder ${area} -f ${this.recFile} --pixel-format yuv420p`)
 
 			this.#recording = true
@@ -138,4 +126,13 @@ export default class Capturer extends GObject.Object {
 		}
 	}
 
+	private readonly prepare_capture = async (select: boolean, mainTool: string) => {
+		// TODO: Get rid of the error logs when no selection or selection cancelled
+		if (select) {
+			if (await bash("pidof slurp")) return null
+			if (!dependencies(mainTool, "slurp")) return null
+			return await bash("slurp").catch(() => "") || null
+		} else if (!dependencies(mainTool)) return ""
+		return ""
+	}
 }
