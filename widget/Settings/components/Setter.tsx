@@ -15,6 +15,23 @@ const imageFilter = (() => {
 	return filter
 })()
 
+const fontDialog = (() => {
+	const filter = new Gtk.CustomFilter()
+	filter.set_filter_func((item) => {
+		if (item instanceof Pango.FontFamily) {
+			return true
+		}
+		if (item instanceof Pango.FontFace) {
+			const faceName = item.get_face_name().toLowerCase()
+			return faceName === "regular" || faceName === "normal"
+		}
+		return false
+	})
+	const dialog = new Gtk.FontDialog
+	dialog.set_filter(filter)
+	return dialog
+})()
+
 const toHex = (rgba: Gdk.RGBA) => {
 	const { red, green, blue } = rgba
 	return `#${[red, green, blue]
@@ -133,12 +150,15 @@ export default function Setter({ opt, type, enums, max = 1000, min = 0,
 					valign={CENTER}
 					tooltipText={"Select a font"}
 					useSize={true}
-					dialog={new Gtk.FontDialog}
+					level={Gtk.FontLevel.FONT}
+					dialog={fontDialog}
 					fontDesc={Pango.FontDescription.from_string(fontString)}
 					onNotifyFontDesc={(self) => {
 						const desc = self.get_font_desc()
 						if (desc) {
-							opt.set(desc.to_string())
+							const family = desc.get_family()
+							const size = desc.get_size() / Pango.SCALE
+							opt.set(`${family} ${size}`)
 						}
 					}}
 					$={(self) => {

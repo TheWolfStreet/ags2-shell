@@ -2,6 +2,7 @@ import app from "ags/gtk4/app"
 import { writeFileAsync, monitorFile } from "ags/file"
 import { timeout, idle, Timer } from "ags/time"
 import GLib from "gi://GLib"
+import Pango from "gi://Pango"
 
 import env from "$lib/env"
 import { Opt, setHandler } from "$lib/option"
@@ -39,13 +40,6 @@ function darkenHexColor(hexColor: string): string {
 	return `#${[r, g, b].map(darken).map(toHex).join('')}`
 }
 
-function parseFontString(fontString: string): { name: string; size: string } {
-	const sizeMatch = fontString.match(/(\d+)$/)
-	const size = sizeMatch ? sizeMatch[1] : "11"
-	const name = fontString.replace(/\s+\d+$/, "").trim()
-	return { name, size }
-}
-
 function buildCssVariables(): string {
 	const theme = options.theme
 	const isDarkMode = theme.scheme.peek().includes("dark")
@@ -79,7 +73,9 @@ function buildCssVariables(): string {
 	const borderColor = colorMix(borderBaseColor, 100 - borderOpacity)
 	const popoverBorderColor = colorMix(borderBaseColor, 100 - Math.max(borderOpacity - 1, 0))
 
-	const font = parseFontString(String(options.font.peek()))
+	const fontDesc = Pango.FontDescription.from_string(String(options.font.peek()))
+	const fontName = fontDesc.get_family() || "Sans"
+	const fontSize = Math.round(fontDesc.get_size() / Pango.SCALE) || 11
 
 	return [
 		`--bg: ${backgroundColor};`,
@@ -93,8 +89,8 @@ function buildCssVariables(): string {
 		`--radius: ${radiusValue}px;`,
 		`--transition: ${options.transition.duration.peek()}ms;`,
 		`--border-width: ${theme.border.width.peek()}px;`,
-		`--font-size: ${font.size}pt;`,
-		`--font-name: "${font.name}";`,
+		`--font-size: ${fontSize}pt;`,
+		`--font-name: "${fontName}";`,
 		`--screen-corner-radius: ${screenCornerRadius}px;`,
 		`--popover-padding: ${paddingValue * 1.6}pt;`,
 		`--popover-radius: ${radiusValue * 2}px;`,
