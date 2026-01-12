@@ -44,10 +44,9 @@ function buildCssVariables(): string {
 	const theme = options.theme
 	const isDarkMode = theme.scheme.peek().includes("dark")
 
-	const blurLevel = theme.blur.peek()
-	const shouldBlur = blurLevel && (isDarkMode || theme.blurOnLight.peek())
-	const backgroundColor = shouldBlur
-		? colorMix(pickThemeValue(theme.dark.bg, theme.light.bg), Math.round((1 - blurLevel / 100) * 100))
+	const opacityLevel = theme.opacity.peek()
+	const backgroundColor = opacityLevel > 0
+		? colorMix(pickThemeValue(theme.dark.bg, theme.light.bg), Math.round((1 - opacityLevel / 100) * 100))
 		: pickThemeValue(theme.dark.bg, theme.light.bg)
 
 	const radiusValue = theme.radius.peek()

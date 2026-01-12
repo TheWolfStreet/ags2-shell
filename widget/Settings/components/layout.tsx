@@ -25,13 +25,13 @@ const {
 const {
 	dark,
 	light,
-	blur,
-	blurOnLight,
 	scheme,
+	shadows,
+	blur,
+	opacity,
 	padding,
 	spacing,
 	radius,
-	shadows,
 	widget,
 	border,
 } = theme
@@ -65,10 +65,10 @@ const Theme = () => (
 			<Row opt={light.border} title="Border" type="color" />
 		</Group>
 
-		<Group title="Theme" opts={[shadows, blurOnLight, blur, widget.opacity, border.opacity, border.width]}>
+		<Group title="Theme" opts={[shadows, blur, opacity, widget.opacity, border.opacity, border.width]}>
 			<Row opt={shadows} title="Shadows" />
-			<Row opt={blurOnLight} title="Blur on light theme" type="boolean" />
-			<Row opt={blur} title="Blur" note="Set to 0 to disable" max={70} />
+			<Row opt={blur} title="Blur" type="boolean" />
+			<Row opt={opacity} title="Opacity" note="Set to 0 to disable" max={70} />
 			<Row opt={widget.opacity} title="Widget Opacity" max={100} />
 			<Row opt={border.opacity} title="Border Opacity" max={100} />
 			<Row opt={border.width} title="Border Width" max={100} />

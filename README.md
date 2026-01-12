@@ -235,6 +235,13 @@ wayland.windowManager.hyprland = {
         popups = true;
       };
     };
+
+    layerrule = [
+      "blur on, match:namespace gtk4-layer-shell"
+      "blur_popups on, match:namespace gtk4-layer-shell"
+      "ignore_alpha 0.29, match:namespace gtk4-layer-shell"
+      "no_anim on, match:namespace gtk4-layer-shell"
+    ];
   };
 };
 ```

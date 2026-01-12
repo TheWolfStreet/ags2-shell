@@ -12,8 +12,8 @@ const {
 		spacing,
 		radius,
 		border: { width },
+		opacity,
 		blur,
-		blurOnLight,
 		shadows,
 		dark: {
 			primary: { bg: darkActive },
@@ -30,9 +30,9 @@ const deps = [
 	"hyprland",
 	spacing.id,
 	radius.id,
-	blur.id,
-	blurOnLight.id,
 	width.id,
+	opacity.id,
+	blur.id,
 	shadows.id,
 	darkActive.id,
 	lightActive.id,
@@ -65,19 +65,7 @@ async function setHyprland() {
 	hyprUpdateTimeout = timeout(100, () => {
 		idle(() => {
 			const gaps = Math.floor(hyprland.gaps.peek() * spacing.peek());
-			const darkMode = scheme.peek().includes("dark");
-			const blurPolicy = darkMode || blurOnLight.peek();
-			const blurEnabled = blur.peek() > 0 && blurPolicy;
-
-			const baseRules = [
-				"layerrule unset, *",
-			];
-
-			const blurRules = [
-				"layerrule blur, gtk4-layer-shell",
-				"layerrule blurpopups, gtk4-layer-shell",
-				"layerrule ignorealpha .29, gtk4-layer-shell",
-			];
+			const blurEnabled = blur.peek();
 
 			const generalRules = [
 				`general:border_size ${width.peek()}`,
@@ -87,10 +75,9 @@ async function setHyprland() {
 				`general:col.inactive_border ${rgba(hyprland.inactiveBorder.peek())}`,
 				`decoration:rounding ${radius.peek()}`,
 				`decoration:shadow:enabled ${shadows.peek() ? "yes" : "no"}`,
-				"layerrule noanim, gtk4-layer-shell",
+				`decoration:blur:enabled ${blurEnabled ? "true" : "false"}`,
 			];
 
-			sendBatch(blurEnabled ? [...baseRules, ...blurRules] : baseRules);
 			sendBatch(generalRules);
 		})
 
