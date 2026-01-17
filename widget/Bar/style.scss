@@ -31,7 +31,9 @@ window#bar {
     padding: calc(var(--padding) / 2);
 
     modelbutton {
-      padding: 0pt calc(var(--padding) * 0.8);
+      @extend .flat-button;
+      padding: calc(var(--padding) * 0.8);
+      font-weight: normal;
     }
   }
 

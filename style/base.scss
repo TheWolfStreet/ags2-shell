@@ -33,18 +33,24 @@
   color: var(--fg);
   padding: var(--padding);
   background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  box-shadow:
+    inset 0 0 0 var(--border-width) var(--border-color),
+    var(--neu-button-highlight),
+    var(--neu-button-shadow);
   font-weight: bold;
 
   &:hover:not(.active) {
     background-color: var(--hover-bg);
     color: var(--hover-fg);
+    box-shadow:
+      inset 0 0 0 var(--border-width) var(--border-color),
+      var(--neu-button-hover-highlight),
+      var(--neu-button-hover-shadow);
   }
 
-  &:focus {
-    box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
-    background-color: var(--hover-bg);
-    color: var(--hover-fg);
+  &:focus-visible {
+    outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+    outline-offset: -1px;
   }
 
   &:active,
@@ -54,6 +60,10 @@
     background-image: var(--active-gradient);
     background-color: var(--primary-bg);
     color: var(--primary-fg);
+    box-shadow:
+      inset 0 0 0 var(--border-width) var(--border-color),
+      var(--neu-button-active-highlight),
+      var(--neu-button-active-shadow);
   }
 
   &:disabled {
@@ -114,7 +124,10 @@ tooltip {
     color: var(--fg);
     padding: 8px;
     margin: 4px;
-    box-shadow: 0 0 3px 0 var(--shadow-color);
+    box-shadow:
+      0 0 3px 0 var(--shadow-color),
+      var(--neu-widget-highlight),
+      var(--neu-widget-shadow);
   }
 }
 
@@ -123,11 +136,18 @@ tooltip {
   border-radius: var(--radius);
   color: var(--fg);
   background-color: var(--widget-bg);
-  border: var(--border);
+  border: none;
+  box-shadow:
+    inset 0 0 0 var(--border-width) var(--border-color),
+    var(--neu-widget-highlight),
+    var(--neu-widget-shadow);
 }
 
 .floating {
-  box-shadow: 0 0 5px 0 var(--shadow-color);
+  box-shadow:
+    0 0 5px 0 var(--shadow-color),
+    var(--neu-widget-highlight),
+    var(--neu-widget-shadow);
   margin: max(var(--spacing), 8px);
   border: var(--border-width) solid var(--popover-border-color);
   background-color: var(--bg);
@@ -186,6 +206,9 @@ scale {
       background-image: var(--active-gradient);
       min-height: 0.7em;
       min-width: 0.7em;
+      box-shadow:
+        var(--neu-progress-highlight),
+        var(--neu-progress-shadow);
     }
   }
 
@@ -203,7 +226,9 @@ scale {
   &:hover slider {
     background-color: var(--fg);
     border-color: var(--border-color);
-    box-shadow: 0 0 3px 0 var(--shadow-color);
+    box-shadow:
+      var(--neu-slider-highlight),
+      0 1px 3px 0 var(--shadow-color);
   }
 
   &:disabled {
@@ -226,20 +251,41 @@ scale {
 }
 
 switch {
+  all: unset;
   border-radius: calc(var(--radius) * 2);
+  box-shadow:
+    var(--neu-widget-highlight),
+    var(--neu-widget-shadow);
+  background-color: var(--widget-bg);
+  padding: calc(var(--padding) / 2.5) calc(var(--padding) / 2);
 
   &:checked {
     background-color: var(--primary-bg);
   }
 
+  &:focus-visible {
+    outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+    outline-offset: -1px;
+  }
+
+  &:checked:focus-visible {
+    outline: calc(var(--border-width) / 2) solid var(--primary-fg);
+    outline-offset: -1px;
+  }
+
   slider {
+    all: unset;
     border-radius: calc(var(--radius) * 2);
     min-width: 24px;
     min-height: 24px;
+    background-color: var(--fg);
+    box-shadow:
+      var(--neu-button-highlight),
+      var(--neu-button-shadow);
+  }
 
-    &:checked {
-      background-color: var(--primary-fg);
-    }
+  &:checked slider {
+    background-color: var(--primary-fg);
   }
 }
 
@@ -249,28 +295,51 @@ entry {
   border-radius: var(--radius);
   color: var(--fg);
   background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  box-shadow:
+    inset 0 0 0 var(--border-width) var(--border-color),
+    var(--neu-widget-highlight),
+    var(--neu-widget-shadow);
   padding: var(--padding);
+
+  &:focus-visible {
+    outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+    outline-offset: -1px;
+  }
 }
 
-spinbutton {
-  all: unset;
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+%setter {
+  box-shadow:
+    inset 0 0 0 var(--border-width) var(--border-color),
+    var(--neu-widget-highlight),
+    var(--neu-widget-shadow);
   border-radius: var(--radius);
-
-  text {
-    padding: calc(var(--padding) / 2);
-    background-color: var(--widget-bg);
-    border-radius: var(--radius) 0 0 var(--radius);
-  }
+  background-color: var(--widget-bg);
 
   button {
     border-radius: 0;
     box-shadow: none;
+    padding: var(--padding);
+    background-color: transparent;
+
+    &:not(:last-child) {
+      margin-left: calc(var(--padding) / 2);
+      border-right: var(--border-width) solid var(--border-color);
+      border-left: var(--border-width) solid var(--border-color);
+    }
+
+    &:last-child {
+      border-left: 0;
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
 
     &:hover {
       background-color: var(--hover-bg);
       color: var(--hover-fg);
+    }
+
+    &:focus-visible {
+      outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+      outline-offset: -1px;
     }
 
     &:active {
@@ -279,47 +348,39 @@ spinbutton {
       color: var(--primary-fg);
     }
   }
-
-  button:last-child {
-    border-radius: 0 var(--radius) var(--radius) 0;
-  }
 }
 
-colordialogbutton,
-fontdialogbutton {
-  button {
-    padding: calc(var(--padding) / 2);
+spinbutton {
+  @extend %setter;
+
+  &:focus-within {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+    outline-offset: -1px;
+  }
+
+  text {
+    all: unset;
+    padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
+    border-radius: var(--radius) 0 0 var(--radius);
+
+    &:focus {
+      all: unset;
+      padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
+      border-radius: var(--radius) 0 0 var(--radius);
+    }
   }
 }
 
 box.enum-setter {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-  border-radius: var(--radius);
+  @extend %setter;
 
   label {
-    background-color: var(--widget-bg);
-    padding: calc(var(--padding) / 2);
+    padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
     border-radius: var(--radius) 0 0 var(--radius);
-  }
-
-  button {
-    border-radius: 0;
-    box-shadow: none;
-
-    &:hover {
-      background-color: var(--hover-bg);
-      color: var(--hover-fg);
-    }
-
-    &:active {
-      background-image: var(--active-gradient);
-      background-color: var(--primary-bg);
-      color: var(--primary-fg);
-    }
-  }
-
-  button:last-child {
-    border-radius: 0 var(--radius) var(--radius) 0;
   }
 }
 
@@ -330,6 +391,9 @@ progressbar {
     min-height: 0.5em;
     min-width: 0.5em;
     border: none;
+    box-shadow:
+      var(--neu-widget-highlight),
+      var(--neu-widget-shadow);
 
     highlight,
     progress {
@@ -338,6 +402,9 @@ progressbar {
       background-image: var(--active-gradient);
       min-height: 0.5em;
       min-width: 0.5em;
+      box-shadow:
+        var(--neu-progress-highlight),
+        var(--neu-progress-shadow);
     }
 
     &.muted trough progress {

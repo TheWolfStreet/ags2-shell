@@ -38,6 +38,7 @@ const options = mkOptions({
 		scheme: "dark",
 		shadows: true,
 		blur: true,
+		neumorphic: true,
 		opacity: 70,
 		widget: {
 			opacity: 94,

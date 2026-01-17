@@ -15,10 +15,6 @@ window#state-display box.state-display {
   }
 
   progressbar.percentage {
-    trough {
-      border: none;
-    }
-
     &.muted trough progress {
       background-image: none;
       background-color: color-mix(in srgb, var(--fg) 80%, transparent);

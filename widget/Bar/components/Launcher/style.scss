@@ -14,11 +14,28 @@ window#launcher {
       button {
         @extend .flat-button;
         padding: calc(var(--padding) / 2);
+
+        image {
+          transition: var(--transition);
+        }
+
+        &:hover,
+        &:focus-visible {
+          outline: none;
+
+          image {
+            -gtk-icon-shadow: 2px 2px var(--primary-bg);
+          }
+        }
       }
     }
 
     entry {
       margin: var(--spacing);
+
+      &:focus-visible {
+        outline: none;
+      }
 
       selection {
         color: color-mix(in srgb, var(--fg) 50%, var(--bg));
@@ -47,6 +64,10 @@ window#launcher {
       background-color: transparent;
       background-image: none;
       box-shadow: none;
+
+      &:focus-visible {
+        outline: none;
+      }
 
       > box {
         @include spacing(0.5);

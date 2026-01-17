@@ -1,34 +1,35 @@
-button, .flat-button, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#datemenu box.datemenu box.calendar calendar button, window#launcher box.launcher box.quicklaunch button, window#bar button, window#bar box.tasks overlay {
+button, .flat-button, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#datemenu box.datemenu box.calendar calendar button, window#launcher box.launcher box.quicklaunch button, window#bar button, window#bar popover contents modelbutton, window#bar box.tasks overlay {
   all: unset;
   transition: var(--transition);
   border-radius: var(--radius);
   color: var(--fg);
   padding: var(--padding);
   background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow);
   font-weight: bold;
 }
-button:hover:not(.active), .flat-button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.volume button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.control-unit button:hover:not(.active), window#quicksettings .quicksettings box.menu button:hover:not(.active), window#quicksettings .quicksettings box.media box.player button:hover:not(.active), window#datemenu box.datemenu box.calendar calendar button:hover:not(.active), window#launcher box.launcher box.quicklaunch button:hover:not(.active), window#bar button:hover:not(.active), window#bar box.tasks overlay:hover:not(.active) {
+button:hover:not(.active), .flat-button:hover:not(.active), window.settings-dialog box.group .header button.reset:hover:not(.active), window.settings-dialog box.row button.reset:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.volume button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.control-unit button:hover:not(.active), window#quicksettings .quicksettings box.menu button:hover:not(.active), window#quicksettings .quicksettings box.media box.player button:hover:not(.active), window#datemenu box.datemenu box.calendar calendar button:hover:not(.active), window#launcher box.launcher box.quicklaunch button:hover:not(.active), window#bar button:hover:not(.active), window#bar popover contents modelbutton:hover:not(.active), window#bar box.tasks overlay:hover:not(.active) {
   background-color: var(--hover-bg);
   color: var(--hover-fg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
 }
-button:focus, .flat-button:focus, window#quicksettings .quicksettings box.sliders-box box.volume button:focus, window#quicksettings .quicksettings box.sliders-box box.control-unit button:focus, window#quicksettings .quicksettings box.menu button:focus, window#quicksettings .quicksettings box.media box.player button:focus, window#datemenu box.datemenu box.calendar calendar button:focus, window#launcher box.launcher box.quicklaunch button:focus, window#bar button:focus, window#bar box.tasks overlay:focus {
-  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
-  background-color: var(--hover-bg);
-  color: var(--hover-fg);
+button:focus-visible, .flat-button:focus-visible, window.settings-dialog box.group .header button.reset:focus-visible, window.settings-dialog box.row button.reset:focus-visible, window#quicksettings .quicksettings box.sliders-box box.volume button:focus-visible, window#quicksettings .quicksettings box.sliders-box box.control-unit button:focus-visible, window#quicksettings .quicksettings box.menu button:focus-visible, window#quicksettings .quicksettings box.media box.player button:focus-visible, window#datemenu box.datemenu box.calendar calendar button:focus-visible, window#launcher box.launcher box.quicklaunch button:focus-visible, window#bar button:focus-visible, window#bar popover contents modelbutton:focus-visible, window#bar box.tasks overlay:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
 }
-button:active, .flat-button:active, window#quicksettings .quicksettings box.sliders-box box.volume button:active, window#quicksettings .quicksettings box.sliders-box box.control-unit button:active, window#quicksettings .quicksettings box.menu button:active, window#quicksettings .quicksettings box.media box.player button:active, window#datemenu box.datemenu box.calendar calendar button:active, window#launcher box.launcher box.quicklaunch button:active, window#bar button:active, window#bar box.tasks overlay:active, button.on, .on.flat-button, window#quicksettings .quicksettings box.sliders-box box.volume button.on, window#quicksettings .quicksettings box.sliders-box box.control-unit button.on, window#quicksettings .quicksettings box.menu button.on, window#quicksettings .quicksettings box.media box.player button.on, window#datemenu box.datemenu box.calendar calendar button.on, window#launcher box.launcher box.quicklaunch button.on, window#bar button.on, window#bar box.tasks overlay.on, button.active, .active.flat-button, window#quicksettings .quicksettings box.sliders-box box.volume button.active, window#quicksettings .quicksettings box.sliders-box box.control-unit button.active, window#quicksettings .quicksettings box.menu button.active, window#quicksettings .quicksettings box.media box.player button.active, window#datemenu box.datemenu box.calendar calendar button.active, window#launcher box.launcher box.quicklaunch button.active, window#bar button.active, window#bar box.tasks overlay.active, button:checked, .flat-button:checked, window#quicksettings .quicksettings box.sliders-box box.volume button:checked, window#quicksettings .quicksettings box.sliders-box box.control-unit button:checked, window#quicksettings .quicksettings box.menu button:checked, window#quicksettings .quicksettings box.media box.player button:checked, window#datemenu box.datemenu box.calendar calendar button:checked, window#launcher box.launcher box.quicklaunch button:checked, window#bar button:checked, window#bar box.tasks overlay:checked {
+button:active, .flat-button:active, window.settings-dialog box.group .header button.reset:active, window.settings-dialog box.row button.reset:active, window#quicksettings .quicksettings box.sliders-box box.volume button:active, window#quicksettings .quicksettings box.sliders-box box.control-unit button:active, window#quicksettings .quicksettings box.menu button:active, window#quicksettings .quicksettings box.media box.player button:active, window#datemenu box.datemenu box.calendar calendar button:active, window#launcher box.launcher box.quicklaunch button:active, window#bar button:active, window#bar popover contents modelbutton:active, window#bar box.tasks overlay:active, button.on, .on.flat-button, window.settings-dialog box.group .header button.on.reset, window.settings-dialog box.row button.on.reset, window#quicksettings .quicksettings box.sliders-box box.volume button.on, window#quicksettings .quicksettings box.sliders-box box.control-unit button.on, window#quicksettings .quicksettings box.menu button.on, window#quicksettings .quicksettings box.media box.player button.on, window#datemenu box.datemenu box.calendar calendar button.on, window#launcher box.launcher box.quicklaunch button.on, window#bar button.on, window#bar popover contents modelbutton.on, window#bar box.tasks overlay.on, button.active, .active.flat-button, window.settings-dialog box.group .header button.active.reset, window.settings-dialog box.row button.active.reset, window#quicksettings .quicksettings box.sliders-box box.volume button.active, window#quicksettings .quicksettings box.sliders-box box.control-unit button.active, window#quicksettings .quicksettings box.menu button.active, window#quicksettings .quicksettings box.media box.player button.active, window#datemenu box.datemenu box.calendar calendar button.active, window#launcher box.launcher box.quicklaunch button.active, window#bar button.active, window#bar popover contents modelbutton.active, window#bar box.tasks overlay.active, button:checked, .flat-button:checked, window.settings-dialog box.group .header button.reset:checked, window.settings-dialog box.row button.reset:checked, window#quicksettings .quicksettings box.sliders-box box.volume button:checked, window#quicksettings .quicksettings box.sliders-box box.control-unit button:checked, window#quicksettings .quicksettings box.menu button:checked, window#quicksettings .quicksettings box.media box.player button:checked, window#datemenu box.datemenu box.calendar calendar button:checked, window#launcher box.launcher box.quicklaunch button:checked, window#bar button:checked, window#bar popover contents modelbutton:checked, window#bar box.tasks overlay:checked {
   background-image: var(--active-gradient);
   background-color: var(--primary-bg);
   color: var(--primary-fg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
 }
-button:disabled, .flat-button:disabled, window#quicksettings .quicksettings box.sliders-box box.volume button:disabled, window#quicksettings .quicksettings box.sliders-box box.control-unit button:disabled, window#quicksettings .quicksettings box.menu button:disabled, window#quicksettings .quicksettings box.media box.player button:disabled, window#datemenu box.datemenu box.calendar calendar button:disabled, window#launcher box.launcher box.quicklaunch button:disabled, window#bar button:disabled, window#bar box.tasks overlay:disabled {
+button:disabled, .flat-button:disabled, window.settings-dialog box.group .header button.reset:disabled, window.settings-dialog box.row button.reset:disabled, window#quicksettings .quicksettings box.sliders-box box.volume button:disabled, window#quicksettings .quicksettings box.sliders-box box.control-unit button:disabled, window#quicksettings .quicksettings box.menu button:disabled, window#quicksettings .quicksettings box.media box.player button:disabled, window#datemenu box.datemenu box.calendar calendar button:disabled, window#launcher box.launcher box.quicklaunch button:disabled, window#bar button:disabled, window#bar popover contents modelbutton:disabled, window#bar box.tasks overlay:disabled {
   box-shadow: none;
   background-color: transparent;
   color: color-mix(in srgb, var(--fg) 30%, transparent);
 }
 
-.flat-button, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#datemenu box.datemenu box.calendar calendar button, window#launcher box.launcher box.quicklaunch button, window#bar button, window#bar box.tasks overlay {
+.flat-button, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#datemenu box.datemenu box.calendar calendar button, window#launcher box.launcher box.quicklaunch button, window#bar button, window#bar popover contents modelbutton, window#bar box.tasks overlay {
   background-color: transparent;
   box-shadow: none;
 }
@@ -73,7 +74,7 @@ tooltip label {
   color: var(--fg);
   padding: 8px;
   margin: 4px;
-  box-shadow: 0 0 3px 0 var(--shadow-color);
+  box-shadow: 0 0 3px 0 var(--shadow-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
 }
 
 .widget, window#quicksettings .quicksettings picture.avatar, window#quicksettings .quicksettings box.sliders-box, window#quicksettings .quicksettings box.menu, window#quicksettings .quicksettings box.media box.player, window#datemenu box.datemenu box.notifications box.notification, window#datemenu box.datemenu box.calendar {
@@ -81,11 +82,12 @@ tooltip label {
   border-radius: var(--radius);
   color: var(--fg);
   background-color: var(--widget-bg);
-  border: var(--border);
+  border: none;
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
 }
 
 .floating, window#verification box.verification, window#powermenu box.powermenu, window#quicksettings .quicksettings, window#batterystate box.batterystate, window#overview box.overview, window#datemenu box.datemenu, window.notifications box.notification, window#launcher box.launcher, window#state-display box.state-display {
-  box-shadow: 0 0 5px 0 var(--shadow-color);
+  box-shadow: 0 0 5px 0 var(--shadow-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
   margin: max(var(--spacing), 8px);
   border: var(--border-width) solid var(--popover-border-color);
   background-color: var(--bg);
@@ -152,6 +154,7 @@ scale trough progress {
   background-image: var(--active-gradient);
   min-height: 0.7em;
   min-width: 0.7em;
+  box-shadow: var(--neu-progress-highlight), var(--neu-progress-shadow);
 }
 scale slider {
   box-shadow: none;
@@ -166,7 +169,7 @@ scale slider {
 scale:hover slider {
   background-color: var(--fg);
   border-color: var(--border-color);
-  box-shadow: 0 0 3px 0 var(--shadow-color);
+  box-shadow: var(--neu-slider-highlight), 0 1px 3px 0 var(--shadow-color);
 }
 scale:disabled highlight,
 scale:disabled progress {
@@ -183,17 +186,32 @@ scale trough:focus ~ slider {
 }
 
 switch {
+  all: unset;
   border-radius: calc(var(--radius) * 2);
+  box-shadow: var(--neu-widget-highlight), var(--neu-widget-shadow);
+  background-color: var(--widget-bg);
+  padding: calc(var(--padding) / 2.5) calc(var(--padding) / 2);
 }
 switch:checked {
   background-color: var(--primary-bg);
 }
+switch:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+}
+switch:checked:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-fg);
+  outline-offset: -1px;
+}
 switch slider {
+  all: unset;
   border-radius: calc(var(--radius) * 2);
   min-width: 24px;
   min-height: 24px;
+  background-color: var(--fg);
+  box-shadow: var(--neu-button-highlight), var(--neu-button-shadow);
 }
-switch slider:checked {
+switch:checked slider {
   background-color: var(--primary-fg);
 }
 
@@ -203,66 +221,69 @@ entry {
   border-radius: var(--radius);
   color: var(--fg);
   background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
   padding: var(--padding);
 }
+entry:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+}
 
-spinbutton {
-  all: unset;
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+box.enum-setter, spinbutton {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
   border-radius: var(--radius);
+  background-color: var(--widget-bg);
+}
+box.enum-setter button, spinbutton button {
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--padding);
+  background-color: transparent;
+}
+box.enum-setter button:not(:last-child), spinbutton button:not(:last-child) {
+  margin-left: calc(var(--padding) / 2);
+  border-right: var(--border-width) solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
+}
+box.enum-setter button:last-child, spinbutton button:last-child {
+  border-left: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+box.enum-setter button:hover, spinbutton button:hover {
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+box.enum-setter button:focus-visible, spinbutton button:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+}
+box.enum-setter button:active, spinbutton button:active {
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+spinbutton:focus-within {
+  outline: none;
+}
+spinbutton:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
 }
 spinbutton text {
-  padding: calc(var(--padding) / 2);
-  background-color: var(--widget-bg);
+  all: unset;
+  padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
   border-radius: var(--radius) 0 0 var(--radius);
 }
-spinbutton button {
-  border-radius: 0;
-  box-shadow: none;
-}
-spinbutton button:hover {
-  background-color: var(--hover-bg);
-  color: var(--hover-fg);
-}
-spinbutton button:active {
-  background-image: var(--active-gradient);
-  background-color: var(--primary-bg);
-  color: var(--primary-fg);
-}
-spinbutton button:last-child {
-  border-radius: 0 var(--radius) var(--radius) 0;
+spinbutton text:focus {
+  all: unset;
+  padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
+  border-radius: var(--radius) 0 0 var(--radius);
 }
 
-colordialogbutton button,
-fontdialogbutton button {
-  padding: calc(var(--padding) / 2);
-}
-
-box.enum-setter {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-  border-radius: var(--radius);
-}
 box.enum-setter label {
-  background-color: var(--widget-bg);
-  padding: calc(var(--padding) / 2);
+  padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
   border-radius: var(--radius) 0 0 var(--radius);
-}
-box.enum-setter button {
-  border-radius: 0;
-  box-shadow: none;
-}
-box.enum-setter button:hover {
-  background-color: var(--hover-bg);
-  color: var(--hover-fg);
-}
-box.enum-setter button:active {
-  background-image: var(--active-gradient);
-  background-color: var(--primary-bg);
-  color: var(--primary-fg);
-}
-box.enum-setter button:last-child {
-  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 progressbar trough {
@@ -271,6 +292,7 @@ progressbar trough {
   min-height: 0.5em;
   min-width: 0.5em;
   border: none;
+  box-shadow: var(--neu-widget-highlight), var(--neu-widget-shadow);
 }
 progressbar trough highlight,
 progressbar trough progress {
@@ -279,6 +301,7 @@ progressbar trough progress {
   background-image: var(--active-gradient);
   min-height: 0.5em;
   min-width: 0.5em;
+  box-shadow: var(--neu-progress-highlight), var(--neu-progress-shadow);
 }
 progressbar trough.muted trough progress {
   background-image: none;
@@ -381,9 +404,6 @@ window#state-display box.state-display image {
   padding: var(--popover-padding);
   color: color-mix(in srgb, var(--fg) 90%, transparent);
 }
-window#state-display box.state-display progressbar.percentage trough {
-  border: none;
-}
 window#state-display box.state-display progressbar.percentage.muted trough progress {
   background-image: none;
   background-color: color-mix(in srgb, var(--fg) 80%, transparent);
@@ -431,7 +451,8 @@ window#bar popover contents {
   padding: calc(var(--padding) / 2);
 }
 window#bar popover contents modelbutton {
-  padding: 0pt calc(var(--padding) * 0.8);
+  padding: calc(var(--padding) * 0.8);
+  font-weight: normal;
 }
 window#bar box.launcher.horizontal > * {
   margin: 0 calc(var(--spacing) * 1 / 2);
@@ -634,8 +655,20 @@ window#launcher box.launcher box.quicklaunch {
 window#launcher box.launcher box.quicklaunch button {
   padding: calc(var(--padding) / 2);
 }
+window#launcher box.launcher box.quicklaunch button image {
+  transition: var(--transition);
+}
+window#launcher box.launcher box.quicklaunch button:hover, window#launcher box.launcher box.quicklaunch button:focus-visible {
+  outline: none;
+}
+window#launcher box.launcher box.quicklaunch button:hover image, window#launcher box.launcher box.quicklaunch button:focus-visible image {
+  -gtk-icon-shadow: 2px 2px var(--primary-bg);
+}
 window#launcher box.launcher entry {
   margin: var(--spacing);
+}
+window#launcher box.launcher entry:focus-visible {
+  outline: none;
 }
 window#launcher box.launcher entry selection {
   color: color-mix(in srgb, var(--fg) 50%, var(--bg));
@@ -659,6 +692,9 @@ window#launcher box.launcher button.app-item {
   background-color: transparent;
   background-image: none;
   box-shadow: none;
+}
+window#launcher box.launcher button.app-item:focus-visible {
+  outline: none;
 }
 window#launcher box.launcher button.app-item > box.horizontal > * {
   margin: 0 calc(var(--spacing) * 0.5 / 2);
@@ -852,12 +888,24 @@ window#datemenu box.datemenu box.calendar calendar {
   font-size: 1.1em;
   padding: 0.3em;
 }
+window#datemenu box.datemenu box.calendar calendar:focus {
+  outline: none;
+}
 window#datemenu box.datemenu box.calendar calendar button {
   padding: calc(var(--padding) / 2);
+}
+window#datemenu box.datemenu box.calendar calendar label:focus {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+  border-radius: calc(var(--radius) * 0.6);
 }
 window#datemenu box.datemenu box.calendar calendar label:selected {
   background-color: var(--primary-bg);
   border-radius: calc(var(--radius) * 0.6);
+}
+window#datemenu box.datemenu box.calendar calendar label:selected:focus {
+  outline: calc(var(--border-width) / 2) solid var(--primary-fg);
+  outline-offset: -1px;
 }
 window#datemenu box.datemenu box.calendar calendar header {
   background-color: transparent;
@@ -1281,40 +1329,48 @@ window#quicksettings .quicksettings box.menu box.profile-item.vertical > *:last-
 window#quicksettings .quicksettings box.menu box.wifi-item.vertical > *:last-child {
   margin-bottom: 0;
 }
-window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > *,
-window#quicksettings .quicksettings button.simple-toggle box.horizontal.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > *:first-child,
-window#quicksettings .quicksettings button.simple-toggle box.horizontal.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > *:last-child,
-window#quicksettings .quicksettings button.simple-toggle box.horizontal.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > *,
-window#quicksettings .quicksettings button.simple-toggle box.horizontal.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > *:first-child,
-window#quicksettings .quicksettings button.simple-toggle box.horizontal.vertical > *:first-child {
-  margin-top: 0;
-}
-window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > *:last-child,
-window#quicksettings .quicksettings button.simple-toggle box.horizontal.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window#quicksettings .quicksettings box.toggle-button {
+window#quicksettings .quicksettings box.simple-toggle, window#quicksettings .quicksettings box.toggle-button {
   background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: var(--neu-button-highlight), var(--neu-button-shadow);
   border-radius: var(--radius);
   transition: var(--transition);
 }
-window#quicksettings .quicksettings box.toggle-button:hover {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+window#quicksettings .quicksettings box.simple-toggle:hover, window#quicksettings .quicksettings box.toggle-button:hover {
   background-color: var(--hover-bg);
   color: var(--hover-fg);
+  box-shadow: var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
+}
+window#quicksettings .quicksettings box.simple-toggle box.horizontal.horizontal > *, window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#quicksettings .quicksettings box.simple-toggle box.horizontal.horizontal > *:first-child, window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#quicksettings .quicksettings box.simple-toggle box.horizontal.horizontal > *:last-child, window#quicksettings .quicksettings box.toggle-button box.horizontal.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#quicksettings .quicksettings box.simple-toggle box.horizontal.vertical > *, window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#quicksettings .quicksettings box.simple-toggle box.horizontal.vertical > *:first-child, window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > *:first-child {
+  margin-top: 0;
+}
+window#quicksettings .quicksettings box.simple-toggle box.horizontal.vertical > *:last-child, window#quicksettings .quicksettings box.toggle-button box.horizontal.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#quicksettings .quicksettings box.simple-toggle button:focus-visible, window#quicksettings .quicksettings box.toggle-button button:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+}
+window#quicksettings .quicksettings box.active.simple-toggle, window#quicksettings .quicksettings box.active.toggle-button {
+  background-color: var(--primary-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
+}
+window#quicksettings .quicksettings box.active.simple-toggle label, window#quicksettings .quicksettings box.active.toggle-button label,
+window#quicksettings .quicksettings box.active.simple-toggle image,
+window#quicksettings .quicksettings box.active.toggle-button image {
+  color: var(--primary-fg);
 }
 window#quicksettings .quicksettings box.toggle-button button {
   all: unset;
@@ -1324,7 +1380,7 @@ window#quicksettings .quicksettings box.toggle-button button {
   background-color: transparent;
   background-image: none;
   box-shadow: none;
-  padding: calc(var(--padding) * 1.2);
+  padding: var(--padding);
 }
 window#quicksettings .quicksettings box.toggle-button button:first-child {
   border-radius: var(--radius) 0 0 var(--radius);
@@ -1332,10 +1388,6 @@ window#quicksettings .quicksettings box.toggle-button button:first-child {
 }
 window#quicksettings .quicksettings box.toggle-button button:last-child {
   border-radius: 0 var(--radius) var(--radius) 0;
-}
-window#quicksettings .quicksettings box.toggle-button button:hover {
-  background-color: var(--hover-bg);
-  color: var(--hover-fg);
 }
 window#quicksettings .quicksettings box.toggle-button button:active {
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
@@ -1346,15 +1398,22 @@ window#quicksettings .quicksettings box.toggle-button button:active {
 window#quicksettings .quicksettings box.toggle-button button.arrow {
   padding: calc(var(--padding) / 2);
 }
-window#quicksettings .quicksettings box.toggle-button.active {
+window#quicksettings .quicksettings box.simple-toggle button {
+  all: unset;
+  font-weight: bold;
+  transition: var(--transition);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  padding: var(--padding);
+  border-radius: var(--radius);
+}
+window#quicksettings .quicksettings box.simple-toggle button:active {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
   background-color: var(--primary-bg);
-}
-window#quicksettings .quicksettings box.toggle-button.active label,
-window#quicksettings .quicksettings box.toggle-button.active image {
   color: var(--primary-fg);
-}
-window#quicksettings .quicksettings button.simple-toggle {
-  padding: calc(var(--padding) * 1.2);
 }
 window#quicksettings .quicksettings box.media.horizontal > * {
   margin: 0 calc(var(--spacing) * 1 / 2);
@@ -1567,6 +1626,10 @@ window#verification box.verification box.buttons.vertical > *:last-child {
 window#verification box.verification box.buttons {
   margin-top: var(--padding);
 }
+window#verification box.verification box.buttons button:focus {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+}
 
 window#powermenu box.powermenu.line {
   padding: calc(var(--popover-padding) * 1.5);
@@ -1595,7 +1658,7 @@ window#powermenu box.powermenu button image {
   min-height: 1.7em;
   font-size: 4em;
   background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow);
   transition: var(--transition);
 }
 window#powermenu box.powermenu button label,
@@ -1606,7 +1669,7 @@ window#powermenu box.powermenu button label {
   margin-top: calc(var(--spacing) * 0.8);
 }
 window#powermenu box.powermenu button:hover image {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
   background-color: var(--hover-bg);
   color: var(--hover-fg);
 }
@@ -1614,30 +1677,18 @@ window#powermenu box.powermenu button:hover label {
   color: var(--fg);
 }
 window#powermenu box.powermenu button:focus image {
-  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg), var(--neu-button-highlight), var(--neu-button-shadow);
   background-color: var(--hover-bg);
   color: var(--hover-fg);
 }
 window#powermenu box.powermenu button:active image {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
   background-image: var(--active-gradient);
   background-color: var(--primary-bg);
   color: var(--primary-fg);
 }
 window#powermenu box.powermenu button:focus label, window#powermenu box.powermenu button:active label {
   color: var(--primary-bg);
-}
-
-window.settings-dialog box.row button.reset, window.settings-dialog box.group .header button.reset, window.settings-dialog box.header button.reset {
-  background-color: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-window.settings-dialog box.row button.reset:active, window.settings-dialog box.group .header button.reset:active, window.settings-dialog box.header button.reset:active {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-  background-image: var(--active-gradient);
-  background-color: var(--primary-bg);
-  color: var(--primary-fg);
 }
 
 window.settings-dialog {

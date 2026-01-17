@@ -193,24 +193,30 @@ export function SimpleToggleButton({
 	label,
 	toggle,
 	connection
-}: FCProps<Gtk.Button, SimpleToggleButtonProps> & {
+}: FCProps<Gtk.Widget, SimpleToggleButtonProps> & {
 	connection: Accessor<boolean>
 	toggle: () => void
 }) {
 	const isAccessor = typeof label == "function"
 	const tooltipText = isAccessor ? label.as(l => l.length > 13 ? l : "") : (label && label.length > 13 ? label : "")
 	return (
-		<button
+		<box
 			class="simple-toggle"
-			onClicked={toggle}
-			tooltipText={tooltipText}
-			$={self => { connection.subscribe(() => toggleClass(self, "active", connection.peek())) }}
+			$={self => {
+				toggleClass(self, "active", connection.peek())
+				connection.subscribe(() => toggleClass(self, "active", connection.peek()))
+			}}
 		>
-			<box class="horizontal">
-				<image iconName={iconName} useFallback />
-				<label ellipsize={END} maxWidthChars={11} label={label} />
-			</box>
-		</button>
+			<button
+				onClicked={toggle}
+				tooltipText={tooltipText}
+			>
+				<box class="horizontal" hexpand>
+					<image class="icon" iconName={iconName} useFallback />
+					<label class="label" ellipsize={END} maxWidthChars={11} label={label} />
+				</box>
+			</button>
+		</box>
 	)
 }
 

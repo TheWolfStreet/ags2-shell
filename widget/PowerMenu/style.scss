@@ -29,6 +29,11 @@ window#verification box.verification {
   box.buttons {
     @include spacing;
     margin-top: var(--padding);
+
+    button:focus {
+      outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+      outline-offset: -1px;
+    }
   }
 }
 
@@ -68,7 +73,10 @@ window#powermenu box.powermenu {
       min-height: 1.7em;
       font-size: 4em;
       background-color: var(--widget-bg);
-      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+      box-shadow:
+        inset 0 0 0 var(--border-width) var(--border-color),
+        var(--neu-button-highlight),
+        var(--neu-button-shadow);
       transition: var(--transition);
     }
 
@@ -83,7 +91,10 @@ window#powermenu box.powermenu {
 
     &:hover {
       image {
-        box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+        box-shadow:
+          inset 0 0 0 var(--border-width) var(--border-color),
+          var(--neu-button-hover-highlight),
+          var(--neu-button-hover-shadow);
         background-color: var(--hover-bg);
         color: var(--hover-fg);
       }
@@ -94,13 +105,19 @@ window#powermenu box.powermenu {
     }
 
     &:focus image {
-      box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg);
+      box-shadow:
+        inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg),
+        var(--neu-button-highlight),
+        var(--neu-button-shadow);
       background-color: var(--hover-bg);
       color: var(--hover-fg);
     }
 
     &:active image {
-      box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+      box-shadow:
+        inset 0 0 0 var(--border-width) var(--border-color),
+        var(--neu-button-active-highlight),
+        var(--neu-button-active-shadow);
       background-image: var(--active-gradient);
       background-color: var(--primary-bg);
       color: var(--primary-fg);

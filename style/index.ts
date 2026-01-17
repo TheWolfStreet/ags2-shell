@@ -76,6 +76,26 @@ function buildCssVariables(): string {
 	const fontName = fontDesc.get_family() || "Sans"
 	const fontSize = Math.round(fontDesc.get_size() / Pango.SCALE) || 11
 
+	const neumorphic = theme.neumorphic.peek()
+
+	const fgColor = pickThemeValue(theme.dark.fg, theme.light.fg)
+	const highlightColor = isDarkMode ? "white" : fgColor
+	const shadowBaseColor = isDarkMode ? "black" : fgColor
+
+	const neuButtonHighlight = neumorphic ? `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 15 : 10}%, transparent)` : "0 0 0 0 transparent"
+	const neuButtonShadow = neumorphic ? `0 1px 2px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)` : "0 0 0 0 transparent"
+	const neuButtonHoverHighlight = neumorphic ? `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)` : "0 0 0 0 transparent"
+	const neuButtonHoverShadow = neumorphic ? `0 1px 3px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 25 : 18}%, transparent)` : "0 0 0 0 transparent"
+	const neuButtonActiveHighlight = neumorphic ? `inset 0 1px 0 0 color-mix(in srgb, white 35%, transparent)` : "0 0 0 0 transparent"
+	const neuButtonActiveShadow = neumorphic ? `0 1px 3px 0 color-mix(in srgb, black 35%, transparent)` : "0 0 0 0 transparent"
+	const neuWidgetHighlight = neumorphic ? `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} 12%, transparent)` : "0 0 0 0 transparent"
+	const neuWidgetShadow = neumorphic ? `0 1px 2px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 17 : 12}%, transparent)` : "0 0 0 0 transparent"
+	const neuTroughInset = neumorphic ? `inset 0 1px 2px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 15 : 10}%, transparent), inset 0 -1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 5 : 4}%, transparent)` : "0 0 0 0 transparent"
+	const neuProgressHighlight = neumorphic ? `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)` : "0 0 0 0 transparent"
+	const neuProgressShadow = neumorphic ? `0 1px 1px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)` : "0 0 0 0 transparent"
+	const neuSliderHighlight = neumorphic ? `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 30 : 22}%, transparent)` : "0 0 0 0 transparent"
+	const neuEntryInset = neumorphic ? `inset 0 2px 3px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 10 : 8}%, transparent), inset 0 -1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 5 : 4}%, transparent)` : "0 0 0 0 transparent"
+
 	return [
 		`--bg: ${backgroundColor};`,
 		`--fg: ${pickThemeValue(theme.dark.fg, theme.light.fg)};`,
@@ -99,6 +119,19 @@ function buildCssVariables(): string {
 		`--hover-bg: ${hoverBackground};`,
 		`--border-color: ${borderColor};`,
 		`--popover-border-color: ${popoverBorderColor};`,
+		`--neu-button-highlight: ${neuButtonHighlight};`,
+		`--neu-button-shadow: ${neuButtonShadow};`,
+		`--neu-button-hover-highlight: ${neuButtonHoverHighlight};`,
+		`--neu-button-hover-shadow: ${neuButtonHoverShadow};`,
+		`--neu-button-active-highlight: ${neuButtonActiveHighlight};`,
+		`--neu-button-active-shadow: ${neuButtonActiveShadow};`,
+		`--neu-widget-highlight: ${neuWidgetHighlight};`,
+		`--neu-widget-shadow: ${neuWidgetShadow};`,
+		`--neu-trough-inset: ${neuTroughInset};`,
+		`--neu-progress-highlight: ${neuProgressHighlight};`,
+		`--neu-progress-shadow: ${neuProgressShadow};`,
+		`--neu-slider-highlight: ${neuSliderHighlight};`,
+		`--neu-entry-inset: ${neuEntryInset};`,
 	].join('\n')
 }
 
@@ -141,6 +174,7 @@ export function initCss() {
 	const optionDependencies = [
 		"font",
 		"theme",
+		"theme.neumorphic",
 		"bar.corners",
 		"bar.position",
 		"hyprland.gaps",

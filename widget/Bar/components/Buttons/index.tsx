@@ -227,13 +227,29 @@ export function ColorPicker() {
 	const css = (color: string) => {
 		if (!cssCache.has(color)) {
 			cssCache.set(color, `
-				* {
+				button {
 					background-color: ${color};
 					color: transparent;
+					box-shadow:
+						inset 0 0 0 var(--border-width) var(--border-color),
+						var(--neu-button-highlight),
+						var(--neu-button-shadow);
 				}
-				*:hover {
+				button:hover {
+					background-color: ${color};
 					color: white;
 					text-shadow: 2px 2px 3px rgba(0,0,0,.8);
+					box-shadow:
+						inset 0 0 0 var(--border-width) var(--border-color),
+						var(--neu-button-hover-highlight),
+						var(--neu-button-hover-shadow);
+				}
+				button:active {
+					background-color: ${color};
+					box-shadow:
+						inset 0 0 0 var(--border-width) var(--border-color),
+						var(--neu-button-active-highlight),
+						var(--neu-button-active-shadow);
 				}`)
 		}
 		return cssCache.get(color)!

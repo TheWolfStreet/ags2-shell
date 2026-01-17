@@ -58,14 +58,31 @@ window#datemenu {
         font-size: 1.1em;
         padding: 0.3em;
 
+        &:focus {
+          outline: none;
+        }
+
         button {
           @extend .flat-button;
           padding: calc(var(--padding) / 2);
         }
 
-        label:selected {
-          background-color: var(--primary-bg);
-          border-radius: calc(var(--radius) * 0.6);
+        label {
+          &:focus {
+            outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+            outline-offset: -1px;
+            border-radius: calc(var(--radius) * 0.6);
+          }
+
+          &:selected {
+            background-color: var(--primary-bg);
+            border-radius: calc(var(--radius) * 0.6);
+
+            &:focus {
+              outline: calc(var(--border-width) / 2) solid var(--primary-fg);
+              outline-offset: -1px;
+            }
+          }
         }
 
         header {

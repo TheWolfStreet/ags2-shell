@@ -28,6 +28,7 @@ const {
 	scheme,
 	shadows,
 	blur,
+	neumorphic,
 	opacity,
 	padding,
 	spacing,
@@ -65,9 +66,10 @@ const Theme = () => (
 			<Row opt={light.border} title="Border" type="color" />
 		</Group>
 
-		<Group title="Theme" opts={[shadows, blur, opacity, widget.opacity, border.opacity, border.width]}>
+		<Group title="Theme" opts={[shadows, blur, neumorphic, opacity, widget.opacity, border.opacity, border.width]}>
 			<Row opt={shadows} title="Shadows" />
 			<Row opt={blur} title="Blur" type="boolean" />
+			<Row opt={neumorphic} title="Neumorphic" type="boolean" />
 			<Row opt={opacity} title="Opacity" note="Set to 0 to disable" max={70} />
 			<Row opt={widget.opacity} title="Widget Opacity" max={100} />
 			<Row opt={border.opacity} title="Border Opacity" max={100} />
