@@ -7,7 +7,7 @@ A port of Aylur's AGS shell from AGS v1 to AGS v2 (and now to v3), with a subset
 ## Acknowledgments
 Special thanks to [Aylur](https://github.com/Aylur) for the original [AGS v1 shell](https://github.com/Aylur/dotfiles/tree/18b83b2d2c6ef2b9045edefe49a66959f93b358a), [Astal](https://github.com/Aylur/Astal), and the [AGS CLI](https://github.com/Aylur/ags).
 
-Check out and support his latest project **[Marble Shell](https://marble-shell.pages.dev/pages/installation)**, the new and expanded version of the AGS shell with more features and improvements.
+Check out and support his latest project **[Marble Shell](https://marble-shell.pages.dev)**, the new and expanded version of the AGS shell with more features and improvements.
 
 ## ⚠ Planned
 - NixOS configuration for ui?
