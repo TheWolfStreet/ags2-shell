@@ -325,7 +325,6 @@ box.enum-setter {
 
 progressbar {
   trough {
-    transition: var(--transition);
     border-radius: var(--radius);
     background-color: var(--widget-bg);
     min-height: 0.5em;
@@ -334,6 +333,7 @@ progressbar {
 
     highlight,
     progress {
+      transition: none;
       border-radius: max(calc(var(--radius) - var(--border-width)), 0px);
       background-image: var(--active-gradient);
       min-height: 0.5em;
