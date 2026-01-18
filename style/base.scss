@@ -414,6 +414,40 @@ progressbar {
   }
 }
 
+// GTK native dialogs and widgets
+dialog,
+.dialog {
+  background-color: var(--bg);
+  color: var(--fg);
+
+  headerbar {
+    background-color: var(--bg);
+    color: var(--fg);
+    border-bottom: var(--border);
+  }
+
+  row:selected,
+  .view:selected,
+  list row:selected {
+    background-color: var(--primary-bg);
+    color: var(--primary-fg);
+  }
+
+entry.search + menubutton > button.image-button.toggle {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+  searchentry,
+  entry.search {
+    &:not(:only-child) {
+      border-right: none;
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+  }
+}
+
 // Scrolled windows
 scrolledwindow {
   viewport {

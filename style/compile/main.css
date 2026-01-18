@@ -308,6 +308,40 @@ progressbar trough.muted trough progress {
   background-color: color-mix(in srgb, var(--fg) 80%, transparent);
 }
 
+dialog,
+.dialog {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+dialog headerbar,
+.dialog headerbar {
+  background-color: var(--bg);
+  color: var(--fg);
+  border-bottom: var(--border);
+}
+dialog row:selected,
+dialog .view:selected,
+dialog list row:selected,
+.dialog row:selected,
+.dialog .view:selected,
+.dialog list row:selected {
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+dialog entry.search + menubutton > button.image-button.toggle,
+.dialog entry.search + menubutton > button.image-button.toggle {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+dialog searchentry:not(:only-child),
+dialog entry.search:not(:only-child),
+.dialog searchentry:not(:only-child),
+.dialog entry.search:not(:only-child) {
+  border-right: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 scrolledwindow viewport {
   all: unset;
 }

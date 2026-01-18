@@ -96,9 +96,57 @@ function buildCssVariables(): string {
 	const neuSliderHighlight = neumorphic ? `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 30 : 22}%, transparent)` : "0 0 0 0 transparent"
 	const neuEntryInset = neumorphic ? `inset 0 2px 3px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 10 : 8}%, transparent), inset 0 -1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 5 : 4}%, transparent)` : "0 0 0 0 transparent"
 
+	const fgColorValue = pickThemeValue(theme.dark.fg, theme.light.fg)
+
+	const headerbarShade = colorMix(fgColorValue, 12)
+	const headerbarDarkerShade = colorMix(fgColorValue, 18)
+	const sidebarShade = colorMix(fgColorValue, 10)
+	const secondarySidebarShade = colorMix(fgColorValue, 8)
+	const scrollbarOutline = colorMix(fgColorValue, 30)
+	const shadeColor = colorMix(fgColorValue, 15)
+	const shadowColorRgba = shadowColor !== "transparent" ? shadowColor : "rgba(0, 0, 0, 0.6)"
+
 	return [
+		`@define-color window_bg_color ${backgroundColor};`,
+		`@define-color window_fg_color ${fgColorValue};`,
+		`@define-color view_bg_color ${backgroundColor};`,
+		`@define-color view_fg_color ${fgColorValue};`,
+		`@define-color card_bg_color ${widgetBackground};`,
+		`@define-color card_fg_color ${fgColorValue};`,
+		`@define-color dialog_bg_color ${backgroundColor};`,
+		`@define-color dialog_fg_color ${fgColorValue};`,
+		`@define-color popover_bg_color ${backgroundColor};`,
+		`@define-color popover_fg_color ${fgColorValue};`,
+		``,
+		`@define-color headerbar_bg_color ${backgroundColor};`,
+		`@define-color headerbar_fg_color ${fgColorValue};`,
+		`@define-color headerbar_border_color ${borderColor};`,
+		`@define-color headerbar_backdrop_color ${backgroundColor};`,
+		`@define-color headerbar_shade_color ${headerbarShade};`,
+		`@define-color headerbar_darker_shade_color ${headerbarDarkerShade};`,
+		``,
+		`@define-color sidebar_bg_color ${widgetBackground};`,
+		`@define-color sidebar_fg_color ${fgColorValue};`,
+		`@define-color sidebar_backdrop_color ${widgetBackground};`,
+		`@define-color sidebar_shade_color ${sidebarShade};`,
+		`@define-color sidebar_border_color ${borderColor};`,
+		``,
+		`@define-color secondary_sidebar_bg_color ${backgroundColor};`,
+		`@define-color secondary_sidebar_fg_color ${fgColorValue};`,
+		`@define-color secondary_sidebar_backdrop_color ${backgroundColor};`,
+		`@define-color secondary_sidebar_shade_color ${secondarySidebarShade};`,
+		`@define-color secondary_sidebar_border_color ${borderColor};`,
+		``,
+		`@define-color accent_bg_color ${primaryBackground};`,
+		`@define-color accent_fg_color ${pickThemeValue(theme.dark.primary.fg, theme.light.primary.fg)};`,
+		`@define-color accent_color ${primaryBackground};`,
+		``,
+		`@define-color scrollbar_outline_color ${scrollbarOutline};`,
+		`@define-color shade_color ${shadeColor};`,
+		`@define-color shadow_color ${shadowColorRgba};`,
+		``,
 		`--bg: ${backgroundColor};`,
-		`--fg: ${pickThemeValue(theme.dark.fg, theme.light.fg)};`,
+		`--fg: ${fgColorValue};`,
 		`--primary-bg: ${primaryBackground};`,
 		`--primary-fg: ${pickThemeValue(theme.dark.primary.fg, theme.light.primary.fg)};`,
 		`--error-bg: ${pickThemeValue(theme.dark.error.bg, theme.light.error.bg)};`,
@@ -148,7 +196,12 @@ export function resetCss() {
 	cssReloadTimeout = timeout(100, () => {
 		const cssVariables = buildCssVariables()
 		const runtimeCssPath = `${env.paths.tmp}runtime-vars.css`
-		const runtimeCssContent = `* {\n${cssVariables}\n}\n`
+
+		const lines = cssVariables.split('\n')
+		const defineColors = lines.filter(line => line.startsWith('@define-color'))
+		const cssVars = lines.filter(line => !line.startsWith('@define-color') && line.trim() !== '')
+
+		const runtimeCssContent = `${defineColors.join('\n')}\n\n* {\n${cssVars.join('\n')}\n}\n`
 
 		writeFileAsync(runtimeCssPath, runtimeCssContent).then(() => {
 			idle(() => {
