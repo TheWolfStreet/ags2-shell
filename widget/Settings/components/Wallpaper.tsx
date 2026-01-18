@@ -64,7 +64,7 @@ export default function Wallpaper() {
 				>
 					<Placeholder
 						iconName={icons.missing}
-						label={"No wallpaper set"}
+						label={"Click here to set wallpaper"}
 					/>
 				</revealer>
 				<Gtk.Picture
