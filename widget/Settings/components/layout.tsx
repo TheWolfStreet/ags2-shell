@@ -77,10 +77,10 @@ const Theme = () => (
 		</Group>
 
 		<Group title="UI" opts={[padding, spacing, radius, transition.duration, font]}>
-			<Row opt={padding} title="Padding" />
-			<Row opt={spacing} title="Spacing" />
-			<Row opt={radius} title="Roundness" />
-			<Row opt={transition.duration} title="Animation Duration" />
+			<Row opt={padding} title="Padding" max={50} />
+			<Row opt={spacing} title="Spacing" max={50} />
+			<Row opt={radius} title="Roundness" max={50} />
+			<Row opt={transition.duration} title="Animation Duration" max={2000} />
 			<Row opt={font} title="Font" type="font" />
 		</Group>
 	</Page>
@@ -91,7 +91,7 @@ const Bar = () => (
 		<Group title="General" opts={[b.transparent, b.position, b.corners]}>
 			<Row opt={b.transparent} title="Transparent Bar" note="Works best on minimalist wallpapers" />
 			<Row opt={b.position} title="Position" type="enum" enums={["top", "bottom"]} />
-			<Row opt={b.corners} title="Corners" />
+			<Row opt={b.corners} title="Corners" max={100} />
 		</Group>
 
 		<Group title="Launcher" opts={[b.launcher.icon]}>
@@ -99,7 +99,7 @@ const Bar = () => (
 		</Group>
 
 		<Group title="Workspaces" opts={[b.workspaces.count]}>
-			<Row opt={b.workspaces.count} title="Number of Workspaces" note="Set to 0 to make it dynamic" />
+			<Row opt={b.workspaces.count} title="Number of Workspaces" max={16} note="Set to 0 to make it dynamic" />
 		</Group>
 
 		<Group title="Taskbar" opts={[b.taskbar.exclusive]}>
@@ -127,8 +127,8 @@ const General = () => (
 		</Group>
 
 		<Group title="Overview" opts={[ov.scale, ov.workspaces]}>
-			<Row opt={ov.scale} title="Scale" max={100} />
-			<Row opt={ov.workspaces} title="Workspaces" max={11} note="Set to 0 to make it dynamic" />
+			<Row opt={ov.scale} title="Scale" max={15} />
+			<Row opt={ov.workspaces} title="Workspaces" max={16} note="Set to 0 to make it dynamic" />
 		</Group>
 
 		<Group title="Powermenu" opts={[pm.layout, pm.labels]}>
