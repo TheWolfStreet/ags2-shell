@@ -1,6 +1,6 @@
 # ags2-shell
 
-![Demonstration](README.png)
+![Demonstration](thumbnail.png)
 
 A port of Aylur's AGS shell from AGS v1 to AGS v2 (and now to v3), with a subset of features and slight tweaks. Tightly coupled with Hyprland.
 
