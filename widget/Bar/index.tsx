@@ -7,9 +7,10 @@ import { Battery } from "./components/Battery"
 import { Tasks, Tray, ColorPicker, ScreenRecord, Media } from "./components/Buttons"
 import { Launcher } from "./components/Launcher"
 import { Workspaces } from "./components/Overview"
-import { Power } from "widget/PowerMenu"
 import { Notifications } from "./components/Notifications"
 import { QuickSettings } from "./components/QuickSettings"
+
+import { Power } from "widget/PowerMenu"
 
 import options from "options"
 
