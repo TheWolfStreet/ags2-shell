@@ -1,5 +1,5 @@
 {
-  description = "A desktop shell";
+  description = "Hyprland desktop shell using AGS v3/Astal - widgets, notifications, app launcher, and dynamic matugen theming. NixOS ready.";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";

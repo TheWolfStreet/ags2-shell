@@ -1,16 +1,40 @@
 # ags2-shell
 
+[![NixOS](https://img.shields.io/badge/NixOS-Flake-blue?logo=nixos)](https://nixos.org)
+[![Hyprland](https://img.shields.io/badge/Hyprland-Desktop_Shell-58e1ff?logo=wayland)](https://hyprland.org)
+[![AGS](https://img.shields.io/badge/AGS-v3%2FAstal-green)](https://github.com/Aylur/ags)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](LICENSE)
+
+A Hyprland desktop shell built with AGS v3/Astal, ported from Aylur's original AGS v1 shell. Features dynamic theming with matugen, GTK4 widgets, and full NixOS/Home Manager integration.
+
 ![Demonstration](thumbnail.png)
 
-A port of Aylur's AGS shell from AGS v1 to AGS v2 (and now to v3), with a subset of features and slight tweaks. Tightly coupled with Hyprland.
+## Features
+
+- **App Launcher** - Quick application search and launch
+- **Workspace Overview** - Visual workspace management for Hyprland
+- **System Tray** - Network, Bluetooth, Audio, Battery indicators
+- **Notifications** - Native notification daemon with actions
+- **Screenshot & Recording** - Area/fullscreen capture with wayshot and wf-recorder
+- **Dynamic Theming** - Automatic colorscheme generation with matugen
+- **Settings Panel** - GUI configuration for shell options
+- **Media Controls** - MPRIS integration for media players
+
+## Requirements
+
+- [Hyprland](https://hyprland.org) window manager
+- [AGS v3](https://github.com/Aylur/ags) / [Astal](https://github.com/Aylur/Astal)
+- NixOS with Flakes (recommended) or manual dependency setup
 
 ## Acknowledgments
+
 Special thanks to [Aylur](https://github.com/Aylur) for the original [AGS v1 shell](https://github.com/Aylur/dotfiles/tree/18b83b2d2c6ef2b9045edefe49a66959f93b358a), [Astal](https://github.com/Aylur/Astal), and the [AGS CLI](https://github.com/Aylur/ags).
 
 Check out and support his latest project **[Marble Shell](https://marble-shell.pages.dev)**, the new and expanded version of the AGS shell with more features and improvements.
 
-## ⚠ Planned
-- NixOS configuration for ui?
+## Roadmap
+
+- NixOS configuration for UI options
 
 ## Installation on NixOS
 ### As a bundled package
