@@ -74,7 +74,7 @@ export default class Asusctl extends GObject.Object {
 	readonly setProfile = async (p: Asusctl.Profile) => {
 		if (!this.#available) return
 		try {
-			await sh(`asusctl profile -P ${p}`)
+			await sh(`asusctl profile set ${p}`)
 			this.#profile = p
 			this.notify("profile")
 			this.updMonitorCfg()
@@ -128,8 +128,8 @@ export default class Asusctl extends GObject.Object {
 
 	readonly init = async () => {
 		try {
-			const p = await sh("asusctl profile -p")
-			const match = p.match(/Active profile is (\w+)/)
+			const p = await sh("asusctl profile get")
+			const match = p.match(/Active profile: (\w+)/)
 			this.#profile = match?.[1] as Asusctl.Profile
 			this.notify("profile")
 
