@@ -1,17 +1,9 @@
 export const substitutes = {
-	"transmission-gtk": "transmission",
-	"blueberry.py": "blueberry",
-	"Caprine": "facebook-messenger",
-	"com.raggesilver.BlackBox-symbolic": "terminal-symbolic",
-	"org.wezfurlong.wezterm-symbolic": "terminal-symbolic",
 	"audio-headset-bluetooth": "audio-headphones-symbolic",
 	"audio-card-analog-usb": "audio-speakers-symbolic",
 	"audio-card-analog-pci": "audio-card-symbolic",
 	"audio-card-analog": "audio-card-symbolic",
 	"Playback": "sound-wave-alt-symbolic",
-	"preferences-system": "emblem-system-symbolic",
-	"com.github.Aylur.ags-symbolic": "controls-symbolic",
-	"com.github.Aylur.ags": "controls-symbolic",
 }
 
 export function getIcon(name: string, fallback = "image-missing-symbolic"): string {
@@ -51,7 +43,7 @@ const iconList = {
 		menu: "open-menu-symbolic",
 		refresh: "view-refresh-symbolic",
 		search: "system-search-symbolic",
-		settings: "emblem-system-symbolic",
+		settings: "org.gnome.Settings-symbolic",
 		themes: "dark-mode-symbolic",
 		tick: "object-select-symbolic",
 		time: "hourglass-symbolic",
