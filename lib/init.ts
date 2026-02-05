@@ -1,6 +1,7 @@
 import { execAsync } from "ags/process"
 
 import Gio from "gi://Gio"
+import Gtk from "gi://Gtk?version=4.0"
 
 import { bash } from "$lib/utils"
 import { initCss } from "style"
@@ -23,6 +24,41 @@ function gtk() {
 	}
 }
 
+function getBaseIconTheme(themeName: string): string {
+	return themeName.replace(/[-_]?(dark|light)$/i, "")
+}
+
+function iconThemeExists(themeName: string): boolean {
+	const theme = new Gtk.IconTheme({ themeName })
+	return theme.has_icon("folder")
+}
+
+function iconTheme() {
+	const currentTheme = settings.get_string("icon-theme")
+	if (!currentTheme) return
+
+	const baseTheme = getBaseIconTheme(currentTheme)
+	const isDark = scheme.peek() === "dark"
+
+	const suffixes = isDark
+		? ["-dark", "-Dark", "_dark"]
+		: ["-light", "-Light", "_light", ""]
+
+	for (const suffix of suffixes) {
+		const candidate = baseTheme + suffix
+		if (iconThemeExists(candidate)) {
+			if (currentTheme !== candidate) {
+				settings.set_string("icon-theme", candidate)
+			}
+			return
+		}
+	}
+
+	if (!isDark && iconThemeExists(baseTheme) && currentTheme !== baseTheme) {
+		settings.set_string("icon-theme", baseTheme)
+	}
+}
+
 async function tmux() {
 	const hex =
 		scheme.peek() === "dark" ? dark.primary.bg.peek() : light.primary.bg.peek()
@@ -42,7 +78,9 @@ export default async function init() {
 	env.init()
 
 	gtk()
+	iconTheme()
 	scheme.subscribe(gtk)
+	scheme.subscribe(iconTheme)
 
 	const tmuxPresent = await execAsync("which tmux").then(() => true).catch(() => false)
 	if (tmuxPresent) {
