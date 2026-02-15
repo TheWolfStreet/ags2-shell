@@ -1,5 +1,5 @@
 import app from "ags/gtk4/app"
-import { Accessor, createBinding, createComputed, createState, For, Node } from "ags"
+import { createBinding, createComputed, createState, For } from "ags"
 import { monitorFile } from "ags/file"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
@@ -248,39 +248,25 @@ export namespace QuickSettings {
 	namespace State {
 
 		function getLayout() {
-			const output = bashSync("hyprctl devices")
-			const lines = output.split('\n')
-			const layouts: string[] = []
-
-			for (const line of lines) {
-				if (line.includes('active keymap:')) {
-					const match = line.match(/active keymap:\s*(.+)/)
-					if (match) {
-						const fullLayout = match[1].trim()
-						const firstWord = fullLayout.split(/[\s(]/)[0].toLowerCase()
-						layouts.push(firstWord)
-					}
-				}
+			const output = bashSync("hyprctl devices -j").trim()
+			if (!output) {
+				return "us"
 			}
 
-			const layoutCounts = new Map<string, number>()
-			layouts.forEach(layout => {
-				layoutCounts.set(layout, (layoutCounts.get(layout) || 0) + 1)
-			})
-
-			let activeLayout = "us"
-			if (layoutCounts.size > 1) {
-				for (const [layout, count] of layoutCounts) {
-					if (count === 1) {
-						activeLayout = layout
-						break
+			try {
+				const data = JSON.parse(output) as { keyboards?: Array<{ active_keymap?: string, main?: boolean }> }
+				const keyboards = Array.isArray(data.keyboards) ? data.keyboards : []
+				for (const keyboard of keyboards) {
+					if (keyboard.main && typeof keyboard.active_keymap === "string" && keyboard.active_keymap.length > 0) {
+						const keymap = keyboard.active_keymap.trim().split(/[\s(]/)[0].toLowerCase()
+						return LAYOUT_MAP[keymap] || keymap
 					}
 				}
-			} else if (layouts.length > 0) {
-				activeLayout = layouts[0]
+			} catch {
+				return "err"
 			}
 
-			return LAYOUT_MAP[activeLayout] || "us"
+			return "us"
 		}
 
 		export function CurrentLayout() {

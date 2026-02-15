@@ -1,4 +1,4 @@
-import { createBinding, createComputed, For, Node, onCleanup, onMount } from "ags"
+import { createBinding, createComputed, For, onCleanup, onMount } from "ags"
 import { idle } from "ags/time"
 import app from "ags/gtk4/app"
 import { Astal, Gdk, Gtk } from "ags/gtk4"

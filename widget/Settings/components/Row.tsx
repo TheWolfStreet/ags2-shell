@@ -1,5 +1,5 @@
 import { Gtk } from "ags/gtk4"
-import { FCProps, Node } from "ags"
+import { FCProps } from "ags"
 import Setter from "./Setter"
 import icons from "$lib/icons"
 import { Opt } from "$lib/option"
