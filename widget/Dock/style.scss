@@ -1,0 +1,184 @@
+window#dock,
+window#dock-left,
+window#dock-bottom {
+  all: unset;
+  background-color: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+window#dock-hotzone,
+window#dock-hotzone-left,
+window#dock-hotzone-bottom,
+window#dock-hotzone .dock-hotzone,
+window#dock-hotzone-left .dock-hotzone,
+window#dock-hotzone-bottom .dock-hotzone {
+  all: unset;
+  background-color: transparent;
+  box-shadow: none;
+  border: none;
+}
+
+window#dock .dock-container,
+window#dock-left .dock-container,
+window#dock-bottom .dock-container {
+  all: unset;
+  margin: 0;
+  --dock-icon-gap: var(--dock-pad-inline);
+  --dock-separator-gap: calc(var(--spacing) * 1.5);
+  --dock-separator-size: calc(var(--spacing) * 4);
+  --dock-pad-block: calc(var(--padding) * 0.375);
+  --dock-pad-inline: calc(var(--padding) * 0.375);
+  --dock-pad-block-vertical: calc(var(--padding) * 0.375);
+  --dock-pad-inline-vertical: calc(var(--padding) * 0.375);
+  --dock-icon-padding: calc(var(--padding) * 0.375);
+  --dock-hover-offset: 2px;
+  --dock-radius: calc(var(--radius) * 2.3);
+  --dock-icon-radius: calc(var(--radius) * 0.8);
+  --dock-image-radius: calc(var(--radius) * 0.6);
+
+  background-color: var(--bg);
+  border-radius: var(--dock-radius);
+  border: var(--border-width) solid color-mix(in srgb, var(--fg) 14%, transparent);
+  box-shadow:
+    0 0 5px 0 var(--shadow-color),
+    var(--neu-widget-highlight),
+    var(--neu-widget-shadow);
+  transition: var(--transition);
+
+  .dock-icon {
+    margin: 0 var(--dock-icon-gap);
+
+    .app-button {
+      all: unset;
+      padding: var(--dock-icon-padding);
+      border-radius: var(--dock-icon-radius);
+      transition: all 200ms cubic-bezier(0.23, 1, 0.32, 1);
+
+      image {
+        transition: all 200ms cubic-bezier(0.23, 1, 0.32, 1);
+        border-radius: var(--dock-image-radius);
+      }
+    }
+
+    .window-dots {
+      .window-dot {
+        min-width: 5px;
+        min-height: 5px;
+        border-radius: 50%;
+        background: var(--fg);
+        opacity: 0.45;
+        margin: 2px 2px 0;
+
+        &.focused {
+          background: var(--primary-bg);
+          opacity: 1;
+        }
+      }
+    }
+  }
+
+  .dock-icon.dock-horizontal .app-button:hover {
+    transform: translateY(calc(0px - var(--dock-hover-offset)));
+  }
+
+  .dock-icon.dock-horizontal .app-button:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .dock-icon.dock-horizontal .app-button.launching {
+    animation: subtle-jump 250ms ease-out;
+  }
+
+  .dock-icon.dock-vertical .app-button:hover {
+    transform: translateX(var(--dock-hover-offset));
+  }
+
+  .dock-icon.dock-vertical .app-button:active {
+    transform: translateX(0) scale(0.98);
+  }
+
+  .dock-icon.dock-vertical .app-button.launching {
+    animation: subtle-jump-right 250ms ease-out;
+  }
+
+  .dock-separator {
+    min-width: 1px;
+    min-height: var(--dock-separator-size);
+    margin: calc(var(--spacing) * 1.25) 0;
+    margin-left: var(--dock-separator-gap);
+    border-radius: 1px;
+    background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+  }
+}
+
+window#dock .dock-container.dock-horizontal,
+window#dock-left .dock-container.dock-horizontal,
+window#dock-bottom .dock-container.dock-horizontal {
+  padding: var(--dock-pad-block) var(--dock-pad-inline);
+
+  .dock-separator {
+    min-height: calc(var(--padding) * 2);
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  .dock-icon .app-button {
+    padding-left: 0;
+    padding-right: 0;
+    margin-bottom: 7px;
+  }
+
+  .dock-icon .window-dots:last-child {
+    margin-top: -7px;
+  }
+}
+
+window#dock .dock-container.dock-vertical,
+window#dock-left .dock-container.dock-vertical,
+window#dock-bottom .dock-container.dock-vertical {
+  padding: var(--dock-pad-block-vertical) var(--dock-pad-inline-vertical);
+
+  .dock-icon {
+    margin: var(--dock-icon-gap) 0;
+  }
+
+  .dock-icon .app-button {
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-left: 7px;
+  }
+
+  .dock-icon .window-dots:first-child {
+    margin-right: -7px;
+  }
+
+  .dock-separator {
+    min-width: var(--dock-separator-size);
+    min-height: 1px;
+    margin: 0 calc(var(--spacing) * 1.25);
+    margin-top: var(--dock-separator-gap);
+  }
+}
+
+window#dock .dock-container.neumorphic,
+window#dock-left .dock-container.neumorphic,
+window#dock-bottom .dock-container.neumorphic {
+  box-shadow:
+    var(--neu-widget-highlight),
+    var(--neu-widget-shadow);
+}
+
+@keyframes subtle-jump {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(-8px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes subtle-jump-right {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(8px); }
+  100% { transform: translateX(0); }
+}

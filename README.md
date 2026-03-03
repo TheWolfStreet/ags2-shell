@@ -15,7 +15,7 @@ A Hyprland desktop shell built with AGS v3/Astal, ported from Aylur's original A
 - **Workspace Overview** - Visual workspace management for Hyprland
 - **System Tray** - Network, Bluetooth, Audio, Battery indicators
 - **Notifications** - Native notification daemon with actions
-- **Screenshot & Recording** - Area/fullscreen capture with wayshot and wf-recorder
+- **Screenshot & Recording** - Area/fullscreen capture with grim/slurp and wf-recorder
 - **Dynamic Theming** - Automatic colorscheme generation with matugen
 - **Settings Panel** - GUI configuration for shell options
 - **Media Controls** - MPRIS integration for media players
@@ -98,16 +98,16 @@ pkgs,
     # And a few expected things in the environment like bash and which
     extraPackages = with pkgs; [
       brightnessctl # Setting brightness
-      swww # Wallpaper
+      libwebp # WebP wallpaper support (dwebp)
       which # Dependency checking
       # Recording and screenshot functionality
       libnotify # "Recording saved" or "Screenshot taken" notifications
-      wayshot # Screenshot software
+      grim # Screenshot software
       wf-recorder # Recording software
       swappy # Edit screenshot button
       slurp # Area selector
       #---
-      libheif # Converting heif wallpapers for swww
+      libheif # Converting HEIC wallpapers
       wl-clipboard # Copying colors from the colorpicker
       hyprpicker # Colorpicker
       pavucontrol # Audio control

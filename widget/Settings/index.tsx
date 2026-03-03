@@ -6,6 +6,7 @@ import { createLayout } from "./components/layout"
 
 import { Opt } from "$lib/option"
 import icons from "$lib/icons"
+import { hypr } from "$lib/services"
 
 import options from "options"
 
@@ -13,22 +14,21 @@ const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
 const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 
-function collectOpts(obj: Record<string, unknown>): Opt<any>[] {
-	let opts: Opt<any>[] = []
-	for (const key in obj) {
-		const value = obj[key]
-		if (value instanceof Opt) {
-			opts.push(value)
-		} else if (value && typeof value === "object") {
-			opts = opts.concat(collectOpts(value as Record<string, unknown>))
-		}
-	}
-	return opts
-}
-
-const allOpts = collectOpts(options)
-
 export namespace Settings {
+
+	function collectOpts(obj: Record<string, unknown>): Opt<any>[] {
+		let opts: Opt<any>[] = []
+		for (const key in obj) {
+			const value = obj[key]
+			if (value instanceof Opt) {
+				opts.push(value)
+			} else if (value && typeof value === "object") {
+				opts = opts.concat(collectOpts(value as Record<string, unknown>))
+			}
+		}
+		return opts
+	}
+
 	export function Button() {
 		return (
 			<button
@@ -36,14 +36,15 @@ export namespace Settings {
 				onClicked={() => {
 					const settings = app.get_window("settings-dialog")
 					const qsettings = app.get_window("quicksettings")
+					qsettings?.hide()
 
 					if (settings?.visible) {
-						settings.close()
-						settings.show()
+						const workspace = hypr.focusedWorkspace?.id
+						if (workspace != null)
+							hypr.dispatch("movetoworkspace", `${workspace},title:^(Settings)$`)
 					} else {
 						settings?.show()
 					}
-					qsettings?.hide()
 				}}
 			>
 				<image iconName={icons.ui.settings} useFallback />
@@ -53,12 +54,23 @@ export namespace Settings {
 
 	export function Window() {
 		const layout = createLayout()
+		const allOpts = collectOpts(options)
+
+		let stack: Gtk.Stack | undefined
 		const [currentPage, setCurrentPage] = createState(layout[0].name)
 
 		const anyChanged = createComputed(() => allOpts.some(opt => opt() !== opt.getDefault()))
 
 		function resetAll() {
 			allOpts.forEach(opt => opt.reset())
+		}
+
+		function setup(self: Gtk.Stack) {
+			stack = self
+			const name = currentPage.peek()
+			if (self.get_child_by_name(name)) {
+				self.set_visible_child_name(name)
+			}
 		}
 
 		return (
@@ -90,7 +102,10 @@ export namespace Settings {
 								<button
 									class={currentPage.as(v => v === name ? `active` : "")}
 									valign={CENTER}
-									onClicked={() => setCurrentPage(name)}
+									onClicked={() => {
+										setCurrentPage(name)
+										stack?.set_visible_child_name(name)
+									}}
 								>
 									<box>
 										<image iconName={iconName} useFallback />
@@ -110,7 +125,7 @@ export namespace Settings {
 						</button>
 					</centerbox>
 
-					<stack visibleChildName={currentPage} transitionType={SLIDE_LEFT_RIGHT}>
+					<stack transitionType={SLIDE_LEFT_RIGHT} $={setup}>
 						{layout}
 					</stack>
 				</box>

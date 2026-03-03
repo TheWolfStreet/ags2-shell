@@ -27,19 +27,28 @@ EOF
   exit 0
 }
 
+CLEANED_UP=false
 cleanup() {
+  $CLEANED_UP && exit 0
+  CLEANED_UP=true
   log_info "Shutting down..."
-  ags quit -i "$INSTANCE_NAME" 2>/dev/null || true
-  pkill -P $$ 2>/dev/null || true
+  [ -n "$AGS_PID" ] && kill "$AGS_PID" 2>/dev/null || true
+  timeout 1 ags quit -i "$INSTANCE_NAME" 2>/dev/null || true
+  if [ -n "$SCSS_WATCH_PID" ]; then
+    kill "$SCSS_WATCH_PID" 2>/dev/null || true
+    wait "$SCSS_WATCH_PID" 2>/dev/null || true
+  fi
   pkill -f 'inotifywait' 2>/dev/null || true
-  wait 2>/dev/null || true
+  [ -n "$AGS_PID" ] && kill -9 "$AGS_PID" 2>/dev/null || true
   exit 0
 }
 
-trap cleanup EXIT INT TERM SIGINT SIGTERM
+trap cleanup INT TERM
 
 CSS_FILE="style/compile/main.css"
 INSTANCE_NAME="ags2-shell"
+AGS_PID=""
+SCSS_WATCH_PID=""
 
 BUILD_ONCE=false
 SHELL_ARGS=()
@@ -75,6 +84,7 @@ log_watch "Watching SCSS files for changes"
 while inotifywait -qre "$watch_events" --include "$watch_pattern" $watch_dirs 2>/dev/null; do
   ./style/compile/build.sh
 done &
+SCSS_WATCH_PID=$!
 
 log_watch "Watching TS/TSX files for changes"
 while true; do
@@ -82,7 +92,7 @@ while true; do
   ags run app.tsx "${SHELL_ARGS[@]}" &
   AGS_PID=$!
 
-  inotifywait -qre "$watch_events" --include '\.(ts|tsx)$' . 2>/dev/null
+  inotifywait -qre "$watch_events" --include '\.(ts|tsx)$' @./@girs . 2>/dev/null || true
 
   log_info "TS/TSX change detected, restarting shell"
   ags quit -i "$INSTANCE_NAME" 2>/dev/null || kill $AGS_PID 2>/dev/null || true

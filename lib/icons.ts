@@ -1,21 +1,9 @@
-export const substitutes = {
+const substitutes = {
 	"audio-headset-bluetooth": "audio-headphones-symbolic",
 	"audio-card-analog-usb": "audio-speakers-symbolic",
 	"audio-card-analog-pci": "audio-card-symbolic",
 	"audio-card-analog": "audio-card-symbolic",
 	"Playback": "sound-wave-alt-symbolic",
-}
-
-export function getIcon(name: string, fallback = "image-missing-symbolic"): string {
-	return substitutes[name as keyof typeof substitutes] || name || fallback
-}
-
-export function getBrightnessIcon(percent: number, type: "screen" | "keyboard" = "screen"): string {
-	const icons = type === "keyboard" ? iconList.brightness.keyboard : iconList.brightness.screen
-	if (percent === 0) return icons.off
-	if (percent < 0.4) return icons.low
-	if (percent < 0.8) return icons.medium
-	return icons.high
 }
 
 const iconList = {
@@ -127,6 +115,10 @@ const iconList = {
 		full: "user-trash-full-symbolic",
 		empty: "user-trash-symbolic",
 	},
+	trashDetailed: {
+		full: "user-trash-full",
+		empty: "user-trash",
+	},
 	mpris: {
 		shuffle: "media-playlist-shuffle-symbolic",
 		loop: {
@@ -149,6 +141,18 @@ const iconList = {
 		dark: "dark-mode-symbolic",
 		light: "display-brightness-symbolic",
 	},
+}
+
+export function getIcon(name: string, fallback = "image-missing-symbolic"): string {
+	return substitutes[name as keyof typeof substitutes] || name || fallback
+}
+
+export function getBrightnessIcon(percent: number, type: "screen" | "keyboard" = "screen"): string {
+	const icons = type === "keyboard" ? iconList.brightness.keyboard : iconList.brightness.screen
+	if (percent === 0) return icons.off
+	if (percent < 0.4) return icons.low
+	if (percent < 0.8) return icons.medium
+	return icons.high
 }
 
 export default iconList

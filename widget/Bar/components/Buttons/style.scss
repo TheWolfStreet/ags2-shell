@@ -8,7 +8,6 @@ window#bar {
     button {
       padding: calc(var(--padding) / 2) calc(var(--padding));
     }
-    padding: calc(var(--padding) / 2);
   }
 
   button.recorder {

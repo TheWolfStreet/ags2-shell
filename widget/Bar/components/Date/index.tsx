@@ -1,16 +1,16 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk } from "ags/gtk4"
-import { createBinding, createComputed } from "ags"
+import { createBinding } from "ags"
 
 import { Placeholder } from "widget/shared/Placeholder"
-import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { PopupWindow } from "widget/shared/PopupWindow"
 import { Notifications } from "../Notifications"
 import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
-import { notifications as manager } from "$lib/services"
+import { notifications } from "$lib/services"
 import icons from "$lib/icons"
-import { toggleWindow } from "$lib/utils"
+import { popupLayout, toggleWindow } from "$lib/utils"
 
 import options from "options"
 
@@ -19,24 +19,21 @@ const { NEVER } = Gtk.PolicyType
 const { EXCLUSIVE } = Astal.Exclusivity
 const { VERTICAL } = Gtk.Orientation
 
-const layout = createComputed(() => `${options.bar.position()}-${options.datemenu.position()}` as Position)
-
-function up(up: number) {
-	const h = Math.floor(up / 60)
-	const m = up % 60
-	return `uptime: ${h}:${m < 10 ? "0" + m : m}`
-}
-
 export namespace Date {
+	const layout = popupLayout(options.bar.position, options.datemenu.position)
+	const notifList = createBinding(notifications, "notifications")
+
+	function uptimeFmt(up: number) {
+		const h = Math.floor(up / 60)
+		const m = up % 60
+		return `uptime: ${h}:${m < 10 ? "0" + m : m}`
+	}
+
 	function ClearButton() {
-		const notificationsList = createBinding(manager, "notifications")
-		const trashIcon = notificationsList.as(n => icons.trash[n.length ? "full" : "empty"])
+		const trashIcon = notifList.as(n => icons.trash[n.length ? "full" : "empty"])
 		return (
 			<button
-				class=""
-				onClicked={() =>
-					Notifications.dismissAll()
-				}
+				onClicked={Notifications.dismissAll}
 				valign={CENTER}
 			>
 				<box>
@@ -57,8 +54,7 @@ export namespace Date {
 	}
 
 	function NotifyColumn() {
-		const notificationsList = createBinding(manager, "notifications")
-		const noNotifications = notificationsList.as(n => n.length === 0)
+		const noNotifications = notifList.as(n => n.length === 0)
 		return (
 			<box class="notifications" orientation={VERTICAL} vexpand>
 				<Header />
@@ -84,7 +80,7 @@ export namespace Date {
 					/>
 					<label
 						class="uptime"
-						label={env.uptime(v => up(v))}
+						label={env.uptime(uptimeFmt)}
 					/>
 				</box>
 				<box class="calendar" hexpand>

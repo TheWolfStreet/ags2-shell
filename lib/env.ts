@@ -4,9 +4,12 @@ import app from "ags/gtk4/app"
 import { createPoll } from "ags/time"
 
 import GLib from "gi://GLib"
-import { ensurePath } from "./utils"
 
 const APPNAME = "ags2-shell"
+
+function ensureDir(path: string) {
+	GLib.mkdir_with_parents(path, 0o755)
+}
 
 const env = {
 	appName: APPNAME,
@@ -30,8 +33,12 @@ const env = {
 		home: GLib.get_home_dir(),
 		avatar: `/var/lib/AccountsService/icons/${GLib.get_user_name()}`,
 		cfg: `${GLib.get_user_config_dir()}/ags/`,
-		cache: `${GLib.get_user_cache_dir()}/${APPNAME}/`,
+		cache: {
+			base: `${GLib.get_user_cache_dir()}/${APPNAME}`,
+			thumbnails: `${GLib.get_user_cache_dir()}/${APPNAME}/previews/thumbnails`,
+		},
 		tmp: `${GLib.get_tmp_dir()}/${APPNAME}/`,
+		trash: `${GLib.get_user_data_dir()}/Trash/files`,
 	},
 
 	distro: {
@@ -39,8 +46,9 @@ const env = {
 		logo: GLib.get_os_info("LOGO") ?? undefined,
 	},
 	init: async () => {
-		ensurePath(env.paths.tmp)
-		ensurePath(env.paths.cache)
+		ensureDir(env.paths.tmp)
+		ensureDir(env.paths.cache.base)
+		ensureDir(env.paths.cache.thumbnails)
 	}
 }
 

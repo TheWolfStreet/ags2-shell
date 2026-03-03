@@ -39,7 +39,7 @@ const options = mkOptions({
 		shadows: true,
 		blur: true,
 		neumorphic: true,
-		opacity: 70,
+		opacity: 30,
 		widget: {
 			opacity: 94,
 		},
@@ -49,7 +49,8 @@ const options = mkOptions({
 		},
 		padding: 8,
 		spacing: 6,
-		radius: 12,
+		roundness: 12,
+		exportGtk: false,
 	},
 
 	transition: {
@@ -59,7 +60,7 @@ const options = mkOptions({
 	font: "SFProDisplay Nerd Font 11",
 
 	bar: {
-		position: "top",
+		position: "top-center",
 		corners: 50,
 		transparent: false,
 		launcher: {
@@ -78,7 +79,7 @@ const options = mkOptions({
 			ignore: [
 				"KDE Connect Indicator",
 				"spotify-client",
-				"spotify"
+				"spotify",
 			],
 		},
 		media: {
@@ -86,15 +87,36 @@ const options = mkOptions({
 		},
 	},
 
+	taskbar: {
+		location: "bar",
+	},
+
+	desktop: {
+		enabled: true,
+		iconSize: "medium",
+	},
+
+	dock: {
+		mode: "static",
+		trash: true,
+		position: "bottom-center",
+		scale: 100,
+	},
+
+	favorites: {
+		location: "both",
+	},
+
 	launcher: {
 		margin: 40,
+		position: "top-center",
 		apps: {
 			max: 6,
 		},
 	},
 
 	overview: {
-		scale: 9,
+		scale: 100,
 		workspaces: 7,
 	},
 
@@ -115,11 +137,11 @@ const options = mkOptions({
 
 	quicksettings: {
 		width: 380,
-		position: "right",
+		position: "top-right",
 	},
 
 	batterystate: {
-		position: "right",
+		position: "top-right",
 	},
 
 	datemenu: {
@@ -130,8 +152,12 @@ const options = mkOptions({
 		maxColors: 10,
 	},
 
+	osd: {
+		position: "bottom-center",
+	},
+
 	notifications: {
-		position: ["top", "right"],
+		position: "top-right",
 		blacklist: ["Spotify", "com.spotify.Client"],
 		dismiss: 3500,
 	},
@@ -139,6 +165,7 @@ const options = mkOptions({
 	hyprland: {
 		gaps: 2.4,
 		inactiveBorder: "#282828",
-	}
+	},
 })
+
 export default options

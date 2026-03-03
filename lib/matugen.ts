@@ -1,113 +1,232 @@
-import { sh, dependencies, getFileSize } from "$lib/utils"
-import { wp } from "$lib/services"
-import { timeout, idle, Timer } from "ags/time"
+import { execAsync } from "ags/process"
+
+import Gio from "gi://Gio"
+import GdkPixbuf from "gi://GdkPixbuf"
+
+import { wp } from "./services"
+import { attempt, attemptAsync } from "./result"
+import { debounce } from "./timing"
+import { dependencies } from "./utils"
+import { getFileSize } from "./textures"
+import { beginCssBatch, endCssBatch } from "style"
 
 import options from "options"
 
 export namespace Matugen {
-	let matugenDebounce: Timer | null = null
+	let matugenRequestSerial = 0
+	let lastAppliedInputKey = ""
+	let pendingType: "image" | "color" = "image"
+	let pendingArg = ""
 
-	type ColorValue = {
-		light: string
-		dark: string
-		default: string
+	const MATUGEN_DEBOUNCE_MS = 220
+	const AVG_COLOR_CACHE_LIMIT = 24
+	const avgColorCache = new Map<string, string>()
+
+	type MatugenColorSwatch = { color: string }
+	type MatugenColorValue = {
+		light: MatugenColorSwatch
+		dark: MatugenColorSwatch
+		default: MatugenColorSwatch
 	}
 
-	type Colors = {
-		background: ColorValue
-		error: ColorValue
-		error_container: ColorValue
-		inverse_on_surface: ColorValue
-		inverse_primary: ColorValue
-		inverse_surface: ColorValue
-		on_background: ColorValue
-		on_error: ColorValue
-		on_error_container: ColorValue
-		on_primary: ColorValue
-		on_primary_container: ColorValue
-		on_primary_fixed: ColorValue
-		on_primary_fixed_variant: ColorValue
-		on_secondary: ColorValue
-		on_secondary_container: ColorValue
-		on_secondary_fixed: ColorValue
-		on_secondary_fixed_variant: ColorValue
-		on_surface: ColorValue
-		on_surface_variant: ColorValue
-		on_tertiary: ColorValue
-		on_tertiary_container: ColorValue
-		on_tertiary_fixed: ColorValue
-		on_tertiary_fixed_variant: ColorValue
-		outline: ColorValue
-		outline_variant: ColorValue
-		primary: ColorValue
-		primary_container: ColorValue
-		primary_fixed: ColorValue
-		primary_fixed_dim: ColorValue
-		scrim: ColorValue
-		secondary: ColorValue
-		secondary_container: ColorValue
-		secondary_fixed: ColorValue
-		secondary_fixed_dim: ColorValue
-		shadow: ColorValue
-		surface: ColorValue
-		surface_bright: ColorValue
-		surface_container: ColorValue
-		surface_container_high: ColorValue
-		surface_container_highest: ColorValue
-		surface_container_low: ColorValue
-		surface_container_lowest: ColorValue
-		surface_dim: ColorValue
-		surface_variant: ColorValue
-		tertiary: ColorValue
-		tertiary_container: ColorValue
-		tertiary_fixed: ColorValue
-		tertiary_fixed_dim: ColorValue
+	type Colors = Record<string, MatugenColorValue>
+
+	function parseMatugenJson(raw: string): { colors?: Colors } | null {
+		const text = raw.trim()
+		if (!text) return null
+		const start = text.indexOf("{")
+		const end = text.lastIndexOf("}")
+		if (start < 0 || end <= start) return null
+		const result = attempt(() => JSON.parse(text.slice(start, end + 1)) as { colors?: Colors })
+		return result.ok ? result.value : null
+	}
+
+	function avgColorHex(filePath: string): string | null {
+		const result = attempt(() => {
+			const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(filePath, 64, 64, true)
+			if (!pixbuf) return null
+			if (!pixbuf.get_width() || !pixbuf.get_height()) return null
+
+			const pixels = pixbuf.get_pixels()
+			const rowstride = pixbuf.get_rowstride()
+			const nChannels = pixbuf.get_n_channels()
+			const hasAlpha = pixbuf.get_has_alpha()
+			const width = pixbuf.get_width()
+			const height = pixbuf.get_height()
+
+			let r = 0
+			let g = 0
+			let b = 0
+			let count = 0
+
+			const step = Math.max(1, Math.floor(Math.min(width, height) / 32))
+			for (let y = 0; y < height; y += step) {
+				for (let x = 0; x < width; x += step) {
+					const i = y * rowstride + x * nChannels
+					const a = hasAlpha ? pixels[i + 3] : 255
+					if (a < 16) continue
+					r += pixels[i + 0]
+					g += pixels[i + 1]
+					b += pixels[i + 2]
+					count++
+				}
+			}
+
+			if (!count) return null
+			const rr = Math.round(r / count)
+			const gg = Math.round(g / count)
+			const bb = Math.round(b / count)
+			return `#${[rr, gg, bb].map(v => v.toString(16).padStart(2, "0")).join("")}`
+		})
+		return result.ok ? result.value : null
+	}
+
+	function rememberAverageColor(signature: string, color: string) {
+		if (avgColorCache.has(signature)) {
+			avgColorCache.delete(signature)
+		}
+
+		avgColorCache.set(signature, color)
+
+		if (avgColorCache.size > AVG_COLOR_CACHE_LIMIT) {
+			const oldest = avgColorCache.keys().next().value
+			if (oldest) {
+				avgColorCache.delete(oldest)
+			}
+		}
+	}
+
+	function imageSignature(filePath: string): string | null {
+		if (!filePath)
+			return null
+
+		const result = attempt(() => {
+			const file = Gio.File.new_for_path(filePath)
+			const info = file.query_info(
+				"standard::size,time::modified",
+				Gio.FileQueryInfoFlags.NONE,
+				null,
+			)
+
+			return `${filePath}:${info.get_size()}:${info.get_attribute_uint64("time::modified")}`
+		})
+		return result.ok ? result.value : null
+	}
+
+	function getAverageColorForImage(filePath: string) {
+		const signature = imageSignature(filePath)
+		if (!signature)
+			return null
+
+		const cached = avgColorCache.get(signature)
+		if (cached) {
+			return {
+				signature,
+				color: cached,
+			}
+		}
+
+		const color = avgColorHex(filePath)
+		if (!color)
+			return null
+
+		rememberAverageColor(signature, color)
+		return {
+			signature,
+			color,
+		}
 	}
 
 	export async function init() {
-		wp.connect("notify::wallpaper", () => getColors())
-		options.autotheme.subscribe(() => getColors())
+		wp.connect("notify::wallpaper", () => {
+			lastAppliedInputKey = ""
+			void getColors().catch(error => {
+				console.error("matugen.getColors: Matugen color generation failed", error)
+			})
+		})
+		options.autotheme.subscribe(() => {
+			if (!options.autotheme.peek()) {
+				lastAppliedInputKey = ""
+				return
+			}
+
+			void getColors().catch(error => {
+				console.error("matugen.getColors: Matugen color generation failed", error)
+			})
+		})
 	}
+
+	const runMatugen = debounce(MATUGEN_DEBOUNCE_MS, async () => {
+			const requestSerial = matugenRequestSerial
+			const type = pendingType
+			const arg = pendingArg
+			const result = await attemptAsync(async () => {
+				const { scheme, dark, light } = options.theme
+
+				let sourceColor = arg
+				let inputKey = `${type}:${arg}`
+				if (type === "image") {
+					const sampled = getAverageColorForImage(arg)
+					sourceColor = sampled?.color
+						|| (scheme.peek() === "dark" ? dark.primary.bg.peek() : light.primary.bg.peek())
+						|| "#777777"
+					inputKey = `image:${sampled?.signature ?? arg}:${sourceColor}`
+				} else {
+					inputKey = `color:${sourceColor}`
+				}
+
+				if (inputKey === lastAppliedInputKey)
+					return
+
+				const out = await execAsync(["matugen", "color", "hex", sourceColor, "-j", "hex", "--dry-run", "--quiet"])
+				if (requestSerial !== matugenRequestSerial)
+					return
+
+				const parsed = parseMatugenJson(out)
+				const c = parsed?.colors
+				if (!c) {
+					console.error("matugen.getColors: Matugen produced no JSON output")
+					return
+				}
+
+				beginCssBatch()
+				try {
+					dark.widget.set(c.on_surface.dark.color)
+					light.widget.set(c.on_surface.light.color)
+					dark.border.set(c.outline.dark.color)
+					light.border.set(c.outline.light.color)
+					dark.bg.set(c.surface.dark.color)
+					light.bg.set(c.surface.light.color)
+					dark.fg.set(c.on_surface.dark.color)
+					light.fg.set(c.on_surface.light.color)
+					dark.primary.bg.set(c.primary.dark.color)
+					light.primary.bg.set(c.primary.light.color)
+					dark.primary.fg.set(c.on_primary.dark.color)
+					light.primary.fg.set(c.on_primary.light.color)
+					dark.error.bg.set(c.error.dark.color)
+					light.error.bg.set(c.error.light.color)
+					dark.error.fg.set(c.on_error.dark.color)
+					light.error.fg.set(c.on_error.light.color)
+				} finally {
+					endCssBatch()
+				}
+
+				lastAppliedInputKey = inputKey
+			})
+			if (!result.ok)
+				console.error("matugen.getColors: Matugen color generation failed", result.err)
+	})
 
 	export async function getColors(
 		type: "image" | "color" = "image",
-		arg = wp.get_wallpaper(),
+		arg = wp.wallpaper,
 	) {
-		if (!options.autotheme.peek() || !dependencies("matugen") || !getFileSize(arg))
-			return
+		if (!options.autotheme.peek() || !dependencies("matugen")) return
+		if (type === "image" && !getFileSize(arg)) return
 
-		if (matugenDebounce) matugenDebounce.cancel()
-
-		matugenDebounce = timeout(300, async () => {
-			try {
-				const colors = await sh(`matugen --dry-run -j hex ${type} ${arg}`)
-				const c = JSON.parse(colors).colors as Colors
-
-				idle(() => {
-					const { dark, light } = options.theme
-
-					dark.widget.set(c.on_surface.dark)
-					light.widget.set(c.on_surface.light)
-					dark.border.set(c.outline.dark)
-					light.border.set(c.outline.light)
-					dark.bg.set(c.surface.dark)
-					light.bg.set(c.surface.light)
-					dark.fg.set(c.on_surface.dark)
-					light.fg.set(c.on_surface.light)
-					dark.primary.bg.set(c.primary.dark)
-					light.primary.bg.set(c.primary.light)
-					dark.primary.fg.set(c.on_primary.dark)
-					light.primary.fg.set(c.on_primary.light)
-					dark.error.bg.set(c.error.dark)
-					light.error.bg.set(c.error.light)
-					dark.error.fg.set(c.on_error.dark)
-					light.error.fg.set(c.on_error.light)
-				})
-			} catch (error) {
-				console.error("Matugen color generation failed:", error)
-			} finally {
-				matugenDebounce = null
-			}
-		})
+		pendingType = type
+		pendingArg = arg
+		matugenRequestSerial++
+		runMatugen.call()
 	}
 }

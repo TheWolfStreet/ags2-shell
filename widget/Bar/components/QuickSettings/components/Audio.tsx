@@ -1,7 +1,7 @@
-import { Gtk } from "ags/gtk4"
+import { Gdk, Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 
-import { Accessor, createBinding, For, With } from "ags"
+import { Accessor, createBinding, createComputed, For, With } from "ags"
 
 import AstalWp from "gi://AstalWp"
 import Pango from "gi://Pango"
@@ -10,12 +10,15 @@ import { Arrow, Menu, Settings } from "./shared/MenuElements"
 
 import icons, { getIcon } from "$lib/icons"
 import { audio } from "$lib/services"
-import { dependencies } from "$lib/utils"
+import { dependencies, formatClock } from "$lib/utils"
+import { textureFromUriSquareContainAsync } from "$lib/textures"
+import AstalMpris from "gi://AstalMpris"
 
-const { CENTER, END } = Gtk.Align
+const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
-
-const { AUDIO_SOURCE, STREAM_OUTPUT_AUDIO, AUDIO_SINK } = AstalWp.MediaClass
+const { COVER } = Gtk.ContentFit
+const { EllipsizeMode } = Pango
+const { STREAM_OUTPUT_AUDIO, AUDIO_SINK } = AstalWp.MediaClass
 
 export namespace Audio {
 	function MixerEntry({ node }: { node: AstalWp.Node }) {
@@ -30,14 +33,16 @@ export namespace Audio {
 					<label
 						xalign={0}
 						maxWidthChars={28}
-						ellipsize={Pango.EllipsizeMode.END}
+						ellipsize={EllipsizeMode.END}
 						label={createBinding(node, "name").as((n) => n || "")}
 					/>
 					<slider
 						hexpand
 						drawValue={false}
 						value={createBinding(node, "volume")}
-						onNotifyValue={({ value }) => (node.volume = value)}
+						onChangeValue={({ value }) => {
+							node.volume = value
+						}}
 					/>
 				</box>
 			</box>
@@ -45,6 +50,10 @@ export namespace Audio {
 	}
 
 	function SinkEntry({ endpoint }: { endpoint: AstalWp.Endpoint }) {
+		const isDefaultSpeaker = createBinding(audio, "defaultSpeaker").as(
+			speaker => speaker?.description === endpoint.description,
+		)
+
 		return (
 			<button hexpand onClicked={() => (endpoint.set_is_default(true))}>
 				<box class="sink-item horizontal">
@@ -58,11 +67,159 @@ export namespace Audio {
 						iconName={icons.ui.tick}
 						hexpand
 						halign={END}
-						visible={(audio && createBinding(audio.defaultSpeaker, "description").as(s => s === endpoint.description)) ?? undefined}
+						visible={isDefaultSpeaker}
 						useFallback
 					/>
 				</box>
 			</button>
+		)
+	}
+
+	export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
+		const { PLAYING } = AstalMpris.PlaybackStatus
+		const { PLAYLIST, TRACK, NONE } = AstalMpris.Loop
+		const { ON, OFF } = AstalMpris.Shuffle
+
+		const title = createBinding(player, "title").as(t => t || "Untitled")
+		const artist = createBinding(player, "artist").as(a => a || "Unknown Artist")
+		const cover = createBinding(player, "coverArt")
+		const hasCover = cover.as(url => Boolean(url?.trim()))
+		const coverTexture = createComputed(() => textureFromUriSquareContainAsync(cover() || "", 100)())
+		const textMaxWidth = 20
+		const icon = createBinding(player, "entry").as(e => e || "audio-x-generic-symbolic")
+		const posNorm = createBinding(player, "position").as(p => player.length > 0 ? p / player.length : 0)
+		const pos = createBinding(player, "position")
+		const status = createBinding(player, "playbackStatus")
+		const loop = createBinding(player, "loopStatus")
+		const shuffle = createBinding(player, "shuffleStatus")
+		const len = createBinding(player, "length")
+		const control = createBinding(player, "canControl")
+		const next = createBinding(player, "canGoNext")
+		const prev = createBinding(player, "canGoPrevious")
+
+		const remaining = createComputed(() => Math.max(0, len() - pos()))
+
+		const playIcon = status.as(s => s === PLAYING ? icons.mpris.playing : icons.mpris.paused)
+		const loopIcon = loop.as(s => {
+			switch (s) {
+				case NONE: return icons.mpris.loop.none
+				case TRACK: return icons.mpris.loop.track
+				case PLAYLIST: return icons.mpris.loop.playlist
+				default: return icons.mpris.loop.none
+			}
+		})
+		const loopHint = createBinding(player, "loopStatus").as((v) => {
+			switch (v) {
+				case NONE: return "Loop: Disabled"
+				case PLAYLIST: return "Loop: Playlist"
+				case TRACK: return "Loop: Track"
+				default: return "Loop: Disabled"
+			}
+		})
+
+		function cycleLoop() {
+			switch (player.loopStatus) {
+				case NONE: player.set_loop_status(PLAYLIST); break
+				case PLAYLIST: player.set_loop_status(TRACK); break
+				case TRACK: player.set_loop_status(NONE); break
+				default: break
+			}
+		}
+
+		function cycleShuffle() {
+			switch (player.shuffleStatus) {
+				case OFF: player.set_shuffle_status(ON); break
+				case ON: player.set_shuffle_status(OFF); break
+				default: break
+			}
+		}
+		let lastUpdate = 0
+
+		return (
+			<box class="player" vexpand={false}>
+				<Gtk.Picture
+					class="cover-art"
+					visible={hasCover}
+					widthRequest={100}
+					heightRequest={100}
+					halign={CENTER}
+					valign={CENTER}
+					paintable={coverTexture.as(t => t as Gdk.Paintable)}
+					contentFit={COVER}
+				/>
+
+				<box orientation={VERTICAL}>
+					<box class="title horizontal">
+						<label
+							label={title}
+							halign={START}
+							wrap hexpand
+							maxWidthChars={textMaxWidth}
+						/>
+						<image iconName={icon} useFallback />
+					</box>
+					<label
+						class="artist"
+						label={artist}
+						halign={START}
+						valign={START}
+						wrap vexpand
+						maxWidthChars={textMaxWidth}
+					/>
+					<slider
+						tooltipText={len.as(v => (v > 0) ? `Duration: ${formatClock(v)}` : "")}
+						visible={len.as(l => l > 0)}
+						onChangeValue={({ value }) => {
+							const now = Date.now()
+							if (now - lastUpdate < 100) return
+							lastUpdate = now
+							player.position = value * player.length
+						}}
+						value={posNorm}
+					/>
+					<box class="horizontal">
+						<label
+							hexpand
+							class="position"
+							halign={START}
+							visible={len.as(l => l > 0)}
+							label={pos.as(formatClock)}
+						/>
+						<box hexpand halign={CENTER}>
+							<button
+								class={shuffle.as(s => s === ON ? "active" : "")}
+								onClicked={cycleShuffle}
+								visible={shuffle.as(s => s != AstalMpris.Shuffle.UNSUPPORTED)}>
+								<image iconName={icons.mpris.shuffle} useFallback />
+							</button>
+							<button onClicked={() => player.previous()} visible={prev}>
+								<image iconName={icons.mpris.prev} useFallback />
+							</button>
+							<button class="play-pause" onClicked={() => player.play_pause()} visible={control}>
+								<image iconName={playIcon} useFallback />
+							</button>
+							<button onClicked={() => player.next()} visible={next}>
+								<image iconName={icons.mpris.next} useFallback />
+							</button>
+							<button
+								class={loop.as(s => s !== NONE && s !== AstalMpris.Loop.UNSUPPORTED ? "active" : "")}
+								tooltipText={loopHint}
+								onClicked={cycleLoop}
+								visible={loop.as(s => s != AstalMpris.Loop.UNSUPPORTED)}
+							>
+								<image iconName={loopIcon} useFallback />
+							</button>
+						</box>
+						<label
+							class="length"
+							hexpand
+							halign={END}
+							visible={len.as(l => l > 0)}
+							label={remaining.as(formatClock)}
+						/>
+					</box>
+				</box>
+			</box>
 		)
 	}
 
@@ -134,44 +291,53 @@ export namespace Audio {
 			device,
 			show = true,
 		}: {
-			device: AstalWp.Node | undefined,
+			device: Accessor<AstalWp.Node | null>,
 			show?: Accessor<boolean> | boolean
 		}) {
-			if (!device) return <box visible={false} />
 			return (
-				<box class="control-unit" visible={show}>
-					<button valign={CENTER} onClicked={() => device.set_mute(!device.get_mute())}
-						tooltipText={createBinding(device, "volume").as(v => `Volume: ${Math.floor((v ?? 0) * 100)}%`)}>
-						<image iconName={createBinding(device, "volumeIcon")} useFallback />
-					</button>
-					<slider
-						hexpand
-						draw_value={false}
-						value={createBinding(device, "volume")}
-						class={createBinding(device, "mute").as(v => v ? "muted" : "")}
-						onNotifyValue={({ value }) => {
-							device.set_volume(value)
-							device.set_mute(false)
-						}}
-					/>
-				</box>
+				<With value={device}>
+					{(node: AstalWp.Node | null) => {
+						if (!node) return <box visible={false} />
+
+						const volumeTooltip = createBinding(node, "volume").as(v => `Volume: ${Math.floor((v ?? 0) * 100)}%`)
+
+						return (
+							<box class="control-unit" visible={show}>
+								<button valign={CENTER} onClicked={() => node.set_mute(!node.get_mute())}
+									tooltipText={volumeTooltip}>
+									<image iconName={createBinding(node, "volumeIcon")} useFallback />
+								</button>
+								<slider
+									hexpand
+									drawValue={false}
+									value={createBinding(node, "volume")}
+									class={createBinding(node, "mute").as(v => v ? "muted" : "")}
+									onChangeValue={({ value }) => {
+										node.set_volume(value)
+										node.set_mute(false)
+									}}
+								/>
+							</box>
+						)
+					}}
+				</With>
 			)
 		}
 
 		export function Volume() {
-			const speaker = audio?.defaultSpeaker;
+			const speaker = createBinding(audio, "defaultSpeaker")
 
 			const hasAudioSpeaker = audio
 				? createBinding(audio, "nodes").as(nodes =>
-					nodes.some(node => node.get_media_class() === AUDIO_SOURCE)
+					nodes.some(node => node.get_media_class() === AUDIO_SINK)
 				)
-				: false;
+				: false
 
 			const hasAudioStream = audio
 				? createBinding(audio, "nodes").as(nodes =>
 					nodes.some(node => node.get_media_class() === STREAM_OUTPUT_AUDIO)
 				)
-				: false;
+				: false
 
 			return (
 				<box>
@@ -181,14 +347,13 @@ export namespace Audio {
 						<Arrow name="app-mixer" visible={hasAudioStream} tooltipText="App Mixer" />
 					</box>
 				</box>
-			);
+			)
 		}
 
 		export function Microphone() {
 			const hasDevices = createBinding(audio, "devices").as(a => a.length > 0)
-			const mic = audio.get_default_microphone()
+			const mic = createBinding(audio, "defaultMicrophone")
 			return <ControlUnit device={mic} show={hasDevices} />
 		}
 	}
 }
-

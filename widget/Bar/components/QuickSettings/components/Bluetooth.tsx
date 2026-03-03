@@ -1,19 +1,21 @@
 import { Gtk, Gdk } from "ags/gtk4"
 import { createBinding, createComputed, With, For } from "ags"
+import { execAsync } from "ags/process"
 
 import AstalBluetooth from "gi://AstalBluetooth"
 
-import { ArrowToggleButton, Menu, Settings } from "widget/Bar/components/QuickSettings/components/shared/MenuElements"
+import { ToggleButton, Menu, Settings } from "widget/Bar/components/QuickSettings/components/shared/MenuElements"
 import { Placeholder } from "widget/shared/Placeholder"
 
 import icons from "$lib/icons"
 import { bt } from "$lib/services"
-import { toggleClass, bash } from "$lib/utils"
+import { toggleClass, dependencies } from "$lib/utils"
 
 import options from "options"
 
 const { VERTICAL } = Gtk.Orientation
 const { CENTER } = Gtk.Align
+const { BUTTON_PRIMARY, BUTTON_SECONDARY } = Gdk
 
 export namespace Bluetooth {
 	function Entry({ device }: { device: AstalBluetooth.Device }) {
@@ -24,8 +26,8 @@ export namespace Bluetooth {
 		const paired = createBinding(device, "paired")
 		const label = createComputed(() => {
 			const displayName = name() ?? address()
-			const bat = paired() && battery() != undefined
-				? ` ${(battery() * 100)}%`.replace(/-/g, "")
+			const bat = paired() && battery() != undefined && battery() >= 0
+				? ` ${battery() * 100}%`
 				: ""
 			const isPaired = paired() ? " • Paired" : ""
 			return `${displayName}${bat}${isPaired}`
@@ -40,14 +42,14 @@ export namespace Bluetooth {
 					onPressed={self => {
 						const mBtn = self.get_current_button()
 						switch (mBtn) {
-							case Gdk.BUTTON_PRIMARY:
+							case BUTTON_PRIMARY:
 								device[device.get_connected() ? "disconnect_device" : "connect_device"](() =>
 									toggleClass(btn, "active", !device.get_connected())
 								)
 								break
-							case Gdk.BUTTON_SECONDARY:
+							case BUTTON_SECONDARY:
 								if (device.paired) {
-									bash`bluetoothctl remove ${device.get_address()}`
+							void execAsync(["bluetoothctl", "remove", device.get_address()])
 								}
 								break
 						}
@@ -56,13 +58,24 @@ export namespace Bluetooth {
 				/>
 
 				<box class="bluetooth-item horizontal">
-					<image iconName={createBinding(device, "icon").as(i => i + "-symbolic")} />
+					<image iconName={createBinding(device, "icon").as(v => v + "-symbolic")} />
 					<label label={label} />
 					<box hexpand />
 					<Gtk.Spinner spinning={connecting} visible={connecting} />
 				</box>
 			</button>
 		)
+	}
+
+	function setBluetoothPowered(on: boolean) {
+		if (dependencies("bluetoothctl")) {
+			let state = "off"
+			if (on)
+				state = "on"
+			void execAsync(["bluetoothctl", "power", state])
+			return
+		}
+		bt.toggle()
 	}
 
 	export function Toggle() {
@@ -78,13 +91,14 @@ export namespace Bluetooth {
 		})
 
 		return (
-			<ArrowToggleButton
+			<ToggleButton
+				arrow
 				name="bluetooth-selector"
 				label={label}
 				iconName={powered.as(p => p ? icons.bluetooth.enabled : icons.bluetooth.disabled)}
 				activateOnArrow={true}
-				activate={() => !powered.peek() && bt.toggle()}
-				deactivate={() => bt.toggle()}
+				activate={() => { if (!powered.peek()) setBluetoothPowered(true) }}
+				deactivate={() => setBluetoothPowered(false)}
 				connection={powered}
 			/>
 		)
@@ -159,7 +173,7 @@ export namespace Bluetooth {
 									</Gtk.ScrolledWindow>
 								</revealer>
 								<Gtk.Separator />
-								<Settings callback={() => bash`XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth`} />
+								<Settings callback={() => void execAsync(["env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center", "bluetooth"])} />
 							</box>
 						)
 					}}

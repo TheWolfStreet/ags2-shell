@@ -15,9 +15,17 @@
       ],
       "$service/*": [
         "service/*"
+      ],
+      "ags": [
+        "node_modules/ags/lib/index.ts"
+      ],
+      "ags/*": [
+        "node_modules/ags/lib/*"
+      ],
+      "widget/*": [
+        "widget/*"
       ]
     },
-    "skipLibCheck": true,
     "strict": true,
     "target": "ES2020"
   }

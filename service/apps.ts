@@ -1,12 +1,15 @@
-import GObject, { register, getter } from "ags/gobject"
-import { idle, timeout, Timer } from "ags/time"
+import GObject, { getter, register } from "ags/gobject"
+import { execAsync } from "ags/process"
+import { idle } from "ags/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
 
 import env from "$lib/env"
-import { bashSync, fileExists } from "$lib/utils"
+import { fileExists } from "$lib/files"
+import { attempt } from "$lib/result"
 import { hypr } from "$lib/services"
+import { debounce } from "$lib/timing"
 
 @register()
 export default class Apps extends GObject.Object {
@@ -18,39 +21,31 @@ export default class Apps extends GObject.Object {
 	}
 
 	#favorites: Array<AstalApps.Application>
-	#favortiesSnapshot: string
+	#favoritesSnapshot: string
+	#favoritesRefreshing = false
+	#lastFavoritesRead = 0
 	#apps: AstalApps.Apps
 	#monitors: Gio.FileMonitor[]
-	#reloadTimeout: Timer | undefined
+	#reload = debounce(500, () => idle(() => {
+		this.#apps.reload()
+		this.notify("list")
+		this.notify("favorites")
+	}))
 
 	constructor() {
 		super()
 
 		this.#favorites = []
-		this.#favortiesSnapshot = ""
+		this.#favoritesSnapshot = ""
 		this.#apps = new AstalApps.Apps()
 		this.#monitors = []
-		this.#reloadTimeout = undefined
 
-		const reloadApps = () => {
-			if (this.#reloadTimeout) {
-				this.#reloadTimeout.cancel()
-			}
+		const scheduleReload = () => this.#reload.call()
 
-			this.#reloadTimeout = timeout(500, () => {
-				idle(() => {
-					this.#apps.reload()
-					this.notify("list")
-					this.notify("favorites")
-				})
-				this.#reloadTimeout = undefined
-			})
-		}
-
-		const watchAppDir = (dir: string) => {
+		const watchDirectory = (dir: string) => {
 			if (!fileExists(dir)) return
 
-			try {
+			const result = attempt(() => {
 				const file = Gio.File.new_for_path(dir)
 				const monitor = file.monitor_directory(Gio.FileMonitorFlags.NONE, null)
 
@@ -60,17 +55,17 @@ export default class Apps extends GObject.Object {
 					if (event_type === Gio.FileMonitorEvent.CREATED) {
 						const fileName = file.get_basename()
 						if (fileName && !fileName.startsWith(".")) {
-							reloadApps()
+							scheduleReload()
 						}
 					} else if (event_type === Gio.FileMonitorEvent.DELETED) {
-						reloadApps()
+						scheduleReload()
 					}
 				})
 
 				this.#monitors.push(monitor)
-			} catch (e) {
-				console.error(`Failed to watch directory ${dir}:`, e)
-			}
+			})
+			if (!result.ok)
+				console.error(`apps.watchDirectory: Failed to watch ${dir}`, result.err)
 		}
 
 		const appDirs = [
@@ -84,56 +79,69 @@ export default class Apps extends GObject.Object {
 		]
 
 		for (const dir of appDirs) {
-			watchAppDir(dir)
+			watchDirectory(dir)
 		}
 
-		hypr.connect("config-reloaded", reloadApps)
+		hypr.connect("config-reloaded", scheduleReload)
+
+		this.#lastFavoritesRead = Date.now()
+		this.#refreshFavorites()
 	}
 
-	@getter(AstalApps.Apps)
+	@getter(Array<AstalApps.Application>)
 	get list() {
-		return this.#apps
+		return this.#apps.list
 	}
 
 	@getter(Array<AstalApps.Application>)
 	get favorites(): Array<AstalApps.Application> {
-		this.#updateFav()
+		const now = Date.now()
+		if (now - this.#lastFavoritesRead > 2000) {
+			this.#lastFavoritesRead = now
+			this.#refreshFavorites()
+		}
 		return this.#favorites
 	}
-	readonly #updateFav = () => {
-		try {
-			const raw = bashSync(
-				"dconf read /org/gnome/shell/favorite-apps",
-				{ encoding: "utf-8" }
-			).trim()
 
-			if (raw === this.#favortiesSnapshot) return
-			this.#favortiesSnapshot = raw
+	readonly #refreshFavorites = () => {
+		if (this.#favoritesRefreshing) return
+		this.#favoritesRefreshing = true
+		execAsync(["dconf", "read", "/org/gnome/shell/favorite-apps"])
+			.then(raw => this.#setFavorites(raw.trim()))
+			.finally(() => { this.#favoritesRefreshing = false })
+	}
 
-			const list = JSON.parse(raw.replace(/'/g, '"'))
-			if (!Array.isArray(list)) throw new Error("not an array")
+	readonly #setFavorites = (raw: string) => {
+		if (raw === this.#favoritesSnapshot) return
+		this.#favoritesSnapshot = raw
 
+		const result = attempt(() => {
 			const apps: Array<AstalApps.Application> = []
-			for (const item of list) {
-				if (typeof item === "string") {
-					const name = item.replace(/\.desktop$/, "")
-					const match = this.#apps.exact_query(name)[0]
-					if (match) apps.push(match)
-				}
+			for (const [, entry] of raw.matchAll(/'([^']*)'/g)) {
+				const name = entry.replace(/\.desktop$/, "")
+				const key = name.toLowerCase()
+				const results = this.#apps.exact_query(name)
+				const match = results.find(app =>
+					app.get_name().toLowerCase() === key
+					|| app.get_entry()?.replace(/\.desktop$/, "").toLowerCase() === key,
+				) ?? results[0]
+				if (match) apps.push(match)
 			}
+			return apps
+		})
 
-			this.#favorites = apps
-		} catch (e) {
-			console.error("Failed to get favorite apps:", e)
+		if (!result.ok) {
+			console.error("apps.setFavorites: Failed to read favorite apps", result.err)
 			this.#favorites = []
+		} else {
+			this.#favorites = result.value
 		}
+
+		this.notify("favorites")
 	}
 
 	vfunc_finalize() {
-		if (this.#reloadTimeout) {
-			this.#reloadTimeout.cancel()
-			this.#reloadTimeout = undefined
-		}
+		this.#reload.cancel()
 
 		for (const monitor of this.#monitors) {
 			monitor.cancel()

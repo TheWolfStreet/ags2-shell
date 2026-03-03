@@ -1,22 +1,40 @@
 import app from "ags/gtk4/app"
-import { CCProps, createBinding, createComputed } from "ags"
-import { Gdk } from "ags/gtk4"
-import { exec, execAsync } from "ags/process"
+import { Accessor, CCProps, createBinding, createComputed } from "ags"
+import { idle } from "ags/time"
+import { execAsync } from "ags/process"
 
 import Apps from "gi://AstalApps"
-import Gtk from "gi://Gtk"
-import GLib from "gi://GLib"
 import Gio from "gi://Gio"
+import Gtk from "gi://Gtk"
+import Pango from "gi://Pango"
+import GLib from "gi://GLib"
 import AstalHyprland from "gi://AstalHyprland"
-import GdkPixbuf from "gi://GdkPixbuf"
+import AstalNotifd from "gi://AstalNotifd"
 
 import giCairo from "cairo"
 
 import env from "$lib/env"
 import icons from "$lib/icons"
+import { attemptAsync } from "$lib/result"
 import { hypr } from "$lib/services"
 
+export { debounce } from "$lib/timing"
+
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
+
+type Vertical = "top" | "center" | "bottom"
+type Horizontal = "left" | "center" | "right"
+export type Position =
+	| `${Vertical}-${Horizontal}`
+	| "center"
+
+export function popupLayout(bar: Accessor<string>, popup: Accessor<string>): Accessor<Position> {
+	return createComputed(() => {
+		const vertical = bar().split("-")[0]
+		const horizontal = popup().split("-").pop() ?? "center"
+		return `${vertical}-${horizontal}` as Position
+	})
+}
 
 export function getClientTitle(c: AstalHyprland.Client) {
 	const title = createBinding(c, "title")
@@ -27,102 +45,6 @@ export function getClientTitle(c: AstalHyprland.Client) {
 		return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
 	})
 }
-
-export function getFileSize(filePath: string): number | null {
-	if (!filePath || !fileExists(filePath)) return null;
-
-	try {
-		const info = Gio.File.new_for_path(filePath).query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null);
-		return info.get_size();
-	} catch {
-		return null;
-	}
-}
-
-export function textureFromFile(filePath: string, width?: number, height?: number): Gdk.Texture | null {
-	if (!getFileSize(filePath)) {
-		console.warn(`textureFromFile: File not found or empty: ${filePath}`)
-		return null
-	}
-
-	try {
-		let pixbuf = GdkPixbuf.Pixbuf.new_from_file(filePath)
-		if (width && height) {
-			pixbuf = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)!
-		}
-		return Gdk.Texture.new_for_pixbuf(pixbuf)
-	} catch (e) {
-		console.error(`textureFromFile: Failed to load ${filePath}:`, e)
-		return null
-	}
-}
-
-export function textureFromUri(uri: string, width?: number, height?: number): Gdk.Texture | null {
-	if (!uri) return null
-
-	if (uri.startsWith("/") || uri.startsWith("file://")) {
-		const filePath = uri.startsWith("file://") ? uri.slice(7) : uri
-		return textureFromFile(filePath, width, height)
-	}
-
-	if (uri.startsWith("http://") || uri.startsWith("https://")) {
-		try {
-			const cacheDir = GLib.get_user_cache_dir() + "/ags2-shell/covers"
-			GLib.mkdir_with_parents(cacheDir, 0o755)
-
-			const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.MD5, uri, -1)
-			const cachePath = `${cacheDir}/${hash}`
-
-			if (fileExists(cachePath)) {
-				return textureFromFile(cachePath, width, height)
-			}
-
-			const file = Gio.File.new_for_uri(uri)
-			const destFile = Gio.File.new_for_path(cachePath)
-
-			try {
-				file.copy(destFile, Gio.FileCopyFlags.OVERWRITE, null, null)
-				return textureFromFile(cachePath, width, height)
-			} catch (e) {
-				console.error(`textureFromUri: Failed to download ${uri}:`, e)
-				return null
-			}
-		} catch (e) {
-			console.error(`textureFromUri: Error handling HTTP URL ${uri}:`, e)
-			return null
-		}
-	}
-
-	if (uri.startsWith("data:image/") || uri.includes("iVBORw0KGgo") || uri.includes("/9j/")) {
-		try {
-			const base64Data = uri.startsWith("data:") ? uri.split(",")[1] : uri
-			const cleaned = base64Data.replace(/\s/g, "")
-			const bytes = GLib.base64_decode(cleaned)
-
-			const loader = GdkPixbuf.PixbufLoader.new()
-			loader.write_bytes(bytes)
-			loader.close()
-
-			let pixbuf = loader.get_pixbuf()
-			if (!pixbuf) {
-				console.warn("textureFromUri: Failed to decode base64 data")
-				return null
-			}
-
-			if (width && height) {
-				pixbuf = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)!
-			}
-			return Gdk.Texture.new_for_pixbuf(pixbuf)
-		} catch (e) {
-			console.error(`textureFromUri: Failed to process base64 data:`, e)
-			return null
-		}
-	}
-
-	return null
-}
-
-export function fileExists(path: string) { return GLib.file_test(path, GLib.FileTest.EXISTS) }
 
 export async function wlCopy(data: string) {
 	if (!dependencies("wl-copy")) return ""
@@ -139,10 +61,37 @@ export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) 
 		widget.remove_css_class(name)
 }
 
+export function isInsideEntry(widget: Gtk.Widget | null) {
+	let current: Gtk.Widget | null = widget
+
+	while (current) {
+		if (current instanceof Gtk.Entry)
+			return true
+
+		current = current.get_parent()
+	}
+
+	return false
+}
+
+export function updateLabelTooltip(label: Gtk.Label) {
+	idle(() => {
+		if (!label.get_visible?.())
+			return
+
+		const layout = label.get_layout?.()
+		const isEllipsized = layout?.is_ellipsized?.()
+			?? (layout?.get_ellipsize?.() ?? Pango.EllipsizeMode.NONE) !== Pango.EllipsizeMode.NONE
+		const text = label.get_text?.() ?? ""
+		label.set_tooltip_text(isEllipsized ? text : null)
+	})
+}
+
 export async function notify(opts: {
 	id?: number
 	appName?: string
 	appIcon?: string
+	previewImage?: string
 	actions?: Record<string, string>
 	body?: string
 	summary?: string
@@ -150,11 +99,12 @@ export async function notify(opts: {
 	timeout?: number
 	hints?: Record<string, string>
 }) {
-	try {
+	const result = await attemptAsync(async () => {
 		const {
 			id,
 			appName = "",
 			appIcon = "",
+			previewImage = "",
 			actions = {},
 			body = "",
 			summary = "",
@@ -163,36 +113,119 @@ export async function notify(opts: {
 			hints = {},
 		} = opts
 
-		const args = []
-
-		if (id !== undefined) args.push(`-r ${id}`)
-		if (appName) args.push(`-a "${appName}"`)
-		if (appIcon) args.push(`-i "${appIcon}"`)
-		if (urgency) args.push(`-u ${urgency}`)
-		if (timeout) args.push(`-t ${timeout}`)
-		if (hints) {
-			Object.entries(hints).forEach(([key, value]) => {
-				args.push(`-h ${key}:${value}`)
-			})
+		const toHintVariant = (type: string, rawValue: string): GLib.Variant => {
+			switch (type) {
+				case "boolean":
+					return new GLib.Variant("b", rawValue === "1" || rawValue.toLowerCase() === "true")
+				case "int": {
+					const parsed = Number.parseInt(rawValue, 10)
+					return new GLib.Variant("i", Number.isFinite(parsed) ? parsed : 0)
+				}
+				case "double": {
+					const parsed = Number.parseFloat(rawValue)
+					return new GLib.Variant("d", Number.isFinite(parsed) ? parsed : 0)
+				}
+				case "byte": {
+					const parsed = Number.parseInt(rawValue, 10)
+					const bounded = Number.isFinite(parsed) ? Math.max(0, Math.min(255, parsed)) : 0
+					return new GLib.Variant("y", bounded)
+				}
+				case "string":
+				default:
+					return new GLib.Variant("s", rawValue)
+			}
 		}
-		if (summary) args.push(`"${summary}"`)
-		if (body) args.push(`"${body}"`)
 
-		if (Object.keys(actions).length > 0) {
-			Object.entries(actions).forEach(([actionName, actionText]) => {
-				args.push(`-A "${actionText}=${actionName}"`)
-			})
+		const hintTable: Record<string, GLib.Variant> = {}
+		for (const [key, value] of Object.entries(hints)) {
+			if (!key) continue
+
+			const split = key.split(":")
+			if (split.length >= 2) {
+				const type = split.shift() || "string"
+				hintTable[split.join(":")] = toHintVariant(type, value)
+			} else {
+				hintTable[key] = new GLib.Variant("s", value)
+			}
 		}
 
-		const result = await execAsync(`notify-send -p ${args.join(" ")}`)
-		const retId = Number(result.split("\n")[0])
-		if (Object.keys(actions).length > 0) {
-			execAsync(result.split("\n")[1]).catch(() => null)
+		if (previewImage)
+			hintTable["image-path"] = new GLib.Variant("s", previewImage)
+
+		hintTable["urgency"] = new GLib.Variant("y", urgency === "critical" ? 2 : urgency === "low" ? 0 : 1)
+
+		const actionList: string[] = []
+		for (const [actionLabel, actionCommand] of Object.entries(actions)) {
+			if (!actionLabel.trim() || !actionCommand.trim())
+				continue
+			actionList.push(actionCommand, actionLabel)
 		}
-		return retId
-	} catch {
+
+		const reply = await new Promise<GLib.Variant>((resolve, reject) => {
+			Gio.DBus.session.call(
+				"org.freedesktop.Notifications",
+				"/org/freedesktop/Notifications",
+				"org.freedesktop.Notifications",
+				"Notify",
+				new GLib.Variant("(susssasa{sv}i)", [
+					appName,
+					id ?? 0,
+					appIcon,
+					summary,
+					body,
+					actionList,
+					hintTable,
+					timeout ?? -1,
+				]),
+				new GLib.VariantType("(u)"),
+				Gio.DBusCallFlags.NONE,
+				-1,
+				null,
+				(conn, result) => {
+					try {
+						resolve(conn!.call_finish(result))
+					} catch (error) {
+						reject(error)
+					}
+				},
+			)
+		})
+
+		const [notificationId] = reply.recursiveUnpack() as [number]
+
+		if (actionList.length)
+			wireNotificationActions(notificationId)
+
+		return notificationId
+	})
+	if (!result.ok) {
+		console.error("notify: Failed to send notification", result.err)
 		return undefined
 	}
+	return result.value
+}
+
+function wireNotificationActions(id: number) {
+	const notifd = AstalNotifd.get_default()
+
+	const attach = (notification: AstalNotifd.Notification) => {
+		notification.connect("invoked", (_, actionId: string) => {
+			if (actionId) execAsync(actionId).catch(() => null)
+		})
+	}
+
+	const existing = notifd.get_notification(id)
+	if (existing) {
+		attach(existing)
+		return
+	}
+
+	const sub = notifd.connect("notified", (_, notifiedId: number) => {
+		if (notifiedId !== id) return
+		notifd.disconnect(sub)
+		const notification = notifd.get_notification(id)
+		if (notification) attach(notification)
+	})
 }
 
 export function toggleWindow(name: string | undefined, hide: boolean = true) {
@@ -203,6 +236,18 @@ export function toggleWindow(name: string | undefined, hide: boolean = true) {
 	} else {
 		win?.show()
 	}
+}
+
+// BUG: GTK 4.22 crashes when destroying an unmapped application window. Hide it instead;
+// windows with a surface must still be destroyed so they cannot be re-anchored.
+export function releaseMonitorWindow(win?: Gtk.Window | null) {
+	if (!win) return
+	idle(() => {
+		if (win.get_application() && !win.get_surface())
+			win.set_visible(false)
+		else
+			win.destroy()
+	})
 }
 
 export function ignoreInput(widget: Gtk.Window) {
@@ -217,7 +262,7 @@ export function onWindowToggle(name: string, callback: (w: Gtk.Window) => void) 
 	})
 }
 
-export function duration(length: number) {
+export function formatClock(length: number) {
 	const hours = Math.floor(length / 3600)
 	const minutes = Math.floor((length % 3600) / 60)
 	const seconds = Math.floor(length % 60)
@@ -230,7 +275,7 @@ export function duration(length: number) {
 		: `${minutes}:${ss}`
 }
 
-export function formatTime(time: number) {
+export function timeAgo(time: number) {
 	const now = GLib.DateTime.new_now_local()
 	const then = GLib.DateTime.new_from_unix_local(time)
 	if (!then) return ""
@@ -245,28 +290,40 @@ export function range(length: number, start = 1) {
 	return Array.from({ length }, (_, i) => i + start)
 }
 
-export function ensurePath(path: string) {
-	const isDir = path.endsWith("/")
+export type MaybeAccessor<T> = Accessor<T> | T
 
-	if (fileExists(path))
-		return
-
-	const file = Gio.File.new_for_path(path)
-
-	if (isDir) {
-		file.make_directory_with_parents(null)
-	} else {
-		const parent = file.get_parent()
-		if (parent) {
-			const parentPath = parent.get_path()
-			if (parentPath && !GLib.file_test(parentPath, GLib.FileTest.EXISTS)) {
-				parent.make_directory_with_parents(null)
-			}
-		}
-		file.create(Gio.FileCreateFlags.PRIVATE, null)
-	}
+export function isAccessor<T>(value: MaybeAccessor<T>): value is Accessor<T> {
+	return typeof value === "function" && "peek" in value
 }
 
+export function readValue<T>(value: MaybeAccessor<T>): T {
+	return isAccessor(value) ? value.peek() : value
+}
+
+export function formatDuration(seconds: number): string {
+	if (seconds === 0)
+		return ""
+
+	const days = Math.floor(seconds / (24 * 60 * 60))
+	const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60))
+	const minutes = Math.floor((seconds % (60 * 60)) / 60)
+	const secs = seconds % 60
+
+	const parts: string[] = []
+
+	if (days > 0)
+		parts.push(`${days}d`)
+
+	if (hours > 0 || days > 0)
+		parts.push(`${hours}h`)
+
+	if (minutes > 0 || hours > 0 || days > 0)
+		parts.push(`${minutes}m`)
+
+	parts.push(`${secs}s`)
+
+	return parts.join(" ")
+}
 
 export function icon(name?: string, fallback = icons.missing): string {
 	if (name && env.iconTheme.peek().has_icon(name)) {
@@ -275,15 +332,16 @@ export function icon(name?: string, fallback = icons.missing): string {
 	return fallback
 }
 
-export function dependencies(...bins: string[]) {
-	const missing: string[] = []
+const dependencyCache = new Map<string, boolean>()
 
-	bins.forEach(bin => {
-		try {
-			exec(`which ${bin}`)
-		} catch (error) {
-			missing.push(bin)
+export function dependencies(...bins: string[]) {
+	const missing = bins.filter(bin => {
+		let found = dependencyCache.get(bin)
+		if (found === undefined) {
+			found = GLib.find_program_in_path(bin) !== null
+			dependencyCache.set(bin, found)
 		}
+		return !found
 	})
 
 	if (missing.length > 0) {
@@ -292,34 +350,6 @@ export function dependencies(...bins: string[]) {
 	}
 
 	return missing.length === 0
-}
-
-export async function bash(strings: TemplateStringsArray | string, ...values: unknown[]) {
-	const cmd = typeof strings === "string" ? strings : strings
-		.flatMap((str, i) => str + `${values[i] ?? ""}`)
-		.join("")
-	return execAsync(["bash", "-c", cmd]).catch(err => {
-		console.error(cmd, err)
-		return ""
-	})
-}
-
-export function bashSync(strings: TemplateStringsArray | string, ...values: unknown[]) {
-	const cmd = typeof strings === "string" ? strings : strings
-		.flatMap((str, i) => str + `${values[i] ?? ""}`)
-		.join("")
-	try {
-		return exec(["bash", "-c", cmd])
-	} catch {
-		return ""
-	}
-}
-
-export async function sh(cmd: string | string[]) {
-	return execAsync(cmd).catch((err: unknown) => {
-		console.error(typeof cmd === "string" ? cmd : cmd.join(" "), err)
-		return ""
-	})
 }
 
 export function launchApp(app: Apps.Application | string) {

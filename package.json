@@ -3,8 +3,12 @@
     "ags": "*",
     "gnim": "*"
   },
+  "scripts": {
+    "types": "ags types -d . -u -v ."
+  },
   "prettier": {
     "semi": false,
+    "useTabs": true,
     "tabWidth": 2
   }
 }

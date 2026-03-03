@@ -1,6 +1,6 @@
 import { createBinding } from "ags"
 
-import { SimpleToggleButton } from "./shared/MenuElements"
+import { ToggleButton } from "./shared/MenuElements"
 
 import icons from "$lib/icons"
 import { notifd } from "$lib/services"
@@ -10,7 +10,7 @@ export namespace DND {
 
 	export function Toggle() {
 		return (
-			<SimpleToggleButton
+			<ToggleButton
 				iconName={dnd.as(v => v ? icons.notifications.silent : icons.notifications.noisy)}
 				label={dnd.as(v => v ? "Silent" : "Normal")}
 				toggle={() => notifd.set_dont_disturb(!notifd.get_dont_disturb())}

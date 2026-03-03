@@ -10,6 +10,7 @@ window.settings-dialog {
 
     box.pager {
       @include spacing;
+      padding: 0 var(--spacing);
 
       button {
         padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);

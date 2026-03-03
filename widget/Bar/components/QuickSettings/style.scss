@@ -302,19 +302,20 @@ window#quicksettings {
           margin: 0 calc(var(--spacing) / 2);
           trough {
             border: none;
-            min-height: 0.5em;
+            min-height: 0.45em;
+            margin-top: var(--spacing);
             margin-bottom: var(--spacing);
 
             highlight,
             progress {
-              min-height: 0.5em;
+              min-height: 0.45em;
             }
           }
 
           slider {
-            min-height: 0.6em;
-            min-width: 0.6em;
-            margin: -0.35em;
+            min-height: 0.5em;
+            min-width: 0.5em;
+            margin: 0;
           }
         }
 

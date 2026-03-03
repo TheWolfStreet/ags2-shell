@@ -1,15 +1,17 @@
 import GObject, { getter, register } from "ags/gobject"
-import { interval } from "ags/time"
 import { execAsync } from "ags/process"
+import { interval } from "ags/time"
 
 import AstalIO from "gi://AstalIO"
 import GLib from "gi://GLib"
 
 import env from "$lib/env"
-import { bash, dependencies, ensurePath, notify } from "$lib/utils"
+import { attemptAsync } from "$lib/result"
+import { ensurePath } from "$lib/files"
+import { dependencies, notify } from "$lib/utils"
 import icons from "$lib/icons"
 
-const now = () => GLib.DateTime.new_now_local().format("%Y-%m-%d_%H-%M-%S")
+const createCaptureTimestamp = () => GLib.DateTime.new_now_local().format("%Y-%m-%d_%H-%M-%S")
 
 @register()
 export default class Capturer extends GObject.Object {
@@ -25,8 +27,8 @@ export default class Capturer extends GObject.Object {
 	#interval: AstalIO.Time
 	#recording: boolean
 	#timer: number
-	recFile: string
-	scrFile: string
+	#recordingFile: string
+	#screenshotFile: string
 
 	constructor() {
 		super()
@@ -36,8 +38,8 @@ export default class Capturer extends GObject.Object {
 		this.#interval = new AstalIO.Time()
 		this.#recording = false
 		this.#timer = 0
-		this.recFile = ""
-		this.scrFile = ""
+		this.#recordingFile = ""
+		this.#screenshotFile = ""
 	}
 
 	@getter(Number)
@@ -50,43 +52,83 @@ export default class Capturer extends GObject.Object {
 		return this.#recording
 	}
 
+	readonly #getFocusedMonitor = async () => {
+		if (!dependencies("hyprctl")) return null
+		const result = await attemptAsync(async () => {
+			const monitors = JSON.parse(await execAsync(["hyprctl", "monitors", "-j"]))
+			return Array.isArray(monitors) ? monitors.find((m: any) => m?.focused) ?? null : null
+		})
+		return result.ok ? result.value : null
+	}
+
+	readonly #getFocusedScreenArea = async () => {
+		const focused = await this.#getFocusedMonitor()
+		if (!focused) return ""
+		const x = Number(focused.x)
+		const y = Number(focused.y)
+		const width = Number(focused.width)
+		const height = Number(focused.height)
+		if (![x, y, width, height].every(Number.isFinite)) return ""
+		return `${x},${y} ${width}x${height}`
+	}
+
+	readonly #getFocusedOutputName = async () => {
+		const focused = await this.#getFocusedMonitor()
+		const name = focused?.name
+		return typeof name === "string" ? name : ""
+	}
+
 	readonly screenshot = async (select = false) => {
-		try {
+		const result = await attemptAsync(async () => {
 			ensurePath(this.#screenshots)
-			this.scrFile = `${this.#screenshots}${now()}.png`
+			this.#screenshotFile = `${this.#screenshots}${createCaptureTimestamp()}.png`
 
-			const area = await this.prepare_capture(select, "wayshot")
-			if (select && !area) return
+			if (select) {
+				const area = await this.#prepareCapture(true, "grim")
+				if (!area) return
+				await execAsync(["grim", "-g", area, this.#screenshotFile])
+			} else {
+				if (!dependencies("grim")) return
+				const focusedOutput = await this.#getFocusedOutputName()
+				const args = ["grim"]
+				if (focusedOutput)
+					args.push("-o", focusedOutput)
+				args.push(this.#screenshotFile)
+				await execAsync(args)
+			}
 
-			await execAsync(`wayshot -f "${this.scrFile}"${area ? ` -s "${area}"` : ""}`)
-			bash(`wl-copy < "${this.scrFile}"`)
+			execAsync(["bash", "-c", `wl-copy --type image/png < "${this.#screenshotFile}"`]).catch(() => null)
 
 			notify({
 				appIcon: icons.fallback.image,
 				appName: "Screenshot",
 				summary: "Screenshot taken",
-				body: this.scrFile,
-				hints: { "string:image-path": this.scrFile },
+				body: this.#screenshotFile,
+				previewImage: this.#screenshotFile,
 				actions: {
 					"Show in Files": `bash -c 'xdg-open "${this.#screenshots}"'`,
-					"View": `bash -c 'xdg-open "${this.scrFile}"'`,
-					"Edit": `swappy -f "${this.scrFile}"`,
+					"View": `bash -c 'xdg-open "${this.#screenshotFile}"'`,
+					"Edit": `swappy -f "${this.#screenshotFile}"`,
 				},
 			})
-		} catch (e) {
-			console.error("Failed to take screenshot:", e)
-		}
+		})
+		if (!result.ok)
+			console.error("capturer.screenshot: Failed to take screenshot", result.err)
 	}
 
 	readonly startRecord = async (select: boolean = false) => {
-		try {
+		const result = await attemptAsync(async () => {
 			ensurePath(this.#recordings)
-			this.recFile = `"${this.#recordings}${now()}.mkv"`
+			this.#recordingFile = `${this.#recordings}${createCaptureTimestamp()}.mkv`
 
-			const area = await this.prepare_capture(select, "wf-recorder").then(o => o && `-g "${o}"`)
+			const area = await this.#prepareCapture(select, "wf-recorder")
 			if (select && !area) return
 
-			execAsync(`wf-recorder ${area} -f ${this.recFile} --pixel-format yuv420p`)
+			const args = ["wf-recorder"]
+			if (area)
+				args.push("-g", area)
+			args.push("-f", this.#recordingFile, "--pixel-format", "yuv420p")
+			void execAsync(args)
 
 			this.#recording = true
 			this.notify("recording")
@@ -96,17 +138,17 @@ export default class Capturer extends GObject.Object {
 				this.notify("timer")
 				this.#timer++
 			})
-		} catch (e) {
-			console.error("Failed to start recording:", e)
-		}
+		})
+		if (!result.ok)
+			console.error("capturer.startRecord: Failed to start recording", result.err)
 	}
 
 	readonly stopRecord = async () => {
-		try {
+		const result = await attemptAsync(async () => {
 			if (!this.#recording)
 				return
 
-			await bash("pkill --signal SIGINT wf-recorder").catch(() => null)
+			await execAsync(["pkill", "--signal", "SIGINT", "wf-recorder"]).catch(() => null)
 			this.#recording = false
 			this.notify("recording")
 			this.#interval.cancel()
@@ -115,24 +157,26 @@ export default class Capturer extends GObject.Object {
 				appIcon: icons.fallback.video,
 				appName: "Recorder",
 				summary: "Recording saved",
-				body: `${this.recFile}`,
+				body: this.#recordingFile,
 				actions: {
 					"Show in Files": `bash -c 'xdg-open "${this.#recordings}"'`,
-					"View": `bash -c 'xdg-open "${this.recFile}"'`,
+					"View": `bash -c 'xdg-open "${this.#recordingFile}"'`,
 				},
 			})
-		} catch (e) {
-			console.error("Failed to stop recording:", e)
-		}
+		})
+		if (!result.ok)
+			console.error("capturer.stopRecord: Failed to stop recording", result.err)
 	}
 
-	private readonly prepare_capture = async (select: boolean, mainTool: string) => {
+	readonly #prepareCapture = async (select: boolean, mainTool: string) => {
 		if (select) {
 			const slurpRunning = await execAsync(["pidof", "slurp"]).catch(() => "")
 			if (slurpRunning) return null
 			if (!dependencies(mainTool, "slurp")) return null
 			return await execAsync(["slurp"]).catch(() => "") || null
-		} else if (!dependencies(mainTool)) return ""
-		return ""
+		}
+
+		if (!dependencies(mainTool)) return ""
+		return await this.#getFocusedScreenArea()
 	}
 }

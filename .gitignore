@@ -1,4 +1,5 @@
 @girs/
+.config/ags/@girs/
 node_modules/
 result
 .ags-build.scss

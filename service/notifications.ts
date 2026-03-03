@@ -1,11 +1,19 @@
-import GObject, { register, getter, property } from "ags/gobject"
+import GObject, { getter, property, register } from "ags/gobject"
 import { timeout } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
+import Gio from "gi://Gio"
+import GLib from "gi://GLib"
 
+import { attempt } from "$lib/result"
 import options from "options"
 
-const MAX_NOTIFICATIONS = 50
+const DISPLAY_LIMIT = 50
+const PERSIST_KEEP = 50
+const PERSIST_TRIGGER = 75
+const PRUNE_BUDGET = 8
+const COALESCE_MS = 16
+const PRUNE_DELAY_MS = 250
 
 @register()
 export default class NotificationManager extends GObject.Object {
@@ -17,8 +25,11 @@ export default class NotificationManager extends GObject.Object {
 	}
 
 	#notifd: AstalNotifd.Notifd
-	#notifications: Array<AstalNotifd.Notification>
-	#notifyHandler: number
+	#storeHandlers: number[]
+	#coalesceSourceId: number | null
+	#pruneSourceId: number | null
+
+	readonly sessionStart: number
 
 	@property(Boolean) dismissingAll: boolean
 	@property(Boolean) popupHovered: boolean
@@ -27,42 +38,63 @@ export default class NotificationManager extends GObject.Object {
 		super()
 
 		this.#notifd = AstalNotifd.get_default()
-		this.#notifications = []
+		this.#storeHandlers = []
+		this.#coalesceSourceId = null
+		this.#pruneSourceId = null
+		this.sessionStart = Math.floor(Date.now() / 1000)
 		this.dismissingAll = false
 		this.popupHovered = false
 
-		this.#notifyHandler = this.#notifd.connect("notified", (_: AstalNotifd.Notifd, id: number, replaced: boolean) => {
-			const notification = this.#notifd.get_notification(id)
-			if (!notification) return
+		this.#storeHandlers.push(
+			this.#notifd.connect("notified", () => this.#onStoreChanged()),
+			this.#notifd.connect("resolved", () => this.#onStoreChanged()),
+		)
 
-			const blacklist = options.notifications.blacklist.peek() || []
-			const appName = notification.get_app_name() || notification.get_desktop_entry()
+		this.#schedulePrune()
+		timeout(5000, () => this.#warnIfNotDaemonOwner())
+	}
 
-			if (blacklist.includes(appName)) return
+	#warnIfNotDaemonOwner() {
+		const result = attempt(() => {
+			const conn = Gio.DBus.session
+			const reply = conn.call_sync(
+				"org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+				"GetNameOwner", GLib.Variant.new_tuple([GLib.Variant.new_string("org.freedesktop.Notifications")]),
+				new GLib.VariantType("(s)"), Gio.DBusCallFlags.NONE, 1000, null,
+			)
+			const [owner] = reply.recursiveUnpack() as [string]
+			if (owner !== conn.get_unique_name())
+				console.warn(`notifications: org.freedesktop.Notifications is owned by ${owner}, not this shell (${conn.get_unique_name()}) — a squatting process will steal notifications and desync the list`)
+		})
+		if (!result.ok)
+			console.debug("notifications: could not verify daemon bus ownership", result.err)
+	}
 
-			if (replaced && this.#notifications.some(n => n.id === id)) {
-				this.#notifications = this.#notifications.map(n => n.id === id ? notification : n)
-			} else {
-				this.#notifications = [notification, ...this.#notifications].slice(0, MAX_NOTIFICATIONS)
-			}
+	#onStoreChanged() {
+		this.#schedulePrune()
 
+		if (this.#coalesceSourceId !== null)
+			return
+
+		this.#coalesceSourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, COALESCE_MS, () => {
+			this.#coalesceSourceId = null
 			this.notify("notifications")
+			return GLib.SOURCE_REMOVE
 		})
 	}
 
 	@getter(Array)
 	get notifications(): Array<AstalNotifd.Notification> {
-		return this.#notifications
-	}
-
-	removeNotification(id: number) {
-		this.#notifications = this.#notifications.filter(n => n.id !== id)
-		this.notify("notifications")
+		const blacklist = options.notifications.blacklist.peek() || []
+		return this.#notifd.get_notifications()
+			.filter(n => !blacklist.includes(n.get_app_name() || n.get_desktop_entry()))
+			.sort((a, b) => b.time - a.time)
+			.slice(0, DISPLAY_LIMIT)
 	}
 
 	clearAll() {
-		this.#notifications = []
-		this.notify("notifications")
+		for (const n of this.#notifd.get_notifications())
+			n.dismiss()
 	}
 
 	dismissAll(transitionDuration: number, maxStaggerDelay: number) {
@@ -81,11 +113,45 @@ export default class NotificationManager extends GObject.Object {
 		this.#notifd.set_dont_disturb(value)
 	}
 
+	#schedulePrune() {
+		if (this.#pruneSourceId !== null)
+			return
+
+		this.#pruneSourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, PRUNE_DELAY_MS, () => {
+			this.#pruneSourceId = null
+			this.#prune()
+			return GLib.SOURCE_REMOVE
+		})
+	}
+
+	#prune() {
+		const all = this.#notifd.get_notifications()
+		if (all.length <= PERSIST_TRIGGER)
+			return
+
+		const oldest = all.slice().sort((a, b) => a.time - b.time).slice(0, all.length - PERSIST_KEEP)
+		for (const n of oldest.slice(0, PRUNE_BUDGET))
+			n.dismiss()
+
+		if (oldest.length > PRUNE_BUDGET)
+			this.#schedulePrune()
+	}
+
 	vfunc_finalize() {
-		if (this.#notifyHandler) {
-			this.#notifd.disconnect(this.#notifyHandler)
+		if (this.#coalesceSourceId !== null) {
+			GLib.Source.remove(this.#coalesceSourceId)
+			this.#coalesceSourceId = null
 		}
-		this.#notifications = []
+
+		if (this.#pruneSourceId !== null) {
+			GLib.Source.remove(this.#pruneSourceId)
+			this.#pruneSourceId = null
+		}
+
+		for (const handler of this.#storeHandlers)
+			this.#notifd.disconnect(handler)
+		this.#storeHandlers = []
+
 		super.vfunc_finalize()
 	}
 }

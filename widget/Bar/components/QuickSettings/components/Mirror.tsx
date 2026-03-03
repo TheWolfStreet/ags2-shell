@@ -1,13 +1,14 @@
 import { Gtk } from "ags/gtk4"
-import { exec } from "ags/process"
+import { execAsync } from "ags/process"
 import { createState, onCleanup, For } from "ags"
 
 import AstalHyprland from "gi://AstalHyprland"
 
 import { Placeholder } from "widget/shared/Placeholder"
-import { ArrowToggleButton, set_opened, opened, Menu } from "./shared/MenuElements"
+import { ToggleButton, Menu, quickSettingsMenu } from "./shared/MenuElements"
 
 import icons from "$lib/icons"
+import { attemptAsync } from "$lib/result"
 import { hypr } from "$lib/services"
 
 import options from "options"
@@ -16,59 +17,69 @@ const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { NEVER } = Gtk.PolicyType
 
+type MirrorAwareMonitor = AstalHyprland.Monitor & {
+	mirrorOf?: string | null
+}
+
 export namespace Mirror {
-	function getMonitors() {
-		try {
-			return (JSON.parse(exec("hyprctl monitors all -j")) as AstalHyprland.Monitor[]).filter(m => m.id !== 0)
-		} catch (error) {
-			console.error("Error fetching monitors:", error)
+	async function getMonitors(): Promise<AstalHyprland.Monitor[]> {
+		const result = await attemptAsync(async () =>
+			(JSON.parse(await execAsync(["hyprctl", "monitors", "all", "-j"])) as AstalHyprland.Monitor[]).filter(m => m.id !== 0))
+		if (!result.ok) {
+			console.error("Error fetching monitors:", result.err)
 			return []
 		}
+		return result.value
 	}
 
 	function Entry({ monitor, update }: { monitor: AstalHyprland.Monitor, update: () => void }) {
-		// @ts-ignore: NOTE: A hacky way tracking mirroring in the existing type
-		const mirrored = monitor.mirrorOf == "none"
+		const mirrorOf = (monitor as MirrorAwareMonitor).mirrorOf
+		const canEnableMirror = (mirrorOf ?? "none") === "none"
 
 		return (
 			<button
 				onClicked={() => {
-					const command = `keyword monitor ${monitor.name}, highres, auto, 1${mirrored ? `, mirror, ${hypr?.get_monitor(0).name}` : ''}`
+					const primaryMonitorName = hypr.get_monitor(0)?.name
+					const mirrorSuffix = canEnableMirror && primaryMonitorName
+						? `, mirror, ${primaryMonitorName}`
+						: ""
+					const command = `keyword monitor ${monitor.name}, highres, auto, 1${mirrorSuffix}`
 					hypr.message_async(command, null)
 					update()
 				}}
 			>
 				<box class="mirror-item horizontal">
 					<image iconName={icons.ui.projector} pixelSize={16} />
-					<label label={`${monitor.model} (${monitor.name}) ${mirrored ? "" : "(Mirrored)"}`} />
+					<label label={`${monitor.model} (${monitor.name}) ${canEnableMirror ? "" : "(Mirrored)"}`} />
 				</box>
 			</button>
 		)
 	}
 
-	const [monitors, set_monitors] = createState(getMonitors())
+	const [monitors, set_monitors] = createState<AstalHyprland.Monitor[]>([])
+	void getMonitors().then(set_monitors)
 
 	export function Toggle() {
 		return (
-			<ArrowToggleButton
+			<ToggleButton
+				arrow
 				name="mirror-selector"
 				iconName={icons.ui.projector}
 				label={"Mirror"}
-				activate={() => set_opened("mirror-selector")}
-				connection={opened.as(v => v == "mirror-selector")}
+				activate={() => quickSettingsMenu.open("mirror-selector")}
+				connection={quickSettingsMenu.opened.as(v => v === "mirror-selector")}
 			/>
 		)
 	}
 
 	export function Selector() {
+		const refresh = () => void getMonitors().then(set_monitors)
 		const ids = [
-			hypr.connect("monitor-added", () => set_monitors(getMonitors())),
-			hypr.connect("monitor-removed", () => set_monitors(getMonitors()))
+			hypr.connect("monitor-added", refresh),
+			hypr.connect("monitor-removed", refresh),
 		]
 
-		onCleanup(() => {
-			ids.forEach(id => hypr.disconnect(id));
-		})
+		onCleanup(() => ids.forEach(id => hypr.disconnect(id)))
 
 		const hasMonitors = monitors.as(ms => ms.length > 0)
 		return (
@@ -92,7 +103,7 @@ export namespace Mirror {
 									{(monitor) => (
 										<Entry
 											monitor={monitor}
-											update={() => { set_monitors(getMonitors()) }}
+											update={refresh}
 										/>
 									)}
 								</For>
@@ -104,4 +115,3 @@ export namespace Mirror {
 		)
 	}
 }
-

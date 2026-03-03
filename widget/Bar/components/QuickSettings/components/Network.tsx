@@ -2,15 +2,16 @@ import app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 import { timeout } from "ags/time"
 import { createBinding, With, For, createComputed, createState } from "ags"
+import { execAsync } from "ags/process"
 
 import AstalNetwork from "gi://AstalNetwork"
 
 import { Placeholder } from "widget/shared/Placeholder"
-import { ArrowToggleButton, Menu, Settings } from "./shared/MenuElements"
+import { ToggleButton, Menu, Settings } from "./shared/MenuElements"
 
 import icons from "$lib/icons"
+import { attempt } from "$lib/result"
 import { net } from "$lib/services"
-import { bash } from "$lib/utils"
 
 import options from "options"
 
@@ -72,14 +73,14 @@ export namespace Network {
 		}
 
 		export function Toggle() {
-			// TODO: Monitor mode tracking
 			const wifi = createBinding(net, "wifi")
 			return (
 				<With value={wifi}>
 					{w => {
-						if (!w) return <ArrowToggleButton name="wifi-selector" iconName={icons.wifi.offline} label={"No device"} />
+						if (!w) return <ToggleButton arrow name="wifi-selector" iconName={icons.wifi.offline} label={"No device"} />
 						return (
-							<ArrowToggleButton
+							<ToggleButton
+								arrow
 								name="wifi-selector"
 								iconName={createBinding(w, "iconName")}
 								label={
@@ -121,7 +122,22 @@ export namespace Network {
 									)
 
 								const aps = createBinding(wifi, "accessPoints")
-									.as(aps => aps.filter(ap => ap.ssid).sort((a, b) => b.strength - a.strength))
+									.as(aps => {
+										const best = new Map()
+
+										for (const ap of aps) {
+											if (!ap.ssid) continue
+
+											const prev = best.get(ap.ssid)
+											if (!prev || ap.strength > prev.strength) {
+												best.set(ap.ssid, ap)
+											}
+										}
+
+										return Array.from(best.values())
+											.sort((a, b) => b.strength - a.strength)
+									})
+
 								const hasAps = aps.as(aps => aps.length > 0)
 
 								return (
@@ -140,7 +156,7 @@ export namespace Network {
 											</Gtk.ScrolledWindow>
 										</revealer>
 										<Gtk.Separator />
-										<Settings callback={() => bash`XDG_CURRENT_DESKTOP=GNOME gnome-control-center wifi`} />
+										<Settings callback={() => void execAsync(["env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center", "wifi"])} />
 									</box>
 								)
 							}}
@@ -152,7 +168,7 @@ export namespace Network {
 
 		export function Window() {
 			const handleConnect = async () => {
-				if (!currentAp) return
+				if (!currentAp.peek()) return
 
 				setIsConnecting(true)
 
@@ -161,17 +177,16 @@ export namespace Network {
 					stateChangedId = null
 				}
 
-				try {
+				const result = attempt(() => {
 					currentAp.peek()?.activate(password.peek() || null, null)
 					const win = app.get_window("wifi-auth")
 					win?.hide()
 					setPassword("")
 					setCurrentAp(null)
-				} catch (error) {
-					console.error("Failed to connect to WiFi:", error)
-				} finally {
-					setIsConnecting(false)
-				}
+				})
+				if (!result.ok)
+					console.error("Failed to connect to WiFi:", result.err)
+				setIsConnecting(false)
 			}
 
 			const handleCancel = () => {

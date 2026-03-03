@@ -16,50 +16,10 @@ const { CROSSFADE } = Gtk.RevealerTransitionType
 const { VERTICAL, HORIZONTAL } = Gtk.Orientation
 const { layout, labels } = options.powermenu
 
-type ActionType = "sleep" | "reboot" | "logout" | "shutdown"
-
-const [cmd, set_cmd] = createState("")
-const [title, set_title] = createState("")
-
-const actionMap: Record<ActionType, [string, string]> = {
-	sleep: ["systemctl suspend", "Sleep"],
-	reboot: ["systemctl reboot", "Reboot"],
-	logout: ["hyprctl dispatch exit", "Log Out"],
-	shutdown: ["shutdown now", "Shutdown"],
-}
-
 export namespace Power {
-	function Action({ action, label, onSelect }: { action: ActionType, label: string, onSelect: (a: ActionType) => void }) {
-		return (
-			<button onClicked={() => onSelect(action)}>
-				<box orientation={VERTICAL}>
-					<image iconName={icons.powermenu[action]} useFallback pixelSize={52} />
-					<label label={label} visible={labels} />
-				</box>
-			</button>
-		)
-	}
-
-	export function selAction(action: ActionType) {
-		if (!app.get_window("verification")?.is_visible()) {
-			const [command, windowTitle] = actionMap[action]
-			set_cmd(command)
-			set_title(windowTitle)
-			toggleWindow("verification")
-		}
-	}
-
-	export function Button() {
-		return (
-			<PanelButton onClicked={() => toggleWindow("powermenu")}>
-				<image iconName={icons.powermenu.shutdown} useFallback />
-			</PanelButton>
-		)
-	}
-
 	export function Window() {
 		return (
-			<PopupWindow name="powermenu" transitionType={CROSSFADE} anchor={undefined} application={app}>
+			<PopupWindow name="powermenu" transitionType={CROSSFADE} application={app}>
 				<box class={layout.as(v => `powermenu horizontal ${v}`)}>
 					<With value={layout}>
 						{(v: string) => {
@@ -94,6 +54,14 @@ export namespace Power {
 		)
 	}
 
+	export function selAction(action: ActionType) {
+		if (!app.get_window("verification")?.is_visible()) {
+			setCmd(String(options.powermenu[action].peek()))
+			setTitle(actionTitles[action])
+			toggleWindow("verification")
+		}
+	}
+
 	export function VerificationModal() {
 		return (
 			<PopupWindow name="verification" class="verification" transitionType={CROSSFADE} anchor={undefined} application={app}>
@@ -121,6 +89,37 @@ export namespace Power {
 					</box>
 				</box>
 			</PopupWindow>
+		)
+	}
+
+	export function Button() {
+		return (
+			<PanelButton onClicked={() => toggleWindow("powermenu")}>
+				<image iconName={icons.powermenu.shutdown} useFallback />
+			</PanelButton>
+		)
+	}
+
+	type ActionType = "sleep" | "reboot" | "logout" | "shutdown"
+
+	const [cmd, setCmd] = createState("")
+	const [title, setTitle] = createState("")
+
+	const actionTitles: Record<ActionType, string> = {
+		sleep: "Sleep",
+		reboot: "Reboot",
+		logout: "Log Out",
+		shutdown: "Shutdown",
+	}
+
+	function Action({ action, label, onSelect }: { action: ActionType, label: string, onSelect: (a: ActionType) => void }) {
+		return (
+			<button onClicked={() => onSelect(action)}>
+				<box orientation={VERTICAL}>
+					<image iconName={icons.powermenu[action]} useFallback pixelSize={52} />
+					<label label={label} visible={labels} />
+				</box>
+			</button>
 		)
 	}
 }

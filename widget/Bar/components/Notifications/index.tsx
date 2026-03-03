@@ -1,4 +1,4 @@
-import { Accessor, createState, createBinding, For, onCleanup } from "ags"
+import { Accessor, createState, createBinding, createComputed, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 import { timeout, Timer } from "ags/time"
@@ -9,29 +9,87 @@ import Pango from "gi://Pango"
 import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
-import icons from "$lib/icons"
-import { fileExists, formatTime, textureFromFile, toggleWindow } from "$lib/utils"
-import { notifications as notificationManager } from "$lib/services"
+import icons, { getIcon } from "$lib/icons"
+import { timeAgo, toggleWindow } from "$lib/utils"
+import { isDataImageUri, textureFromUriSquareContainAsync } from "$lib/textures"
+import { notifications as manager } from "$lib/services"
 
 import options from "options"
 
-const { COVER } = Gtk.ContentFit
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
+const { WORD } = Gtk.WrapMode
 const { SLIDE_DOWN, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
-const { EXCLUSIVE } = Astal.Exclusivity
-const { TOP, RIGHT } = Astal.WindowAnchor
+const { EllipsizeMode } = Pango
+const { NORMAL } = Astal.Exclusivity
+const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor
 
 export namespace Notifications {
-	const manager = notificationManager
+	type EntryIndex = Accessor<number> | number | undefined
+
+	type NotificationProps = {
+		entry: AstalNotifd.Notification
+		widthRequest?: Accessor<number> | number
+		persistent?: boolean
+		index?: EntryIndex
+	}
+
+	type EntryState = {
+		notification: AstalNotifd.Notification
+		persistent: boolean
+		index: EntryIndex
+		visibility: VisibilityController
+	}
+
+	type VisibilityController = {
+		value: Accessor<boolean>
+		show: () => void
+		hide: () => void
+	}
+
+	type HeaderProps = {
+		notification: AstalNotifd.Notification
+		appIcon: string
+		appName: string
+		showActions: Accessor<boolean>
+		onDismiss: () => void
+	}
+
+	type ContentProps = {
+		notification: AstalNotifd.Notification
+		imagePath: string | null
+	}
+
+	type ActionsProps = {
+		actions: Array<{ label: string, id: string }>
+		showActions: Accessor<boolean>
+		onActionClick: (actionId: string) => void
+	}
+
 	const notifications = createBinding(manager, "notifications")
 	const dismissingAll = createBinding(manager, "dismissingAll")
 	const popupHovered = createBinding(manager, "popupHovered")
 
-	export const current = notifications
-
 	function staggerDelay(index: number) {
 		return index * 50 + Math.random() * 100
+	}
+
+	function anchorForPosition(position: string) {
+		switch (position) {
+			case "top-left":
+				return TOP | LEFT
+			case "top-center":
+				return TOP
+			case "bottom-left":
+				return BOTTOM | LEFT
+			case "bottom-center":
+				return BOTTOM
+			case "bottom-right":
+				return BOTTOM | RIGHT
+			case "top-right":
+			default:
+				return TOP | RIGHT
+		}
 	}
 
 	function maxStaggerDelay() {
@@ -39,190 +97,297 @@ export namespace Notifications {
 		return count > 0 ? count * 50 + 100 : 0
 	}
 
-	export function dismissAll() {
-		manager.dismissAll(options.transition.duration.peek(), maxStaggerDelay())
+	function isPreviewImage(value: string | null): value is string {
+		if (!value) return false
+		return (
+			value.startsWith("/")
+			|| value.startsWith("file://")
+			|| value.startsWith("http://")
+			|| value.startsWith("https://")
+			|| isDataImageUri(value)
+		)
 	}
 
-	export function urgency(n: AstalNotifd.Notification): string {
-		const { LOW, CRITICAL } = AstalNotifd.Urgency
-		switch (n.urgency) {
-			case LOW: return "low"
-			case CRITICAL: return "critical"
-			default: return "normal"
+	function resolveEntryIndex(index: EntryIndex) {
+		if (index === undefined) return undefined
+		return typeof index === "function" ? index.peek() : index
+	}
+
+	function createVisibilityController(initial = false): VisibilityController {
+		const [value, setValue] = createState(initial)
+
+		return {
+			value,
+			show: () => setValue(true),
+			hide: () => setValue(false),
 		}
 	}
 
-	function Entry({ entry: notification, widthRequest, persistent, index }: {
-		entry: AstalNotifd.Notification,
-		widthRequest?: Accessor<number> | number,
-		persistent?: boolean,
-		index?: Accessor<number> | number
-	}) {
-		const [visible, set_visible] = createState(false)
-		const [showActions, set_showActions] = createState(false)
+	function createEntryState({ notification, persistent, index, visibility }: EntryState) {
+		let autoHide: Timer | undefined
+		let pendingAction: (() => void) | undefined
+		let mounted: boolean = false
 
-		let autoHideTimer: Timer | undefined
-		let mounted = false
+		const unsetAutoHide = () => {
+			if (!autoHide)
+				return
 
-		const clearTimer = () => {
-			if (autoHideTimer) {
-				autoHideTimer.cancel()
-				autoHideTimer = undefined
-			}
+			autoHide.cancel()
+			autoHide = undefined
 		}
 
-		const getIndex = () => {
-			if (index === undefined) return undefined
-			return typeof index === "function" ? index.peek() : index
-		}
+		const scheduleAutoHide = (stagger = false) => {
+			if (persistent)
+				return
 
-		const scheduleAutoHide = (stagger: boolean = false) => {
-			if (persistent) return
-			clearTimer()
-			const idx = getIndex()
+			unsetAutoHide()
+			const idx = resolveEntryIndex(index)
 			const delay = options.notifications.dismiss.peek() + (stagger && idx !== undefined ? staggerDelay(idx) : 0)
-			autoHideTimer = timeout(delay, () => {
+			autoHide = timeout(delay, () => {
 				if (!popupHovered.peek()) {
-					set_visible(false)
+					visibility.hide()
 				}
-				autoHideTimer = undefined
+				autoHide = undefined
 			})
 		}
 
-		let pendingAction: (() => void) | undefined
+		const queuePendingAction = (action: () => void) => {
+			unsetAutoHide()
+			pendingAction = action
+			visibility.hide()
+		}
 
 		const dismiss = () => {
-			clearTimer()
-			pendingAction = () => {
-				manager.removeNotification(notification.id)
+			queuePendingAction(() => {
 				notification.dismiss()
-			}
-			set_visible(false)
+			})
 		}
 
 		const onActionClick = (actionId: string) => {
-			clearTimer()
-			pendingAction = () => {
-				manager.removeNotification(notification.id)
+			queuePendingAction(() => {
 				notification.invoke(actionId)
-			}
-			set_visible(false)
+				notification.dismiss()
+			})
 		}
 
-		const dismissSub = dismissingAll.subscribe(() => {
-			const idx = getIndex()
+		const onDismissAllChanged = () => {
+			const idx = resolveEntryIndex(index)
 			if (dismissingAll.peek() && idx !== undefined) {
-				timeout(staggerDelay(idx), () => set_visible(false))
+				timeout(staggerDelay(idx), () => visibility.hide())
 			}
+		}
+
+		const onPopupHoveredChanged = () => {
+			if (persistent)
+				return
+
+			if (popupHovered.peek()) {
+				unsetAutoHide()
+			} else if (visibility.value.peek()) {
+				scheduleAutoHide(true)
+			}
+		}
+
+		const isFresh = persistent || notification.time >= manager.sessionStart
+
+		const onMap = () => {
+			if (!mounted && isFresh && (!manager.dontDisturb || persistent)) {
+				visibility.show()
+				mounted = true
+				scheduleAutoHide()
+			}
+		}
+
+		const onChildRevealed = (isRevealChild: boolean) => {
+			if (!isRevealChild && pendingAction) {
+				pendingAction()
+				pendingAction = undefined
+			}
+		}
+
+		const cleanup = () => {
+			unsetAutoHide()
+		}
+
+		return {
+			dismiss,
+			onActionClick,
+			onDismissAllChanged,
+			onPopupHoveredChanged,
+			onMap,
+			onChildRevealed,
+			cleanup,
+		}
+	}
+
+	const URGENCY_CLASS: Record<number, string> = {
+		[AstalNotifd.Urgency.LOW]: "low",
+		[AstalNotifd.Urgency.CRITICAL]: "critical",
+	}
+
+	function urgency(n: AstalNotifd.Notification): string {
+		return URGENCY_CLASS[n.urgency] ?? "normal"
+	}
+
+
+	function Header({ notification, appIcon, appName, showActions, onDismiss }: HeaderProps) {
+		return (
+			<box class="header">
+				<image class="app-icon" iconName={appIcon} useFallback />
+				<label class="app-name" halign={START} maxWidthChars={24} ellipsize={EllipsizeMode.END} useMarkup label={appName} />
+				<label class="time" halign={END} hexpand label={env.uptime(() => timeAgo(notification.time))} />
+				<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
+					<button class="close-button" onClicked={onDismiss}>
+						<image iconName={icons.ui.close} halign={CENTER} valign={CENTER} useFallback />
+					</button>
+				</revealer>
+			</box>
+		)
+	}
+
+	function Content({ notification, imagePath }: ContentProps) {
+		const previewPaintable = imagePath ? textureFromUriSquareContainAsync(imagePath, 75) : null
+
+		return (
+			<box class="content">
+				{previewPaintable && (
+					<box class="image-preview" widthRequest={75} heightRequest={75}>
+						<Gtk.Picture
+							class="preview"
+							widthRequest={75}
+							heightRequest={75}
+							halign={CENTER}
+							valign={CENTER}
+							paintable={previewPaintable as unknown as Accessor<Gdk.Paintable>}
+						/>
+					</box>
+				)}
+				<box orientation={VERTICAL}>
+					<label class="summary" wrap wrapMode={WORD} maxWidthChars={28} halign={START} label={notification.summary} />
+					{notification.body && (
+						<label class="body" wrap wrapMode={WORD} maxWidthChars={28} halign={START} useMarkup label={notification.body} />
+					)}
+				</box>
+			</box>
+		)
+	}
+
+	function Actions({ actions, showActions, onActionClick }: ActionsProps) {
+		if (actions.length === 0)
+			return <box visible={false} />
+
+		return (
+			<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_DOWN}>
+				<box class="actions horizontal">
+					{actions.map(({ label, id }) => (
+						<button hexpand label={label} onClicked={() => onActionClick(id)} />
+					))}
+				</box>
+			</revealer>
+		)
+	}
+
+	function Notification({ entry: notification, widthRequest, persistent, index }: NotificationProps) {
+		const visibility = createVisibilityController(false)
+		const [showActions, setShowActions] = createState(false)
+
+		const state = createEntryState({
+			notification,
+			persistent: persistent ?? false,
+			index,
+			visibility,
 		})
 
-		const hoverSub = popupHovered.subscribe(() => {
-			if (!persistent) {
-				if (popupHovered.peek()) {
-					clearTimer()
-				} else if (visible.peek()) {
-					scheduleAutoHide(true)
-				}
-			}
-		})
+		const dismissSub = dismissingAll.subscribe(state.onDismissAllChanged)
+		const hoverSub = popupHovered.subscribe(state.onPopupHoveredChanged)
 
 		onCleanup(() => {
 			dismissSub()
 			hoverSub()
-			clearTimer()
+			state.cleanup()
 		})
 
-		const appIcon = notification.appIcon || notification.desktopEntry || icons.fallback.notification
-		const appName = (notification.appName || notification.desktopEntry || "Notification").toUpperCase()
-		const hasImage = notification.get_image() && fileExists(notification.get_image())
-		const validActions = notification.get_actions().filter(a => a.label?.trim())
+		const imageValue = notification.get_image()
+		const imagePath = isPreviewImage(imageValue) ? imageValue : null
+		const appIcon = getIcon(
+			notification.get_app_icon() || (imageValue && !imagePath ? imageValue : "") || notification.get_desktop_entry() || icons.fallback.notification,
+			icons.fallback.notification,
+		)
+		const appName = (notification.get_app_name() || notification.get_desktop_entry() || "Notification").toUpperCase()
+		const validActions = notification
+			.get_actions()
+			.filter(a => a.label?.trim())
+			.map(a => ({ label: a.label!, id: a.id }))
 
 		return (
 			<revealer
-				revealChild={visible}
+				revealChild={visibility.value}
 				transitionDuration={options.transition.duration}
 				transitionType={SLIDE_DOWN}
-				onMap={() => {
-					if (!mounted && (!manager.dontDisturb || persistent)) {
-						set_visible(true)
-						mounted = true
-						if (!persistent) scheduleAutoHide()
-					}
-				}}
+				onMap={state.onMap}
 				onNotifyChildRevealed={(self) => {
-					if (!self.get_reveal_child() && pendingAction) {
-						pendingAction()
-						pendingAction = undefined
-					}
+					state.onChildRevealed(self.get_reveal_child())
 				}}
 			>
 				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} widthRequest={widthRequest}>
 					<Gtk.EventControllerMotion
 						onEnter={() => {
 							if (!persistent) manager.popupHovered = true
-							set_showActions(true)
+							setShowActions(true)
 						}}
 						onLeave={() => {
 							if (!persistent) manager.popupHovered = false
-							set_showActions(false)
+							setShowActions(false)
 						}}
 					/>
-					<box class="header">
-						<image class="app-icon" iconName={appIcon} useFallback />
-						<label class="app-name" halign={START} maxWidthChars={24} ellipsize={Pango.EllipsizeMode.END} useMarkup label={appName} />
-						<label class="time" halign={END} hexpand label={env.uptime(() => formatTime(notification.time))} />
-						<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
-							<button class="close-button" onClicked={dismiss}>
-								<image iconName={icons.ui.close} halign={CENTER} valign={CENTER} useFallback />
-							</button>
-						</revealer>
-					</box>
-
-					<box class="content">
-						{hasImage && (
-							<Gtk.Picture class="icon" contentFit={COVER} canShrink={false} paintable={textureFromFile(notification.get_image(), 75, 75) as Gdk.Paintable} />
-						)}
-						<box orientation={VERTICAL}>
-							<label class="summary" wrap wrapMode={Gtk.WrapMode.WORD} maxWidthChars={28} halign={START} label={notification.summary} />
-							{notification.body && (
-								<label class="body" wrap wrapMode={Gtk.WrapMode.WORD} maxWidthChars={28} halign={START} useMarkup label={notification.body} />
-							)}
-						</box>
-					</box>
-
-					{validActions.length > 0 && (
-						<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_DOWN}>
-							<box class="actions horizontal">
-								{validActions.map(({ label, id }) => (
-									<button hexpand label={label} onClicked={() => onActionClick(id)} />
-								))}
-							</box>
-						</revealer>
-					)}
+					<Header
+						notification={notification}
+						appIcon={appIcon}
+						appName={appName}
+						showActions={showActions}
+						onDismiss={state.dismiss}
+					/>
+					<Content notification={notification} imagePath={imagePath} />
+					<Actions actions={validActions} showActions={showActions} onActionClick={state.onActionClick} />
 				</box>
 			</revealer>
 		)
 	}
 
+	export function dismissAll() {
+		manager.dismissAll(options.transition.duration.peek(), maxStaggerDelay())
+	}
+
 	export function Stack({ persistent = false, class: className }: { persistent?: boolean, class?: string }) {
 		return (
 			<box class={className || "notifications-stack"} orientation={VERTICAL} valign={START}>
-				<For each={notifications}>{(n, i) => <Entry entry={n} persistent={persistent} index={i} />}</For>
+				<For each={notifications}>{(n, i) => <Notification entry={n} persistent={persistent} index={i} />}</For>
 			</box>
 		)
 	}
 
 	export function Button() {
 		return (
-			<PanelButton class="messages" visible={notifications.as(v => v.length > 0)} tooltipText={notifications.as(v => `${v.length} pending notification${v.length === 1 ? '' : 's'}`)} onClicked={() => toggleWindow("datemenu")}>
+			<PanelButton class="messages" visible={notifications.as(v => v.length > 0)} tooltipText={notifications.as(v => `${v.length} pending notification${v.length === 1 ? "" : "s"}`)} onClicked={() => toggleWindow("datemenu")}>
 				<image iconName={icons.notifications.message} useFallback />
 			</PanelButton>
 		)
 	}
 
 	export function Window() {
+		const anchor = createComputed(() => anchorForPosition(options.notifications.position()))
 		return (
-			<window visible resizable={false} heightRequest={1} widthRequest={350} name="notifications" class="notifications" application={app} exclusivity={EXCLUSIVE} anchor={TOP | RIGHT}>
+			<window
+				visible
+				resizable={false}
+				heightRequest={1}
+				widthRequest={350}
+				name="notifications"
+				class="notifications"
+				application={app}
+				exclusivity={NORMAL}
+				anchor={anchor}
+			>
 				<Stack persistent={false} />
 			</window>
 		)

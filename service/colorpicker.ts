@@ -1,15 +1,31 @@
 import GObject, { getter, register, setter } from "ags/gobject"
-import { timeout, Timer } from "ags/time"
 import { readFile, writeFileAsync } from "ags/file"
 import { execAsync } from "ags/process"
 
 import env from "$lib/env"
-import { dependencies, ensurePath, notify, wlCopy } from "$lib/utils"
+import { ensurePath } from "$lib/files"
+import { attempt, attemptAsync } from "$lib/result"
+import { debounce } from "$lib/timing"
+import { dependencies, notify, wlCopy } from "$lib/utils"
 import icons from "$lib/icons"
 
 import options from "options"
 
-const cacheFile = `${env.paths.cache}/colors.json`
+const cacheFile = `${env.paths.cache.base}/colors.json`
+
+function loadColors() {
+	const result = attempt(() => {
+		const parsed: unknown = JSON.parse(readFile(cacheFile) || "[]")
+		if (!Array.isArray(parsed))
+			return []
+		return parsed.filter(color => typeof color === "string")
+	})
+	if (!result.ok) {
+		console.error("colorpicker.load: Failed to load saved colors", result.err)
+		return []
+	}
+	return result.value
+}
 
 @register()
 export default class ColorPicker extends GObject.Object {
@@ -20,17 +36,23 @@ export default class ColorPicker extends GObject.Object {
 		return this.instance ??= new ColorPicker()
 	}
 
-	#notifId: number
-	#saveDebounce: Timer | null
+	#notificationId: number
 	#colors: string[]
+	#save = debounce(1000, async () => {
+		const result = await attemptAsync(async () => {
+			ensurePath(cacheFile)
+			await writeFileAsync(cacheFile, JSON.stringify(this.#colors, null, 0))
+		})
+		if (!result.ok)
+			console.error("colorpicker.save: Failed to save colors", result.err)
+	})
 
 	constructor() {
 		super()
 
 		ensurePath(cacheFile)
-		this.#notifId = 0
-		this.#saveDebounce = null
-		this.#colors = JSON.parse(readFile(cacheFile) || "[]") as string[]
+		this.#notificationId = 0
+		this.#colors = loadColors()
 	}
 
 	@getter(Array)
@@ -48,13 +70,14 @@ export default class ColorPicker extends GObject.Object {
 
 		let color = existing
 		if (!color) {
-			color = await execAsync("hyprpicker -r")
-			color = color.replace("[ERR] renderSurface: PBUFFER null", "").trim()
+			const result = await attemptAsync(async () => execAsync("hyprpicker -r"))
+			if (!result.ok)
+				return
+			color = result.value.replace("[ERR] renderSurface: PBUFFER null", "").trim()
 			if (!color) return
 		}
 
 		wlCopy(color)
-
 
 		if (!existing) {
 			const max = options.colorpicker.maxColors.peek()
@@ -65,28 +88,18 @@ export default class ColorPicker extends GObject.Object {
 				if (colors.length > max) colors.shift()
 				this.#colors = colors
 				this.notify("colors")
-
-				if (this.#saveDebounce) this.#saveDebounce.cancel()
-				this.#saveDebounce = timeout(1000, async () => {
-					try {
-						ensurePath(cacheFile)
-						await writeFileAsync(cacheFile, JSON.stringify(this.#colors, null, 0))
-					} catch (e) {
-						console.error("failed to save colors", e)
-					}
-					this.#saveDebounce = null
-				})
+				this.#save.call()
 			}
 		}
 
 		notify({
-			id: this.#notifId,
+			id: this.#notificationId,
 			appName: "Colorpicker",
 			appIcon: icons.ui.colorpicker,
 			summary: "Copied to clipboard",
 			body: color,
 		}).then(id => {
-			if (id) this.#notifId = id
+			if (id) this.#notificationId = id
 		})
 	}
 }

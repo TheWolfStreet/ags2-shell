@@ -1,48 +1,43 @@
 import { Accessor, createState, Setter } from "ags"
-import { Timer, timeout } from "ags/time"
 import { readFile, writeFileAsync } from "ags/file"
 
-import { ensurePath } from "$lib/utils"
 import env from "$lib/env"
+import { ensurePath } from "$lib/files"
+import { attempt, attemptAsync } from "$lib/result"
+import { debounce } from "$lib/timing"
 
 namespace Store {
-	export const path = `${env.paths.cache}/options.json`
+	export const path = `${env.paths.cache.base}/options.json`
 
-	let saveDebounce: Timer | null = null
 	let cache: Record<string, unknown> | null = null
 
 	function ensureLoaded() {
 		if (cache !== null) return
-		try {
+		const result = attempt(() => {
 			ensurePath(path)
 			const raw = readFile(path) || "{}"
-			cache = JSON.parse(raw)
-		} catch {
-			cache = {}
-		}
+			return JSON.parse(raw) as Record<string, unknown>
+		})
+		cache = result.ok ? result.value : {}
 	}
 
-	function scheduleSave() {
-		if (saveDebounce) return
-		saveDebounce = timeout(3000, async () => {
-			try {
-				ensurePath(path)
-				await writeFileAsync(path, JSON.stringify(cache, null, 2))
-			} catch (e) {
-				console.error("Failed to save store:", e)
-			} finally {
-				saveDebounce = null
-			}
+	const save = debounce(3000, async () => {
+		const result = await attemptAsync(async () => {
+			ensurePath(path)
+			await writeFileAsync(path, JSON.stringify(cache, null, 2))
 		})
-	}
+		if (!result.ok)
+			console.error("option.store.save: Failed to save options store", result.err)
+	})
 
 	export function get(pathStr: string): unknown {
 		ensureLoaded()
 		const parts = splitPath(pathStr)
-		let node: Record<string, unknown> | null = cache
+		let node: unknown = cache
 		for (const part of parts) {
-			if (!node || typeof node !== "object") return undefined
-			node = node[part] as Record<string, unknown> | null
+			if (!isStructured(node))
+				return undefined
+			node = node[part]
 		}
 		return node
 	}
@@ -59,38 +54,54 @@ namespace Store {
 	export function set(pathStr: string, value: unknown): void {
 		ensureLoaded()
 		const parts = splitPath(pathStr)
-		let node = cache as Record<string, unknown>
+		const root = cache
+		if (!root)
+			return
+
+		let node = root
 		for (let i = 0; i < parts.length - 1; i++) {
-			if (!(parts[i] in node)) node[parts[i]] = {}
-			node = node[parts[i]] as Record<string, unknown>
+			const part = parts[i]
+			let next = node[part]
+			if (!isStructured(next)) {
+				next = {}
+				node[part] = next
+			}
+			node = next
 		}
 		node[parts[parts.length - 1]] = value
-		scheduleSave()
+		save.call()
 	}
 
 	export function del(pathStr: string): void {
 		ensureLoaded()
 		const parts = splitPath(pathStr)
-		let node = cache as Record<string, unknown>
+		const root = cache
+		if (!root)
+			return
+
+		let node = root
 		for (let i = 0; i < parts.length - 1; i++) {
-			if (!(parts[i] in node)) return
-			node = node[parts[i]] as Record<string, unknown>
+			const next = node[parts[i]]
+			if (!isStructured(next))
+				return
+			node = next
 		}
 		delete node[parts[parts.length - 1]]
-		scheduleSave()
+		save.call()
 	}
 }
 
 export class Opt<T> extends Accessor<T> {
 	#setter: Setter<T>
 	#default: T
-	id = ""
+	readonly id: string
 
-	constructor(initial: T) {
+	constructor(initial: T, id = "") {
 		const [acc, set] = createState(initial)
 		super(() => acc.peek(), (cb) => acc.subscribe(cb))
 		this.#setter = set
 		this.#default = initial
+		this.id = id
 	}
 
 	[Symbol.toPrimitive]() {
@@ -99,6 +110,9 @@ export class Opt<T> extends Accessor<T> {
 	}
 
 	set(v: T) {
+		if (Object.is(this.peek(), v))
+			return
+
 		this.#setter(v)
 		if (v === this.#default) {
 			Store.del(this.id)
@@ -126,7 +140,7 @@ export class Opt<T> extends Accessor<T> {
 }
 
 function isStructured(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === 'object' && !Array.isArray(value)
+	return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
 type WidenLiterals<T> = T extends boolean ? boolean : T extends string ? string : T extends number ? number : T
@@ -135,7 +149,8 @@ export type Options<T> =
 	T extends Record<string, unknown> ? { [K in keyof T]: Options<T[K]> } :
 	Opt<WidenLiterals<T>>
 
-export function mkOptions<T>(node: T, path = ""): Options<T> {
+export function mkOptions<T>(node: T, path?: string): Options<T>
+export function mkOptions(node: unknown, path = ""): unknown {
 	if (isStructured(node)) {
 		const newNode: Record<string, unknown> = {}
 
@@ -145,21 +160,16 @@ export function mkOptions<T>(node: T, path = ""): Options<T> {
 				newNode[key] = mkOptions(node[key], subPath)
 			}
 		}
-		return newNode as Options<T>
+		return newNode
 	}
 
-	const defaultVal = node
 	const storedVal = path ? Store.get(path) : undefined
-	const initialVal = storedVal !== undefined ? (storedVal as T) : defaultVal
+	const opt = new Opt(node, path)
 
-	const opt = new Opt(defaultVal)
-	opt.id = path
+	if (storedVal !== undefined)
+		opt.set(storedVal)
 
-	if (storedVal !== undefined) {
-		opt.set(initialVal)
-	}
-
-	return opt as Options<T>
+	return opt
 }
 
 export function setHandler(

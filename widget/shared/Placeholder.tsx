@@ -1,5 +1,5 @@
 import { Gtk } from "ags/gtk4"
-import { FCProps, Accessor } from "gnim"
+import { FCProps, Accessor } from "ags"
 
 const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation

@@ -39,18 +39,19 @@
     runtimePackages = with pkgs;
       astalPackages
       ++ [
+        ddcutil
         matugen
         libadwaita
         libsoup_3
         brightnessctl
-        swww
+        libwebp
         which
         libnotify
         libheif
         wf-recorder
         wl-clipboard
+        grim
         slurp
-        wayshot
         swappy
         hyprpicker
         pavucontrol

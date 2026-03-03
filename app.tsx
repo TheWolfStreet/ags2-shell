@@ -2,10 +2,8 @@ import init from "$lib/init"
 import env from "$lib/env"
 
 import app from "ags/gtk4/app"
-import { createBinding, For, This } from "ags"
+import { idle } from "ags/time"
 
-import { Bar } from "widget/Bar"
-import { BarCorners } from "widget/Bar/components/BarCorners"
 import { Power } from "widget/PowerMenu"
 import { Settings } from "widget/Settings"
 import { Launcher } from "widget/Bar/components/Launcher"
@@ -16,13 +14,30 @@ import { QuickSettings } from "widget/Bar/components/QuickSettings"
 import { Network } from "widget/Bar/components/QuickSettings/components/Network"
 import { Date } from "widget/Bar/components/Date"
 import { OSD } from "widget/OSD"
+import { initMonitors } from "$lib/monitors"
 
 import { scr } from "$lib/services"
+
+function preloadWindows(...names: string[]) {
+	idle(() => {
+		for (const name of names) {
+			const win = app.get_window(name)
+			if (!win)
+				continue
+
+			win.set_opacity(0)
+			win.set_visible(true)
+			idle(() => {
+				win.set_visible(false)
+				win.set_opacity(1)
+			})
+		}
+	})
+}
 
 app.start({
 	instanceName: env.appName,
 	main() {
-		const monitors = createBinding(app, "monitors");
 		init().catch(err => console.error("Init error:", err))
 		Date.Window()
 		Launcher.Window()
@@ -34,41 +49,39 @@ app.start({
 		QuickSettings.Window()
 		Network.Wifi.Window()
 		Settings.Window()
-		OSD()
+		OSD.Window()
 
-		return (
-			<For each={monitors}>
-				{(monitor) => (
-					<This this={app}>
-						<Bar gdkmonitor={monitor} />
-						<BarCorners gdkmonitor={monitor} />
-					</This>
-				)}
-			</For>
-		)
+		preloadWindows("launcher")
+
+		initMonitors()
 	},
 	requestHandler(argv: string[], res: (response: string) => void) {
-		const [request] = argv
+		const [request, ...rest] = argv
 
 		switch (request) {
+			case "launcher-search": {
+				const query = rest.join(" ")
+				Launcher.setSearchQuery(query, true)
+				break
+			}
 			case "shutdown":
 				Power.selAction("shutdown")
-				break;
+				break
 			case "record":
 				scr.recording ? scr.stopRecord() : scr.startRecord()
-				break;
+				break
 			case "record-area":
 				scr.recording ? scr.stopRecord() : scr.startRecord(true)
-				break;
+				break
 			case "screenshot":
 				scr.screenshot()
-				break;
+				break
 			case "screenshot-area":
 				scr.screenshot(true)
-				break;
+				break
 			default:
 				res(`Unknown request: ${request}`)
-				return;
+				return
 		}
 
 		res("Request handled successfully")

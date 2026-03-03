@@ -1,4 +1,3 @@
-@use 'sass:color';
 @use '../../style/base' as *;
 
 window#bar {
@@ -24,16 +23,31 @@ window#bar {
   popover contents {
     box-shadow: 0 0 5px 0 var(--shadow-color);
     margin: max(var(--spacing), 8px);
+    margin-top: calc(max(var(--spacing), 8px) + var(--padding) * 0.3);
     border: var(--border-width) solid var(--popover-border-color);
     background-color: var(--bg);
     color: var(--fg);
     border-radius: calc(var(--popover-radius) / 2);
     padding: calc(var(--padding) / 2);
 
-    modelbutton {
+    modelbutton,
+    button.model-item {
       @extend .flat-button;
       padding: calc(var(--padding) * 0.8);
-      font-weight: normal;
+    }
+
+    .tray-menu {
+      min-width: 180px;
+
+      button.model-item .check {
+        margin-right: calc(var(--spacing) / 2);
+      }
+
+      separator {
+        margin: calc(var(--radius) / 2);
+        min-height: 1px;
+        background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+      }
     }
   }
 
@@ -66,7 +80,7 @@ window#bar {
       border-radius: calc(var(--radius) * 0.6);
       box-shadow: inset 0 0 2px var(--border-width) var(--border-color);
       margin: 0 calc(var(--padding) / 2);
-      transition: calc(var(--transition) / 2);
+      transition: var(--transition);
       background-color: color-mix(in srgb, var(--fg) 20%, transparent);
 
       &.occupied {
@@ -130,24 +144,8 @@ window#bar {
 window#bar.transparent {
   background-color: transparent;
 
-  button:not(.active) {
-    label,
-    image,
-    text {
-      -gtk-icon-shadow: 0 1px 2px var(--shadow-color);
-      text-shadow: 0 1px 2px var(--shadow-color);
-    }
-  }
-
-  box.tasks overlay:not(.active) {
-    label,
-    image,
-    text {
-      -gtk-icon-shadow: 0 1px 2px var(--shadow-color);
-      text-shadow: 0 1px 2px var(--shadow-color);
-    }
-  }
-
+  button:not(.active),
+  box.tasks overlay:not(.active),
   button.overview:not(.active) {
     label,
     image,
@@ -159,5 +157,88 @@ window#bar.transparent {
 
   button.workspaces label {
     filter: drop-shadow(0 1px 2px var(--shadow-color));
+  }
+}
+
+window#screen-corner-top,
+window#screen-corner-bottom {
+  background-color: transparent;
+
+  &.corners box.shadow,
+  &.corners box.border,
+  &.corners box.corner {
+    min-height: calc(var(--screen-corner-radius) + var(--padding));
+  }
+
+  &.flat box.shadow,
+  &.flat box.border,
+  &.flat box.corner {
+    min-height: var(--border-width);
+  }
+
+  &:not(.hidden) {
+    --_shadow-size: var(--padding);
+    --_radius: var(--screen-corner-radius);
+    --_shadow-color: color-mix(in srgb, var(--shadow-color) 50%, transparent);
+
+    transition: var(--transition);
+
+    &.corners.top-center box.shadow {
+      box-shadow: inset 0 var(--_shadow-size) var(--_shadow-size) calc(var(--_shadow-size) * -0.35) var(--_shadow-color);
+    }
+
+    &.corners.bottom-center box.shadow {
+      box-shadow: inset 0 calc(var(--_shadow-size) * -1) var(--_shadow-size) calc(var(--_shadow-size) * -0.35) var(--_shadow-color);
+    }
+
+    box.border {
+      transition: var(--transition);
+    }
+
+    &.top-center box.border {
+      border-top: var(--border-width) solid var(--bg);
+      border-bottom: none;
+    }
+
+    &.bottom-center box.border {
+      border-bottom: var(--border-width) solid var(--bg);
+      border-top: none;
+    }
+
+    box.corner {
+      box-shadow: 0 0 0 var(--border-width) var(--border-color);
+    }
+
+    &.corners box.border {
+      box-shadow: 0 0 0 var(--_radius) var(--bg);
+    }
+
+    &.corners.top-center box.border {
+      border-top-left-radius: var(--_radius);
+      border-top-right-radius: var(--_radius);
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
+    &.corners.bottom-center box.border {
+      border-bottom-left-radius: var(--_radius);
+      border-bottom-right-radius: var(--_radius);
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+
+    &.corners.top-center box.corner {
+      border-top-left-radius: var(--_radius);
+      border-top-right-radius: var(--_radius);
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
+    &.corners.bottom-center box.corner {
+      border-bottom-left-radius: var(--_radius);
+      border-bottom-right-radius: var(--_radius);
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
   }
 }

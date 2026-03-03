@@ -3,8 +3,11 @@ import { createBinding } from "ags"
 import GObject, { property, register } from "ags/gobject"
 import { execAsync } from "ags/process"
 
+import Gio from "gi://Gio"
+
 import env from "$lib/env"
-import { bash, dependencies, fileExists } from "$lib/utils"
+import { attempt, attemptAsync } from "$lib/result"
+import { dependencies } from "$lib/utils"
 
 @register()
 export default class Wallpaper extends GObject.Object {
@@ -16,64 +19,59 @@ export default class Wallpaper extends GObject.Object {
 	}
 
 	@property(String) wallpaper: string
-	#available: boolean
 
 	constructor() {
 		super()
-
 		this.wallpaper = `${env.paths.home}/.config/background`
-		this.#available = dependencies("swww")
-
-		if (!this.#available) return
-
-		this.#apply()
 
 		let prevMonCount = app.get_monitors().length
 		createBinding(app, "monitors").subscribe(() => {
 			const monCount = app.get_monitors().length
 			if (monCount > prevMonCount) {
 				prevMonCount = monCount
-				this.#apply()
+				this.notify("wallpaper")
 			}
 		})
-		execAsync("swww-daemon").catch(() => null)
 	}
 
-	async #handleHeic(imgPath: string) {
+	async #convertHeic(path: string) {
 		if (!dependencies("heif-dec")) return
 		const tmpImg = `${env.paths.tmp}/heic.png`
-		await bash(`heif-dec "${imgPath}" "${tmpImg}" && cp "${tmpImg}" "${this.wallpaper}"`)
+		await execAsync(["heif-dec", path, tmpImg])
+		await execAsync(["cp", tmpImg, this.wallpaper])
 	}
 
-	get_wallpaper() {
-		return this.wallpaper
+	async clearWallpaper() {
+		const result = attempt(() => {
+			Gio.File.new_for_path(this.wallpaper).replace_contents(
+				"",
+				null,
+				false,
+				Gio.FileCreateFlags.REPLACE_DESTINATION,
+				null,
+			)
+			this.notify("wallpaper")
+		})
+		if (!result.ok)
+			console.error("wallpaper.clear: Failed to clear wallpaper", result.err)
 	}
 
-	async set_wallpaper(img_path: string) {
-		if (!this.#available) return
-
-		const isHeic = img_path.toLowerCase().endsWith(".heic")
-
-		try {
-			if (isHeic) {
-				await this.#handleHeic(img_path)
+	async setWallpaper(path: string) {
+		const lower = path.toLowerCase()
+		const result = await attemptAsync(async () => {
+			if (lower.endsWith(".heic")) {
+				await this.#convertHeic(path)
+			} else if (lower.endsWith(".webp")) {
+				if (!dependencies("dwebp")) throw new Error("dwebp not found")
+				const tmp = `${env.paths.tmp}/wallpaper.png`
+				await execAsync(["dwebp", path, "-o", tmp])
+				await execAsync(["cp", tmp, this.wallpaper])
 			} else {
-				await bash(`cp "${img_path}" "${this.wallpaper}"`)
+				await execAsync(["cp", path, this.wallpaper])
 			}
-			this.#apply()
-		} catch (e) {
-			console.error("Failed to set wallpaper:", e)
-		}
-	}
-
-	readonly #apply = async () => {
-		this.notify("wallpaper")
-
-		if (fileExists(this.wallpaper)) {
-			await execAsync(`swww clear-cache`)
-			await execAsync(`swww img --invert-y --transition-type fade "${this.wallpaper}"`)
-		} else {
-			await execAsync("swww clear 111111")
-		}
+			this.notify("wallpaper")
+		})
+		if (!result.ok)
+			console.error("wallpaper.set: Failed to set wallpaper", result.err)
 	}
 }
