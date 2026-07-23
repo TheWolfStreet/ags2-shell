@@ -15,6 +15,7 @@ import { Network } from "widget/Bar/components/QuickSettings/components/Network"
 import { Date } from "widget/Bar/components/Date"
 import { OSD } from "widget/OSD"
 import { initMonitors } from "$lib/monitors"
+import { startWallpaperProcess } from "widget/Wallpaper"
 
 import { scr } from "$lib/services"
 
@@ -38,6 +39,7 @@ function preloadWindows(...names: string[]) {
 app.start({
 	instanceName: env.appName,
 	main() {
+		startWallpaperProcess()
 		init().catch(err => console.error("Init error:", err))
 		Date.Window()
 		Launcher.Window()

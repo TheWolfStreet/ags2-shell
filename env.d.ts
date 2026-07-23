@@ -1,4 +1,5 @@
 declare const SRC: string
+declare const WALLPAPER_BIN: string
 
 declare module "inline:*" {
 	const content: string

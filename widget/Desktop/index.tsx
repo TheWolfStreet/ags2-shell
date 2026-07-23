@@ -35,7 +35,7 @@ export namespace Desktop {
 				}}
 				name="desktop"
 				namespace="desktop"
-				layer={Astal.Layer.BACKGROUND}
+				layer={Astal.Layer.BOTTOM}
 				exclusivity={Astal.Exclusivity.IGNORE}
 				anchor={TOP | BOTTOM | LEFT | RIGHT}
 				application={app}

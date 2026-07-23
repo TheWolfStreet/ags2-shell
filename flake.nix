@@ -19,6 +19,7 @@
     pkgs = nixpkgs.legacyPackages.${system};
     pname = "ags2-shell";
     entry = "app.tsx";
+    wallpaperEntry = "wallpaper.tsx";
 
     astalPackages = with ags.packages.${system}; [
       io
@@ -82,9 +83,17 @@
           runHook preInstall
 
           mkdir -p $out/bin
+          mkdir -p $out/libexec
           mkdir -p $out/share
           cp -r * $out/share
-          ags bundle ${entry} $out/bin/${pname} -d "SRC='$out/share'"
+          ags bundle ${wallpaperEntry} $out/libexec/${pname}-wallpaper -g 4 -d "SRC='$out/share'"
+          ags bundle ${entry} $out/bin/${pname} \
+            -d "SRC='$out/share'" \
+            -d "WALLPAPER_BIN='$out/libexec/${pname}-wallpaper'"
+          substituteInPlace $out/libexec/${pname}-wallpaper \
+            --replace-fail 'dmFyIF-ags.js' '${pname}-wallpaper-ags.js'
+          substituteInPlace $out/bin/${pname} \
+            --replace-fail 'dmFyIF-ags.js' '${pname}-main-ags.js'
 
           runHook postInstall
         '';

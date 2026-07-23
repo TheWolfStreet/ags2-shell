@@ -16,12 +16,13 @@ import { Power } from "widget/PowerMenu"
 import options from "options"
 import { ignoreInput, releaseMonitorWindow } from "$lib/utils"
 import type { MonitorControl } from "$lib/monitors"
+import { trackMonitorFullscreen } from "$lib/fullscreen"
 
 const { CENTER } = Gtk.Align
 const { WindowAnchor, Exclusivity, Layer, Keymode } = Astal
 const { TOP, BOTTOM, LEFT, RIGHT } = WindowAnchor
 const { EXCLUSIVE, IGNORE, NORMAL } = Exclusivity
-const { OVERLAY } = Layer
+const { TOP: TOP_LAYER } = Layer
 
 const { transparent, position, corners } = options.bar
 const { padding } = options.theme
@@ -153,6 +154,8 @@ export function Bar({ gdkmonitor, control, initialVisible = true }: { gdkmonitor
 	let bottomWin: Astal.Window | undefined
 
 	const [shown, setShown] = createState(initialVisible)
+	const fullscreen = trackMonitorFullscreen(gdkmonitor)
+	const visible = createComputed(() => shown() && !fullscreen.fullscreen())
 
 	const isTop = position.as(v => v === "top-center")
 	const isTransparent = createComputed(() => transparent())
@@ -160,8 +163,8 @@ export function Bar({ gdkmonitor, control, initialVisible = true }: { gdkmonitor
 		const radius = options.theme.roundness() * options.hyprland.gaps() * corners() * 0.01
 		return radius >= padding()
 	})
-	const showTop = createComputed(() => shown() && !isTransparent() && isTop())
-	const showBottom = createComputed(() => shown() && !isTransparent() && !isTop())
+	const showTop = createComputed(() => visible() && !isTransparent() && isTop())
+	const showBottom = createComputed(() => visible() && !isTransparent() && !isTop())
 
 	const {
 		margin,
@@ -173,6 +176,7 @@ export function Bar({ gdkmonitor, control, initialVisible = true }: { gdkmonitor
 	if (control) {
 		control.park = () => setShown(false)
 		control.unpark = (mon) => {
+			fullscreen.retarget(mon)
 			barWin?.set_property("gdkmonitor", mon)
 			topWin?.set_property("gdkmonitor", mon)
 			bottomWin?.set_property("gdkmonitor", mon)
@@ -210,10 +214,10 @@ export function Bar({ gdkmonitor, control, initialVisible = true }: { gdkmonitor
 					bindBarWindow(self)
 				}}
 				name="bar"
-				visible={shown}
+				visible={visible}
 				class={transparent.as(v => v ? "bar transparent" : "bar")}
 				gdkmonitor={gdkmonitor}
-				layer={OVERLAY}
+				layer={TOP_LAYER}
 				exclusivity={EXCLUSIVE}
 				anchor={position.as(pos => {
 					return (pos === "bottom-center" ? BOTTOM : TOP) | LEFT | RIGHT

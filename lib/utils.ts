@@ -17,6 +17,7 @@ import env from "$lib/env"
 import icons from "$lib/icons"
 import { attemptAsync } from "$lib/result"
 import { hypr } from "$lib/services"
+export { releaseMonitorWindow } from "$lib/windows"
 
 export { debounce } from "$lib/timing"
 
@@ -236,18 +237,6 @@ export function toggleWindow(name: string | undefined, hide: boolean = true) {
 	} else {
 		win?.show()
 	}
-}
-
-// BUG: GTK 4.22 crashes when destroying an unmapped application window. Hide it instead;
-// windows with a surface must still be destroyed so they cannot be re-anchored.
-export function releaseMonitorWindow(win?: Gtk.Window | null) {
-	if (!win) return
-	idle(() => {
-		if (win.get_application() && !win.get_surface())
-			win.set_visible(false)
-		else
-			win.destroy()
-	})
 }
 
 export function ignoreInput(widget: Gtk.Window) {

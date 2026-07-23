@@ -1,4 +1,4 @@
-import { createState, onCleanup } from "ags"
+import { createComputed, createState, onCleanup } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
 import { releaseMonitorWindow } from "$lib/utils"
@@ -9,6 +9,7 @@ import { createDockItems } from "widget/Dock/components/items"
 import { dockSizing } from "widget/Dock/components/sizing"
 import { DockView, DockSurface, Hotzone } from "widget/Dock/components/Surface"
 import { trackMonitorGeometry, type MonitorControl } from "$lib/monitors"
+import { trackMonitorFullscreen } from "$lib/fullscreen"
 
 import options from "options"
 
@@ -20,6 +21,8 @@ export namespace Dock {
 		const isDockLocation = options.taskbar.location.as(v => v === "dock")
 
 		const [shown, setShown] = createState(initialVisible)
+		const fullscreen = trackMonitorFullscreen(gdkmonitor)
+		const visible = createComputed(() => shown() && !fullscreen.fullscreen())
 		const hover = createHover()
 		const monitor = trackMonitorGeometry(gdkmonitor)
 		const dockItems = createDockItems(isDockLocation)
@@ -29,7 +32,7 @@ export namespace Dock {
 		const view: DockView = {
 			gdkmonitor,
 			windows,
-			shown,
+			shown: visible,
 			hover,
 			dockItems,
 			isDockLocation,
@@ -41,6 +44,7 @@ export namespace Dock {
 		if (control) {
 			control.park = () => setShown(false)
 			control.unpark = (mon) => {
+				fullscreen.retarget(mon)
 				for (const w of windows)
 					w.set_property("gdkmonitor", mon)
 				monitor.retarget(mon)

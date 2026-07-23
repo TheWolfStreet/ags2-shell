@@ -6,7 +6,6 @@ import { idle, Timer } from "ags/time"
 import { Bar } from "widget/Bar"
 import { Dock } from "widget/Dock"
 import { Desktop } from "widget/Desktop"
-import { WallpaperWindow } from "widget/Wallpaper"
 
 export type MonitorControl = {
 	park(): void
@@ -33,7 +32,7 @@ export function trackMonitorGeometry(initial: Gdk.Monitor) {
 	}
 }
 
-type Kind = "bar" | "wallpaper" | "dock" | "desktop" | "context"
+type Kind = "bar" | "dock" | "desktop" | "context"
 
 type Built = {
 	dispose: () => void
@@ -44,14 +43,13 @@ type Builder = (mon: Gdk.Monitor, control: Partial<MonitorControl> | undefined, 
 
 const builders: Record<Kind, Builder> = {
 	bar: (mon, control, initialVisible) => Bar({ gdkmonitor: mon, control, initialVisible }),
-	wallpaper: (mon, control, initialVisible) => WallpaperWindow.Window({ gdkmonitor: mon, control, initialVisible }),
 	dock: (mon, control, initialVisible) => Dock.Window({ gdkmonitor: mon, control, initialVisible }),
 	desktop: mon => Desktop.Window({ gdkmonitor: mon }),
 	context: mon => Desktop.ContextMenuWindow({ gdkmonitor: mon }),
 }
 
-const KINDS: Kind[] = ["bar", "wallpaper", "dock", "desktop", "context"]
-const POOLABLE = new Set<Kind>(["bar", "wallpaper", "dock"])
+const KINDS: Kind[] = ["bar", "dock", "desktop", "context"]
+const POOLABLE = new Set<Kind>(["bar", "dock"])
 
 function buildOne(kind: Kind, mon: Gdk.Monitor, initialVisible: boolean): Built {
 	const control: Partial<MonitorControl> | undefined = POOLABLE.has(kind) ? {} : undefined
