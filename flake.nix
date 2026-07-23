@@ -75,7 +75,7 @@
 
         buildPhase = ''
           runHook preBuild
-          style/compile/build.sh
+          bash style/compile/build.sh
           runHook postBuild
         '';
 

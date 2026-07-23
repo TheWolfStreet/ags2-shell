@@ -49,6 +49,10 @@ window#bar popover contents button.model-item, window#bar box.tasks overlay, win
   font-family: var(--font-name);
 }
 
+image {
+  -gtk-icon-size: var(--icon-size, 16px);
+}
+
 window {
   background-color: var(--bg);
   color: var(--fg);
@@ -673,18 +677,20 @@ window#dock-left .dock-container,
 window#dock-bottom .dock-container {
   all: unset;
   margin: 0;
+  --dock-pad: calc(var(--padding) * var(--dock-scale, 1));
+  --dock-space: calc(var(--spacing) * var(--dock-scale, 1));
   --dock-icon-gap: var(--dock-pad-inline);
-  --dock-separator-gap: calc(var(--spacing) * 1.5);
-  --dock-separator-size: calc(var(--spacing) * 4);
-  --dock-pad-block: calc(var(--padding) * 0.375);
-  --dock-pad-inline: calc(var(--padding) * 0.375);
-  --dock-pad-block-vertical: calc(var(--padding) * 0.375);
-  --dock-pad-inline-vertical: calc(var(--padding) * 0.375);
-  --dock-icon-padding: calc(var(--padding) * 0.375);
-  --dock-hover-offset: 2px;
-  --dock-radius: calc(var(--radius) * 2.3);
-  --dock-icon-radius: calc(var(--radius) * 0.8);
-  --dock-image-radius: calc(var(--radius) * 0.6);
+  --dock-separator-gap: calc(var(--dock-space) * 1.5);
+  --dock-separator-size: calc(var(--dock-space) * 4);
+  --dock-pad-block: calc(var(--dock-pad) * 0.375);
+  --dock-pad-inline: calc(var(--dock-pad) * 0.375);
+  --dock-pad-block-vertical: calc(var(--dock-pad) * 0.375);
+  --dock-pad-inline-vertical: calc(var(--dock-pad) * 0.375);
+  --dock-icon-padding: calc(var(--dock-pad) * 0.375);
+  --dock-hover-offset: calc(2px * var(--dock-scale, 1));
+  --dock-radius: calc(var(--radius) * 2.3 * var(--dock-scale, 1));
+  --dock-icon-radius: calc(var(--radius) * 0.8 * var(--dock-scale, 1));
+  --dock-image-radius: calc(var(--radius) * 0.6 * var(--dock-scale, 1));
   background-color: var(--bg);
   border-radius: var(--dock-radius);
   border: var(--border-width) solid color-mix(in srgb, var(--fg) 14%, transparent);
@@ -713,12 +719,12 @@ window#dock-bottom .dock-container .dock-icon .app-button image {
 window#dock .dock-container .dock-icon .window-dots .window-dot,
 window#dock-left .dock-container .dock-icon .window-dots .window-dot,
 window#dock-bottom .dock-container .dock-icon .window-dots .window-dot {
-  min-width: 5px;
-  min-height: 5px;
+  min-width: calc(5px * var(--dock-scale, 1));
+  min-height: calc(5px * var(--dock-scale, 1));
   border-radius: 50%;
   background: var(--fg);
   opacity: 0.45;
-  margin: 2px 2px 0;
+  margin: calc(2px * var(--dock-scale, 1)) calc(2px * var(--dock-scale, 1)) 0;
 }
 window#dock .dock-container .dock-icon .window-dots .window-dot.focused,
 window#dock-left .dock-container .dock-icon .window-dots .window-dot.focused,
@@ -761,7 +767,7 @@ window#dock-left .dock-container .dock-separator,
 window#dock-bottom .dock-container .dock-separator {
   min-width: 1px;
   min-height: var(--dock-separator-size);
-  margin: calc(var(--spacing) * 1.25) 0;
+  margin: calc(var(--dock-space) * 1.25) 0;
   margin-left: var(--dock-separator-gap);
   border-radius: 1px;
   background-color: color-mix(in srgb, var(--fg) 20%, transparent);
@@ -775,7 +781,7 @@ window#dock-bottom .dock-container.dock-horizontal {
 window#dock .dock-container.dock-horizontal .dock-separator,
 window#dock-left .dock-container.dock-horizontal .dock-separator,
 window#dock-bottom .dock-container.dock-horizontal .dock-separator {
-  min-height: calc(var(--padding) * 2);
+  min-height: calc(var(--dock-pad) * 2);
   margin-top: 0;
   margin-bottom: 0;
 }
@@ -784,12 +790,12 @@ window#dock-left .dock-container.dock-horizontal .dock-icon .app-button,
 window#dock-bottom .dock-container.dock-horizontal .dock-icon .app-button {
   padding-left: 0;
   padding-right: 0;
-  margin-bottom: 7px;
+  margin-bottom: calc(7px * var(--dock-scale, 1));
 }
 window#dock .dock-container.dock-horizontal .dock-icon .window-dots:last-child,
 window#dock-left .dock-container.dock-horizontal .dock-icon .window-dots:last-child,
 window#dock-bottom .dock-container.dock-horizontal .dock-icon .window-dots:last-child {
-  margin-top: -7px;
+  margin-top: calc(-7px * var(--dock-scale, 1));
 }
 
 window#dock .dock-container.dock-vertical,
@@ -807,19 +813,19 @@ window#dock-left .dock-container.dock-vertical .dock-icon .app-button,
 window#dock-bottom .dock-container.dock-vertical .dock-icon .app-button {
   padding-top: 0;
   padding-bottom: 0;
-  margin-left: 7px;
+  margin-left: calc(7px * var(--dock-scale, 1));
 }
 window#dock .dock-container.dock-vertical .dock-icon .window-dots:first-child,
 window#dock-left .dock-container.dock-vertical .dock-icon .window-dots:first-child,
 window#dock-bottom .dock-container.dock-vertical .dock-icon .window-dots:first-child {
-  margin-right: -7px;
+  margin-right: calc(-7px * var(--dock-scale, 1));
 }
 window#dock .dock-container.dock-vertical .dock-separator,
 window#dock-left .dock-container.dock-vertical .dock-separator,
 window#dock-bottom .dock-container.dock-vertical .dock-separator {
   min-width: var(--dock-separator-size);
   min-height: 1px;
-  margin: 0 calc(var(--spacing) * 1.25);
+  margin: 0 calc(var(--dock-space) * 1.25);
   margin-top: var(--dock-separator-gap);
 }
 
@@ -1921,8 +1927,8 @@ window#bar button.workspaces box.vertical > *:last-child {
 }
 window#bar button.workspaces label {
   font-size: 0;
-  min-width: 5pt;
-  min-height: 5pt;
+  min-width: calc(5pt * var(--scale, 1));
+  min-height: calc(5pt * var(--scale, 1));
   border-radius: calc(var(--radius) * 0.6);
   box-shadow: inset 0 0 2px var(--border-width) var(--border-color);
   margin: 0 calc(var(--padding) / 2);
@@ -1931,13 +1937,13 @@ window#bar button.workspaces label {
 }
 window#bar button.workspaces label.occupied {
   background-color: color-mix(in srgb, var(--fg) 80%, transparent);
-  min-width: 7pt;
-  min-height: 7pt;
+  min-width: calc(7pt * var(--scale, 1));
+  min-height: calc(7pt * var(--scale, 1));
 }
 window#bar button.workspaces label.active {
   background-image: var(--active-gradient);
-  min-width: 20pt;
-  min-height: 12pt;
+  min-width: calc(20pt * var(--scale, 1));
+  min-height: calc(12pt * var(--scale, 1));
 }
 window#bar button.workspaces.active label, window#bar button.workspaces:active label {
   background-color: color-mix(in srgb, var(--primary-fg) 70%, transparent);
@@ -1971,8 +1977,8 @@ window#bar box.tasks overlay {
   border-radius: calc(var(--radius) * 1.5);
 }
 window#bar box.tasks box.focused {
-  padding: 1.25pt;
-  margin: 15pt 0;
+  padding: calc(1.25pt * var(--scale, 1));
+  margin: calc(15pt * var(--scale, 1)) 0;
   border-radius: var(--radius);
   background-color: var(--primary-bg);
 }

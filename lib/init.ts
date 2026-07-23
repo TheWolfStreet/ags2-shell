@@ -211,6 +211,7 @@ function scheduleTmuxUpdate() {
 
 export default async function init() {
 	env.init()
+	initCss()
 
 	gtk()
 	writeGtkPreference()
@@ -229,6 +230,4 @@ export default async function init() {
 
 	Matugen.init()
 	hyprinit()
-
-	initCss()
 }

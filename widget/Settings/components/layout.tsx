@@ -110,6 +110,7 @@ function Row({ opt, title, note, type, enums, max, min }: RowProps) {
 
 const {
 	autotheme: at,
+	scale: uiScale,
 	font,
 	theme,
 	transition,
@@ -181,7 +182,8 @@ const Appearance = () => (
 			<Row opt={border.width} title="Border Width" max={100} />
 		</Group>
 
-		<Group title="UI" opts={[padding, spacing, roundness, transition.duration, font]}>
+		<Group title="UI" opts={[uiScale, padding, spacing, roundness, transition.duration, font]}>
+			<Row opt={uiScale} title="Scale" min={50} max={200} note="Scales the whole shell — helps on small or low-res displays" />
 			<Row opt={padding} title="Padding" max={50} />
 			<Row opt={spacing} title="Spacing" max={50} />
 			<Row opt={roundness} title="Roundness" max={50} />

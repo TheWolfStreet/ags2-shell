@@ -141,6 +141,8 @@ type LayoutVars = {
 	transitionDuration: number
 	borderWidth: number
 	fontSize: number
+	iconSize: number
+	scale: number
 	fontName: string
 	screenCornerRadius: number
 }
@@ -198,19 +200,24 @@ function buildCssVariables(isDarkMode: boolean): string {
 	const theme = options.theme
 	const palette = computePalette(isDarkMode)
 
-	const radius = theme.roundness.peek()
+	const scale = Math.max(0.1, options.scale.peek() / 100)
+
+	const radius = theme.roundness.peek() * scale
 	const gapsScale = options.hyprland.gaps.peek()
 	const cornerScale = options.bar.corners.peek() * 0.01
 
 	const fontDesc = FontDescription.from_string(String(options.font.peek()))
+	const baseFontSize = Math.round(fontDesc.get_size() / SCALE) || 11
 
 	const layout: LayoutVars = {
-		padding: theme.padding.peek(),
-		spacing: theme.spacing.peek(),
+		padding: theme.padding.peek() * scale,
+		spacing: theme.spacing.peek() * scale,
 		radius,
 		transitionDuration: options.transition.duration.peek(),
-		borderWidth: theme.border.width.peek(),
-		fontSize: Math.round(fontDesc.get_size() / SCALE) || 11,
+		borderWidth: theme.border.width.peek() * scale,
+		fontSize: Math.max(1, Math.round(baseFontSize * scale)),
+		iconSize: Math.max(8, Math.round(16 * scale)),
+		scale,
 		fontName: fontDesc.get_family() || "Sans",
 		screenCornerRadius: radius * gapsScale * cornerScale,
 	}
@@ -293,6 +300,8 @@ function buildCustomProperties(p: Palette, layout: LayoutVars, neu: NeumorphicEf
 		`--transition: ${layout.transitionDuration}ms;`,
 		`--border-width: ${layout.borderWidth}px;`,
 		`--font-size: ${layout.fontSize}pt;`,
+		`--icon-size: ${layout.iconSize}px;`,
+		`--scale: ${layout.scale};`,
 		`--font-name: "${layout.fontName}";`,
 		`--screen-corner-radius: ${layout.screenCornerRadius}px;`,
 		`--popover-padding: ${layout.padding * 1.6}pt;`,
@@ -378,6 +387,7 @@ export function initCss() {
 	cssFilePath = GLib.build_filenamev([configDir, "style", "compile", "main.css"])
 
 	const runtimeOptionDependencies = [
+		"scale",
 		"font",
 		"theme",
 		"theme.scheme",
@@ -405,7 +415,7 @@ export function initCss() {
 
 	setHandler(options, runtimeOptionDependencies, resetCss)
 	setHandler(options, gtkExportDependencies, scheduleGtkExportSync)
-	resetCss()
+	performResetCss()
 	scheduleGtkExportSync()
 
 	onRecompile()

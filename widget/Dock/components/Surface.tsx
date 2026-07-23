@@ -28,6 +28,7 @@ export type DockView = {
 	windowThickness: Accessor<number>
 	edgeMargin: Accessor<number>
 	iconSize: Accessor<number>
+	dockScale: Accessor<number>
 	dockClassName: Accessor<string>
 }
 
@@ -97,6 +98,7 @@ export function DockSurface({ view, side }: { view: DockView, side: Side }) {
 		>
 			<box
 				class={view.dockClassName}
+				css={createComputed(() => `--dock-scale: ${view.dockScale()};`)}
 				orientation={cfg.orientation}
 				halign={CENTER}
 				marginStart={side === "left" ? view.edgeMargin : 0}

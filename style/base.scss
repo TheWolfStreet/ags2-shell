@@ -88,6 +88,10 @@
   font-family: var(--font-name);
 }
 
+image {
+  -gtk-icon-size: var(--icon-size, 16px);
+}
+
 window {
   background-color: var(--bg);
   color: var(--fg);

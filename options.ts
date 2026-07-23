@@ -6,6 +6,8 @@ import env from "$lib/env"
 const options = mkOptions({
 	autotheme: false,
 
+	scale: 100,
+
 	theme: {
 		dark: {
 			primary: {

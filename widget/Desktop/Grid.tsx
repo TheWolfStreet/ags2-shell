@@ -103,9 +103,10 @@ function monitorKey(monitor: Gdk.Monitor, monitors: AstalHyprland.Monitor[]) {
 }
 
 function desktopPadding() {
-	const padding = Math.max(0, Math.floor(options.theme.padding()))
-	const font = Math.max(8, Math.floor(fontSize(options.font())))
-	const bar = Math.max(24, Math.round(font + (padding * 1.6) + 10))
+	const g = Math.max(0.1, options.scale() / 100)
+	const padding = Math.max(0, Math.floor(options.theme.padding() * g))
+	const font = Math.max(8, Math.floor(fontSize(options.font()) * g))
+	const bar = Math.max(24, Math.round(font + (padding * 1.6) + 10 * g))
 	let top = 0
 	let bottom = 0
 	let left = 0
@@ -116,8 +117,8 @@ function desktopPadding() {
 		top += bar
 
 	if (options.taskbar.location() === "dock" && options.dock.mode() === "static") {
-		const scale = Math.max(0.25, options.dock.scale() / 100)
-		const dock = Math.max(48, Math.round((64 + 4 * 2 + 4 + 4 + 6 * 2 + 2 * 2) * scale) + Math.max(0, Math.floor(options.theme.spacing())))
+		const scale = Math.max(0.25, options.dock.scale() / 100) * g
+		const dock = Math.max(48, Math.round((64 + 4 * 2 + 4 + 4 + 6 * 2 + 2 * 2) * scale) + Math.max(0, Math.floor(options.theme.spacing() * g)))
 		if (options.dock.position() === "center-left")
 			left += dock
 		else if (options.dock.position() === "bottom-center")

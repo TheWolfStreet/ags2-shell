@@ -75,8 +75,8 @@ window#bar {
 
     label {
       font-size: 0;
-      min-width: 5pt;
-      min-height: 5pt;
+      min-width: calc(5pt * var(--scale, 1));
+      min-height: calc(5pt * var(--scale, 1));
       border-radius: calc(var(--radius) * 0.6);
       box-shadow: inset 0 0 2px var(--border-width) var(--border-color);
       margin: 0 calc(var(--padding) / 2);
@@ -85,14 +85,14 @@ window#bar {
 
       &.occupied {
         background-color: color-mix(in srgb, var(--fg) 80%, transparent);
-        min-width: 7pt;
-        min-height: 7pt;
+        min-width: calc(7pt * var(--scale, 1));
+        min-height: calc(7pt * var(--scale, 1));
       }
 
       &.active {
         background-image: var(--active-gradient);
-        min-width: 20pt;
-        min-height: 12pt;
+        min-width: calc(20pt * var(--scale, 1));
+        min-height: calc(12pt * var(--scale, 1));
       }
     }
 
@@ -120,8 +120,8 @@ window#bar {
     }
 
     box.focused {
-      padding: 1.25pt;
-      margin: 15pt 0;
+      padding: calc(1.25pt * var(--scale, 1));
+      margin: calc(15pt * var(--scale, 1)) 0;
       border-radius: var(--radius);
       background-color: var(--primary-bg);
     }
