@@ -35,7 +35,7 @@ type ImageUriKind = "local" | "http" | "data" | "unknown"
 function classifyImageUri(uri: string): ImageUriKind {
 	if (uri.startsWith("/") || uri.startsWith("file://")) return "local"
 	if (uri.startsWith("http://") || uri.startsWith("https://")) return "http"
-	if (isDataImageUri(uri)) return "data"
+	if (isInlineImageData(uri)) return "data"
 	return "unknown"
 }
 
@@ -126,7 +126,9 @@ export function textureFromFile(filePath: string, width?: number, height?: numbe
 	const fallback = attempt(() => Texture.new_from_filename(filePath))
 	if (fallback.ok) return fallback.value
 
-	console.error(`textures.textureFromFile: Failed to load ${filePath}`, fallback.err)
+	console.error(`textures.textureFromFile: Failed to load ${filePath}`, new Error("All texture decoders failed", {
+		cause: { primary: primary.err, fallback: fallback.err },
+	}))
 	return null
 }
 
@@ -220,18 +222,18 @@ function pixbufFromBytes(bytes: GLib.Bytes): GdkPixbuf.Pixbuf | null {
 	return loader.get_pixbuf()
 }
 
-export function isDataImageUri(uri: string): boolean {
+export function isInlineImageData(uri: string): boolean {
 	return uri.startsWith("data:image/") || uri.includes("iVBORw0KGgo") || uri.includes("/9j/")
 }
 
-function pixbufFromDataUri(uri: string): GdkPixbuf.Pixbuf | null {
+function pixbufFromInlineImageData(uri: string): GdkPixbuf.Pixbuf | null {
 	const result = attempt(() => {
 		const base64 = uri.startsWith("data:") ? uri.split(",")[1] : uri
 		const bytes = new GLib.Bytes(GLib.base64_decode(base64.replace(/\s/g, "")))
 		return pixbufFromBytes(bytes)
 	})
 	if (!result.ok) {
-		console.error("textures.pixbufFromDataUri: Failed to decode base64 image", result.err)
+		console.error("textures.inlineImage: Failed to decode base64 image", result.err)
 		return null
 	}
 	return result.value
@@ -241,14 +243,16 @@ function loadHttpPixbufAsync(uri: string, onLoaded: (pixbuf: GdkPixbuf.Pixbuf | 
 	const started = attempt(() => {
 		const file = Gio.File.new_for_uri(uri)
 		file.load_bytes_async(null, (source, result) => {
-			const loaded = attempt(() => (source as Gio.File).load_bytes_finish(result))
+			const loaded = attempt(() => {
+				const [bytes] = (source as Gio.File).load_bytes_finish(result)
+				return bytes ? pixbufFromBytes(bytes) : null
+			})
 			if (!loaded.ok) {
 				console.error(`textures.loadHttpPixbufAsync: Failed to load ${uri}`, loaded.err)
 				onLoaded(null)
 				return
 			}
-			const [bytes] = loaded.value
-			onLoaded(bytes ? pixbufFromBytes(bytes) : null)
+			onLoaded(loaded.value)
 		})
 	})
 	if (!started.ok) {
@@ -274,9 +278,10 @@ function loadLocalPixbufAsync(filePath: string, size: number, onLoaded: (texture
 			GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(opened.value, size, size, true, null, (_pixbufSource, pixbufResult) => {
 				const decoded = attempt(() => {
 					const pixbuf = GdkPixbuf.Pixbuf.new_from_stream_finish(pixbufResult)
-					return pixbuf ? pixbufSquareContain(pixbuf, size) : null
+					const square = pixbuf ? pixbufSquareContain(pixbuf, size) : null
+					return square ? Texture.new_for_pixbuf(square) : null
 				})
-				if (decoded.ok && decoded.value) onLoaded(Texture.new_for_pixbuf(decoded.value))
+				if (decoded.ok && decoded.value) onLoaded(decoded.value)
 				else fallback()
 			})
 		})
@@ -298,7 +303,7 @@ function textureFromUriSquareContain(uri: string, size: number): Gdk.Texture | n
 	}
 
 	if (kind === "data") {
-		const pixbuf = pixbufFromDataUri(uri)
+		const pixbuf = pixbufFromInlineImageData(uri)
 		if (!pixbuf) return null
 		const square = pixbufSquareContain(pixbuf, size)
 		return square ? Texture.new_for_pixbuf(square) : null
@@ -335,7 +340,7 @@ function loadTextureWithRetry(
 	})
 }
 
-export function textureFromUriSquareContainAsync(uri: string, size: number): Accessor<Gdk.Texture | null> {
+export function createSquareTextureAccessor(uri: string, size: number): Accessor<Gdk.Texture | null> {
 	if (!uri) {
 		const [empty] = createState<Gdk.Texture | null>(null)
 		return empty

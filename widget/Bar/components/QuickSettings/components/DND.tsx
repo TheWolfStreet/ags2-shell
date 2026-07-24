@@ -2,10 +2,10 @@
 
 import { createBinding } from "ags"
 
-import { ToggleButton } from "./shared/MenuElements"
+import { ToggleButton } from "./MenuControls"
 
 import icons from "$lib/icons"
-import { notificationDaemon } from "$service/system"
+import { notificationDaemon } from "$service/astal"
 
 export namespace DND {
 	const dnd = createBinding(notificationDaemon, "dontDisturb")

@@ -1,7 +1,6 @@
 // Styles the bar, its controls, and its corners for each screen edge.
 @use '../../style/base' as *;
 
-// Main panel surface and embedded controls.
 window#bar {
   transition: var(--transition);
   background-color: var(--bg);
@@ -163,7 +162,6 @@ window#bar.transparent {
   }
 }
 
-// Shape the shell edge around transparent and solid bar modes.
 window#screen-corner-top,
 window#screen-corner-bottom {
   background-color: transparent;

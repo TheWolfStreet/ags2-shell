@@ -8,14 +8,19 @@ import GObject from "ags/gobject"
 
 import AstalHyprland from "gi://AstalHyprland"
 
-import { PopupWindow } from "widget/shared/PopupWindow"
+import { PopupWindow } from "widget/Windowing/PopupWindow"
 import { PanelButton } from "../PanelButton"
 
-import { getClientTitle } from "$lib/format"
 import { range } from "$lib/ui"
-import { toggleWindow } from "$lib/windows"
-import { hyprland } from "$service/system"
-import { focusedClient, getClientWorkspaceId, moveClientToWorkspaceSilent, normalizeTaskClients } from "$lib/tasks"
+import { toggleWindow } from "widget/Windowing/WindowControl"
+import { hyprland } from "$service/astal"
+import {
+	createClientTitleAccessor,
+	filterValidWindowClients,
+	focusedWindowClient,
+	getClientWorkspaceId,
+	moveClientToWorkspaceSilent,
+} from "widget/Windowing/WindowClients"
 
 import options from "options"
 
@@ -26,7 +31,7 @@ const { OVERLAY } = Astal.Layer
 const FALLBACK_MONITOR_WIDTH = 1920
 const FALLBACK_MONITOR_HEIGHT = 1080
 
-export namespace Workspaces {
+export namespace Overview {
 	type ClientProps = {
 		entry: AstalHyprland.Client
 		update: (self: Gtk.Widget) => void
@@ -64,13 +69,13 @@ export namespace Workspaces {
 	}
 
 	function Client({ entry: client, update }: ClientProps) {
-		const className = focusedClient.as(currentClient => {
+		const className = focusedWindowClient.as(currentClient => {
 			const classes: string[] = ["client"]
 			if (currentClient?.address === client.address) classes.push("active")
 			return classes.join(" ")
 		})
 
-		const title = getClientTitle(client)
+		const title = createClientTitleAccessor(client)
 		const contentProvider = Gdk.ContentProvider.new_for_value(client.get_address())
 		const clientWidth = createBinding(client, "width")
 		const clientHeight = createBinding(client, "height")
@@ -166,13 +171,13 @@ export namespace Workspaces {
 		)
 		const css = createComputed(() => {
 			const factor = scaleFactor(options.overview.scale())
-			const width = sanitizeDimension(monitor()?.get_width?.(), FALLBACK_MONITOR_WIDTH)
-			const height = sanitizeDimension(monitor()?.get_height?.(), FALLBACK_MONITOR_HEIGHT)
+			const width = sanitizeDimension(monitor()?.get_width(), FALLBACK_MONITOR_WIDTH)
+			const height = sanitizeDimension(monitor()?.get_height(), FALLBACK_MONITOR_HEIGHT)
 			return `min-width: ${factor * width}px; min-height: ${factor * height}px;`
 		})
 
 		const clients = createBinding(hyprland, "clients").as(list =>
-			normalizeTaskClients(list ?? []).filter(client => getClientWorkspaceId(client) === workspaceId),
+			filterValidWindowClients(list ?? []).filter(client => getClientWorkspaceId(client) === workspaceId),
 		)
 		let fixed: Gtk.Fixed
 
@@ -215,7 +220,7 @@ export namespace Workspaces {
 
 	export function Button() {
 		const workspaces = createComputed(() => workspaceIds(options.bar.workspaces.count()))
-		const clients = createBinding(hyprland, "clients").as(list => normalizeTaskClients(list ?? []))
+		const clients = createBinding(hyprland, "clients").as(list => filterValidWindowClients(list ?? []))
 		const className = (ws: number) => createBinding(hyprland, "focusedWorkspace").as(fws => {
 			const classes: string[] = []
 			if (fws?.id === ws) classes.push("active")

@@ -5,11 +5,11 @@ import { exec } from "ags/process"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 
-import { PopupWindow } from "widget/shared/PopupWindow"
+import { PopupWindow } from "widget/Windowing/PopupWindow"
 import { PanelButton } from "widget/Bar/components/PanelButton"
 
 import icons from "$lib/icons"
-import { onWindowToggle, toggleWindow } from "$lib/windows"
+import { onWindowToggle, toggleWindow } from "widget/Windowing/WindowControl"
 
 import options from "options"
 
@@ -18,7 +18,7 @@ const { CROSSFADE } = Gtk.RevealerTransitionType
 const { VERTICAL, HORIZONTAL } = Gtk.Orientation
 const { layout, labels } = options.powermenu
 
-export namespace Power {
+export namespace PowerMenu {
 	export function Window() {
 		return (
 			<PopupWindow name="powermenu" transitionType={CROSSFADE} application={app}>
@@ -28,22 +28,22 @@ export namespace Power {
 							if (v === "line") {
 								return (
 									<box orientation={HORIZONTAL} homogeneous>
-										<Action action="shutdown" label="Shutdown" onSelect={Power.selAction} />
-										<Action action="logout" label="Log Out" onSelect={Power.selAction} />
-										<Action action="reboot" label="Reboot" onSelect={Power.selAction} />
-										<Action action="sleep" label="Sleep" onSelect={Power.selAction} />
+										<Action action="shutdown" label="Shutdown" onSelect={PowerMenu.requestActionConfirmation} />
+										<Action action="logout" label="Log Out" onSelect={PowerMenu.requestActionConfirmation} />
+										<Action action="reboot" label="Reboot" onSelect={PowerMenu.requestActionConfirmation} />
+										<Action action="sleep" label="Sleep" onSelect={PowerMenu.requestActionConfirmation} />
 									</box>
 								)
 							} else if (v === "box") {
 								return (
 									<box>
 										<box orientation={VERTICAL}>
-											<Action action="shutdown" label="Shutdown" onSelect={Power.selAction} />
-											<Action action="logout" label="Log Out" onSelect={Power.selAction} />
+											<Action action="shutdown" label="Shutdown" onSelect={PowerMenu.requestActionConfirmation} />
+											<Action action="logout" label="Log Out" onSelect={PowerMenu.requestActionConfirmation} />
 										</box>
 										<box orientation={VERTICAL}>
-											<Action action="reboot" label="Reboot" onSelect={Power.selAction} />
-											<Action action="sleep" label="Sleep" onSelect={Power.selAction} />
+											<Action action="reboot" label="Reboot" onSelect={PowerMenu.requestActionConfirmation} />
+											<Action action="sleep" label="Sleep" onSelect={PowerMenu.requestActionConfirmation} />
 										</box>
 									</box>
 								)
@@ -56,7 +56,7 @@ export namespace Power {
 		)
 	}
 
-	export function selAction(action: ActionType) {
+	export function requestActionConfirmation(action: ActionType) {
 		if (!app.get_window("verification")?.is_visible()) {
 			setCmd(String(options.powermenu[action].peek()))
 			setTitle(actionTitles[action])

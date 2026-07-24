@@ -1,6 +1,6 @@
 // Shows notification popups and history with timed animations.
 
-import { Accessor, createState, createBinding, createComputed, For, onCleanup } from "ags"
+import { Accessor, createState, createBinding, createComputed, createRoot, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 
@@ -10,12 +10,13 @@ import Pango from "gi://Pango"
 import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
-import icons, { getIcon } from "$lib/icons"
-import { timeAgo } from "$lib/format"
-import { toggleWindow } from "$lib/windows"
-import { isDataImageUri, textureFromUriSquareContainAsync } from "$lib/textures"
+import icons, { substituteIconName } from "$lib/icons"
+import { timeAgo } from "$lib/time"
+import { toggleWindow } from "widget/Windowing/WindowControl"
+import { createSquareTextureAccessor, isInlineImageData } from "$lib/textures"
 import { notificationManager } from "$service/notifications"
-import { createEntryLifecycle, staggerDelay, type EntryIndex, type VisibilityController } from "./lifecycle"
+import { notificationDaemon } from "$service/astal"
+import { createEntryLifecycle, type EntryIndex, type VisibilityController } from "./EntryLifecycle"
 
 import options from "options"
 
@@ -26,13 +27,24 @@ const { SLIDE_DOWN, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
 const { EllipsizeMode } = Pango
 const { NORMAL } = Astal.Exclusivity
 const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor
+const POPUP_LIMIT = 50
 
 export namespace Notifications {
 	type NotificationProps = {
 		entry: AstalNotifd.Notification
 		widthRequest?: Accessor<number> | number
-		persistent?: boolean
+		persistent: boolean
 		index?: EntryIndex
+		onExit?: () => void
+		registerClose?: (close: () => void) => void
+	}
+
+	type PopupEntry = {
+		notification: AstalNotifd.Notification
+		close?: () => void
+		dispose?: () => void
+		resolved: boolean
+		replacement?: AstalNotifd.Notification
 	}
 
 	type HeaderProps = {
@@ -56,7 +68,6 @@ export namespace Notifications {
 
 	const notifications = createBinding(notificationManager, "notifications")
 	const dismissingAll = createBinding(notificationManager, "dismissingAll")
-	const popupHovered = createBinding(notificationManager, "popupHovered")
 
 	function anchorForPosition(position: string) {
 		switch (position) {
@@ -88,7 +99,7 @@ export namespace Notifications {
 			|| value.startsWith("file://")
 			|| value.startsWith("http://")
 			|| value.startsWith("https://")
-			|| isDataImageUri(value)
+			|| isInlineImageData(value)
 		)
 	}
 
@@ -128,7 +139,7 @@ export namespace Notifications {
 	}
 
 	function Content({ notification, imagePath }: ContentProps) {
-		const previewPaintable = imagePath ? textureFromUriSquareContainAsync(imagePath, 75) : null
+		const previewPaintable = imagePath ? createSquareTextureAccessor(imagePath, 75) : null
 
 		return (
 			<box class="content">
@@ -169,31 +180,30 @@ export namespace Notifications {
 		)
 	}
 
-	function Notification({ entry: notification, widthRequest, persistent, index }: NotificationProps) {
+	function Notification({ entry: notification, widthRequest, persistent, index, onExit, registerClose }: NotificationProps) {
 		const visibility = createVisibilityController(false)
 		const [showActions, setShowActions] = createState(false)
 
 		const state = createEntryLifecycle({
 			notification,
-			persistent: persistent ?? false,
+			persistent,
 			index,
 			visibility,
-			popupHovered,
 			dismissingAll,
+			onExit,
 		})
+		registerClose?.(state.close)
 
 		const dismissSub = dismissingAll.subscribe(state.onDismissAllChanged)
-		const hoverSub = popupHovered.subscribe(state.onPopupHoveredChanged)
 
 		onCleanup(() => {
 			dismissSub()
-			hoverSub()
 			state.cleanup()
 		})
 
 		const imageValue = notification.get_image()
 		const imagePath = isPreviewImage(imageValue) ? imageValue : null
-		const appIcon = getIcon(
+		const appIcon = substituteIconName(
 			notification.get_app_icon() || (imageValue && !imagePath ? imageValue : "") || notification.get_desktop_entry() || icons.fallback.notification,
 			icons.fallback.notification,
 		)
@@ -210,19 +220,17 @@ export namespace Notifications {
 				transitionType={SLIDE_DOWN}
 				onMap={state.onMap}
 				onNotifyChildRevealed={(self) => {
-					state.onChildRevealed(self.get_reveal_child())
+					state.onHidden(!self.get_child_revealed() && !self.get_reveal_child())
 				}}
 			>
 				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} widthRequest={widthRequest}>
 					<Gtk.EventControllerMotion
 						onEnter={() => {
-							if (!persistent) notificationManager.popupHovered = true
+							state.keepAlive()
 							setShowActions(true)
 						}}
-						onLeave={() => {
-							if (!persistent) notificationManager.popupHovered = false
-							setShowActions(false)
-						}}
+						onMotion={state.keepAlive}
+						onLeave={() => setShowActions(false)}
 					/>
 					<Header
 						notification={notification}
@@ -238,16 +246,111 @@ export namespace Notifications {
 		)
 	}
 
-	export function dismissAll() {
-		notificationManager.dismissAll(options.transition.duration.peek(), maxStaggerDelay())
+	export function animateDismissAll() {
+		notificationManager.dismissAllAfterTransitions(options.transition.duration.peek(), maxStaggerDelay())
 	}
 
-	export function Stack({ persistent = false, class: className }: { persistent?: boolean, class?: string }) {
+	export function Stack({ class: className }: { class?: string }) {
 		return (
 			<box class={className || "notifications-stack"} orientation={VERTICAL} valign={START}>
-				<For each={notifications}>{(n, i) => <Notification entry={n} persistent={persistent} index={i} />}</For>
+				<For each={notifications}>{(n, i) => <Notification entry={n} persistent index={i} />}</For>
 			</box>
 		)
+	}
+
+	function PopupStack() {
+		const entries = new Map<number, PopupEntry>()
+		const pending = new Map<number, AstalNotifd.Notification>()
+		const container = <box class="notifications-stack" orientation={VERTICAL} valign={START} /> as Gtk.Box
+
+		function remove(entry: PopupEntry) {
+			if (entries.get(entry.notification.id) !== entry) return
+			entries.delete(entry.notification.id)
+			entry.dispose?.()
+			if (entry.replacement && !entry.resolved)
+				mount(entry.replacement)
+			fillPending()
+		}
+
+		function mount(notification: AstalNotifd.Notification) {
+			if (entries.size >= POPUP_LIMIT) return
+			const entry: PopupEntry = { notification, resolved: false }
+			entries.set(notification.id, entry)
+			entry.dispose = createRoot(dispose => {
+				const widget = <Notification
+					entry={notification}
+					persistent={false}
+					index={entries.size - 1}
+					onExit={() => remove(entry)}
+					registerClose={close => {
+						entry.close = close
+						if (entry.resolved || entry.replacement) close()
+					}}
+				/> as Gtk.Widget
+				container.prepend(widget)
+				return () => {
+					container.remove(widget)
+					dispose()
+				}
+			})
+		}
+
+		function fillPending() {
+			while (entries.size < POPUP_LIMIT && pending.size > 0) {
+				const next = pending.entries().next().value as [number, AstalNotifd.Notification]
+				pending.delete(next[0])
+				mount(next[1])
+			}
+		}
+
+		function enqueue(notification: AstalNotifd.Notification) {
+			if (notificationManager.doNotDisturb) return
+			const blacklist = options.notifications.blacklist.peek() || []
+			if (blacklist.includes(notification.get_app_name() || notification.get_desktop_entry())) return
+
+			const existing = entries.get(notification.id)
+			if (existing) {
+				existing.replacement = notification
+				existing.close?.()
+				return
+			}
+			if (entries.size < POPUP_LIMIT) {
+				mount(notification)
+				return
+			}
+
+			pending.delete(notification.id)
+			pending.set(notification.id, notification)
+			while (pending.size > POPUP_LIMIT)
+				pending.delete(pending.keys().next().value!)
+			for (const entry of entries.values()) entry.close?.()
+		}
+
+		const notifiedHandler = notificationDaemon.connect("notified", (_, id: number) => {
+			const notification = notificationDaemon.get_notification(id)
+			if (notification) enqueue(notification)
+		})
+
+		const resolvedHandler = notificationDaemon.connect("resolved", (_, id: number) => {
+			pending.delete(id)
+			const entry = entries.get(id)
+			if (!entry) return
+			entry.resolved = true
+			entry.close?.()
+		})
+
+		for (const notification of notificationDaemon.get_notifications())
+			if (notification.time >= notificationManager.sessionStart) enqueue(notification)
+
+		onCleanup(() => {
+			notificationDaemon.disconnect(notifiedHandler)
+			notificationDaemon.disconnect(resolvedHandler)
+			for (const entry of entries.values()) entry.dispose?.()
+			entries.clear()
+			pending.clear()
+		})
+
+		return container
 	}
 
 	export function Button() {
@@ -272,7 +375,7 @@ export namespace Notifications {
 				exclusivity={NORMAL}
 				anchor={anchor}
 			>
-				<Stack persistent={false} />
+				<PopupStack />
 			</window>
 		)
 	}

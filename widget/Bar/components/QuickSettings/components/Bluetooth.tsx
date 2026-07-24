@@ -6,11 +6,11 @@ import { execAsync } from "ags/process"
 
 import AstalBluetooth from "gi://AstalBluetooth"
 
-import { ToggleButton, Menu, Settings } from "widget/Bar/components/QuickSettings/components/shared/MenuElements"
-import { Placeholder } from "widget/shared/Placeholder"
+import { ToggleButton, Menu, SettingsButton } from "widget/Bar/components/QuickSettings/components/MenuControls"
+import { Placeholder } from "widget/Placeholder"
 
 import icons from "$lib/icons"
-import { bluetooth } from "$service/system"
+import { bluetooth } from "$service/astal"
 import { requirePrograms } from "$lib/programs"
 import { toggleClass } from "$lib/ui"
 
@@ -177,7 +177,7 @@ export namespace Bluetooth {
 									</Gtk.ScrolledWindow>
 								</revealer>
 								<Gtk.Separator />
-								<Settings callback={() => void execAsync(["env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center", "bluetooth"])} />
+								<SettingsButton callback={() => void execAsync(["env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center", "bluetooth"])} />
 							</box>
 						)
 					}}

@@ -8,12 +8,12 @@ import { execAsync } from "ags/process"
 
 import AstalNetwork from "gi://AstalNetwork"
 
-import { Placeholder } from "widget/shared/Placeholder"
-import { ToggleButton, Menu, Settings } from "./shared/MenuElements"
+import { Placeholder } from "widget/Placeholder"
+import { ToggleButton, Menu, SettingsButton } from "./MenuControls"
 
 import icons from "$lib/icons"
 import { attempt } from "$lib/result"
-import { network } from "$service/system"
+import { network } from "$service/astal"
 
 import options from "options"
 
@@ -164,7 +164,7 @@ export namespace Network {
 											</Gtk.ScrolledWindow>
 										</revealer>
 										<Gtk.Separator />
-										<Settings callback={() => void execAsync(["env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center", "wifi"])} />
+										<SettingsButton callback={() => void execAsync(["env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center", "wifi"])} />
 									</box>
 								)
 							}}

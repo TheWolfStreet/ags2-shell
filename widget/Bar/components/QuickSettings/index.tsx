@@ -1,7 +1,7 @@
 // Shows network, audio, power, media, and display controls on each monitor.
 
 import app from "ags/gtk4/app"
-import { createBinding, createState, For, onCleanup } from "ags"
+import { createBinding, For, onCleanup } from "ags"
 import { monitorFile } from "ags/file"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
@@ -9,23 +9,22 @@ import AstalMpris from "gi://AstalMpris"
 
 import { Settings } from "widget/Settings"
 import { PanelButton } from "widget/Bar/components/PanelButton"
-import { PopupWindow } from "widget/shared/PopupWindow"
+import { createPopupPosition, PopupWindow } from "widget/Windowing/PopupWindow"
 import { Network } from "./components/Network"
 import { Audio } from "./components/Audio"
-import { ToggleButton } from "./components/shared/MenuElements"
+import { ToggleButton } from "./components/MenuControls"
 import { DND } from "./components/DND"
 import { Bluetooth } from "./components/Bluetooth"
-import { Mirror } from "./components/Mirror"
-import { Profiles } from "./components/PowerProfiles"
+import { DisplayMirroring } from "./components/DisplayMirroring"
+import { PowerProfiles } from "./components/PowerProfiles"
 import { KeyboardLayout } from "./KeyboardLayout"
 
 import env from "$lib/env"
 import icons from "$lib/icons"
-import { popupLayout } from "$lib/popup"
-import { toggleWindow } from "$lib/windows"
+import { toggleWindow } from "widget/Windowing/WindowControl"
 import { textureFromFileSquareContain } from "$lib/textures"
 import { brightness } from "$service/brightness"
-import { audio, media } from "$service/system"
+import { audio, media } from "$service/astal"
 
 import options from "options"
 
@@ -40,7 +39,7 @@ const { BUTTON_MIDDLE } = Gdk
 const { bar, quicksettings } = options
 const { scheme } = options.theme
 
-const layout = popupLayout(bar.position, quicksettings.position)
+const layout = createPopupPosition(bar.position, quicksettings.position)
 
 namespace Sliders {
 
@@ -135,8 +134,8 @@ export namespace QuickSettings {
 				/>
 				<box class="horizontal">
 					<KeyboardLayout />
-					<Profiles.State.Power />
-					<Profiles.State.Asus />
+					<PowerProfiles.State.Power />
+					<PowerProfiles.State.Asus />
 					<Audio.State.Speaker />
 					<Audio.State.Microphone />
 					<DND.State />
@@ -228,8 +227,8 @@ export namespace QuickSettings {
 						/>
 						<ToggleRow toggles={[<DarkMode.Toggle />, <DND.Toggle />]} />
 						<ToggleRow
-							toggles={[<Profiles.Toggle />, <Mirror.Toggle />]}
-							menus={[<Profiles.Selector />, <Mirror.Selector />]}
+							toggles={[<PowerProfiles.Toggle />, <DisplayMirroring.Toggle />]}
+							menus={[<PowerProfiles.Selector />, <DisplayMirroring.Selector />]}
 						/>
 						<box
 							class="media vertical"

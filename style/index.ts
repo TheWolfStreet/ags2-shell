@@ -7,7 +7,7 @@ import env from "$lib/env"
 import { fileExists } from "$lib/files"
 import { subscribeOptions } from "$lib/option"
 import options from "options"
-import { buildRuntimeCss } from "./theme"
+import { buildRuntimeCss } from "./runtime-css"
 
 const RUNTIME_CSS_DEBOUNCE_MS = 20
 

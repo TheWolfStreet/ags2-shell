@@ -1,25 +1,25 @@
 // Starts services and windows and handles launcher, power, recording, and screenshot requests.
 
-import init from "$lib/init"
+import startShell from "startup"
 import env from "$lib/env"
 
 import app from "ags/gtk4/app"
 import { idle } from "ags/time"
 
-import { Power } from "widget/PowerMenu"
+import { PowerMenu } from "widget/PowerMenu"
 import { Settings } from "widget/Settings"
 import { Launcher } from "widget/Bar/components/Launcher"
 import { Notifications } from "widget/Bar/components/Notifications"
 import { Battery } from "widget/Bar/components/Battery"
-import { Workspaces } from "widget/Bar/components/Overview"
+import { Overview } from "widget/Bar/components/Overview"
 import { QuickSettings } from "widget/Bar/components/QuickSettings"
 import { Network } from "widget/Bar/components/QuickSettings/components/Network"
-import { Date } from "widget/Bar/components/Date"
+import { DateMenu } from "widget/Bar/components/DateMenu"
 import { OSD } from "widget/OSD"
-import { initMonitors } from "$lib/monitor-manager"
-import { startWallpaperProcess } from "widget/Wallpaper"
+import { startMonitorWindows } from "widget/Windowing/MonitorManager"
+import { startWallpaperSupervisor } from "widget/Wallpaper"
 
-import { capturer } from "$service/capturer"
+import { screenCapture } from "widget/Bar/components/Buttons/ScreenCapture"
 
 function preloadWindows(...names: string[]) {
 	idle(() => {
@@ -39,24 +39,24 @@ function preloadWindows(...names: string[]) {
 }
 
 function toggleRecording(selectArea: boolean) {
-	if (capturer.recording)
-		capturer.stopRecord()
+	if (screenCapture.recording)
+		screenCapture.stopRecording()
 	else
-		capturer.startRecord(selectArea)
+		screenCapture.startRecording(selectArea)
 }
 
 app.start({
 	instanceName: env.appName,
 	main() {
-		startWallpaperProcess()
-		init().catch(err => console.error("Init error:", err))
-		Date.Window()
+		startWallpaperSupervisor()
+		startShell().catch(err => console.error("Startup error:", err))
+		DateMenu.Window()
 		Launcher.Window()
-		Power.Window()
-		Power.VerificationModal()
+		PowerMenu.Window()
+		PowerMenu.VerificationModal()
 		Notifications.Window()
 		Battery.Window()
-		Workspaces.Window()
+		Overview.Window()
 		QuickSettings.Window()
 		Network.Wifi.Window()
 		Settings.Window()
@@ -64,7 +64,7 @@ app.start({
 
 		preloadWindows("launcher")
 
-		initMonitors()
+		startMonitorWindows()
 	},
 	requestHandler(argv: string[], res: (response: string) => void) {
 		const [request, ...rest] = argv
@@ -76,7 +76,7 @@ app.start({
 				break
 			}
 			case "shutdown":
-				Power.selAction("shutdown")
+				PowerMenu.requestActionConfirmation("shutdown")
 				break
 			case "record":
 				toggleRecording(false)
@@ -85,10 +85,10 @@ app.start({
 				toggleRecording(true)
 				break
 			case "screenshot":
-				capturer.screenshot()
+				screenCapture.screenshot()
 				break
 			case "screenshot-area":
-				capturer.screenshot(true)
+				screenCapture.screenshot(true)
 				break
 			default:
 				res(`Unknown request: ${request}`)

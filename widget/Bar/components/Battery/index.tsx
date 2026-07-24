@@ -4,13 +4,12 @@ import app from "ags/gtk4/app"
 import { createBinding, createComputed } from "ags"
 import { Astal, Gtk } from "ags/gtk4"
 
-import { PopupWindow } from "widget/shared/PopupWindow"
+import { createPopupPosition, PopupWindow } from "widget/Windowing/PopupWindow"
 import { PanelButton } from "../PanelButton"
 
-import { formatDuration } from "$lib/format"
-import { popupLayout } from "$lib/popup"
-import { toggleWindow } from "$lib/windows"
-import { battery } from "$service/system"
+import { formatDuration } from "$lib/time"
+import { toggleWindow } from "widget/Windowing/WindowControl"
+import { battery } from "$service/astal"
 
 import options from "options"
 
@@ -55,7 +54,7 @@ export namespace Battery {
 		) as Gtk.Window
 	}
 
-	const layout = popupLayout(options.bar.position, options.batterystate.position)
+	const layout = createPopupPosition(options.bar.position, options.batterystate.position)
 	const percentage = createBinding(battery, "percentage")
 	const isPresent = createBinding(battery, "isPresent")
 	const iconName = createBinding(battery, "batteryIconName")

@@ -3,9 +3,9 @@
 import GObject, { getter, register, setter } from "ags/gobject"
 import { execAsync } from "ags/process"
 
-import { hyprland } from "$service/system"
+import { hyprland } from "$service/astal"
 import { hasProgram } from "$lib/programs"
-import { attempt } from "$lib/result"
+import { attempt, attemptAsync, err, ok, type Result } from "$lib/result"
 import options from "options"
 
 const ASUS_HZ_PRESETS = [60, 144, 240]
@@ -15,24 +15,27 @@ type MonitorConfiguration = {
 	disabled: boolean
 }
 
-async function runCommand(args: string[]): Promise<string | Error> {
-	return execAsync(args).catch(error => new Error(`Command failed: ${args.join(" ")}`, { cause: error }))
+async function runCommand(args: string[]): Promise<Result<string>> {
+	const result = await attemptAsync(async () => execAsync(args))
+	return result.ok
+		? result
+		: err(new Error(`Command failed: ${args.join(" ")}`, { cause: result.err }))
 }
 
-function parseProfile(raw: string): Asusctl.Profile | Error {
+function parseProfile(raw: string): Result<Asusctl.Profile> {
 	const value = raw.trim()
 	if (value === "Performance" || value === "Balanced" || value === "Quiet")
-		return value
+		return ok(value)
 
-	return new Error(`Unexpected profile value: ${value}`)
+	return err(new Error(`Unexpected profile value: ${value}`))
 }
 
-function parseMode(raw: string): Asusctl.Mode | Error {
+function parseMode(raw: string): Result<Asusctl.Mode> {
 	const value = raw.trim()
 	if (value === "Hybrid" || value === "Integrated")
-		return value
+		return ok(value)
 
-	return new Error(`Unexpected mode value: ${value}`)
+	return err(new Error(`Unexpected mode value: ${value}`))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -102,7 +105,6 @@ namespace Asusctl {
 
 @register()
 class Asusctl extends GObject.Object {
-	// Owns optional ASUS command integration and monitor-setting subscriptions.
 	declare static $gtype: GObject.GType<Asusctl>
 	static instance: Asusctl
 
@@ -128,12 +130,12 @@ class Asusctl extends GObject.Object {
 	}
 
 	async #initializeAvailability() {
-		const error = await this.#initialize()
-		if (error instanceof Error)
-			this.#fail("initialize: Failed to initialize asusctl", error)
+		const result = await this.#initialize()
+		if (!result.ok)
+			this.#fail("initialize: Failed to initialize asusctl", result.err)
 	}
 
-	#fail(context: string, error: Error) {
+	#fail(context: string, error: unknown) {
 		console.error(`asusctl.${context}`, error)
 		if (this.#available) {
 			this.#available = false
@@ -176,68 +178,24 @@ class Asusctl extends GObject.Object {
 	readonly setProfile = async (p: Asusctl.Profile) => {
 		if (!this.#available) return
 
-		const error = await runCommand(["asusctl", "profile", "set", p])
-		if (error instanceof Error)
-			return this.#fail("setProfile: Failed to set profile", error)
+		const result = await runCommand(["asusctl", "profile", "set", p])
+		if (!result.ok)
+			return this.#fail("setProfile: Failed to set profile", result.err)
 
 		this.#profile = p
 		this.notify("profile")
 		void this.#updateMonitorConfiguration()
 	}
 
-	readonly nextProfile = async () => {
-		if (!this.#available) return
-
-		const cycle = await runCommand(["asusctl", "profile", "next"])
-		if (cycle instanceof Error)
-			return this.#fail("nextProfile: Failed to cycle profile", cycle)
-
-		const output = await runCommand(["asusctl", "profile", "get"])
-		if (output instanceof Error)
-			return this.#fail("nextProfile: Failed to read profile", output)
-
-		const match = output.match(/Active profile:\s*(\w+)/)
-		const profile = parseProfile(match?.[1] ?? "")
-		if (profile instanceof Error)
-			return this.#fail("nextProfile: Failed to parse profile", profile)
-
-		this.#profile = profile
-		this.notify("profile")
-		void this.#updateMonitorConfiguration()
-	}
-
-	readonly nextMode = async () => {
-		if (!this.#available) return
-
-		let nextMode: Asusctl.Mode = "Hybrid"
-		if (this.#mode === "Hybrid")
-			nextMode = "Integrated"
-
-		const setMode = await runCommand(["supergfxctl", "-m", nextMode])
-		if (setMode instanceof Error)
-			return this.#fail("nextMode: Failed to set mode", setMode)
-
-		const output = await runCommand(["supergfxctl", "-g"])
-		if (output instanceof Error)
-			return this.#fail("nextMode: Failed to read mode", output)
-
-		const mode = parseMode(output)
-		if (mode instanceof Error)
-			return this.#fail("nextMode: Failed to parse mode", mode)
-
-		this.#mode = mode
-		this.notify("mode")
-	}
-
 	async #updateMonitorConfiguration() {
 		if (!this.#available) return
 		const output = await runCommand(["hyprctl", "monitors", "all", "-j"])
-		if (output instanceof Error) {
-			console.error("asusctl.updateMonitorConfiguration: Failed to read monitors", output)
+		if (!output.ok) {
+			console.error("asusctl.updateMonitorConfiguration: Failed to read monitors", output.err)
 			return
 		}
 
-		const parseResult = attempt((): unknown => JSON.parse(output))
+		const parseResult = attempt((): unknown => JSON.parse(output.value))
 		if (!parseResult.ok) {
 			console.error("asusctl.updateMonitorConfiguration: Failed to parse monitors", parseResult.err)
 			return
@@ -271,29 +229,29 @@ class Asusctl extends GObject.Object {
 		hyprland.message_async(`keyword monitor eDP-1,${resolution}@${refreshRate},0x0,1`, null)
 	}
 
-	async #initialize(): Promise<void | Error> {
+	async #initialize(): Promise<Result<void>> {
 		const profileOutput = await runCommand(["asusctl", "profile", "get"])
-		if (profileOutput instanceof Error)
+		if (!profileOutput.ok)
 			return profileOutput
 
-		const match = profileOutput.match(/Active profile: (\w+)/)
+		const match = profileOutput.value.match(/Active profile: (\w+)/)
 		const profile = parseProfile(match?.[1] ?? "")
-		if (profile instanceof Error)
+		if (!profile.ok)
 			return profile
 
-		this.#profile = profile
+		this.#profile = profile.value
 		this.notify("profile")
 
 		if (hasProgram("supergfxctl")) {
 			const modeOutput = await runCommand(["supergfxctl", "-g"])
-			if (modeOutput instanceof Error) {
-				console.error("asusctl.initialize: Failed to read mode", modeOutput)
+			if (!modeOutput.ok) {
+				console.error("asusctl.initialize: Failed to read mode", modeOutput.err)
 			} else {
-				const mode = parseMode(modeOutput)
-				if (mode instanceof Error) {
-					console.error("asusctl.initialize: Failed to parse mode", mode)
+				const mode = parseMode(modeOutput.value)
+				if (!mode.ok) {
+					console.error("asusctl.initialize: Failed to parse mode", mode.err)
 				} else {
-					this.#mode = mode
+					this.#mode = mode.value
 					this.notify("mode")
 				}
 			}
@@ -306,6 +264,7 @@ class Asusctl extends GObject.Object {
 			options.asus.ac_hz.subscribe(() => this.#updateMonitorConfiguration()),
 			options.asus.bat_hz.subscribe(() => this.#updateMonitorConfiguration()),
 		)
+		return ok(undefined)
 	}
 
 	vfunc_finalize() {

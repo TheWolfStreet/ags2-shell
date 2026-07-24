@@ -9,8 +9,8 @@ import AstalMpris from "gi://AstalMpris"
 import GLib from "gi://GLib"
 
 import icons from "$lib/icons"
-import { formatClock } from "$lib/format"
-import { textureFromUriSquareContainAsync } from "$lib/textures"
+import { formatClock } from "$lib/time"
+import { createSquareTextureAccessor } from "$lib/textures"
 import { debounce } from "$lib/timing"
 
 const { START, CENTER, END } = Gtk.Align
@@ -44,7 +44,7 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const coverArt = createBinding(player, "coverArt")
 	const artUrl = createBinding(player, "artUrl")
 	const coverUri = createComputed(() => coverArt() || artUrl() || "")
-	const coverTexture = createComputed(() => textureFromUriSquareContainAsync(coverUri(), 100)())
+	const coverTexture = createComputed(() => createSquareTextureAccessor(coverUri(), 100)())
 	const hasCoverArt = coverTexture.as(texture => texture !== null)
 	const textMaxWidth = 20
 	const playerIcon = createBinding(player, "entry").as(entry => entry || "audio-x-generic-symbolic")

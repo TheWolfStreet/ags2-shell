@@ -13,9 +13,9 @@ import GLib from "gi://GLib"
 import { programArgs } from "system"
 
 import env from "$lib/env"
-import { basicMonitorKey } from "$lib/monitor-state"
+import { basicMonitorKey } from "widget/Windowing/MonitorState"
 import { attempt, attemptAsync } from "$lib/result"
-import { releaseMonitorWindow } from "$lib/windows"
+import { scheduleMonitorWindowRelease } from "widget/Windowing/WindowControl"
 
 type ActiveGif = {
 	iter: GdkPixbuf.PixbufAnimationIter
@@ -41,12 +41,12 @@ function hasCommand(command: string) {
 }
 
 @register()
-export default class Wallpaper extends GObject.Object {
-	declare static $gtype: GObject.GType<Wallpaper>
-	static instance: Wallpaper
+export default class WallpaperService extends GObject.Object {
+	declare static $gtype: GObject.GType<WallpaperService>
+	static instance: WallpaperService
 
 	static get_default() {
-		return this.instance ??= new Wallpaper()
+		return this.instance ??= new WallpaperService()
 	}
 
 	@property(String) wallpaper: string
@@ -123,7 +123,7 @@ export default class Wallpaper extends GObject.Object {
 	}
 
 	async #convertHeic(path: string) {
-		if (!hasCommand("heif-dec")) return
+		if (!hasCommand("heif-dec")) throw new Error("heif-dec not found")
 		const tmpImg = `${env.paths.tmp}/heic.png`
 		await execAsync(["heif-dec", path, tmpImg])
 		await execAsync(["cp", tmpImg, this.wallpaper])
@@ -164,9 +164,8 @@ export default class Wallpaper extends GObject.Object {
 	}
 }
 
-export const wallpaper = Wallpaper.get_default()
+export const wallpaperService = WallpaperService.get_default()
 
-// Child-process rendering shares GIF frames and crossfades updates across monitor windows.
 function scheduleGif(gif: ActiveGif) {
 	const delay = Math.max(10, gif.iter.get_delay_time())
 	gif.sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
@@ -218,32 +217,36 @@ function paint(path: string, revision: number, picture: Gtk.Picture): () => void
 		const animation = GdkPixbuf.PixbufAnimation.new_from_file(path)
 		if (!animation.is_static_image()) return playGif(`${path}:${revision}`, animation, picture)
 		picture.set_paintable(Gdk.Texture.new_for_pixbuf(animation.get_static_image()!))
-		return () => {}
+		return () => { }
 	})
 	if (animated.ok) return animated.value
 
-	attempt(() => picture.set_paintable(Gdk.Texture.new_from_filename(path)))
-	return () => {}
+	const fallback = attempt(() => picture.set_paintable(Gdk.Texture.new_from_filename(path)))
+	if (!fallback.ok)
+		console.error(`wallpaper.paint: Failed to render ${path}`, new Error("All wallpaper decoders failed", {
+			cause: { animated: animated.err, static: fallback.err },
+		}))
+	return () => { }
 }
 
-function setupCrossfadeStack(stack: Gtk.Stack, pictures: [Gtk.Picture, Gtk.Picture], wallpaperService: Wallpaper) {
+function setupCrossfadeStack(stack: Gtk.Stack, pictures: [Gtk.Picture, Gtk.Picture], service: WallpaperService) {
 	let slot: 0 | 1 = 1
-	let stopAnim = () => {}
+	let stopAnim = () => { }
 	let transitionTimer: Timer | null = null
 
 	stack.add_named(pictures[0], "a")
 	stack.add_named(pictures[1], "b")
 	stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
 
-	stopAnim = paint(wallpaperService.wallpaper, wallpaperService.revision, pictures[1])
+	stopAnim = paint(service.wallpaper, service.revision, pictures[1])
 	stack.set_transition_duration(0)
 	stack.set_visible_child_name("b")
 	stack.set_transition_duration(FADE_MS)
 
-	const handlerId = wallpaperService.connect("notify::wallpaper", () => {
+	const handlerId = service.connect("notify::wallpaper", () => {
 		const next: 0 | 1 = slot === 0 ? 1 : 0
 		stopAnim()
-		stopAnim = paint(wallpaperService.wallpaper, wallpaperService.revision, pictures[next])
+		stopAnim = paint(service.wallpaper, service.revision, pictures[next])
 		transitionTimer?.cancel()
 		transitionTimer = idle(() => {
 			transitionTimer = null
@@ -252,7 +255,7 @@ function setupCrossfadeStack(stack: Gtk.Stack, pictures: [Gtk.Picture, Gtk.Pictu
 		})
 	})
 	onCleanup(() => {
-		wallpaperService.disconnect(handlerId)
+		service.disconnect(handlerId)
 		transitionTimer?.cancel()
 		stopAnim()
 	})
@@ -260,7 +263,6 @@ function setupCrossfadeStack(stack: Gtk.Stack, pictures: [Gtk.Picture, Gtk.Pictu
 
 export namespace WallpaperWindow {
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
-		const wallpaperService = wallpaper
 		const geometry = gdkmonitor.get_geometry()
 		const pictures: [Gtk.Picture, Gtk.Picture] = [new Gtk.Picture(), new Gtk.Picture()]
 		for (const picture of pictures) {
@@ -295,13 +297,12 @@ export namespace WallpaperWindow {
 			</window>
 		) as Gtk.Window
 
-		onCleanup(() => releaseMonitorWindow(win))
+		onCleanup(() => scheduleMonitorWindowRelease(win))
 
 		return win
 	}
 }
 
-// Main-process supervision restarts the isolated renderer and terminates it with the shell.
 let child: Process | null = null
 let restartTimer: Timer | null = null
 let stopping = false
@@ -368,7 +369,7 @@ function spawnChild() {
 	}
 }
 
-export function startWallpaperProcess() {
+export function startWallpaperSupervisor() {
 	stopping = false
 	spawnChild()
 
@@ -387,7 +388,7 @@ function monitorKey(monitor: Gdk.Monitor, index: number) {
 	return basicMonitorKey(monitor, `${index}:${monitor.get_description() ?? "unknown"}:${geometry.x}x${geometry.y}`)
 }
 
-function initWallpaperMonitors() {
+function startWallpaperWindows() {
 	const active = new Map<string, { monitor: Gdk.Monitor, dispose: () => void }>()
 
 	const sync = () => {
@@ -429,7 +430,7 @@ export function startWallpaperApp() {
 		instanceName: `${env.appName}-wallpaper-${instanceSuffix}`,
 		main() {
 			env.init()
-			initWallpaperMonitors()
+			startWallpaperWindows()
 
 			if (parentPid) {
 				const watchdog = interval(1000, () => {

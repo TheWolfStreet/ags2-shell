@@ -4,12 +4,12 @@ import { createComputed, createState } from "ags"
 import app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 
-import { createSettingsPages } from "./components/pages"
+import { createSettingsPages } from "./components/SettingsPages"
 import type { CommonOption } from "./components/Setter"
 
 import { Opt } from "$lib/option"
 import icons from "$lib/icons"
-import { hyprland } from "$service/system"
+import { hyprland } from "$service/astal"
 
 import options from "options"
 

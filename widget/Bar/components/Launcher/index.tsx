@@ -6,15 +6,14 @@ import { Astal, Gtk, Gdk } from "ags/gtk4"
 
 import AstalApps from "gi://AstalApps"
 
-import { Placeholder } from "widget/shared/Placeholder"
-import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { Placeholder } from "widget/Placeholder"
+import { PopupWindow, Position } from "widget/Windowing/PopupWindow"
 import { PanelButton } from "../PanelButton"
-import { indexApplications, rankApplications } from "./search"
 
 import { Opt } from "$lib/option"
-import { apps } from "$service/apps"
+import { applications } from "$service/applications"
 import icons from "$lib/icons"
-import { toggleWindow } from "$lib/windows"
+import { toggleWindow } from "widget/Windowing/WindowControl"
 
 import options from "options"
 
@@ -60,8 +59,33 @@ type AppEntryProps = {
 	launch: (app: AstalApps.Application) => void
 }
 
+type IndexedApplication = {
+	app: AstalApps.Application
+	name: string
+}
+
+function indexApplications(applications: AstalApps.Application[]): IndexedApplication[] {
+	return applications.map(app => ({ app, name: app.get_name().toLowerCase() }))
+}
+
+function rankApplications(index: IndexedApplication[], query: string, limit: number) {
+	const normalizedQuery = query.trim().toLowerCase()
+	if (!normalizedQuery) return []
+
+	return index
+		.map(indexed => ({ ...indexed, matchPosition: indexed.name.indexOf(normalizedQuery) }))
+		.filter(result => result.matchPosition >= 0)
+		.sort((left, right) => {
+			if (left.matchPosition !== right.matchPosition)
+				return left.matchPosition - right.matchPosition
+			return left.name.localeCompare(right.name)
+		})
+		.slice(0, limit)
+		.map(result => result.app)
+}
+
 export namespace Launcher {
-	const allApps = createBinding(apps, "list")
+	const allApps = createBinding(applications, "list")
 	const revealers = new Map<string, Gtk.Revealer>()
 	const isOnBottom = createComputed(() => position() === "bottom-center")
 	const appTransition = isOnBottom.as(isBottom => isBottom ? SLIDE_UP : SLIDE_DOWN)
@@ -152,7 +176,6 @@ export namespace Launcher {
 		)
 	}
 
-	// Entries mount once, then reveal and reorder in place so search updates retain GTK widget state.
 	function AppEntry({ app, visibleApps, launch }: AppEntryProps) {
 		const appName = app.get_name()
 		const [iconReady, setIconReady] = createState(false)
@@ -275,7 +298,7 @@ export namespace Launcher {
 		let win: Astal.Window
 
 		const [text, setText] = createState("")
-		const favorites = createBinding(apps, "favorites")
+		const favorites = createBinding(applications, "favorites")
 		const searchIndex = createComputed(() => indexApplications(allApps()))
 		const visibleApps = createComputed(() => {
 			const maxVisible = options.launcher.apps.max.peek() || 9

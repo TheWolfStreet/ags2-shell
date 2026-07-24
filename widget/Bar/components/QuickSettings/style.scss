@@ -54,7 +54,6 @@ window#quicksettings {
       color: color-mix(in srgb, var(--fg) 85%, transparent);
     }
 
-    // Volume, brightness, and device mixer controls share one surface.
     box.sliders-box {
       @extend .widget;
       padding: var(--padding);
@@ -109,7 +108,6 @@ window#quicksettings {
       @include spacing;
     }
 
-    // Expanded device and service menus.
     box.menu {
       @extend .widget;
       padding: var(--padding);
@@ -165,7 +163,6 @@ window#quicksettings {
       }
     }
 
-    // Split and simple toggle states.
     %toggle {
       background-color: var(--widget-bg);
       border: var(--border-width) solid var(--border-color);
@@ -264,7 +261,6 @@ window#quicksettings {
       }
     }
 
-    // Active media sessions and transport controls.
     box.media {
       @include spacing;
 

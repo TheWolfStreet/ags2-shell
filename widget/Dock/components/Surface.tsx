@@ -4,11 +4,9 @@ import app from "ags/gtk4/app"
 import { Accessor, For, createComputed } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
-import { renderItem } from "widget/Dock/components/Icons"
-import { Hover } from "widget/Dock/components/hover"
-import { DockItem, Side, isOnLeft } from "widget/Dock/components/items"
-import { Position } from "$lib/popup"
-import { PopupWindow } from "widget/shared/PopupWindow"
+import { renderDockItem } from "widget/Dock/components/DockItems"
+import { DockHoverTracker, DockItem, DockSide, isDockOnLeft } from "widget/Dock/DockBehavior"
+import { PopupWindow, type Position } from "widget/Windowing/PopupWindow"
 
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { CENTER } = Gtk.Align
@@ -22,7 +20,7 @@ export type DockView = {
 	gdkmonitor: Gdk.Monitor
 	windows: Gtk.Window[]
 	shown: Accessor<boolean>
-	hover: Hover
+	hover: DockHoverTracker
 	dockItems: Accessor<DockItem[]>
 	isDockLocation: Accessor<boolean>
 	isAutohide: Accessor<boolean>
@@ -40,7 +38,7 @@ const sideConfig = {
 	bottom: { anchor: BOTTOM | LEFT | RIGHT, layout: "bottom-center" as Position, orientation: HORIZONTAL },
 }
 
-function thicknessRequest(side: Side, thickness: Accessor<number>) {
+function thicknessRequest(side: DockSide, thickness: Accessor<number>) {
 	return side === "left"
 		? { widthRequest: thickness, heightRequest: -1 }
 		: { widthRequest: -1, heightRequest: thickness }
@@ -53,12 +51,12 @@ function bindHoverZone(view: DockView, window: Gtk.Window, zoneId: string) {
 	window.add_controller(motion)
 }
 
-function sideActive(view: DockView, side: Side) {
+function sideActive(view: DockView, side: DockSide) {
 	return createComputed(() =>
-		view.isDockLocation() && view.dockItems().length > 0 && isOnLeft() === (side === "left"))
+		view.isDockLocation() && view.dockItems().length > 0 && isDockOnLeft() === (side === "left"))
 }
 
-export function Hotzone({ view, side }: { view: DockView, side: Side }) {
+export function Hotzone({ view, side }: { view: DockView, side: DockSide }) {
 	const active = sideActive(view, side)
 	const zoneId = `hotzone-${side}`
 	return (
@@ -79,7 +77,7 @@ export function Hotzone({ view, side }: { view: DockView, side: Side }) {
 	)
 }
 
-export function DockSurface({ view, side }: { view: DockView, side: Side }) {
+export function DockSurface({ view, side }: { view: DockView, side: DockSide }) {
 	const cfg = sideConfig[side]
 	const active = sideActive(view, side)
 	const zoneId = `dock-${side}`
@@ -108,7 +106,7 @@ export function DockSurface({ view, side }: { view: DockView, side: Side }) {
 				marginBottom={side === "left" ? 0 : view.edgeMargin}
 			>
 				<For each={view.dockItems}>
-					{item => renderItem(item, side, view.iconSize)}
+					{item => renderDockItem(item, side, view.iconSize)}
 				</For>
 			</box>
 		</PopupWindow>

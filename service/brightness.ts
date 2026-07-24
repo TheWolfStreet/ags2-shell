@@ -9,13 +9,78 @@ import Gio from "gi://Gio"
 import { getBrightnessIcon } from "$lib/icons"
 import { attempt, attemptAsync } from "$lib/result"
 import { debounce } from "$lib/timing"
-import { hyprland } from "$service/system"
-import { discoverExternalDisplays, readExternalBrightness, writeExternalBrightness } from "$service/brightness/ddc"
-import { firstDevice } from "$service/brightness/sysfs"
+import { hyprland } from "$service/astal"
+
+function firstSysfsDevice(directory: string): string {
+	const result = attempt(() => {
+		const enumerator = Gio.File.new_for_path(directory).enumerate_children(
+			"standard::name",
+			Gio.FileQueryInfoFlags.NONE,
+			null,
+		)
+		const names: string[] = []
+		let info: Gio.FileInfo | null
+		while ((info = enumerator.next_file(null)) !== null)
+			names.push(info.get_name())
+		enumerator.close(null)
+		return names.sort()[0] ?? ""
+	})
+	return result.ok ? result.value : ""
+}
+
+async function discoverDdcDisplays(): Promise<number[]> {
+	const result = await attemptAsync(async () => execAsync(["ddcutil", "detect"]))
+	if (!result.ok) {
+		console.error("brightness.ddc.detect: Failed to detect external displays", result.err)
+		return []
+	}
+
+	const displays: number[] = []
+	for (const block of result.value.split(/\n\s*\n/).map(part => part.trim()).filter(Boolean)) {
+		const displayMatch = block.match(/^Display\s+(\d+)/m)
+		if (!displayMatch) continue
+
+		const connector = block.match(/DRM connector:\s+([^\n]+)/i)?.[1]?.toLowerCase() ?? ""
+		if (!connector.includes("edp") && !connector.includes("lvds"))
+			displays.push(Number(displayMatch[1]))
+	}
+	return displays
+}
+
+async function readDdcBrightness(display: number): Promise<number | null> {
+	const result = await attemptAsync(async () => execAsync([
+		"ddcutil", "getvcp", "10", "--brief", "--display", String(display),
+	]))
+	if (!result.ok) {
+		console.error(`brightness.ddc.read: Failed to read display ${display}`, result.err)
+		return null
+	}
+
+	const match = result.value.match(/current value =\s*(\d+)/i) || result.value.match(/\b10\s+(\d+)\s+\d+\b/)
+	if (!match) return null
+
+	const value = Number(match[1])
+	return Number.isFinite(value) ? value : null
+}
+
+async function setDdcBrightness(displays: readonly number[], target: number): Promise<boolean> {
+	let writeSucceeded = false
+	for (const display of displays) {
+		const result = await attemptAsync(async () => execAsync([
+			"ddcutil", "setvcp", "10", String(target), "--display", String(display), "--noverify",
+		]))
+		if (!result.ok)
+			console.error(`brightness.ddc.write: Failed to set display ${display} to ${target}%`, result.err)
+		writeSucceeded = writeSucceeded || result.ok
+	}
+	return writeSucceeded
+}
 
 const readBrightness = async (args: string[]): Promise<number> => {
 	const result = await attemptAsync(async () => Number(await execAsync(["brightnessctl", ...args])))
-	return result.ok ? result.value : Number.NaN
+	if (result.ok) return result.value
+	console.error("brightness.read: Failed to read brightness", result.err)
+	return Number.NaN
 }
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
@@ -70,8 +135,8 @@ class Brightness extends GObject.Object {
 	}
 
 	async #loadDevices() {
-		this.#displayDevice = firstDevice("/sys/class/backlight")
-		this.#keyboardDevice = firstDevice("/sys/class/leds")
+		this.#displayDevice = firstSysfsDevice("/sys/class/backlight")
+		this.#keyboardDevice = firstSysfsDevice("/sys/class/leds")
 
 		await this.#refreshExternalDisplays()
 	}
@@ -100,7 +165,7 @@ class Brightness extends GObject.Object {
 		}
 
 		if (this.#externalDisplays.length > 0) {
-			const value = await readExternalBrightness(this.#externalDisplays[0])
+			const value = await readDdcBrightness(this.#externalDisplays[0])
 			if (value !== null) {
 				this.#displayValue = clamp01(value / 100)
 				this.#lastAppliedDisplayTarget = Math.round(this.#displayValue * 100)
@@ -112,25 +177,24 @@ class Brightness extends GObject.Object {
 		if (this.#displayDevice) {
 			const displayPath = `/sys/class/backlight/${this.#displayDevice}/brightness`
 
-			this.#deviceMonitors.push(monitorFile(displayPath, async path => {
-				const value = Number(await readFileAsync(path))
-				const next = clamp01(value / this.#displayMax)
-
-				if (next === this.#displayValue)
-					return
-
-				this.#displayValue = next
-				this.#lastAppliedDisplayTarget = Math.round(next * 100)
-				this.notify("display")
+			this.#deviceMonitors.push(monitorFile(displayPath, path => {
+				void readFileAsync(path).then(raw => {
+					const next = clamp01(Number(raw) / this.#displayMax)
+					if (next === this.#displayValue) return
+					this.#displayValue = next
+					this.#lastAppliedDisplayTarget = Math.round(next * 100)
+					this.notify("display")
+				}).catch(error => console.error("brightness.monitor: Failed to read display brightness", error))
 			}))
 		}
 
 		if (this.#keyboardDevice) {
 			const keyboardPath = `/sys/class/leds/${this.#keyboardDevice}/brightness`
 
-			this.#deviceMonitors.push(monitorFile(keyboardPath, async path => {
-				const value = Number(await readFileAsync(path))
-				this.#setKeyboardFromRaw(value)
+			this.#deviceMonitors.push(monitorFile(keyboardPath, path => {
+				void readFileAsync(path)
+					.then(raw => this.#setKeyboardFromRaw(Number(raw)))
+					.catch(error => console.error("brightness.monitor: Failed to read keyboard brightness", error))
 			}))
 		}
 	}
@@ -171,7 +235,7 @@ class Brightness extends GObject.Object {
 	}
 
 	async #refreshExternalDisplays() {
-		const displays = await discoverExternalDisplays()
+		const displays = await discoverDdcDisplays()
 		const next = Array.from(new Set(displays)).sort((a, b) => a - b)
 
 		const changed =
@@ -185,7 +249,7 @@ class Brightness extends GObject.Object {
 			return
 
 		if (!this.#displayDevice && next.length > 0) {
-			const value = await readExternalBrightness(next[0])
+			const value = await readDdcBrightness(next[0])
 			if (value !== null) {
 				const normalized = clamp01(value / 100)
 
@@ -198,7 +262,6 @@ class Brightness extends GObject.Object {
 		}
 	}
 
-	// At most one write is in flight; intermediate targets collapse to the newest one.
 	#queueDisplayWrite(target: number) {
 		this.#queuedDisplayTarget = target
 		this.#displayWrite.call()
@@ -224,6 +287,12 @@ class Brightness extends GObject.Object {
 
 			if (writeSucceeded) {
 				this.#lastAppliedDisplayTarget = target
+			} else {
+				console.error(`brightness.write: No display accepted brightness ${target}%`)
+				if (this.#queuedDisplayTarget === null && this.#lastAppliedDisplayTarget !== null) {
+					this.#displayValue = this.#lastAppliedDisplayTarget / 100
+					this.notify("display")
+				}
 			}
 		} finally {
 			this.#displayWriteInFlight = false
@@ -238,14 +307,13 @@ class Brightness extends GObject.Object {
 		let writeSucceeded = false
 
 		if (this.#displayDevice) {
-			const succeeded = await execAsync(["brightnessctl", "set", `${target}%`, "-q"])
-				.then(() => true)
-				.catch(() => false)
-
-			writeSucceeded = writeSucceeded || succeeded
+			const result = await attemptAsync(async () => execAsync(["brightnessctl", "set", `${target}%`, "-q"]))
+			if (!result.ok)
+				console.error("brightness.write: Failed to set internal display brightness", result.err)
+			writeSucceeded = result.ok
 		}
 
-		const externalWriteSucceeded = await writeExternalBrightness(this.#externalDisplays, target)
+		const externalWriteSucceeded = await setDdcBrightness(this.#externalDisplays, target)
 		return writeSucceeded || externalWriteSucceeded
 	}
 
@@ -266,7 +334,7 @@ class Brightness extends GObject.Object {
 		execAsync(["brightnessctl", "-d", this.#keyboardDevice, "s", String(target), "-q"]).then(() => {
 			this.#keyboardValue = value
 			this.notify("kbd")
-		}).catch(() => { })
+		}).catch(error => console.error("brightness.kbd: Failed to set keyboard brightness", error))
 	}
 
 	@getter(String)

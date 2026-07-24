@@ -20,6 +20,10 @@ namespace Store {
 			const raw = readFile(path) || "{}"
 			return JSON.parse(raw) as Record<string, unknown>
 		})
+		if (!result.ok)
+			console.error("option.store.load: Failed to load options store", result.err)
+		else if (!isStructured(result.value))
+			console.error("option.store.load: Options store does not contain an object")
 		cache = result.ok && isStructured(result.value) ? result.value : {}
 	}
 
@@ -203,7 +207,6 @@ function buildOptions(node: unknown, path: string, constraints: OptionConstraint
 	return opt
 }
 
-// Prefixes select persisted option IDs and all of their descendants.
 export function subscribeOptions(
 	opts: unknown,
 	prefixes: readonly string[],

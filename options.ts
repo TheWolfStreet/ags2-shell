@@ -40,7 +40,6 @@ const constraints = {
 } as const
 
 const options = mkOptions({
-	// Appearance
 	autotheme: false,
 	scale: 100,
 	font: "SFProDisplay Nerd Font 11",
@@ -94,7 +93,6 @@ const options = mkOptions({
 		roundness: 12,
 	},
 
-	// Shell surfaces
 	bar: {
 		position: "top-center",
 		transparent: false,
@@ -157,7 +155,6 @@ const options = mkOptions({
 		workspaces: 7,
 	},
 
-	// Popups and tools
 	quicksettings: {
 		position: "top-right",
 		width: 380,
@@ -194,7 +191,6 @@ const options = mkOptions({
 		maxColors: 10,
 	},
 
-	// External integrations
 	hyprland: {
 		gaps: 2.4,
 		inactiveBorder: "#282828",

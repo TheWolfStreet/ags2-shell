@@ -4,38 +4,37 @@ import app from "ags/gtk4/app"
 import { createComputed, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
-import { releaseMonitorWindow } from "$lib/windows"
-import { createDrag } from "./Drag"
-import { DesktopGrid } from "./Grid"
-import { attachKeyboard } from "./Input"
-import { createGrid } from "./model"
-import { DesktopMenu, menu } from "./Menu"
-import { session } from "./session"
+import { scheduleMonitorWindowRelease } from "widget/Windowing/WindowControl"
+import { createDesktopDragController } from "./interaction/DragAndDrop"
+import { DesktopGrid } from "./components/Grid"
+import { attachDesktopKeyboard } from "./interaction/Interactions"
+import { createDesktopGridModel, desktopInteraction } from "./model/DesktopState"
+import { DesktopContextMenu, desktopContextMenu } from "./components/ContextMenu"
 
 const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 
 export namespace Desktop {
-	export const ContextMenuWindow = DesktopMenu
+	export const ContextMenuWindow = DesktopContextMenu
 
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 		let window: Gtk.Window | undefined
-		const grid = createGrid(gdkmonitor)
-		const drag = createDrag(grid)
+		const grid = createDesktopGridModel(gdkmonitor)
+		const drag = createDesktopDragController(grid)
 		const keymode = createComputed(() => {
-			if (menu.visible() || session.rename.path() || session.selected().length > 0 || session.clipboard()?.operation === "cut")
+			if (desktopContextMenu.visible() || desktopInteraction.rename.path() || desktopInteraction.selected().length > 0 || desktopInteraction.clipboard()?.operation === "cut")
 				return Astal.Keymode.ON_DEMAND
 			return Astal.Keymode.NONE
 		})
 
-		onCleanup(() => releaseMonitorWindow(window))
+		onCleanup(() => scheduleMonitorWindowRelease(window))
 
 		return (
 			<window
 				$={self => {
 					window = self
-					attachKeyboard(self, grid)
-					session.roots.add(self)
-					onCleanup(() => session.roots.delete(self))
+					attachDesktopKeyboard(self, grid)
+					desktopInteraction.roots.add(self)
+					onCleanup(() => desktopInteraction.roots.delete(self))
 				}}
 				name="desktop"
 				namespace="desktop"
@@ -44,7 +43,7 @@ export namespace Desktop {
 				anchor={TOP | BOTTOM | LEFT | RIGHT}
 				application={app}
 				gdkmonitor={gdkmonitor}
-				visible={session.enabled}
+				visible={desktopInteraction.enabled}
 				keymode={keymode}
 				css="background: rgba(0,0,0,0.01);"
 			>

@@ -8,7 +8,7 @@ import Gio from "gi://Gio"
 
 import env from "$lib/env"
 import { attempt } from "$lib/result"
-import { moveClientToWorkspaceSilent } from "$lib/tasks"
+import { moveClientToWorkspaceSilent } from "widget/Windowing/WindowClients"
 
 const TRASH_DIR = env.paths.trash
 const REFRESH_DEBOUNCE_MS = 120
@@ -45,26 +45,27 @@ function scheduleRefresh() {
 	})
 }
 
-export function ensureWatcherStarted() {
+export function acquireTrashWatcher() {
 	watcherUsers += 1
-	if (watcherUsers > 1)
-		return
+	if (watcherUsers === 1) {
+		refreshState()
 
-	refreshState()
+		const result = attempt(() => {
+			const dir = Gio.File.new_for_path(TRASH_DIR)
+			if (!dir.query_exists(null))
+				dir.make_directory_with_parents(null)
+			watcher = dir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null)
+			watcher.connect("changed", () => scheduleRefresh())
+		})
 
-	const result = attempt(() => {
-		const dir = Gio.File.new_for_path(TRASH_DIR)
-		if (!dir.query_exists(null))
-			dir.make_directory_with_parents(null)
-		watcher = dir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null)
-		watcher.connect("changed", () => scheduleRefresh())
-	})
+		if (!result.ok)
+			console.error(`dock.trash.watch: Failed to watch ${TRASH_DIR}`, result.err)
+	}
 
-	if (!result.ok)
-		console.error(`dock.trash.watch: Failed to watch ${TRASH_DIR}`, result.err)
+	return releaseTrashWatcher
 }
 
-export function cleanupWatcher() {
+function releaseTrashWatcher() {
 	watcherUsers = Math.max(0, watcherUsers - 1)
 	if (watcherUsers > 0)
 		return

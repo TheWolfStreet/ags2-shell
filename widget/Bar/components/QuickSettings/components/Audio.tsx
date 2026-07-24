@@ -9,10 +9,10 @@ import AstalWp from "gi://AstalWp"
 import Pango from "gi://Pango"
 
 import { MediaPlayer as MprisMediaPlayer } from "./MediaPlayer"
-import { Arrow, Menu, Settings } from "./shared/MenuElements"
+import { Arrow, Menu, SettingsButton } from "./MenuControls"
 
-import icons, { getIcon } from "$lib/icons"
-import { audio } from "$service/system"
+import icons, { substituteIconName } from "$lib/icons"
+import { audio } from "$service/astal"
 import { requirePrograms } from "$lib/programs"
 
 const { CENTER, END } = Gtk.Align
@@ -27,7 +27,7 @@ export namespace Audio {
 		return (
 			<box hexpand class="mixer-item horizontal">
 				<image
-					iconName={createBinding(node, "name").as(name => getIcon(name))}
+					iconName={createBinding(node, "name").as(name => substituteIconName(name))}
 					tooltipText={createBinding(node, "description").as(description => description || "")}
 					useFallback
 				/>
@@ -60,7 +60,7 @@ export namespace Audio {
 			<button hexpand onClicked={() => (endpoint.set_is_default(true))}>
 				<box class="sink-item horizontal">
 					<image
-						iconName={createBinding(endpoint, "icon").as(icon => getIcon(icon))}
+						iconName={createBinding(endpoint, "icon").as(icon => substituteIconName(icon))}
 						tooltipText={createBinding(endpoint, "name")}
 						useFallback
 					/>
@@ -92,7 +92,7 @@ export namespace Audio {
 						</For>
 					</box>
 					<Gtk.Separator />
-					<Settings callback={() => requirePrograms("pavucontrol") && execAsync(["pavucontrol"])} />
+					<SettingsButton callback={() => requirePrograms("pavucontrol") && execAsync(["pavucontrol"])} />
 				</box>
 			</Menu>
 		)
@@ -115,7 +115,7 @@ export namespace Audio {
 						</For>
 					</box>
 					<Gtk.Separator />
-					<Settings callback={() => requirePrograms("pavucontrol") && execAsync(["pavucontrol"])} />
+					<SettingsButton callback={() => requirePrograms("pavucontrol") && execAsync(["pavucontrol"])} />
 				</box>
 			</Menu>
 		)

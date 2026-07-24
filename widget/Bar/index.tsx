@@ -5,20 +5,19 @@ import { Accessor, createComputed, createState, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { idle } from "ags/time"
 
-import { Date } from "./components/Date"
+import { DateMenu } from "./components/DateMenu"
 import { Battery } from "./components/Battery"
-import { Tasks, Tray, ColorPicker, ScreenRecord, Media } from "./components/Buttons"
+import { ColorPicker, MediaIndicator, RecordingIndicator, SystemTray, WindowList } from "./components/Buttons"
 import { Launcher } from "./components/Launcher"
-import { Workspaces } from "./components/Overview"
+import { Overview } from "./components/Overview"
 import { Notifications } from "./components/Notifications"
 import { QuickSettings } from "./components/QuickSettings"
 
-import { Power } from "widget/PowerMenu"
+import { PowerMenu } from "widget/PowerMenu"
 
 import options from "options"
-import type { MonitorWindowController } from "$lib/monitor-state"
-import { ignoreInput, releaseMonitorWindow } from "$lib/windows"
-import { trackMonitorFullscreen } from "$lib/fullscreen"
+import { trackMonitorFullscreen, type MonitorWindowController } from "widget/Windowing/MonitorState"
+import { ignoreInput, scheduleMonitorWindowRelease } from "widget/Windowing/WindowControl"
 
 const { CENTER } = Gtk.Align
 const { WindowAnchor, Exclusivity, Layer, Keymode } = Astal
@@ -126,25 +125,25 @@ function Layout() {
 		<centerbox valign={CENTER}>
 			<box $type="start" class="horizontal" valign={CENTER}>
 				<Launcher.Button />
-				<Workspaces.Button />
+				<Overview.Button />
 				<box visible={options.taskbar.location.as(v => v === "bar")}>
-					<Tasks />
+					<WindowList />
 				</box>
 			</box>
 
 			<box $type="center" class="horizontal" valign={CENTER}>
-				<Date.Button />
+				<DateMenu.Button />
 			</box>
 
 			<box $type="end" class="horizontal" valign={CENTER}>
-				<Media />
+				<MediaIndicator />
 				<Notifications.Button />
 				<ColorPicker />
-				<Tray />
-				<ScreenRecord />
+				<SystemTray />
+				<RecordingIndicator />
 				<QuickSettings.Button />
 				<Battery.Button />
-				<Power.Button />
+				<PowerMenu.Button />
 			</box>
 		</centerbox>
 	)
@@ -201,9 +200,9 @@ export function Bar({ gdkmonitor, initialVisible = true }: { gdkmonitor: Gdk.Mon
 
 	onCleanup(() => {
 		marginTrackingCleanup()
-		releaseMonitorWindow(barWin)
-		releaseMonitorWindow(topWin)
-		releaseMonitorWindow(bottomWin)
+		scheduleMonitorWindowRelease(barWin)
+		scheduleMonitorWindowRelease(topWin)
+		scheduleMonitorWindowRelease(bottomWin)
 		paddingUnsub()
 		repositionUnsub()
 	})

@@ -4,7 +4,7 @@ import { createState, onCleanup } from "ags"
 import { execAsync } from "ags/process"
 
 import { attemptAsync } from "$lib/result"
-import { hyprland } from "$service/system"
+import { hyprland } from "$service/astal"
 
 const LAYOUT_CODES: Record<string, string> = {
 	"english": "en", "russian": "ru", "hebrew": "he", "arabic": "ar", "chinese": "zh",

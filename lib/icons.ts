@@ -12,52 +12,29 @@ const substitutes = {
 
 const iconList = {
 	missing: "image-missing-symbolic",
-	nix: {
-		nix: "nix-snowflake-symbolic",
-	},
-	app: {
-		terminal: "terminal-symbolic",
-	},
 	fallback: {
-		executable: "application-x-executable",
 		notification: "dialog-information-symbolic",
 		video: "video-x-generic-symbolic",
 		image: "image-x-generic-symbolic",
-		audio: "audio-x-generic-symbolic",
 	},
 	ui: {
 		close: "window-close-symbolic",
 		projector: "display-projector-symbolic",
 		colorpicker: "color-picker-symbolic",
-		info: "info-symbolic",
-		link: "external-link-symbolic",
-		lock: "system-lock-screen-symbolic",
-		menu: "open-menu-symbolic",
 		refresh: "view-refresh-symbolic",
 		search: "system-search-symbolic",
 		settings: "org.gnome.Settings-symbolic",
 		themes: "dark-mode-symbolic",
 		tick: "object-select-symbolic",
-		time: "hourglass-symbolic",
-		minus: "minus-large-symbolic",
 		toolbars: "toolbars-symbolic",
-		warning: "dialog-warning-symbolic",
-		avatar: "avatar-default-symbolic",
 		eye: "view-reveal-symbolic",
 		hidden: "view-conceal-symbolic",
 		arrow: {
 			right: "go-right-symbolic",
 			left: "go-left-symbolic",
-			down: "go-down-symbolic",
-			up: "go-up-symbolic",
 		},
 	},
 	audio: {
-		type: {
-			headset: "headphones-symbolic",
-			speaker: "speakers-symbolic",
-			card: "soundcard-symbolic",
-		},
 		mixer: "window-sound-source-symbolic",
 		devices: "audio-headset-symbolic",
 	},
@@ -87,7 +64,6 @@ const iconList = {
 		disabled: "bluetooth-disabled-symbolic",
 	},
 	brightness: {
-		indicator: "display-brightness-symbolic",
 		keyboard: {
 			off: "keyboard-brightness-off-symbolic",
 			low: "keyboard-brightness-low-symbolic",
@@ -132,14 +108,8 @@ const iconList = {
 		},
 		playing: "media-playback-pause-symbolic",
 		paused: "media-playback-start-symbolic",
-		stopped: "media-playback-start-symbolic",
 		prev: "media-skip-backward-symbolic",
 		next: "media-skip-forward-symbolic",
-	},
-	system: {
-		cpu: "org.gnome.SystemMonitor-symbolic",
-		ram: "drive-harddisk-solidstate-symbolic",
-		temp: "temperature-symbolic",
 	},
 	color: {
 		dark: "dark-mode-symbolic",
@@ -147,7 +117,7 @@ const iconList = {
 	},
 }
 
-export function getIcon(name: string, fallback = "image-missing-symbolic"): string {
+export function substituteIconName(name: string, fallback = "image-missing-symbolic"): string {
 	return substitutes[name as keyof typeof substitutes] || name || fallback
 }
 

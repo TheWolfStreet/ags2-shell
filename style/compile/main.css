@@ -1988,6 +1988,59 @@ window#state-display box.state-display progressbar.percentage.muted trough progr
   background-color: color-mix(in srgb, var(--fg) 80%, transparent);
 }
 
+.placeholder.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+.placeholder.horizontal > *:first-child {
+  margin-left: 0;
+}
+.placeholder.horizontal > *:last-child {
+  margin-right: 0;
+}
+.placeholder.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+.placeholder.vertical > *:first-child {
+  margin-top: 0;
+}
+.placeholder.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.placeholder {
+  padding: calc(var(--padding) * 2);
+}
+.placeholder image {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  margin-bottom: 0.1em;
+}
+.placeholder label {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  font-size: 1.25em;
+}
+
+window.placeholder box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window.placeholder box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.placeholder box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.placeholder box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window.placeholder box.vertical > *:first-child {
+  margin-top: 0;
+}
+window.placeholder box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.placeholder label {
+  font-size: 72pt;
+  font-weight: bold;
+}
+
 window#powermenu,
 window#verification {
   background-color: rgba(0, 0, 0, 0.4);
@@ -2196,57 +2249,4 @@ window.settings-dialog box.row picture.preview {
   border-radius: var(--radius);
   min-height: 15em;
   min-width: 15em;
-}
-
-.placeholder.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-.placeholder.horizontal > *:first-child {
-  margin-left: 0;
-}
-.placeholder.horizontal > *:last-child {
-  margin-right: 0;
-}
-.placeholder.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-.placeholder.vertical > *:first-child {
-  margin-top: 0;
-}
-.placeholder.vertical > *:last-child {
-  margin-bottom: 0;
-}
-.placeholder {
-  padding: calc(var(--padding) * 2);
-}
-.placeholder image {
-  color: color-mix(in srgb, var(--fg) 70%, transparent);
-  margin-bottom: 0.1em;
-}
-.placeholder label {
-  color: color-mix(in srgb, var(--fg) 70%, transparent);
-  font-size: 1.25em;
-}
-
-window.placeholder box.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-window.placeholder box.horizontal > *:first-child {
-  margin-left: 0;
-}
-window.placeholder box.horizontal > *:last-child {
-  margin-right: 0;
-}
-window.placeholder box.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-window.placeholder box.vertical > *:first-child {
-  margin-top: 0;
-}
-window.placeholder box.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window.placeholder label {
-  font-size: 72pt;
-  font-weight: bold;
 }

@@ -2,17 +2,17 @@
 
 import { Gtk } from "ags/gtk4"
 import { Accessor, Node, With, createBinding, createComputed } from "ags"
-import { ToggleButton, Menu, Settings } from "widget/Bar/components/QuickSettings/components/shared/MenuElements"
-import { Placeholder } from "widget/shared/Placeholder"
+import { ToggleButton, Menu, SettingsButton } from "widget/Bar/components/QuickSettings/components/MenuControls"
+import { Placeholder } from "widget/Placeholder"
 import icons from "$lib/icons"
-import { powerProfiles } from "$service/system"
+import { powerProfiles } from "$service/astal"
 import { attempt } from "$lib/result"
 import { launchApp } from "$lib/programs"
 import { asusctl } from "$service/asusctl"
 
 const { VERTICAL } = Gtk.Orientation
 
-export namespace Profiles {
+export namespace PowerProfiles {
 	type IconMap = Record<string, string | undefined>
 
 	interface Provider {
@@ -43,7 +43,7 @@ export namespace Profiles {
 		profiles: () => asusctl.profiles,
 		icon: p => getMappedIcon(icons.asusctl.profile as IconMap, p),
 		label: (p) => p,
-		extraSettings: () => <Settings callback={() => launchApp("rog-control-center")} />,
+		extraSettings: () => <SettingsButton callback={() => launchApp("rog-control-center")} />,
 		toggleDefaults: () => ["Quiet", "Balanced"],
 	}
 
@@ -56,11 +56,11 @@ export namespace Profiles {
 
 	const getPowerProvider = (): Provider | undefined => {
 		const result = attempt((): Provider | undefined => {
-			if (!powerProfiles?.get_version?.()) return undefined
+			if (!powerProfiles.get_version()) return undefined
 			return {
 				active: createBinding(powerProfiles, "activeProfile"),
-				profiles: () => powerProfiles?.get_profiles?.()?.map(p => p.profile) || [],
-				select: (profile) => powerProfiles?.set_active_profile?.(profile),
+				profiles: () => powerProfiles.get_profiles().map(p => p.profile),
+				select: profile => powerProfiles.set_active_profile(profile),
 				icon: p => getMappedIcon(icons.powerprofile as IconMap, p),
 				label: (p) => prettify(p),
 				toggleDefaults: () => {
@@ -144,32 +144,26 @@ export namespace Profiles {
 				<With value={provider}>
 					{current => {
 						if (!current) return <box visible={false} />
-						const result = attempt(() => {
-							const active = current.active
-							const [, off] = current.toggleDefaults()
-							const icon = active.as(profile => current.icon(profile))
-							const visible = active.as(profile => profile !== off)
-							return <image iconName={icon} visible={visible} useFallback />
-						})
-						return result.ok ? result.value : <box visible={false} />
+						const active = current.active
+						const [, off] = current.toggleDefaults()
+						const icon = active.as(profile => current.icon(profile))
+						const visible = active.as(profile => profile !== off)
+						return <image iconName={icon} visible={visible} useFallback />
 					}}
 				</With>
 			)
 		}
 
 		export function Asus() {
-			const result = attempt(() => {
-				const mode = createBinding(asusctl, "mode")
-				const modeIcon = mode.as(m => getMappedIcon(icons.asusctl.mode as IconMap, m))
-				return (
-					<image
-						iconName={modeIcon}
-						visible={createComputed(() => asusAvailable() && mode() !== "Hybrid")}
-						useFallback
-					/>
-				)
-			})
-			return result.ok ? result.value : <box visible={false} />
+			const mode = createBinding(asusctl, "mode")
+			const modeIcon = mode.as(m => getMappedIcon(icons.asusctl.mode as IconMap, m))
+			return (
+				<image
+					iconName={modeIcon}
+					visible={createComputed(() => asusAvailable() && mode() !== "Hybrid")}
+					useFallback
+				/>
+			)
 		}
 	}
 

@@ -1,7 +1,6 @@
 // Styles desktop icons, selection, dragging, renaming, and the right-click menu.
 @use '../../style/base' as *;
 
-// Icon interaction, selection, dragging, and inline rename states.
 window#desktop {
   .desktop-container {
     padding: 0;
@@ -114,7 +113,6 @@ window#desktop {
   }
 }
 
-// Desktop-only context menu surface.
 window#desktop-context-menu {
   background-color: transparent;
   box-shadow: none;

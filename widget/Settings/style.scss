@@ -1,7 +1,6 @@
 // Styles Settings tabs, option groups, wallpaper previews, and reset buttons.
 @use '../../style/base' as *;
 
-// Dialog navigation and page layout.
 window.settings-dialog {
   background-color: var(--bg);
   color: var(--fg);
@@ -56,7 +55,6 @@ window.settings-dialog {
     padding-top: 0;
   }
 
-  // Option groups and reset affordances.
   box.group {
     .header {
       label.title {
@@ -75,7 +73,6 @@ window.settings-dialog {
     }
   }
 
-  // Joined setting rows and value previews.
   box.row {
     background-color: var(--widget-bg);
     padding: var(--padding);

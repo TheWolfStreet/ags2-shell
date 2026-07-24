@@ -1,14 +1,15 @@
 // Lists notifications, joins duplicates, removes old ones, and handles dismissal.
 
 import GObject, { getter, property, register } from "ags/gobject"
+import { execAsync } from "ags/process"
 import { Timer, timeout } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
-import { attempt } from "$lib/result"
-import { notificationDaemon } from "$service/system"
+import { attempt, attemptAsync } from "$lib/result"
+import { notificationDaemon } from "$service/astal"
 import options from "options"
 
 const DISPLAY_LIMIT = 50
@@ -17,6 +18,157 @@ const PERSIST_TRIGGER = 75
 const PRUNE_BUDGET = 8
 const COALESCE_MS = 16
 const PRUNE_DELAY_MS = 250
+
+type NotificationUrgency = "low" | "normal" | "critical"
+
+const URGENCY_LEVEL: Record<NotificationUrgency, number> = {
+	low: 0,
+	normal: 1,
+	critical: 2,
+}
+
+export async function notify(options: {
+	id?: number
+	appName?: string
+	appIcon?: string
+	previewImage?: string
+	actions?: Record<string, string>
+	body?: string
+	summary?: string
+	urgency?: NotificationUrgency
+	timeout?: number
+	hints?: Record<string, string>
+}) {
+	const result = await attemptAsync(async () => {
+		const {
+			id,
+			appName = "",
+			appIcon = "",
+			previewImage = "",
+			actions = {},
+			body = "",
+			summary = "",
+			urgency = "normal",
+			timeout,
+			hints = {},
+		} = options
+
+		const toHintVariant = (type: string, rawValue: string): GLib.Variant => {
+			switch (type) {
+				case "boolean":
+					return new GLib.Variant("b", rawValue === "1" || rawValue.toLowerCase() === "true")
+				case "int": {
+					const parsed = Number.parseInt(rawValue, 10)
+					return new GLib.Variant("i", Number.isFinite(parsed) ? parsed : 0)
+				}
+				case "double": {
+					const parsed = Number.parseFloat(rawValue)
+					return new GLib.Variant("d", Number.isFinite(parsed) ? parsed : 0)
+				}
+				case "byte": {
+					const parsed = Number.parseInt(rawValue, 10)
+					const bounded = Number.isFinite(parsed) ? Math.max(0, Math.min(255, parsed)) : 0
+					return new GLib.Variant("y", bounded)
+				}
+				case "string":
+				default:
+					return new GLib.Variant("s", rawValue)
+			}
+		}
+
+		const hintTable: Record<string, GLib.Variant> = {}
+		for (const [key, value] of Object.entries(hints)) {
+			if (!key) continue
+
+			const split = key.split(":")
+			if (split.length >= 2) {
+				const type = split.shift() || "string"
+				hintTable[split.join(":")] = toHintVariant(type, value)
+			} else {
+				hintTable[key] = new GLib.Variant("s", value)
+			}
+		}
+
+		if (previewImage)
+			hintTable["image-path"] = new GLib.Variant("s", previewImage)
+
+		hintTable["urgency"] = new GLib.Variant("y", URGENCY_LEVEL[urgency])
+
+		const actionList: string[] = []
+		for (const [actionLabel, actionCommand] of Object.entries(actions)) {
+			if (!actionLabel.trim() || !actionCommand.trim())
+				continue
+			actionList.push(actionCommand, actionLabel)
+		}
+
+		const reply = await new Promise<GLib.Variant>((resolve, reject) => {
+			Gio.DBus.session.call(
+				"org.freedesktop.Notifications",
+				"/org/freedesktop/Notifications",
+				"org.freedesktop.Notifications",
+				"Notify",
+				new GLib.Variant("(susssasa{sv}i)", [
+					appName,
+					id ?? 0,
+					appIcon,
+					summary,
+					body,
+					actionList,
+					hintTable,
+					timeout ?? -1,
+				]),
+				new GLib.VariantType("(u)"),
+				Gio.DBusCallFlags.NONE,
+				-1,
+				null,
+				(connection, callResult) => {
+					try {
+						resolve(connection!.call_finish(callResult))
+					} catch (error) {
+						reject(error)
+					}
+				},
+			)
+		})
+
+		const [notificationId] = reply.recursiveUnpack() as [number]
+		if (actionList.length)
+			wireNotificationActions(notificationId)
+
+		return notificationId
+	})
+	if (!result.ok) {
+		console.error("notifications.send: Failed to send notification", result.err)
+		return undefined
+	}
+	return result.value
+}
+
+function wireNotificationActions(id: number) {
+	const attach = (notification: AstalNotifd.Notification) => {
+		notification.connect("invoked", (_, actionId: string) => {
+			if (actionId)
+				execAsync(actionId).catch(error => console.error(`notifications.action: Failed to run ${actionId}`, error))
+		})
+	}
+
+	const existing = notificationDaemon.get_notification(id)
+	if (existing) {
+		attach(existing)
+		return
+	}
+
+	const handler = notificationDaemon.connect("notified", (_, notifiedId: number) => {
+		if (notifiedId !== id) return
+		const result = attempt(() => {
+			notificationDaemon.disconnect(handler)
+			const notification = notificationDaemon.get_notification(id)
+			if (notification) attach(notification)
+		})
+		if (!result.ok)
+			console.error(`notifications.action: Failed to watch notification ${id}`, result.err)
+	})
+}
 
 @register()
 class NotificationManager extends GObject.Object {
@@ -37,7 +189,6 @@ class NotificationManager extends GObject.Object {
 	readonly sessionStart: number
 
 	@property(Boolean) dismissingAll: boolean
-	@property(Boolean) popupHovered: boolean
 
 	constructor() {
 		super()
@@ -50,7 +201,6 @@ class NotificationManager extends GObject.Object {
 		this.#dismissAllTimer = null
 		this.sessionStart = Math.floor(Date.now() / 1000)
 		this.dismissingAll = false
-		this.popupHovered = false
 
 		this.#storeHandlers.push(
 			this.#notifd.connect("notified", () => this.#onStoreChanged()),
@@ -102,27 +252,23 @@ class NotificationManager extends GObject.Object {
 			.slice(0, DISPLAY_LIMIT)
 	}
 
-	clearAll() {
+	dismissAllImmediately() {
 		for (const n of this.#notifd.get_notifications())
 			n.dismiss()
 	}
 
-	dismissAll(transitionDuration: number, maxStaggerDelay: number) {
+	dismissAllAfterTransitions(transitionDuration: number, maxStaggerDelay: number) {
 		this.dismissingAll = true
 		this.#dismissAllTimer?.cancel()
 		this.#dismissAllTimer = timeout(transitionDuration + maxStaggerDelay, () => {
 			this.#dismissAllTimer = null
 			this.dismissingAll = false
-			this.clearAll()
+			this.dismissAllImmediately()
 		})
 	}
 
-	get dontDisturb(): boolean {
+	get doNotDisturb(): boolean {
 		return this.#notifd.get_dont_disturb()
-	}
-
-	set dontDisturb(value: boolean) {
-		this.#notifd.set_dont_disturb(value)
 	}
 
 	#schedulePrune() {

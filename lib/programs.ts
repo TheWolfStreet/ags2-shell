@@ -5,8 +5,8 @@ import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
 import icons from "$lib/icons"
-import { notify } from "$lib/notifications"
-import { hyprland } from "$service/system"
+import { notify } from "$service/notifications"
+import { hyprland } from "$service/astal"
 
 export async function wlCopy(data: string) {
 	if (!requirePrograms("wl-copy")) return ""

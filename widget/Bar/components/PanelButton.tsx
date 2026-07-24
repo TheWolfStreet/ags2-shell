@@ -4,7 +4,7 @@ import { onCleanup } from "ags"
 import { Gtk } from "ags/gtk4"
 
 import { Props, toggleClass } from "$lib/ui"
-import { onWindowToggle } from "$lib/windows"
+import { onWindowToggle } from "widget/Windowing/WindowControl"
 
 const { CENTER } = Gtk.Align
 

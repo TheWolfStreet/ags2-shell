@@ -3,15 +3,12 @@
 import { createComputed, createState, onCleanup } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
-import { releaseMonitorWindow } from "$lib/windows"
-import { trackMonitorGeometry, type MonitorWindowController } from "$lib/monitor-state"
+import { trackMonitorFullscreen, trackMonitorGeometry, type MonitorWindowController } from "widget/Windowing/MonitorState"
+import { scheduleMonitorWindowRelease } from "widget/Windowing/WindowControl"
 
 import * as Trash from "widget/Dock/components/Trash"
-import { createHover } from "widget/Dock/components/hover"
-import { createDockItems } from "widget/Dock/components/items"
-import { dockSizing } from "widget/Dock/components/sizing"
+import { createDockHoverTracker, createDockItems, createDockSizing } from "widget/Dock/DockBehavior"
 import { DockView, DockSurface, Hotzone } from "widget/Dock/components/Surface"
-import { trackMonitorFullscreen } from "$lib/fullscreen"
 
 import options from "options"
 
@@ -25,10 +22,11 @@ export namespace Dock {
 		const [shown, setShown] = createState(initialVisible)
 		const fullscreen = trackMonitorFullscreen(gdkmonitor)
 		const visible = createComputed(() => shown() && !fullscreen.fullscreen())
-		const hover = createHover()
+		const hover = createDockHoverTracker()
 		const monitor = trackMonitorGeometry(gdkmonitor)
 		const dockItems = createDockItems(isDockLocation)
-		const sizing = dockSizing(dockItems, monitor.geometry)
+		const sizing = createDockSizing(dockItems, monitor.geometry)
+		const releaseTrashWatcher = Trash.acquireTrashWatcher()
 
 		const windows: Gtk.Window[] = []
 		const view: DockView = {
@@ -54,11 +52,10 @@ export namespace Dock {
 			},
 		}
 
-		Trash.ensureWatcherStarted()
 		onCleanup(() => {
-			Trash.cleanupWatcher()
-			hover.destroy()
-			windows.forEach(win => releaseMonitorWindow(win))
+			releaseTrashWatcher()
+			hover.dispose()
+			windows.forEach(win => scheduleMonitorWindowRelease(win))
 		})
 
 		void (
