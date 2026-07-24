@@ -1,3 +1,4 @@
+// Converts errors from regular and async functions into result values.
 export type Result<T> =
 	| { ok: true, value: T }
 	| { ok: false, err: unknown }

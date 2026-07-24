@@ -1,7 +1,8 @@
+// Shows network, audio, power, media, and display controls on each monitor.
+
 import app from "ags/gtk4/app"
-import { createBinding, createState, For } from "ags"
+import { createBinding, createState, For, onCleanup } from "ags"
 import { monitorFile } from "ags/file"
-import { execAsync } from "ags/process"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
 import AstalMpris from "gi://AstalMpris"
@@ -16,13 +17,15 @@ import { DND } from "./components/DND"
 import { Bluetooth } from "./components/Bluetooth"
 import { Mirror } from "./components/Mirror"
 import { Profiles } from "./components/PowerProfiles"
+import { KeyboardLayout } from "./KeyboardLayout"
 
 import env from "$lib/env"
 import icons from "$lib/icons"
-import { attemptAsync } from "$lib/result"
-import { popupLayout, toggleWindow } from "$lib/utils"
+import { popupLayout } from "$lib/popup"
+import { toggleWindow } from "$lib/windows"
 import { textureFromFileSquareContain } from "$lib/textures"
-import { audio, brightness, hypr, media } from "$lib/services"
+import { brightness } from "$service/brightness"
+import { audio, media } from "$service/system"
 
 import options from "options"
 
@@ -96,63 +99,6 @@ namespace DarkMode {
 }
 
 export namespace QuickSettings {
-	const LAYOUT_MAP: Record<string, string> = {
-		"english": "en", "russian": "ru", "hebrew": "he", "arabic": "ar", "chinese": "zh",
-		"japanese": "ja", "korean": "ko", "french": "fr", "german": "de", "spanish": "es",
-		"italian": "it", "portuguese": "pt", "dutch": "nl", "polish": "pl", "turkish": "tr",
-		"greek": "el", "ukrainian": "uk", "czech": "cs", "slovak": "sk", "hungarian": "hu",
-		"romanian": "ro", "bulgarian": "bg", "croatian": "hr", "serbian": "sr", "slovene": "sl",
-		"latvian": "lv", "lithuanian": "lt", "estonian": "et", "finnish": "fi", "swedish": "sv",
-		"norwegian": "no", "danish": "da", "icelandic": "is", "thai": "th", "vietnamese": "vi",
-		"hindi": "hi", "bengali": "bn", "tamil": "ta", "telugu": "te", "urdu": "ur",
-		"persian": "fa", "farsi": "fa", "malayalam": "ml", "malagasy": "mg", "malay": "ms",
-		"swahili": "sw", "yoruba": "yo", "zulu": "zu", "amharic": "am", "mongolian": "mn",
-		"khmer": "km", "lao": "lo", "burmese": "my", "welsh": "cy", "irish": "ga",
-		"basque": "eu", "catalan": "ca", "galician": "gl", "albanian": "sq", "macedonian": "mk",
-		"bosnian": "bs", "montenegrin": "cnr", "belarusian": "be", "azerbaijani": "az",
-		"georgian": "ka", "armenian": "hy", "kazakh": "kk", "kyrgyz": "ky", "uzbek": "uz",
-		"tajik": "tg", "turkmen": "tk", "pashto": "ps", "dari": "prs", "kurdish": "ku",
-		"afrikaans": "af", "akan": "ak", "bambara": "bm", "berber": "ber", "chuvash": "cv",
-		"esperanto": "eo", "ewe": "ee", "faroese": "fo", "filipino": "fil", "friulian": "fur",
-		"fulah": "ff", "gagauz": "gag", "igbo": "ig", "ido": "io", "indonesian": "id",
-		"inuktitut": "iu", "javanese": "jv", "kannada": "kn", "kanuri": "kr", "kashmiri": "ks",
-		"kikuyu": "ki", "kinyarwanda": "rw", "komi": "kv", "maltese": "mt", "maori": "mi",
-		"marathi": "mr", "northern": "se", "yakut": "sah", "abkhazian": "ab", "asturian": "ast",
-		"avatime": "avt", "cherokee": "chr", "crimean": "crh", "dhivehi": "dv"
-	}
-
-	namespace Keyboard {
-		async function getLayout(): Promise<string> {
-			const result = await attemptAsync(async (): Promise<string> => {
-				const output = (await execAsync("hyprctl devices -j")).trim()
-				if (!output) return "err"
-				const data = JSON.parse(output) as { keyboards?: Array<{ active_keymap?: string, main?: boolean }> }
-				const keyboards = Array.isArray(data.keyboards) ? data.keyboards : []
-				for (const keyboard of keyboards) {
-					if (keyboard.main && typeof keyboard.active_keymap === "string" && keyboard.active_keymap.length > 0) {
-						const keymap = keyboard.active_keymap.trim().split(/[\s(]/)[0].toLowerCase()
-						return LAYOUT_MAP[keymap] || keymap
-					}
-				}
-				return "unk"
-			})
-			if (!result.ok) {
-				console.error("KeyboardLayout: " + result.err)
-				return "err"
-			}
-			return result.value
-		}
-
-		export namespace State {
-			export function Layout() {
-				const [layout, setLayout] = createState("")
-				void getLayout().then(setLayout)
-				hypr.connect("keyboard-layout", () => void getLayout().then(setLayout))
-				return <label label={layout} />
-			}
-		}
-	}
-
 	export function Button() {
 		const handleScroll = (_: unknown, __: number, dy: number) => {
 			const speaker = audio?.get_default_speaker()
@@ -188,7 +134,7 @@ export namespace QuickSettings {
 					onPressed={handlePress}
 				/>
 				<box class="horizontal">
-					<Keyboard.State.Layout />
+					<KeyboardLayout />
 					<Profiles.State.Power />
 					<Profiles.State.Asus />
 					<Audio.State.Speaker />
@@ -204,40 +150,40 @@ export namespace QuickSettings {
 	export function Window() {
 		const players = createBinding(media, "players")
 
-		function Row({
-			toggles = [],
-			menus = [],
-		}: {
-			toggles?: Array<() => JSX.Element>
-			menus?: Array<() => JSX.Element>
-		} = {}) {
+		// Each toggle row is followed by the collapsible menus controlled by those toggles.
+		function ToggleRow({ toggles, menus = [] }: { toggles: JSX.Element[], menus?: JSX.Element[] }) {
 			return (
 				<box orientation={VERTICAL}>
 					<box class="row horizontal" homogeneous>
-						{toggles.map(Toggle => Toggle())}
+						{toggles}
 					</box>
-					{menus.map(Menu => Menu())}
+					{menus}
 				</box>
 			)
 		}
 
+		const Avatar = () => (
+			<Gtk.Picture
+				class="avatar"
+				$={self => {
+					const monitor = monitorFile(env.paths.avatar, () => {
+						self.paintable = textureFromFileSquareContain(env.paths.avatar, 64) as Gdk.Paintable
+					})
+					onCleanup(() => monitor.cancel())
+				}}
+				paintable={textureFromFileSquareContain(env.paths.avatar, 64) as Gdk.Paintable}
+				widthRequest={64}
+				heightRequest={64}
+				halign={CENTER}
+				valign={CENTER}
+				contentFit={COVER}
+				canShrink
+			/>
+		)
+
 		const Header = () =>
 			<box class="header horizontal">
-				<Gtk.Picture
-					class="avatar"
-					$={self => {
-						monitorFile(env.paths.avatar, () => {
-							self.paintable = textureFromFileSquareContain(env.paths.avatar, 64) as Gdk.Paintable
-						})
-					}}
-					paintable={textureFromFileSquareContain(env.paths.avatar, 64) as Gdk.Paintable}
-					widthRequest={64}
-					heightRequest={64}
-					halign={CENTER}
-					valign={CENTER}
-					contentFit={COVER}
-					canShrink
-				/>
+				<Avatar />
 				<box orientation={VERTICAL} valign={CENTER}>
 					<box>
 						<label class="username" label={env.username} />
@@ -265,23 +211,26 @@ export namespace QuickSettings {
 					maxContentHeight={maxContentHeight}
 				>
 					<box class="quicksettings vertical"
-						css={quicksettings.width.as((w: any) => `min-width: ${w}px;`)}
+						css={quicksettings.width.as((width: number) => `min-width: ${width}px;`)}
 						orientation={VERTICAL}>
 						<Header />
 						<box class="sliders-box vertical" orientation={VERTICAL}>
-							<Row
-								toggles={[Audio.Sliders.Volume]}
-								menus={[Audio.SinkSelector, Audio.AppMixer]}
+							<ToggleRow
+								toggles={[<Audio.Sliders.Volume />]}
+								menus={[<Audio.SinkSelector />, <Audio.AppMixer />]}
 							/>
 							<Audio.Sliders.Microphone />
 							<Sliders.Brightness />
 						</box>
-						<Row
-							toggles={[Network.Wifi.Toggle, Bluetooth.Toggle]}
-							menus={[Network.Wifi.Selector, Bluetooth.Selector]}
+						<ToggleRow
+							toggles={[<Network.Wifi.Toggle />, <Bluetooth.Toggle />]}
+							menus={[<Network.Wifi.Selector />, <Bluetooth.Selector />]}
 						/>
-						<Row toggles={[DarkMode.Toggle, DND.Toggle]} />
-						<Row toggles={[Profiles.Toggle, Mirror.Toggle]} menus={[Profiles.Selector, Mirror.Selector]} />
+						<ToggleRow toggles={[<DarkMode.Toggle />, <DND.Toggle />]} />
+						<ToggleRow
+							toggles={[<Profiles.Toggle />, <Mirror.Toggle />]}
+							menus={[<Profiles.Selector />, <Mirror.Selector />]}
+						/>
 						<box
 							class="media vertical"
 							visible={players.as(list => list.length > 0)}

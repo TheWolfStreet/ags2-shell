@@ -1,10 +1,14 @@
+// Shows desktop icons on each monitor and handles dragging, keyboard input, and the right-click menu.
+
 import app from "ags/gtk4/app"
 import { createComputed, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
-import { releaseMonitorWindow } from "$lib/utils"
+import { releaseMonitorWindow } from "$lib/windows"
 import { createDrag } from "./Drag"
-import { attachKeyboard, createGrid, DesktopGrid } from "./Grid"
+import { DesktopGrid } from "./Grid"
+import { attachKeyboard } from "./Input"
+import { createGrid } from "./model"
 import { DesktopMenu, menu } from "./Menu"
 import { session } from "./session"
 

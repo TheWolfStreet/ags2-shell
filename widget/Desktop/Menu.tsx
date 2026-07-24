@@ -1,3 +1,5 @@
+// Shows the desktop right-click menu and handles file and icon layout actions.
+
 import app from "ags/gtk4/app"
 import { Accessor, createComputed, createState, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
@@ -5,8 +7,8 @@ import { timeout } from "ags/time"
 
 import Graphene from "gi://Graphene"
 
-import { desktop } from "$lib/services"
-import { releaseMonitorWindow } from "$lib/utils"
+import { desktop } from "$service/Desktop"
+import { releaseMonitorWindow } from "$lib/windows"
 import { session } from "./session"
 
 const { TOP, LEFT } = Astal.WindowAnchor

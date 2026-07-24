@@ -1,11 +1,13 @@
+// Checks whether a monitor has a visible fullscreen window.
+
 import { Accessor, createState, onCleanup } from "ags"
 import { Gdk } from "ags/gtk4"
 
 import AstalHyprland from "gi://AstalHyprland"
 
-import { hypr } from "$lib/services"
+import { hyprland } from "$service/system"
 
-export type MonitorFullscreen = {
+type MonitorFullscreen = {
 	fullscreen: Accessor<boolean>
 	retarget(monitor: Gdk.Monitor): void
 }
@@ -18,8 +20,8 @@ export function trackMonitorFullscreen(initial: Gdk.Monitor): MonitorFullscreen 
 		const connector = target.get_connector()
 		const geometry = target.get_geometry()
 
-		return hypr.monitors.find(monitor => monitor.name === connector)
-			?? hypr.monitors.find(monitor => monitor.x === geometry.x && monitor.y === geometry.y)
+		return hyprland.monitors.find(monitor => monitor.name === connector)
+			?? hyprland.monitors.find(monitor => monitor.x === geometry.x && monitor.y === geometry.y)
 	}
 
 	const sync = () => {
@@ -34,7 +36,7 @@ export function trackMonitorFullscreen(initial: Gdk.Monitor): MonitorFullscreen 
 			monitor.specialWorkspace?.id,
 		].filter((id): id is number => typeof id === "number" && id !== 0))
 
-		setFullscreen(hypr.clients.some(client =>
+		setFullscreen(hyprland.clients.some(client =>
 			client.mapped
 			&& !client.hidden
 			&& client.monitor?.id === monitor.id
@@ -44,10 +46,10 @@ export function trackMonitorFullscreen(initial: Gdk.Monitor): MonitorFullscreen 
 		))
 	}
 
-	const eventHandler = hypr.connect("event", sync)
+	const eventHandler = hyprland.connect("event", sync)
 	sync()
 
-	onCleanup(() => hypr.disconnect(eventHandler))
+	onCleanup(() => hyprland.disconnect(eventHandler))
 
 	return {
 		fullscreen,

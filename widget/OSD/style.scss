@@ -1,4 +1,4 @@
-@use "sass:color";
+// Styles the volume and brightness indicator and its muted bar.
 @use '../../style/base' as *;
 
 window#state-display {

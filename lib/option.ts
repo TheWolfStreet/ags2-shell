@@ -1,8 +1,10 @@
+// Loads and saves settings and watches groups of settings for changes.
+
 import { Accessor, createState, Setter } from "ags"
 import { readFile, writeFileAsync } from "ags/file"
 
 import env from "$lib/env"
-import { ensurePath } from "$lib/files"
+import { ensureFile } from "$lib/files"
 import { attempt, attemptAsync } from "$lib/result"
 import { debounce } from "$lib/timing"
 
@@ -14,16 +16,16 @@ namespace Store {
 	function ensureLoaded() {
 		if (cache !== null) return
 		const result = attempt(() => {
-			ensurePath(path)
+			ensureFile(path)
 			const raw = readFile(path) || "{}"
 			return JSON.parse(raw) as Record<string, unknown>
 		})
-		cache = result.ok ? result.value : {}
+		cache = result.ok && isStructured(result.value) ? result.value : {}
 	}
 
 	const save = debounce(3000, async () => {
 		const result = await attemptAsync(async () => {
-			ensurePath(path)
+			ensureFile(path)
 			await writeFileAsync(path, JSON.stringify(cache, null, 2))
 		})
 		if (!result.ok)
@@ -58,15 +60,18 @@ namespace Store {
 		if (!root)
 			return
 
-		let node = root
+		let node: Record<string, unknown> = root
 		for (let i = 0; i < parts.length - 1; i++) {
 			const part = parts[i]
-			let next = node[part]
-			if (!isStructured(next)) {
-				next = {}
-				node[part] = next
+			const next = node[part]
+			if (isStructured(next)) {
+				node = next
+				continue
 			}
-			node = next
+
+			const child: Record<string, unknown> = {}
+			node[part] = child
+			node = child
 		}
 		node[parts[parts.length - 1]] = value
 		save.call()
@@ -133,10 +138,6 @@ export class Opt<T> extends Accessor<T> {
 	toString(): string {
 		return `${this.peek()}`
 	}
-
-	toJSON() {
-		return `opt:${this.peek()}`
-	}
 }
 
 function isStructured(value: unknown): value is Record<string, unknown> {
@@ -145,19 +146,43 @@ function isStructured(value: unknown): value is Record<string, unknown> {
 
 type WidenLiterals<T> = T extends boolean ? boolean : T extends string ? string : T extends number ? number : T
 
+function isPrimitive(value: unknown): value is string | number | boolean | null {
+	return value === null || ["string", "number", "boolean"].includes(typeof value)
+}
+
+function isCompatibleLeaf(stored: unknown, defaultValue: unknown): boolean {
+	if (Array.isArray(defaultValue)) {
+		if (!Array.isArray(stored) || !stored.every(isPrimitive))
+			return false
+
+		const elementTypes = new Set(defaultValue.filter(isPrimitive).map(value => value === null ? "null" : typeof value))
+		return elementTypes.size === 0 || stored.every(value => elementTypes.has(value === null ? "null" : typeof value))
+	}
+
+	if (!isPrimitive(defaultValue) || !isPrimitive(stored))
+		return false
+
+	return defaultValue === null ? stored === null : typeof stored === typeof defaultValue
+}
+
+export type OptionConstraints = Readonly<Record<string, readonly (string | number)[]>>
+
 export type Options<T> =
 	T extends Record<string, unknown> ? { [K in keyof T]: Options<T[K]> } :
 	Opt<WidenLiterals<T>>
 
-export function mkOptions<T>(node: T, path?: string): Options<T>
-export function mkOptions(node: unknown, path = ""): unknown {
+export function mkOptions<T>(node: T, constraints: OptionConstraints = {}): Options<T> {
+	return buildOptions(node, "", constraints) as Options<T>
+}
+
+function buildOptions(node: unknown, path: string, constraints: OptionConstraints): unknown {
 	if (isStructured(node)) {
 		const newNode: Record<string, unknown> = {}
 
 		for (const key in node) {
 			if (Object.prototype.hasOwnProperty.call(node, key)) {
 				const subPath = path ? `${path}.${key}` : key
-				newNode[key] = mkOptions(node[key], subPath)
+				newNode[key] = buildOptions(node[key], subPath, constraints)
 			}
 		}
 		return newNode
@@ -166,25 +191,35 @@ export function mkOptions(node: unknown, path = ""): unknown {
 	const storedVal = path ? Store.get(path) : undefined
 	const opt = new Opt(node, path)
 
-	if (storedVal !== undefined)
-		opt.set(storedVal)
+	if (storedVal !== undefined) {
+		const allowedValues = constraints[path]
+		const isAllowed = !allowedValues || allowedValues.some(value => Object.is(value, storedVal))
+		if (isCompatibleLeaf(storedVal, node) && isAllowed)
+			opt.set(storedVal)
+		else
+			Store.del(path)
+	}
 
 	return opt
 }
 
-export function setHandler(
-	opts: Opt<any> | Record<string, any>,
-	deps: string[],
+// Prefixes select persisted option IDs and all of their descendants.
+export function subscribeOptions(
+	opts: unknown,
+	prefixes: readonly string[],
 	callback: () => void,
-): void {
-	if (opts instanceof Opt) {
-		if (deps.some(d => opts.id.startsWith(d))) opts.subscribe(callback)
-		return
-	}
+): () => void {
+	const disposers: Array<() => void> = []
 
-	for (const key in opts) {
-		if (Object.prototype.hasOwnProperty.call(opts, key)) {
-			setHandler(opts[key], deps, callback)
+	if (opts instanceof Opt) {
+		if (prefixes.some(prefix => opts.id === prefix || opts.id.startsWith(`${prefix}.`)))
+			disposers.push(opts.subscribe(callback))
+	} else if (isStructured(opts)) {
+		for (const key in opts) {
+			if (Object.prototype.hasOwnProperty.call(opts, key))
+				disposers.push(subscribeOptions(opts[key], prefixes, callback))
 		}
 	}
+
+	return () => disposers.forEach(dispose => dispose())
 }

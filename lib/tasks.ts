@@ -1,9 +1,11 @@
+// Lists open windows and handles focus, close, move, and workspace actions.
+
 import { createBinding, createComputed } from "ags"
 import { Gdk } from "ags/gtk4"
 
 import AstalHyprland from "gi://AstalHyprland"
 
-import { hypr } from "$lib/services"
+import { hyprland } from "$service/system"
 
 import options from "options"
 
@@ -14,6 +16,8 @@ export function normalizeTaskClients(clients: Array<AstalHyprland.Client | null 
 		return !!client && client.class !== ""
 	})
 }
+
+export const focusedClient = createBinding(hyprland, "focusedClient")
 
 export function getClientWorkspaceId(client: AstalHyprland.Client) {
 	return client.workspace?.id ?? client.get_workspace?.()?.id ?? null
@@ -36,7 +40,7 @@ function filterClientsForTasks(
 
 export function focusClientFullscreen(client: AstalHyprland.Client) {
 	client.focus()
-	hypr.message("dispatch fullscreen")
+	hyprland.message("dispatch fullscreen")
 }
 
 function normalizeClientAddress(value: string | null | undefined) {
@@ -62,7 +66,7 @@ export function moveClientToWorkspaceSilent(
 	if (!address)
 		return
 
-	hypr.message_async(`dispatch movetoworkspacesilent ${workspaceId},address:${address}`, null)
+	hyprland.message_async(`dispatch movetoworkspacesilent ${workspaceId},address:${address}`, null)
 }
 
 export function onClientClick(
@@ -79,11 +83,11 @@ export function onClientClick(
 }
 
 export function createTaskItems() {
-	const clients = createBinding(hypr, "clients").as(clients => {
+	const clients = createBinding(hyprland, "clients").as(clients => {
 		return sortByWorkspace(normalizeTaskClients(clients ?? []))
 	})
 
-	const focusedWorkspaceId = createBinding(hypr, "focusedWorkspace").as(workspace => workspace?.id ?? null)
+	const focusedWorkspaceId = createBinding(hyprland, "focusedWorkspace").as(workspace => workspace?.id ?? null)
 
 	return createComputed(() =>
 		filterClientsForTasks(clients(), focusedWorkspaceId(), options.bar.taskbar.exclusive())

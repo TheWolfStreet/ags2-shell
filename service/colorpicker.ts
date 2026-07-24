@@ -1,12 +1,15 @@
+// Picks colors, copies them, and saves the recent color list.
+
 import GObject, { getter, register, setter } from "ags/gobject"
 import { readFile, writeFileAsync } from "ags/file"
 import { execAsync } from "ags/process"
 
 import env from "$lib/env"
-import { ensurePath } from "$lib/files"
+import { ensureFile } from "$lib/files"
 import { attempt, attemptAsync } from "$lib/result"
 import { debounce } from "$lib/timing"
-import { dependencies, notify, wlCopy } from "$lib/utils"
+import { notify } from "$lib/notifications"
+import { requirePrograms, wlCopy } from "$lib/programs"
 import icons from "$lib/icons"
 
 import options from "options"
@@ -28,7 +31,7 @@ function loadColors() {
 }
 
 @register()
-export default class ColorPicker extends GObject.Object {
+class ColorPicker extends GObject.Object {
 	declare static $gtype: GObject.GType<ColorPicker>
 	static instance: ColorPicker
 
@@ -40,7 +43,7 @@ export default class ColorPicker extends GObject.Object {
 	#colors: string[]
 	#save = debounce(1000, async () => {
 		const result = await attemptAsync(async () => {
-			ensurePath(cacheFile)
+			ensureFile(cacheFile)
 			await writeFileAsync(cacheFile, JSON.stringify(this.#colors, null, 0))
 		})
 		if (!result.ok)
@@ -50,7 +53,7 @@ export default class ColorPicker extends GObject.Object {
 	constructor() {
 		super()
 
-		ensurePath(cacheFile)
+		ensureFile(cacheFile)
 		this.#notificationId = 0
 		this.#colors = loadColors()
 	}
@@ -65,12 +68,12 @@ export default class ColorPicker extends GObject.Object {
 	}
 
 	readonly pick = async (existing?: string) => {
-		if (!existing && !dependencies("wl-copy", "hyprpicker")) return
-		if (existing && !dependencies("wl-copy")) return
+		if (!existing && !requirePrograms("wl-copy", "hyprpicker")) return
+		if (existing && !requirePrograms("wl-copy")) return
 
 		let color = existing
 		if (!color) {
-			const result = await attemptAsync(async () => execAsync("hyprpicker -r"))
+			const result = await attemptAsync(async () => execAsync(["hyprpicker", "-r"]))
 			if (!result.ok)
 				return
 			color = result.value.replace("[ERR] renderSurface: PBUFFER null", "").trim()
@@ -102,4 +105,11 @@ export default class ColorPicker extends GObject.Object {
 			if (id) this.#notificationId = id
 		})
 	}
+
+	vfunc_finalize() {
+		this.#save.cancel()
+		super.vfunc_finalize()
+	}
 }
+
+export const colorPicker = ColorPicker.get_default()

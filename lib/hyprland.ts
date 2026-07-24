@@ -1,12 +1,14 @@
-import { hypr } from "./services"
-import { setHandler } from "./option"
+// Updates Hyprland borders, gaps, shadows, blur, and animation settings.
+
+import { hyprland as compositor } from "$service/system"
+import { subscribeOptions } from "./option"
 import { debounce } from "./timing"
 import { idle } from "ags/time"
 
 import options from "options"
 
 const {
-	hyprland,
+	hyprland: hyprlandOptions,
 	theme: {
 		spacing,
 		roundness,
@@ -50,12 +52,12 @@ async function sendBatch(batch: string[]) {
 		.filter(x => !!x)
 		.map(x => `keyword ${x}`)
 		.join("; ")
-	hypr.message(`[[BATCH]]/${cmd}`)
+	compositor.message(`[[BATCH]]/${cmd}`)
 }
 
 function applyHyprland() {
 	idle(() => {
-		const gaps = Math.floor(hyprland.gaps.peek() * spacing.peek())
+		const gaps = Math.floor(hyprlandOptions.gaps.peek() * spacing.peek())
 		const blurEnabled = blur.peek()
 
 		const generalRules = [
@@ -63,7 +65,7 @@ function applyHyprland() {
 			`general:gaps_out ${gaps}`,
 			`general:gaps_in ${Math.floor(gaps / 2)}`,
 			`general:col.active_border ${rgba(primary())}`,
-			`general:col.inactive_border ${rgba(hyprland.inactiveBorder.peek())}`,
+			`general:col.inactive_border ${rgba(hyprlandOptions.inactiveBorder.peek())}`,
 			`decoration:rounding ${roundness.peek()}`,
 			`decoration:shadow:enabled ${shadows.peek() ? "yes" : "no"}`,
 			`decoration:blur:enabled ${blurEnabled ? "true" : "false"}`,
@@ -76,7 +78,7 @@ function applyHyprland() {
 export default function hyprinit() {
 	const update = debounce(100, applyHyprland)
 
-	hypr.connect("config-reloaded", () => update.call())
-	setHandler(options, deps, () => update.call())
+	compositor.connect("config-reloaded", () => update.call())
+	subscribeOptions(options, deps, () => update.call())
 	update.call()
 }

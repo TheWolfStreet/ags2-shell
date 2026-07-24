@@ -1,7 +1,11 @@
+// Checks ASUS controls, reads and changes profiles and graphics modes, and applies screen settings.
+
 import GObject, { getter, register, setter } from "ags/gobject"
 import { execAsync } from "ags/process"
 
-import { hypr } from "$lib/services"
+import { hyprland } from "$service/system"
+import { hasProgram } from "$lib/programs"
+import { attempt } from "$lib/result"
 import options from "options"
 
 const ASUS_HZ_PRESETS = [60, 144, 240]
@@ -44,6 +48,21 @@ function parseModeRefreshRate(mode: string): number | null {
 	return Number.isFinite(hz) && hz > 0 ? hz : null
 }
 
+function getPanel() {
+	return hyprland.get_monitors().find(monitor => monitor.name === "eDP-1") ?? hyprland.get_monitor(0)
+}
+
+function getPanelResolutions(): string[] {
+	const resolutions: string[] = []
+	for (const mode of getPanel()?.availableModes ?? []) {
+		const match = mode.match(/^(\d+)x(\d+)(?:@|$)/)
+		if (!match) continue
+		const resolution = `${match[1]}x${match[2]}`
+		if (!resolutions.includes(resolution)) resolutions.push(resolution)
+	}
+	return resolutions
+}
+
 function normalizeAsusHz(value: number, maxHz: number): number {
 	const legalValues = ASUS_HZ_PRESETS.filter(hz => hz <= maxHz)
 	const fallback = legalValues[legalValues.length - 1] ?? ASUS_HZ_PRESETS[0]
@@ -61,7 +80,7 @@ function isMonitorConfiguration(value: unknown): value is MonitorConfiguration {
 
 function getPanelMaxHz(): number {
 	const fallback = ASUS_HZ_PRESETS[ASUS_HZ_PRESETS.length - 1]
-	const panel = hypr.get_monitor(0)
+	const panel = getPanel()
 	if (!panel)
 		return fallback
 
@@ -75,13 +94,15 @@ function getPanelMaxHz(): number {
 	return detectedMax > 0 ? detectedMax : fallback
 }
 
-export namespace Asusctl {
+
+namespace Asusctl {
 	export type Profile = "Performance" | "Balanced" | "Quiet"
 	export type Mode = "Hybrid" | "Integrated"
 }
 
 @register()
-export default class Asusctl extends GObject.Object {
+class Asusctl extends GObject.Object {
+	// Owns optional ASUS command integration and monitor-setting subscriptions.
 	declare static $gtype: GObject.GType<Asusctl>
 	static instance: Asusctl
 
@@ -92,36 +113,43 @@ export default class Asusctl extends GObject.Object {
 	#profile: Asusctl.Profile
 	#mode: Asusctl.Mode
 	#available: boolean
+	#optionDisposers: Array<() => void>
 
 	constructor() {
 		super()
 
 		this.#profile = "Balanced"
 		this.#mode = "Hybrid"
-		this.#available = false
+		this.#available = hasProgram("asusctl")
+		this.#optionDisposers = []
 
-		void this.#checkAvailability()
+		if (this.#available)
+			void this.#initializeAvailability()
 	}
 
-	async #checkAvailability() {
-		const hasAsusctl = (await execAsync("which asusctl").catch(() => "")).trim() !== ""
-		const asusdRunning = hasAsusctl && (await execAsync("pgrep -x asusd").catch(() => "")).trim() !== ""
-		this.#available = asusdRunning
-		if (this.#available) {
-			const error = await this.#initialize()
-			if (error instanceof Error)
-				this.#fail("initialize: Failed to initialize asusctl", error)
-		}
+	async #initializeAvailability() {
+		const error = await this.#initialize()
+		if (error instanceof Error)
+			this.#fail("initialize: Failed to initialize asusctl", error)
 	}
 
 	#fail(context: string, error: Error) {
 		console.error(`asusctl.${context}`, error)
-		this.#available = false
+		if (this.#available) {
+			this.#available = false
+			this.notify("available")
+		}
 	}
 
 	@getter(Array)
 	get profiles(): Asusctl.Profile[] {
 		return ["Performance", "Balanced", "Quiet"]
+	}
+
+	@getter(Array)
+	get resolutions(): string[] {
+		const resolutions = getPanelResolutions()
+		return resolutions.length > 0 ? resolutions : [options.asus.resolution.peek()]
 	}
 
 	@getter(String)
@@ -160,15 +188,15 @@ export default class Asusctl extends GObject.Object {
 	readonly nextProfile = async () => {
 		if (!this.#available) return
 
-		const cycle = await runCommand(["asusctl", "profile", "-n"])
+		const cycle = await runCommand(["asusctl", "profile", "next"])
 		if (cycle instanceof Error)
 			return this.#fail("nextProfile: Failed to cycle profile", cycle)
 
-		const output = await runCommand(["asusctl", "profile", "-p"])
+		const output = await runCommand(["asusctl", "profile", "get"])
 		if (output instanceof Error)
 			return this.#fail("nextProfile: Failed to read profile", output)
 
-		const match = output.match(/Active profile is (\w+)/)
+		const match = output.match(/Active profile:\s*(\w+)/)
 		const profile = parseProfile(match?.[1] ?? "")
 		if (profile instanceof Error)
 			return this.#fail("nextProfile: Failed to parse profile", profile)
@@ -209,12 +237,12 @@ export default class Asusctl extends GObject.Object {
 			return
 		}
 
-		const parsed: unknown = await Promise.resolve(output)
-			.then(JSON.parse)
-			.catch(error => {
-				console.error("asusctl.updateMonitorConfiguration: Failed to parse monitors", error)
-				return null
-			})
+		const parseResult = attempt((): unknown => JSON.parse(output))
+		if (!parseResult.ok) {
+			console.error("asusctl.updateMonitorConfiguration: Failed to parse monitors", parseResult.err)
+			return
+		}
+		const parsed = parseResult.value
 		if (!Array.isArray(parsed))
 			return
 
@@ -223,7 +251,12 @@ export default class Asusctl extends GObject.Object {
 
 		const maxHz = getPanelMaxHz()
 
-		const resolution = options.asus.resolution.peek()
+		const availableResolutions = getPanelResolutions()
+		let resolution = options.asus.resolution.peek()
+		if (availableResolutions.length > 0 && !availableResolutions.includes(resolution)) {
+			resolution = availableResolutions[0]
+			options.asus.resolution.set(resolution)
+		}
 		const acHz = normalizeAsusHz(options.asus.ac_hz.peek(), maxHz)
 		const batHz = normalizeAsusHz(options.asus.bat_hz.peek(), maxHz)
 
@@ -235,7 +268,7 @@ export default class Asusctl extends GObject.Object {
 		let refreshRate = acHz
 		if (this.#profile === "Quiet")
 			refreshRate = batHz
-		hypr.message_async(`keyword monitor eDP-1,${resolution}@${refreshRate},0x0,1`, null)
+		hyprland.message_async(`keyword monitor eDP-1,${resolution}@${refreshRate},0x0,1`, null)
 	}
 
 	async #initialize(): Promise<void | Error> {
@@ -251,8 +284,7 @@ export default class Asusctl extends GObject.Object {
 		this.#profile = profile
 		this.notify("profile")
 
-		const hasSuperGfx = (await execAsync("which supergfxctl").catch(() => "")).trim() !== ""
-		if (hasSuperGfx) {
+		if (hasProgram("supergfxctl")) {
 			const modeOutput = await runCommand(["supergfxctl", "-g"])
 			if (modeOutput instanceof Error) {
 				console.error("asusctl.initialize: Failed to read mode", modeOutput)
@@ -269,8 +301,18 @@ export default class Asusctl extends GObject.Object {
 
 		void this.#updateMonitorConfiguration()
 
-		options.asus.resolution.subscribe(() => this.#updateMonitorConfiguration())
-		options.asus.ac_hz.subscribe(() => this.#updateMonitorConfiguration())
-		options.asus.bat_hz.subscribe(() => this.#updateMonitorConfiguration())
+		this.#optionDisposers.push(
+			options.asus.resolution.subscribe(() => this.#updateMonitorConfiguration()),
+			options.asus.ac_hz.subscribe(() => this.#updateMonitorConfiguration()),
+			options.asus.bat_hz.subscribe(() => this.#updateMonitorConfiguration()),
+		)
+	}
+
+	vfunc_finalize() {
+		for (const dispose of this.#optionDisposers) dispose()
+		this.#optionDisposers = []
+		super.vfunc_finalize()
 	}
 }
+
+export const asusctl = Asusctl.get_default()

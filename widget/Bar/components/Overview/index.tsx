@@ -1,3 +1,5 @@
+// Shows Hyprland workspaces and windows in an overview for each monitor.
+
 import { createBinding, createComputed, For, onCleanup, onMount } from "ags"
 import { idle } from "ags/time"
 import app from "ags/gtk4/app"
@@ -9,9 +11,11 @@ import AstalHyprland from "gi://AstalHyprland"
 import { PopupWindow } from "widget/shared/PopupWindow"
 import { PanelButton } from "../PanelButton"
 
-import { getClientTitle, range, toggleWindow } from "$lib/utils"
-import { hypr } from "$lib/services"
-import { getClientWorkspaceId, moveClientToWorkspaceSilent, normalizeTaskClients } from "$lib/tasks"
+import { getClientTitle } from "$lib/format"
+import { range } from "$lib/ui"
+import { toggleWindow } from "$lib/windows"
+import { hyprland } from "$service/system"
+import { focusedClient, getClientWorkspaceId, moveClientToWorkspaceSilent, normalizeTaskClients } from "$lib/tasks"
 
 import options from "options"
 
@@ -60,9 +64,9 @@ export namespace Workspaces {
 	}
 
 	function Client({ entry: client, update }: ClientProps) {
-		const className = createBinding(hypr, "focusedClient").as(fc => {
+		const className = focusedClient.as(currentClient => {
 			const classes: string[] = ["client"]
-			if (fc && fc.address === client.address) classes.push("active")
+			if (currentClient?.address === client.address) classes.push("active")
 			return classes.join(" ")
 		})
 
@@ -104,7 +108,7 @@ export namespace Workspaces {
 				runUpdate()
 
 				hyprConnections = HYPR_UPDATE_SIGNALS.map(signal =>
-					hypr.connect(signal, scheduleUpdate),
+					hyprland.connect(signal, scheduleUpdate),
 				)
 
 				clientConnections = CLIENT_UPDATE_SIGNALS.map(signal =>
@@ -115,7 +119,7 @@ export namespace Workspaces {
 			})
 
 			onCleanup(() => {
-				hyprConnections.forEach(conn => hypr.disconnect(conn))
+				hyprConnections.forEach(conn => hyprland.disconnect(conn))
 				clientConnections.forEach(conn => client.disconnect(conn))
 				scaleSub?.()
 				widget = null
@@ -151,13 +155,13 @@ export namespace Workspaces {
 	}
 
 	function Workspace({ entry: workspaceId }: { entry: number }) {
-		const className = createBinding(hypr, "focusedWorkspace").as(fws => {
+		const className = createBinding(hyprland, "focusedWorkspace").as(fws => {
 			const classes: string[] = ["workspace"]
 			if (fws?.id === workspaceId) classes.push("active")
 			return classes.join(" ")
 		})
 
-		const monitor = createBinding(hypr, "monitors").as(monitors =>
+		const monitor = createBinding(hyprland, "monitors").as(monitors =>
 			(monitors ?? []).find(m => m?.id === 0) ?? (monitors ?? [])[0] ?? null,
 		)
 		const css = createComputed(() => {
@@ -167,7 +171,7 @@ export namespace Workspaces {
 			return `min-width: ${factor * width}px; min-height: ${factor * height}px;`
 		})
 
-		const clients = createBinding(hypr, "clients").as(list =>
+		const clients = createBinding(hyprland, "clients").as(list =>
 			normalizeTaskClients(list ?? []).filter(client => getClientWorkspaceId(client) === workspaceId),
 		)
 		let fixed: Gtk.Fixed
@@ -179,7 +183,7 @@ export namespace Workspaces {
 				tooltipText={`${workspaceId}`}
 				css={css}
 				valign={CENTER}
-				onClicked={() => hypr.message_async(`dispatch workspace ${workspaceId}`, null)}
+				onClicked={() => hyprland.message_async(`dispatch workspace ${workspaceId}`, null)}
 			>
 				<Gtk.DropTarget
 					actions={MOVE}
@@ -211,8 +215,8 @@ export namespace Workspaces {
 
 	export function Button() {
 		const workspaces = createComputed(() => workspaceIds(options.bar.workspaces.count()))
-		const clients = createBinding(hypr, "clients").as(list => normalizeTaskClients(list ?? []))
-		const className = (ws: number) => createBinding(hypr, "focusedWorkspace").as(fws => {
+		const clients = createBinding(hyprland, "clients").as(list => normalizeTaskClients(list ?? []))
+		const className = (ws: number) => createBinding(hyprland, "focusedWorkspace").as(fws => {
 			const classes: string[] = []
 			if (fws?.id === ws) classes.push("active")
 			if (clients().some(client => getClientWorkspaceId(client) === ws)) classes.push("occupied")

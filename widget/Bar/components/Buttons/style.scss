@@ -1,8 +1,7 @@
-@use 'sass:color';
+// Styles media, recording, task, tray, and color picker buttons in the bar.
 @use '../../../../style/base' as *;
 
 window#bar {
-
   box.colorpicker {
     @include spacing(0.5);
     button {
@@ -29,7 +28,7 @@ window#bar {
   }
 
   button.media {
-    box {
+    box.media-content {
       all: unset;
       revealer label {
         margin-left: calc(var(--spacing) / 2);

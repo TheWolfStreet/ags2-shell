@@ -1,3 +1,5 @@
+// Stores app and user information, clocks, and config, cache, and temporary paths.
+
 import { createBinding } from "ags"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"

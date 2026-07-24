@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Starts development mode and reloads changed source and style files.
 set -e
 
 BLUE='\033[0;34m'

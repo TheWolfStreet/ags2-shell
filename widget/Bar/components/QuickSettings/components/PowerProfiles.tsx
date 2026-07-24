@@ -1,12 +1,14 @@
+// Lists available power profiles and applies the selected one.
+
 import { Gtk } from "ags/gtk4"
-import { Accessor, Node, createBinding } from "ags"
+import { Accessor, Node, With, createBinding, createComputed } from "ags"
 import { ToggleButton, Menu, Settings } from "widget/Bar/components/QuickSettings/components/shared/MenuElements"
 import { Placeholder } from "widget/shared/Placeholder"
 import icons from "$lib/icons"
-import { pp } from "$lib/services"
+import { powerProfiles } from "$service/system"
 import { attempt } from "$lib/result"
-import { launchApp } from "$lib/utils"
-import { asusctl } from "$lib/services"
+import { launchApp } from "$lib/programs"
+import { asusctl } from "$service/asusctl"
 
 const { VERTICAL } = Gtk.Orientation
 
@@ -54,15 +56,15 @@ export namespace Profiles {
 
 	const getPowerProvider = (): Provider | undefined => {
 		const result = attempt((): Provider | undefined => {
-			if (!pp?.get_version?.()) return undefined
+			if (!powerProfiles?.get_version?.()) return undefined
 			return {
-				active: createBinding(pp, "activeProfile"),
-				profiles: () => pp?.get_profiles?.()?.map(p => p.profile) || [],
-				select: (profile) => pp?.set_active_profile?.(profile),
+				active: createBinding(powerProfiles, "activeProfile"),
+				profiles: () => powerProfiles?.get_profiles?.()?.map(p => p.profile) || [],
+				select: (profile) => powerProfiles?.set_active_profile?.(profile),
 				icon: p => getMappedIcon(icons.powerprofile as IconMap, p),
 				label: (p) => prettify(p),
 				toggleDefaults: () => {
-					const profiles = pp.get_profiles()
+					const profiles = powerProfiles.get_profiles()
 					if (profiles.length >= 2) {
 						return [profiles[0].profile, profiles[1].profile]
 					}
@@ -104,10 +106,10 @@ export namespace Profiles {
 						</button>
 					))}
 					{provider.extraSettings && (
-						<>
+						<box orientation={VERTICAL}>
 							<Gtk.Separator />
 							{provider.extraSettings()}
-						</>
+						</box>
 					)}
 				</box>
 			</Menu>
@@ -133,36 +135,36 @@ export namespace Profiles {
 		)
 	}
 
-	const getProvider = (): Provider | undefined => {
-		if (asusctl.available) return asusProvider
-		return getPowerProvider()
-	}
+	const asusAvailable = createBinding(asusctl, "available")
+	const provider = createComputed(() => asusAvailable() ? asusProvider : getPowerProvider())
 
 	export namespace State {
 		export function Power() {
-			const provider = getProvider()
-			if (!provider) return <box visible={false} />
-
-			const result = attempt(() => {
-				const active = provider.active
-				const [, off] = provider.toggleDefaults()
-				const icon = active.as(p => provider.icon(p))
-				const visible = active.as(p => p !== off)
-				return <image iconName={icon} visible={visible} useFallback />
-			})
-			return result.ok ? result.value : <box visible={false} />
+			return (
+				<With value={provider}>
+					{current => {
+						if (!current) return <box visible={false} />
+						const result = attempt(() => {
+							const active = current.active
+							const [, off] = current.toggleDefaults()
+							const icon = active.as(profile => current.icon(profile))
+							const visible = active.as(profile => profile !== off)
+							return <image iconName={icon} visible={visible} useFallback />
+						})
+						return result.ok ? result.value : <box visible={false} />
+					}}
+				</With>
+			)
 		}
 
 		export function Asus() {
-			if (!asusctl.available) return <box visible={false} />
-
 			const result = attempt(() => {
 				const mode = createBinding(asusctl, "mode")
 				const modeIcon = mode.as(m => getMappedIcon(icons.asusctl.mode as IconMap, m))
 				return (
 					<image
 						iconName={modeIcon}
-						visible={mode.as(m => m !== "Hybrid")}
+						visible={createComputed(() => asusAvailable() && mode() !== "Hybrid")}
 						useFallback
 					/>
 				)
@@ -172,12 +174,18 @@ export namespace Profiles {
 	}
 
 	export function Toggle() {
-		const provider = getProvider()
-		return provider ? makeToggle(provider) : <MissingToggle />
+		return (
+			<With value={provider}>
+				{current => current ? makeToggle(current) : <MissingToggle />}
+			</With>
+		)
 	}
 
 	export function Selector() {
-		const provider = getProvider()
-		return provider ? makeSelector(provider) : <MissingSelector />
+		return (
+			<With value={provider}>
+				{current => current ? makeSelector(current) : <MissingSelector />}
+			</With>
+		)
 	}
 }

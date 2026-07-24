@@ -1,3 +1,5 @@
+// Reads theme settings and calculates shadows and highlights.
+
 import { Opt } from "$lib/option"
 
 function unwrapOption<T>(option: Opt<T> | T): T {
@@ -26,7 +28,6 @@ export function calculateNeumorphicEffects(enabled: boolean, isDarkMode: boolean
 			progressHighlight: transparent,
 			progressShadow: transparent,
 			sliderHighlight: transparent,
-			entryInset: transparent,
 		}
 	}
 
@@ -46,6 +47,5 @@ export function calculateNeumorphicEffects(enabled: boolean, isDarkMode: boolean
 		progressHighlight: `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)`,
 		progressShadow: `0 1px 1px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)`,
 		sliderHighlight: `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 30 : 22}%, transparent)`,
-		entryInset: `inset 0 2px 3px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 10 : 8}%, transparent), inset 0 -1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 5 : 4}%, transparent)`,
 	}
 }

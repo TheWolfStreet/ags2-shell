@@ -1,3 +1,5 @@
+// Shows an optional icon and message when a list has no content.
+
 import { Gtk } from "ags/gtk4"
 import { FCProps, Accessor } from "ags"
 

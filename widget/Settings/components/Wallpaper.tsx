@@ -1,3 +1,5 @@
+// Shows the current wallpaper and lets users choose another image file.
+
 import { createBinding } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
@@ -8,7 +10,7 @@ import { Placeholder } from "widget/shared/Placeholder"
 import { fileExists } from "$lib/files"
 import { attempt } from "$lib/result"
 import { getFileSize, textureFromFile } from "$lib/textures"
-import { wp } from "$lib/services"
+import { wallpaper } from "widget/Wallpaper"
 import icons from "$lib/icons"
 
 import options from "options"
@@ -18,7 +20,7 @@ const { CROSSFADE } = Gtk.RevealerTransitionType
 const { DISMISSED } = Gtk.DialogError
 
 export default function Wallpaper() {
-	const wall = createBinding(wp, "wallpaper")
+	const wall = createBinding(wallpaper, "wallpaper")
 
 	let dialog: Gtk.FileDialog
 	let dialogOpen: boolean = false
@@ -34,8 +36,8 @@ export default function Wallpaper() {
 			})
 		}
 
-		if (fileExists(wp.wallpaper)) {
-			const file = Gio.File.new_for_path(wp.wallpaper)
+		if (fileExists(wallpaper.wallpaper)) {
+			const file = Gio.File.new_for_path(wallpaper.wallpaper)
 			dialog.set_initial_file(file)
 		}
 
@@ -46,7 +48,7 @@ export default function Wallpaper() {
 
 				const file = dialog.open_finish(result)
 				const filename = file ? file.get_path() : null
-				if (filename) wp.setWallpaper(filename)
+				if (filename) wallpaper.setWallpaper(filename)
 			})
 			if (!outcome.ok) {
 				const e = outcome.err
@@ -61,7 +63,7 @@ export default function Wallpaper() {
 		<box class="row">
 			<overlay
 				cursor={Gdk.Cursor.new_from_name("pointer", null)}
-				tooltipText={isSet.as(set => set ? "Middle-click to clear" : null)}
+				tooltipText={isSet.as(set => set ? "Middle-click to clear" : "")}
 			>
 				<Gtk.GestureClick
 					button={Gdk.BUTTON_PRIMARY}
@@ -69,7 +71,7 @@ export default function Wallpaper() {
 				/>
 				<Gtk.GestureClick
 					button={Gdk.BUTTON_MIDDLE}
-					onPressed={() => void wp.clearWallpaper()}
+					onPressed={() => void wallpaper.clearWallpaper()}
 				/>
 				<revealer
 					transitionDuration={options.transition.duration.as(v => v * 4)}
@@ -86,10 +88,10 @@ export default function Wallpaper() {
 					class="preview"
 					hexpand
 					vexpand
+					canShrink
 					contentFit={COVER}
 					paintable={wall.as(v => textureFromFile(v) as Gdk.Paintable)}
-				>
-				</Gtk.Picture>
+				/>
 			</overlay>
 		</box>
 	)

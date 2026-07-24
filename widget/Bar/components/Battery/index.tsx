@@ -1,3 +1,5 @@
+// Shows battery charge and power details in the bar and a popup.
+
 import app from "ags/gtk4/app"
 import { createBinding, createComputed } from "ags"
 import { Astal, Gtk } from "ags/gtk4"
@@ -5,8 +7,10 @@ import { Astal, Gtk } from "ags/gtk4"
 import { PopupWindow } from "widget/shared/PopupWindow"
 import { PanelButton } from "../PanelButton"
 
-import { formatDuration, popupLayout, toggleWindow } from "$lib/utils"
-import { bat } from "$lib/services"
+import { formatDuration } from "$lib/format"
+import { popupLayout } from "$lib/popup"
+import { toggleWindow } from "$lib/windows"
+import { battery } from "$service/system"
 
 import options from "options"
 
@@ -52,14 +56,14 @@ export namespace Battery {
 	}
 
 	const layout = popupLayout(options.bar.position, options.batterystate.position)
-	const percentage = createBinding(bat, "percentage")
-	const isPresent = createBinding(bat, "isPresent")
-	const iconName = createBinding(bat, "batteryIconName")
+	const percentage = createBinding(battery, "percentage")
+	const isPresent = createBinding(battery, "isPresent")
+	const iconName = createBinding(battery, "batteryIconName")
 
 	function createRemainingTime(percentage: () => number) {
-		const charging = createBinding(bat, "charging")
-		const timeToEmpty = createBinding(bat, "timeToEmpty")
-		const timeToFull = createBinding(bat, "timeToFull")
+		const charging = createBinding(battery, "charging")
+		const timeToEmpty = createBinding(battery, "timeToEmpty")
+		const timeToFull = createBinding(battery, "timeToFull")
 
 		const remainingTime = createComputed(() => {
 			if (percentage() === 1)

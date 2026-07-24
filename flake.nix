@@ -1,5 +1,6 @@
+# Builds the application and includes its development tools and required programs.
 {
-  description = "Hyprland desktop shell using AGS v3/Astal - widgets, notifications, app launcher, and dynamic matugen theming. NixOS ready.";
+  description = "Hyprland desktop shell using AGS v3/Astal with wallpaper-aware dynamic theming.";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
@@ -33,7 +34,6 @@
       notifd
       mpris
       bluetooth
-      auth
       powerprofiles
     ];
 
@@ -41,14 +41,14 @@
       astalPackages
       ++ [
         ddcutil
-        matugen
-        libadwaita
         libsoup_3
         brightnessctl
         libwebp
-        which
-        libnotify
         libheif
+        dconf
+        xdg-utils
+        bluez
+        gnome-control-center
         wf-recorder
         wl-clipboard
         grim

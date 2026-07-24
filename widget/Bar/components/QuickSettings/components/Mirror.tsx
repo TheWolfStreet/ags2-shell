@@ -1,3 +1,5 @@
+// Lists monitors and starts or stops mirroring each secondary display.
+
 import { Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import { createState, onCleanup, For } from "ags"
@@ -9,7 +11,7 @@ import { ToggleButton, Menu, quickSettingsMenu } from "./shared/MenuElements"
 
 import icons from "$lib/icons"
 import { attemptAsync } from "$lib/result"
-import { hypr } from "$lib/services"
+import { hyprland } from "$service/system"
 
 import options from "options"
 
@@ -39,12 +41,12 @@ export namespace Mirror {
 		return (
 			<button
 				onClicked={() => {
-					const primaryMonitorName = hypr.get_monitor(0)?.name
+					const primaryMonitorName = hyprland.get_monitor(0)?.name
 					const mirrorSuffix = canEnableMirror && primaryMonitorName
 						? `, mirror, ${primaryMonitorName}`
 						: ""
 					const command = `keyword monitor ${monitor.name}, highres, auto, 1${mirrorSuffix}`
-					hypr.message_async(command, null)
+					hyprland.message_async(command, null)
 					update()
 				}}
 			>
@@ -56,8 +58,8 @@ export namespace Mirror {
 		)
 	}
 
-	const [monitors, set_monitors] = createState<AstalHyprland.Monitor[]>([])
-	void getMonitors().then(set_monitors)
+	const [monitors, setMonitors] = createState<AstalHyprland.Monitor[]>([])
+	void getMonitors().then(setMonitors)
 
 	export function Toggle() {
 		return (
@@ -73,13 +75,13 @@ export namespace Mirror {
 	}
 
 	export function Selector() {
-		const refresh = () => void getMonitors().then(set_monitors)
+		const refresh = () => void getMonitors().then(setMonitors)
 		const ids = [
-			hypr.connect("monitor-added", refresh),
-			hypr.connect("monitor-removed", refresh),
+			hyprland.connect("monitor-added", refresh),
+			hyprland.connect("monitor-removed", refresh),
 		]
 
-		onCleanup(() => ids.forEach(id => hypr.disconnect(id)))
+		onCleanup(() => ids.forEach(id => hyprland.disconnect(id)))
 
 		const hasMonitors = monitors.as(ms => ms.length > 0)
 		return (

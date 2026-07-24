@@ -1,3 +1,5 @@
+// Converts copied file paths between GTK and Wayland clipboard formats.
+
 import { Gdk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 

@@ -1,12 +1,17 @@
-import { onMount } from "ags"
+// Shows an animated popup in the right place and closes it after an outside click.
+
+import { createComputed, onMount, type Accessor } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 
 import Graphene from "gi://Graphene"
 
-import { Props, type Position } from "$lib/utils"
+import type { Position } from "$lib/popup"
+import { isAccessor, type Props } from "$lib/ui"
 
 import options from "options"
+
+export type { Position } from "$lib/popup"
 
 const { START, END, CENTER } = Gtk.Align
 const { SLIDE_UP, SLIDE_DOWN, SLIDE_LEFT, SLIDE_RIGHT, CROSSFADE } = Gtk.RevealerTransitionType
@@ -33,31 +38,25 @@ export function PopupWindow({
 	children,
 	$,
 	...props
-}: Props<Impl, PopupProps> & {
+}: Props<PopupWindowImpl, PopupProps> & {
 	handleClosing?: boolean
-	onKey?: (ctrl: Gtk.EventControllerKey, keyval: number, code: number, mod: number, w: Gtk.Window) => void
-	onClick?: (ctrl: Gtk.GestureClick, n: number, x: number, y: number, w: Gtk.Window, content: Gtk.Widget) => void
+	onKey?: (controller: Gtk.EventControllerKey, keyval: number, keycode: number, modifiers: number, window: Gtk.Window) => void
+	onClick?: (controller: Gtk.GestureClick, pressCount: number, x: number, y: number, window: Gtk.Window, content: Gtk.Widget) => void
 }) {
 	let content: Gtk.Revealer
-	let win: Impl
+	let window: PopupWindowImpl
 
-	const alignment = typeof layout === "function"
-		? (layout as import("ags").Accessor<Position>).as(p => POSITION_CONFIG[p])
-		: POSITION_CONFIG[layout ?? "center"]
+	const alignment = createComputed(() => getPositionConfig(layout))
 
-	const isAccessor = typeof alignment === "function"
 	const pickAlignment = <K extends keyof AlignConfig>(key: K) => {
-		if (isAccessor)
-			return (alignment as import("ags").Accessor<AlignConfig>).as(v => v[key])
-
-		return (alignment as AlignConfig)[key]
+		return alignment.as(config => config[key])
 	}
 
 	return (
-		<Popup
-			$={w => {
-				win = w
-				$ && $(w)
+		<RegisteredPopupWindow
+			$={popupWindow => {
+				window = popupWindow
+				$?.(popupWindow)
 			}}
 			name={name}
 			class={`${name && name + " "}${className}`}
@@ -69,8 +68,8 @@ export function PopupWindow({
 			layer={layer}
 			{...props}
 		>
-			<Gtk.EventControllerKey onKeyPressed={(ctrl, keyval, code, mod) => handleClosing && onKeyHandler(ctrl, keyval, code, mod, win, onKey)} />
-			<Gtk.GestureClick onPressed={(ctrl, n, x, y) => handleClosing && onClickHandler(ctrl, n, x, y, win, content, onClick)} />
+			<Gtk.EventControllerKey onKeyPressed={(controller, keyval, keycode, modifiers) => handleClosing && onKeyHandler(controller, keyval, keycode, modifiers, window, onKey)} />
+			<Gtk.GestureClick onPressed={(controller, pressCount, x, y) => handleClosing && onClickHandler(controller, pressCount, x, y, window, content, onClick)} />
 
 			<Gtk.Revealer
 				transitionDuration={options.transition.duration}
@@ -79,14 +78,15 @@ export function PopupWindow({
 				valign={pickAlignment("valign")}
 				onNotifyChildRevealed={(self) => {
 					if (!self.get_child_revealed() && !self.get_reveal_child()) {
-						win.performHide()
+						// The real window stays visible until the revealer finishes so the closing transition can render.
+						window.performHide()
 					}
 				}}
 				$={self => {
 					onMount(() => {
 						content = self
-						win.revealer = self
-						if (win.get_visible()) {
+						window.revealer = self
+						if (window.get_visible()) {
 							self.set_opacity(1)
 							self.get_child()?.set_opacity(1)
 							self.set_reveal_child(true)
@@ -96,37 +96,35 @@ export function PopupWindow({
 			>
 				{children}
 			</Gtk.Revealer>
-		</Popup>
+		</RegisteredPopupWindow>
 	)
 }
 
-export type { Position }
-
 function onKeyHandler(
-	ctrl: Gtk.EventControllerKey,
+	controller: Gtk.EventControllerKey,
 	keyval: number,
-	code: number,
-	mod: number,
-	w: Gtk.Window,
-	onKey?: (ctrl: Gtk.EventControllerKey, keyval: number, code: number, mod: number, w: Gtk.Window) => void
+	keycode: number,
+	modifiers: number,
+	window: Gtk.Window,
+	onKey?: (controller: Gtk.EventControllerKey, keyval: number, keycode: number, modifiers: number, window: Gtk.Window) => void
 ) {
-	if (keyval === KEY_Escape) w.hide()
-	if (onKey) onKey(ctrl, keyval, code, mod, w)
+	if (keyval === KEY_Escape) window.hide()
+	onKey?.(controller, keyval, keycode, modifiers, window)
 }
 
 function onClickHandler(
-	ctrl: Gtk.GestureClick,
-	n: number,
+	controller: Gtk.GestureClick,
+	pressCount: number,
 	x: number,
 	y: number,
-	w: Gtk.Window,
+	window: Gtk.Window,
 	content: Gtk.Widget,
-	onClick?: (ctrl: Gtk.GestureClick, n: number, x: number, y: number, w: Gtk.Window, content: Gtk.Widget) => void
+	onClick?: (controller: Gtk.GestureClick, pressCount: number, x: number, y: number, window: Gtk.Window, content: Gtk.Widget) => void
 ) {
-	const [, rect] = content.compute_bounds(w)
+	const [, rect] = content.compute_bounds(window)
 	const point = new Graphene.Point({ x, y })
-	if (!rect.contains_point(point)) w.hide()
-	if (onClick) onClick(ctrl, n, x, y, w, content)
+	if (!rect.contains_point(point)) window.hide()
+	onClick?.(controller, pressCount, x, y, window, content)
 }
 
 type AlignConfig = {
@@ -148,13 +146,23 @@ const POSITION_CONFIG: Record<Position, AlignConfig> = {
 	"bottom-right": { halign: END, valign: END, transitionType: SLIDE_UP },
 }
 
+function isPosition(value: unknown): value is Position {
+	return typeof value === "string" && Object.prototype.hasOwnProperty.call(POSITION_CONFIG, value)
+}
+
+function getPositionConfig(value: unknown): AlignConfig {
+	if (isAccessor<unknown>(value))
+		return getPositionConfig(value())
+	return isPosition(value) ? POSITION_CONFIG[value] : POSITION_CONFIG.center
+}
+
 interface PopupProps extends Astal.Window.ConstructorProps {
 	children: JSX.Element | Array<JSX.Element>
-	layout?: Position | import("ags").Accessor<Position>
+	layout?: Position | Accessor<Position>
 	transitionType?: Gtk.RevealerTransitionType
 }
 
-class Impl extends Astal.Window {
+class PopupWindowImpl extends Astal.Window {
 	revealer?: Gtk.Revealer
 
 	private resetRevealerOpacity() {
@@ -180,4 +188,4 @@ class Impl extends Astal.Window {
 	}
 }
 
-const Popup = GObject.registerClass(Impl)
+const RegisteredPopupWindow = GObject.registerClass(PopupWindowImpl)

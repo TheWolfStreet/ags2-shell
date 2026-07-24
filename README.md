@@ -5,7 +5,7 @@
 [![AGS](https://img.shields.io/badge/AGS-v3%2FAstal-green)](https://github.com/Aylur/ags)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](LICENSE)
 
-A Hyprland desktop shell built with AGS v3/Astal, ported from Aylur's original AGS v1 shell. Features dynamic theming with matugen, GTK4 widgets, and full NixOS/Home Manager integration.
+A Hyprland desktop shell built with AGS v3/Astal, ported from Aylur's original AGS v1 shell. Features wallpaper-aware dynamic theming, GTK4 widgets, and full NixOS/Home Manager integration.
 
 ![Demonstration](thumbnail.png)
 
@@ -16,7 +16,7 @@ A Hyprland desktop shell built with AGS v3/Astal, ported from Aylur's original A
 - **System Tray** - Network, Bluetooth, Audio, Battery indicators
 - **Notifications** - Native notification daemon with actions
 - **Screenshot & Recording** - Area/fullscreen capture with grim/slurp and wf-recorder
-- **Dynamic Theming** - Automatic colorscheme generation with matugen
+- **Dynamic Theming** - Automatic color generation from the wallpaper's dominant hue
 - **Settings Panel** - GUI configuration for shell options
 - **Media Controls** - MPRIS integration for media players
 
@@ -74,7 +74,6 @@ flake.nix:
 {}: {
   inputs = {
     apple-fonts.url = "github:Lyndeno/apple-fonts.nix";
-    matugen.url = "github:InioX/matugen?ref=v2.2.0";
     ags = {
       url = "github:Aylur/ags";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -95,13 +94,11 @@ pkgs,
     enable = true;
     # WARNING: For nix flakes to see submodules set inputs.self.submodules = true
     configDir = ../ags2-shell; # Path to this repository
-    # And a few expected things in the environment like bash and which
+	# And a few expected things in the environment
     extraPackages = with pkgs; [
       brightnessctl # Setting brightness
       libwebp # WebP wallpaper support (dwebp)
-      which # Dependency checking
       # Recording and screenshot functionality
-      libnotify # "Recording saved" or "Screenshot taken" notifications
       grim # Screenshot software
       wf-recorder # Recording software
       swappy # Edit screenshot button
@@ -112,7 +109,6 @@ pkgs,
       hyprpicker # Colorpicker
       pavucontrol # Audio control
       networkmanager # Network control
-      matugen # Dynamic coloring
       # Astal libs
       inputs.ags.packages.${pkgs.system}.apps
       inputs.ags.packages.${pkgs.system}.battery
@@ -120,11 +116,9 @@ pkgs,
       inputs.ags.packages.${pkgs.system}.wireplumber
       inputs.ags.packages.${pkgs.system}.network
       inputs.ags.packages.${pkgs.system}.tray
-      inputs.ags.packages.${pkgs.system}.battery
       inputs.ags.packages.${pkgs.system}.notifd
       inputs.ags.packages.${pkgs.system}.mpris
       inputs.ags.packages.${pkgs.system}.bluetooth
-      inputs.ags.packages.${pkgs.system}.auth
       inputs.ags.packages.${pkgs.system}.powerprofiles
     ];
 	};

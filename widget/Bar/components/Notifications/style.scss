@@ -1,4 +1,4 @@
-@use "sass:color";
+// Styles notification text, urgency, buttons, and popups.
 @use '../../../../style/base' as *;
 
 .notification {
@@ -56,7 +56,6 @@
     label.body {
       color: color-mix(in srgb, var(--fg) 80%, transparent);
     }
-
   }
 
   box.actions {

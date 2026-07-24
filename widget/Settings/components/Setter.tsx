@@ -1,14 +1,13 @@
-import { onCleanup } from "ags"
-import { Gdk, Gtk } from "ags/gtk4"
-import { timeout, Timer } from "ags/time"
+// Shows the right editor for each setting and delays repeated saves while editing.
 
-import { RowProps } from "./layout"
+import { createComputed, onCleanup } from "ags"
+import { Gdk, Gtk } from "ags/gtk4"
 
 import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
-import { Opt } from "$lib/option"
 import { attempt } from "$lib/result"
+import { debounce } from "$lib/timing"
 
 const { CENTER } = Gtk.Align
 const { OPEN } = Gtk.FileChooserAction
@@ -24,14 +23,40 @@ const FONT_UPDATE_DEBOUNCE_MS = 120
 
 type EnumValue = string | number
 
-type EnumSetterProps = {
-	opt: Opt<EnumValue>
-	values: EnumValue[]
+export type CommonOption = {
+	(): unknown
+	readonly id: string
+	peek(): unknown
+	set(value: unknown): void
+	getDefault(): unknown
+	reset(): void
 }
 
-type SetterProps = Pick<RowProps, "opt" | "type" | "enums" | "max" | "min">
+export type EditorType =
+	| "number"
+	| "color"
+	| "float"
+	| "object"
+	| "string"
+	| "enum"
+	| "boolean"
+	| "img"
+	| "font"
 
-function resolveSetterType(opt: SetterProps["opt"], type: SetterProps["type"]): NonNullable<RowProps["type"]> {
+type SetterProps = {
+	opt: CommonOption
+	type?: EditorType
+	enums?: readonly EnumValue[]
+	max?: number
+	min?: number
+}
+
+type EnumSetterProps = {
+	opt: CommonOption
+	values: readonly EnumValue[]
+}
+
+function resolveSetterType(opt: SetterProps["opt"], type: SetterProps["type"]): EditorType {
 	if (type) {
 		return type
 	}
@@ -41,33 +66,6 @@ function resolveSetterType(opt: SetterProps["opt"], type: SetterProps["type"]): 
 	if (valueType === "number") return "number"
 	if (valueType === "string") return "string"
 	return "object"
-}
-
-function createDebouncedSetter<T>(delayMs: number, setter: (value: T) => void) {
-	let timer: Timer | null = null
-
-	const cancel = () => {
-		if (!timer)
-			return
-
-		timer.cancel()
-		timer = null
-	}
-
-	const flush = (value: T) => {
-		cancel()
-		setter(value)
-	}
-
-	const schedule = (value: T) => {
-		cancel()
-		timer = timeout(delayMs, () => {
-			timer = null
-			setter(value)
-		})
-	}
-
-	return { schedule, flush, cancel }
 }
 
 function tryParseJson(text: string) {
@@ -106,15 +104,15 @@ const toHex = (rgba: Gdk.RGBA) => {
 
 const EnumSetter = ({ opt, values }: EnumSetterProps) => {
 	const step = (dir: 1 | -1) => {
-		const i = values.findIndex(v => v === opt.peek())
+		const currentIndex = values.findIndex(value => value === opt.peek())
 		const nextIndex = dir > 0
-			? (i + 1) % values.length
-			: (i - 1 + values.length) % values.length
+			? (currentIndex + 1) % values.length
+			: (currentIndex - 1 + values.length) % values.length
 		opt.set(values[nextIndex])
 	}
 	return (
 		<box class="enum-setter">
-			<label label={opt.as(v => String(v))} />
+			<label label={createComputed(() => String(opt()))} />
 			<button onClicked={() => step(-1)}>
 				<image iconName={icons.ui.arrow.left} />
 			</button>
@@ -131,7 +129,7 @@ export default function Setter(props: SetterProps) {
 
 	switch (resolvedType) {
 		case "number": {
-			const update = createDebouncedSetter<number>(NUMBER_UPDATE_DEBOUNCE_MS, value => {
+			const update = debounce<[number]>(NUMBER_UPDATE_DEBOUNCE_MS, value => {
 				opt.set(value)
 			})
 
@@ -142,9 +140,9 @@ export default function Setter(props: SetterProps) {
 					valign={CENTER}
 					adjustment={new Gtk.Adjustment({ lower: min, upper: max, stepIncrement: 1, pageIncrement: 5 })}
 					numeric
-					value={opt}
+					value={createComputed(() => Number(opt()))}
 					onValueChanged={self => {
-						update.schedule(self.value)
+						update.call(self.value)
 					}
 					}
 				/>
@@ -152,7 +150,7 @@ export default function Setter(props: SetterProps) {
 		}
 		case "float":
 		case "object": {
-			const update = createDebouncedSetter<string>(TEXT_UPDATE_DEBOUNCE_MS, (text) => {
+			const update = debounce<[string]>(TEXT_UPDATE_DEBOUNCE_MS, (text) => {
 				const parsed = tryParseJson(text)
 				if (parsed.ok) {
 					opt.set(parsed.value)
@@ -176,9 +174,9 @@ export default function Setter(props: SetterProps) {
 			return (
 				<entry
 					valign={CENTER}
-					text={opt.as(t => JSON.stringify(t, null, 2))}
+					text={createComputed(() => JSON.stringify(opt(), null, 2))}
 					onNotifyText={self => {
-						update.schedule(self.get_text())
+						update.call(self.get_text())
 					}}
 					onActivate={commitText}
 					onNotifyHasFocus={self => {
@@ -190,7 +188,7 @@ export default function Setter(props: SetterProps) {
 			)
 		}
 		case "string": {
-			const update = createDebouncedSetter<string>(TEXT_UPDATE_DEBOUNCE_MS, value => {
+			const update = debounce<[string]>(TEXT_UPDATE_DEBOUNCE_MS, value => {
 				opt.set(value)
 			})
 
@@ -204,8 +202,8 @@ export default function Setter(props: SetterProps) {
 				<entry
 					valign={CENTER}
 					tooltipText={"Enter text"}
-					text={opt}
-					onNotifyText={self => update.schedule(self.get_text())}
+					text={createComputed(() => String(opt()))}
+					onNotifyText={self => update.call(self.get_text())}
 					onActivate={commitText}
 					onNotifyHasFocus={self => {
 						if (!self.has_focus) {
@@ -216,14 +214,16 @@ export default function Setter(props: SetterProps) {
 			)
 		}
 		case "enum": {
-			return <EnumSetter opt={opt} values={enums!} />
+			if (!enums?.length)
+				return <label label="No enum values" sensitive={false} />
+			return <EnumSetter opt={opt} values={enums} />
 		}
 		case "boolean": {
 			return (
 				<switch
 					valign={CENTER}
-					state={opt}
-					active={opt}
+					state={createComputed(() => Boolean(opt()))}
+					active={createComputed(() => Boolean(opt()))}
 					onNotifyState={self => opt.set(self.get_state())}
 				/>
 			)
@@ -246,7 +246,8 @@ export default function Setter(props: SetterProps) {
 						chooser.connect("response", (dialog, response) => {
 							if (response === ACCEPT) {
 								const filename = chooser.get_file()?.get_path()
-								opt.set(filename)
+								if (filename)
+									opt.set(filename)
 							}
 							dialog.destroy()
 						})
@@ -257,7 +258,7 @@ export default function Setter(props: SetterProps) {
 			)
 		}
 		case "font": {
-			const update = createDebouncedSetter<string>(FONT_UPDATE_DEBOUNCE_MS, value => {
+			const update = debounce<[string]>(FONT_UPDATE_DEBOUNCE_MS, value => {
 				opt.set(value)
 			})
 
@@ -270,20 +271,20 @@ export default function Setter(props: SetterProps) {
 					useSize={true}
 					level={FONT}
 					dialog={fontDialog}
-					fontDesc={opt.as(v => FontDescription.from_string(String(v)))}
+					fontDesc={createComputed(() => FontDescription.from_string(String(opt())))}
 					onNotifyFontDesc={(self) => {
 						const desc = self.get_font_desc()
 						if (desc) {
 							const family = desc.get_family()
 							const size = desc.get_size() / SCALE
-							update.schedule(`${family} ${size}`)
+							update.call(`${family} ${size}`)
 						}
 					}}
 				/>
 			)
 		}
 		case "color": {
-			const update = createDebouncedSetter<string>(COLOR_UPDATE_DEBOUNCE_MS, value => {
+			const update = debounce<[string]>(COLOR_UPDATE_DEBOUNCE_MS, value => {
 				opt.set(value)
 			})
 
@@ -295,11 +296,11 @@ export default function Setter(props: SetterProps) {
 					tooltipText={"Select a color"}
 					dialog={new Gtk.ColorDialog}
 					onNotifyRgba={self => {
-						update.schedule(toHex(self.get_rgba()))
+						update.call(toHex(self.get_rgba()))
 					}}
-					rgba={opt.as(v => {
+					rgba={createComputed(() => {
 						const color = new RGBA()
-						color.parse(v as string)
+						color.parse(String(opt()))
 						return color
 					})}
 				/>

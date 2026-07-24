@@ -1,12 +1,14 @@
+// Creates expandable Quick Settings rows with animated arrows.
+
 import { Accessor, createState, FCProps, Node, onCleanup } from "ags"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
-import { timeout } from "ags/time"
+import { timeout, Timer } from "ags/time"
 
 import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
-import { readValue } from "$lib/utils"
+import { isAccessor, readValue } from "$lib/ui"
 
 import options from "options"
 
@@ -33,7 +35,8 @@ export function Menu({ name, iconName, title, headerChild, children }: MenuProps
 	headerChild?: Node
 	children?: Node | Node[]
 }) {
-	const menuName = typeof name === "function" ? () => name.peek() : () => name ?? ""
+	const menuName = () => readValue(name) ?? ""
+	const className = isAccessor<string>(name) ? name.as(value => `menu ${value}`) : `menu ${name ?? ""}`
 
 	return (
 		<revealer
@@ -43,7 +46,7 @@ export function Menu({ name, iconName, title, headerChild, children }: MenuProps
 			vexpand={false} hexpand={false}
 		>
 			<box
-				class={typeof name === "function" ? name.as(value => `menu ${value}`) : `menu ${name}`}
+				class={className}
 				orientation={VERTICAL}
 			>
 				<box class="title-box horizontal">
@@ -90,10 +93,10 @@ export function ToggleButton({
 	}
 
 	const base = arrow ? "toggle-button" : "simple-toggle"
-	const cls = connection?.as(v => v ? `${base} active` : base) ?? base
+	const className = connection?.as(v => v ? `${base} active` : base) ?? base
 
 	return (
-		<box class={cls}>
+		<box class={className}>
 			<button onClicked={onClicked} tooltipText={label}>
 				<box class="horizontal" hexpand>
 					<image class="icon" iconName={iconName} useFallback />
@@ -137,7 +140,7 @@ export function Arrow(
 	)
 }
 
-export function Settings({ callback: callback }: { callback: () => void }) {
+export function Settings({ callback }: { callback: () => void }) {
 	return (
 		<button onClicked={callback} hexpand>
 			<box class="settings horizontal">
@@ -155,22 +158,25 @@ app.connect("window-toggled", (_, w) => {
 })
 
 function useArrowRotation(name?: Accessor<string> | string) {
-	let deg = 0
+	let rotation = 0
 	let isOpen = false
 	const [css, setCSS] = createState("")
+	const animationTimers = new Set<Timer>()
 
 	const menuName = () => readValue(name)
 
 	const animate = (step: number) => {
 		for (let i = 0; i < 9; i++) {
-			timeout(options.transition.duration.peek() * 0.075 * i, () => {
-				deg += step
-				setCSS(`transform: rotate(${deg}deg);`)
+			const timer = timeout(options.transition.duration.peek() * 0.075 * i, () => {
+				animationTimers.delete(timer)
+				rotation += step
+				setCSS(`transform: rotate(${rotation}deg);`)
 			})
+			animationTimers.add(timer)
 		}
 	}
 
-	const unsub = quickSettingsMenu.opened.subscribe(() => {
+	const disposeOpened = quickSettingsMenu.opened.subscribe(() => {
 		const current = menuName()
 		if ((quickSettingsMenu.opened.peek() === current && !isOpen) || (quickSettingsMenu.opened.peek() !== current && isOpen)) {
 			animate(quickSettingsMenu.opened.peek() === current ? 10 : -10)
@@ -178,7 +184,11 @@ function useArrowRotation(name?: Accessor<string> | string) {
 		}
 	})
 
-	onCleanup(unsub)
+	onCleanup(() => {
+		disposeOpened()
+		for (const timer of animationTimers) timer.cancel()
+		animationTimers.clear()
+	})
 
 	return {
 		css,

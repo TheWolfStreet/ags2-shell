@@ -1,7 +1,8 @@
+// Shows notification popups and history with timed animations.
+
 import { Accessor, createState, createBinding, createComputed, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
-import { timeout, Timer } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 import Pango from "gi://Pango"
@@ -10,9 +11,11 @@ import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
 import icons, { getIcon } from "$lib/icons"
-import { timeAgo, toggleWindow } from "$lib/utils"
+import { timeAgo } from "$lib/format"
+import { toggleWindow } from "$lib/windows"
 import { isDataImageUri, textureFromUriSquareContainAsync } from "$lib/textures"
-import { notifications as manager } from "$lib/services"
+import { notificationManager } from "$service/notifications"
+import { createEntryLifecycle, staggerDelay, type EntryIndex, type VisibilityController } from "./lifecycle"
 
 import options from "options"
 
@@ -25,26 +28,11 @@ const { NORMAL } = Astal.Exclusivity
 const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor
 
 export namespace Notifications {
-	type EntryIndex = Accessor<number> | number | undefined
-
 	type NotificationProps = {
 		entry: AstalNotifd.Notification
 		widthRequest?: Accessor<number> | number
 		persistent?: boolean
 		index?: EntryIndex
-	}
-
-	type EntryState = {
-		notification: AstalNotifd.Notification
-		persistent: boolean
-		index: EntryIndex
-		visibility: VisibilityController
-	}
-
-	type VisibilityController = {
-		value: Accessor<boolean>
-		show: () => void
-		hide: () => void
 	}
 
 	type HeaderProps = {
@@ -66,13 +54,9 @@ export namespace Notifications {
 		onActionClick: (actionId: string) => void
 	}
 
-	const notifications = createBinding(manager, "notifications")
-	const dismissingAll = createBinding(manager, "dismissingAll")
-	const popupHovered = createBinding(manager, "popupHovered")
-
-	function staggerDelay(index: number) {
-		return index * 50 + Math.random() * 100
-	}
+	const notifications = createBinding(notificationManager, "notifications")
+	const dismissingAll = createBinding(notificationManager, "dismissingAll")
+	const popupHovered = createBinding(notificationManager, "popupHovered")
 
 	function anchorForPosition(position: string) {
 		switch (position) {
@@ -108,11 +92,6 @@ export namespace Notifications {
 		)
 	}
 
-	function resolveEntryIndex(index: EntryIndex) {
-		if (index === undefined) return undefined
-		return typeof index === "function" ? index.peek() : index
-	}
-
 	function createVisibilityController(initial = false): VisibilityController {
 		const [value, setValue] = createState(initial)
 
@@ -120,103 +99,6 @@ export namespace Notifications {
 			value,
 			show: () => setValue(true),
 			hide: () => setValue(false),
-		}
-	}
-
-	function createEntryState({ notification, persistent, index, visibility }: EntryState) {
-		let autoHide: Timer | undefined
-		let pendingAction: (() => void) | undefined
-		let mounted: boolean = false
-
-		const unsetAutoHide = () => {
-			if (!autoHide)
-				return
-
-			autoHide.cancel()
-			autoHide = undefined
-		}
-
-		const scheduleAutoHide = (stagger = false) => {
-			if (persistent)
-				return
-
-			unsetAutoHide()
-			const idx = resolveEntryIndex(index)
-			const delay = options.notifications.dismiss.peek() + (stagger && idx !== undefined ? staggerDelay(idx) : 0)
-			autoHide = timeout(delay, () => {
-				if (!popupHovered.peek()) {
-					visibility.hide()
-				}
-				autoHide = undefined
-			})
-		}
-
-		const queuePendingAction = (action: () => void) => {
-			unsetAutoHide()
-			pendingAction = action
-			visibility.hide()
-		}
-
-		const dismiss = () => {
-			queuePendingAction(() => {
-				notification.dismiss()
-			})
-		}
-
-		const onActionClick = (actionId: string) => {
-			queuePendingAction(() => {
-				notification.invoke(actionId)
-				notification.dismiss()
-			})
-		}
-
-		const onDismissAllChanged = () => {
-			const idx = resolveEntryIndex(index)
-			if (dismissingAll.peek() && idx !== undefined) {
-				timeout(staggerDelay(idx), () => visibility.hide())
-			}
-		}
-
-		const onPopupHoveredChanged = () => {
-			if (persistent)
-				return
-
-			if (popupHovered.peek()) {
-				unsetAutoHide()
-			} else if (visibility.value.peek()) {
-				scheduleAutoHide(true)
-			}
-		}
-
-		const isFresh = persistent || notification.time >= manager.sessionStart
-
-		const onMap = () => {
-			if (!mounted && isFresh && (!manager.dontDisturb || persistent)) {
-				visibility.show()
-				mounted = true
-				scheduleAutoHide()
-			}
-		}
-
-		const onChildRevealed = (isRevealChild: boolean) => {
-			if (!isRevealChild && pendingAction) {
-				pendingAction()
-				pendingAction = undefined
-			}
-		}
-
-		const cleanup = () => {
-			unsetAutoHide()
-		}
-
-		return {
-			dismiss,
-			onActionClick,
-			onDismissAllChanged,
-			onPopupHoveredChanged,
-			onMap,
-			onChildRevealed,
-			cleanup,
 		}
 	}
 
@@ -291,11 +173,13 @@ export namespace Notifications {
 		const visibility = createVisibilityController(false)
 		const [showActions, setShowActions] = createState(false)
 
-		const state = createEntryState({
+		const state = createEntryLifecycle({
 			notification,
 			persistent: persistent ?? false,
 			index,
 			visibility,
+			popupHovered,
+			dismissingAll,
 		})
 
 		const dismissSub = dismissingAll.subscribe(state.onDismissAllChanged)
@@ -332,11 +216,11 @@ export namespace Notifications {
 				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} widthRequest={widthRequest}>
 					<Gtk.EventControllerMotion
 						onEnter={() => {
-							if (!persistent) manager.popupHovered = true
+							if (!persistent) notificationManager.popupHovered = true
 							setShowActions(true)
 						}}
 						onLeave={() => {
-							if (!persistent) manager.popupHovered = false
+							if (!persistent) notificationManager.popupHovered = false
 							setShowActions(false)
 						}}
 					/>
@@ -355,7 +239,7 @@ export namespace Notifications {
 	}
 
 	export function dismissAll() {
-		manager.dismissAll(options.transition.duration.peek(), maxStaggerDelay())
+		notificationManager.dismissAll(options.transition.duration.peek(), maxStaggerDelay())
 	}
 
 	export function Stack({ persistent = false, class: className }: { persistent?: boolean, class?: string }) {

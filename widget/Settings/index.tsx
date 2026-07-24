@@ -1,12 +1,15 @@
+// Shows the Settings window and switches between editable pages.
+
 import { createComputed, createState } from "ags"
 import app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 
-import { createLayout } from "./components/layout"
+import { createSettingsPages } from "./components/pages"
+import type { CommonOption } from "./components/Setter"
 
 import { Opt } from "$lib/option"
 import icons from "$lib/icons"
-import { hypr } from "$lib/services"
+import { hyprland } from "$service/system"
 
 import options from "options"
 
@@ -16,8 +19,8 @@ const { VERTICAL } = Gtk.Orientation
 
 export namespace Settings {
 
-	function collectOpts(obj: Record<string, unknown>): Opt<any>[] {
-		let opts: Opt<any>[] = []
+	function collectOpts(obj: Record<string, unknown>): CommonOption[] {
+		let opts: CommonOption[] = []
 		for (const key in obj) {
 			const value = obj[key]
 			if (value instanceof Opt) {
@@ -39,9 +42,9 @@ export namespace Settings {
 					qsettings?.hide()
 
 					if (settings?.visible) {
-						const workspace = hypr.focusedWorkspace?.id
+						const workspace = hyprland.focusedWorkspace?.id
 						if (workspace != null)
-							hypr.dispatch("movetoworkspace", `${workspace},title:^(Settings)$`)
+							hyprland.dispatch("movetoworkspace", `${workspace},title:^(Settings)$`)
 					} else {
 						settings?.show()
 					}
@@ -53,11 +56,11 @@ export namespace Settings {
 	}
 
 	export function Window() {
-		const layout = createLayout()
+		const pages = createSettingsPages()
 		const allOpts = collectOpts(options)
 
 		let stack: Gtk.Stack | undefined
-		const [currentPage, setCurrentPage] = createState(layout[0].name)
+		const [currentPage, setCurrentPage] = createState(pages[0].name)
 
 		const anyChanged = createComputed(() => allOpts.some(opt => opt() !== opt.getDefault()))
 
@@ -98,7 +101,7 @@ export namespace Settings {
 						</button>
 
 						<box class="pager horizontal" $type="center">
-							{layout.map(({ name, iconName }) => (
+							{pages.map(({ name, iconName }) => (
 								<button
 									class={currentPage.as(v => v === name ? `active` : "")}
 									valign={CENTER}
@@ -126,7 +129,7 @@ export namespace Settings {
 					</centerbox>
 
 					<stack transitionType={SLIDE_LEFT_RIGHT} $={setup}>
-						{layout}
+						{pages}
 					</stack>
 				</box>
 			</Gtk.Window>

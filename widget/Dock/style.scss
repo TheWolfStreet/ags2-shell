@@ -1,3 +1,5 @@
+// Styles the dock, reveal areas, screen-edge layouts, and launch feedback.
+// Window and hotzone surfaces stay transparent around the dock container.
 window#dock,
 window#dock-left,
 window#dock-bottom {
@@ -21,6 +23,7 @@ window#dock-hotzone-bottom .dock-hotzone {
   border: none;
 }
 
+// Shared dock geometry, icon states, and separators.
 window#dock .dock-container,
 window#dock-left .dock-container,
 window#dock-bottom .dock-container {
@@ -116,6 +119,7 @@ window#dock-bottom .dock-container {
   }
 }
 
+// Orientation-specific icon and indicator geometry.
 window#dock .dock-container.dock-horizontal,
 window#dock-left .dock-container.dock-horizontal,
 window#dock-bottom .dock-container.dock-horizontal {
@@ -173,6 +177,7 @@ window#dock-bottom .dock-container.neumorphic {
     var(--neu-widget-shadow);
 }
 
+// Launch feedback follows the dock's active axis.
 @keyframes subtle-jump {
   0% { transform: translateY(0); }
   30% { transform: translateY(-8px); }

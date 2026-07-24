@@ -1,3 +1,7 @@
+// Lists icon names and finds fallback icons when one is missing.
+
+import env from "$lib/env"
+
 const substitutes = {
 	"audio-headset-bluetooth": "audio-headphones-symbolic",
 	"audio-card-analog-usb": "audio-speakers-symbolic",
@@ -145,6 +149,12 @@ const iconList = {
 
 export function getIcon(name: string, fallback = "image-missing-symbolic"): string {
 	return substitutes[name as keyof typeof substitutes] || name || fallback
+}
+
+export function resolveIcon(name?: string, fallback = iconList.missing): string {
+	if (name && env.iconTheme.peek().has_icon(name))
+		return name
+	return fallback
 }
 
 export function getBrightnessIcon(percent: number, type: "screen" | "keyboard" = "screen"): string {

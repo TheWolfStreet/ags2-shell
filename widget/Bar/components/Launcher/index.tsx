@@ -1,3 +1,5 @@
+// Shows a searchable application list and handles keyboard and pointer input.
+
 import app from "ags/gtk4/app"
 import { Accessor, createBinding, createComputed, createState, For, onCleanup, With } from "ags"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
@@ -7,11 +9,12 @@ import AstalApps from "gi://AstalApps"
 import { Placeholder } from "widget/shared/Placeholder"
 import { PopupWindow, Position } from "widget/shared/PopupWindow"
 import { PanelButton } from "../PanelButton"
+import { indexApplications, rankApplications } from "./search"
 
 import { Opt } from "$lib/option"
-import { apps } from "$lib/services"
+import { apps } from "$service/apps"
 import icons from "$lib/icons"
-import { toggleWindow } from "$lib/utils"
+import { toggleWindow } from "$lib/windows"
 
 import options from "options"
 
@@ -25,6 +28,17 @@ const { CENTER, END } = Gtk.Align
 
 const { LEFT } = Gtk.Justification
 const { ALT_MASK } = Gdk.ModifierType
+const ALT_DIGIT_KEYS = [
+	Gdk.KEY_1,
+	Gdk.KEY_2,
+	Gdk.KEY_3,
+	Gdk.KEY_4,
+	Gdk.KEY_5,
+	Gdk.KEY_6,
+	Gdk.KEY_7,
+	Gdk.KEY_8,
+	Gdk.KEY_9,
+] as const
 
 const { position } = options.launcher
 
@@ -38,6 +52,12 @@ type AppListProps = {
 	allApps: Accessor<AstalApps.Application[]>
 	visibleApps: Accessor<AstalApps.Application[]>
 	launch: (a: AstalApps.Application) => void
+}
+
+type AppEntryProps = {
+	app: AstalApps.Application
+	visibleApps: Accessor<AstalApps.Application[]>
+	launch: (app: AstalApps.Application) => void
 }
 
 export namespace Launcher {
@@ -65,15 +85,15 @@ export namespace Launcher {
 		}
 
 		const orderChanged = currentOrder.length !== prevOrder.length ||
-			currentOrder.some((name, idx) => name !== prevOrder[idx])
+			currentOrder.some((name, orderIndex) => name !== prevOrder[orderIndex])
 
 		if (orderChanged) {
-			for (let idx = 0; idx < currentOrder.length; idx++) {
-				const revealer = revealers.get(currentOrder[idx])
+			for (let orderIndex = 0; orderIndex < currentOrder.length; orderIndex++) {
+				const revealer = revealers.get(currentOrder[orderIndex])
 				if (revealer && !revealer.get_reveal_child()) {
 					appsBox.reorder_child_after(
 						revealer,
-						idx === 0 ? null : revealers.get(currentOrder[idx - 1]) ?? null
+						orderIndex === 0 ? null : revealers.get(currentOrder[orderIndex - 1]) ?? null
 					)
 				}
 			}
@@ -132,12 +152,13 @@ export namespace Launcher {
 		)
 	}
 
-	function Entry(app: AstalApps.Application, visibleApps: Accessor<AstalApps.Application[]>, launch: (a: AstalApps.Application) => void) {
+	// Entries mount once, then reveal and reorder in place so search updates retain GTK widget state.
+	function AppEntry({ app, visibleApps, launch }: AppEntryProps) {
 		const appName = app.get_name()
 		const [iconReady, setIconReady] = createState(false)
 		const hint = visibleApps.as(apps => {
-			const idx = apps.findIndex(a => a.get_name() === appName)
-			return idx >= 0 && idx < 9 ? `󰘳 ${idx + 1}` : ""
+			const matchRank = apps.findIndex(candidate => candidate.get_name() === appName)
+			return matchRank >= 0 && matchRank < 9 ? `󰘳 ${matchRank + 1}` : ""
 		})
 
 		const appButton = (
@@ -214,7 +235,7 @@ export namespace Launcher {
 				}}
 			>
 				<For each={orderedApps}>
-					{(app: AstalApps.Application) => Entry(app, visibleApps, launch)}
+					{(app: AstalApps.Application) => <AppEntry app={app} visibleApps={visibleApps} launch={launch} />}
 				</For>
 			</box>
 		)
@@ -255,43 +276,18 @@ export namespace Launcher {
 
 		const [text, setText] = createState("")
 		const favorites = createBinding(apps, "favorites")
-		const searchIndex = createComputed(() => allApps().map(app => {
-			const name = app.get_name()
-			return {
-				app,
-				nameLower: name.toLowerCase(),
-			}
-		}))
+		const searchIndex = createComputed(() => indexApplications(allApps()))
 		const visibleApps = createComputed(() => {
-			const query = text().trim().toLowerCase()
-			if (!query)
-				return []
-
 			const maxVisible = options.launcher.apps.max.peek() || 9
-			const results: Array<[AstalApps.Application, number, string]> = []
-
-			for (const indexed of searchIndex()) {
-				const idx = indexed.nameLower.indexOf(query)
-				if (idx >= 0) {
-					results.push([indexed.app, idx, indexed.nameLower])
-				}
-			}
-
-			results.sort((a, b) => {
-				if (a[1] !== b[1])
-					return a[1] - b[1]
-				return a[2].localeCompare(b[2])
-			})
-
-			return results.slice(0, maxVisible).map(r => r[0])
+			return rankApplications(searchIndex(), text(), maxVisible)
 		})
 
 		function favsVisible(location: string) {
-			return location === "search" || location === "both"
+			return location === "launcher" || location === "both"
 		}
 
 		function getAltDigitKey(index: number) {
-			return (Gdk as any)[`KEY_${index + 1}`]
+			return ALT_DIGIT_KEYS[index]
 		}
 
 		function onKey(
@@ -356,6 +352,24 @@ export namespace Launcher {
 			<AppList allApps={allApps} visibleApps={visibleApps} launch={a => launchApp(win, a)} />
 		)
 
+		const TopContent = () => (
+			<>
+				<SearchEntry />
+				<NotFoundRevealer />
+				<FavoritesSection />
+				<AppListSection />
+			</>
+		)
+
+		const BottomContent = () => (
+			<>
+				<AppListSection />
+				<FavoritesSection />
+				<NotFoundRevealer />
+				<SearchEntry />
+			</>
+		)
+
 		const launcherCss = createComputed(() => {
 			const margin = options.launcher.margin()
 			return position() === "bottom-center"
@@ -391,23 +405,7 @@ export namespace Launcher {
 							orientation={VERTICAL}
 							css={launcherCss}
 						>
-							{isBottom
-								? (
-									<>
-										<AppListSection />
-										<FavoritesSection />
-										<NotFoundRevealer />
-										<SearchEntry />
-									</>
-								)
-								: (
-									<>
-										<SearchEntry />
-										<NotFoundRevealer />
-										<FavoritesSection />
-										<AppListSection />
-									</>
-								)}
+							{isBottom ? <BottomContent /> : <TopContent />}
 						</box>
 					)}
 				</With>

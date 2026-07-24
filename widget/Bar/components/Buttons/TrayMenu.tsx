@@ -1,3 +1,5 @@
+// Shows animated tray menus and runs their actions.
+
 import { Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 import { onCleanup } from "ags"
@@ -221,7 +223,10 @@ export function createTrayMenuPopover(item: AstalTray.TrayItem) {
 			model.disconnect(modelConn)
 
 		model = item.menuModel
-		modelConn = model ? model.connect("items-changed", markDirty) : 0
+		if (model)
+			modelConn = model.connect("items-changed", markDirty)
+		else
+			modelConn = 0
 		markDirty()
 	}
 

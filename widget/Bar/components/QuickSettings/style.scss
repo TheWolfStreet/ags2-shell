@@ -1,6 +1,7 @@
-@use "sass:color";
+// Styles Quick Settings passwords, controls, device lists, toggles, and media players.
 @use '../../../../style/base' as *;
 
+// Keep network authentication visually aligned with shell inputs.
 window#wifi-auth {
   box {
     @include spacing;
@@ -34,7 +35,6 @@ window#quicksettings {
     @include spacing;
     padding: calc(var(--popover-padding) * 1.4);
 
-
     picture.avatar {
       @extend .widget;
       border-radius: calc(var(--radius) * 3);
@@ -54,6 +54,7 @@ window#quicksettings {
       color: color-mix(in srgb, var(--fg) 85%, transparent);
     }
 
+    // Volume, brightness, and device mixer controls share one surface.
     box.sliders-box {
       @extend .widget;
       padding: var(--padding);
@@ -104,11 +105,11 @@ window#quicksettings {
       }
     }
 
-
     box.row {
       @include spacing;
     }
 
+    // Expanded device and service menus.
     box.menu {
       @extend .widget;
       padding: var(--padding);
@@ -164,6 +165,7 @@ window#quicksettings {
       }
     }
 
+    // Split and simple toggle states.
     %toggle {
       background-color: var(--widget-bg);
       border: var(--border-width) solid var(--border-color);
@@ -262,6 +264,7 @@ window#quicksettings {
       }
     }
 
+    // Active media sessions and transport controls.
     box.media {
       @include spacing;
 

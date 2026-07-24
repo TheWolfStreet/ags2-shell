@@ -1,3 +1,5 @@
+// Watches the trash folder and opens it when the dock icon is clicked.
+
 import { createState } from "ags"
 import { timeout, Timer } from "ags/time"
 

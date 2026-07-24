@@ -1,3 +1,5 @@
+// Lists installed applications and updates GNOME favorites when the list changes.
+
 import GObject, { getter, register } from "ags/gobject"
 import { execAsync } from "ags/process"
 import { idle } from "ags/time"
@@ -8,11 +10,11 @@ import Gio from "gi://Gio"
 import env from "$lib/env"
 import { fileExists } from "$lib/files"
 import { attempt } from "$lib/result"
-import { hypr } from "$lib/services"
+import { hyprland } from "$service/system"
 import { debounce } from "$lib/timing"
 
 @register()
-export default class Apps extends GObject.Object {
+class Apps extends GObject.Object {
 	declare static $gtype: GObject.GType<Apps>
 	static instance: Apps
 
@@ -26,11 +28,14 @@ export default class Apps extends GObject.Object {
 	#lastFavoritesRead = 0
 	#apps: AstalApps.Apps
 	#monitors: Gio.FileMonitor[]
-	#reload = debounce(500, () => idle(() => {
-		this.#apps.reload()
-		this.notify("list")
-		this.notify("favorites")
-	}))
+	#hyprlandHandlerId: number
+	#reload = debounce(500, () => {
+		idle(() => {
+			this.#apps.reload()
+			this.notify("list")
+			this.notify("favorites")
+		})
+	})
 
 	constructor() {
 		super()
@@ -39,6 +44,7 @@ export default class Apps extends GObject.Object {
 		this.#favoritesSnapshot = ""
 		this.#apps = new AstalApps.Apps()
 		this.#monitors = []
+		this.#hyprlandHandlerId = 0
 
 		const scheduleReload = () => this.#reload.call()
 
@@ -51,13 +57,13 @@ export default class Apps extends GObject.Object {
 
 				monitor.set_rate_limit(300)
 
-				monitor.connect("changed", (_mon, file, _other, event_type) => {
-					if (event_type === Gio.FileMonitorEvent.CREATED) {
+				monitor.connect("changed", (_monitor, file, _other, eventType) => {
+					if (eventType === Gio.FileMonitorEvent.CREATED) {
 						const fileName = file.get_basename()
 						if (fileName && !fileName.startsWith(".")) {
 							scheduleReload()
 						}
-					} else if (event_type === Gio.FileMonitorEvent.DELETED) {
+					} else if (eventType === Gio.FileMonitorEvent.DELETED) {
 						scheduleReload()
 					}
 				})
@@ -82,7 +88,7 @@ export default class Apps extends GObject.Object {
 			watchDirectory(dir)
 		}
 
-		hypr.connect("config-reloaded", scheduleReload)
+		this.#hyprlandHandlerId = hyprland.connect("config-reloaded", scheduleReload)
 
 		this.#lastFavoritesRead = Date.now()
 		this.#refreshFavorites()
@@ -147,6 +153,12 @@ export default class Apps extends GObject.Object {
 			monitor.cancel()
 		}
 		this.#monitors = []
+		if (this.#hyprlandHandlerId) {
+			hyprland.disconnect(this.#hyprlandHandlerId)
+			this.#hyprlandHandlerId = 0
+		}
 		super.vfunc_finalize()
 	}
 }
+
+export const apps = Apps.get_default()

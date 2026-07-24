@@ -1,0 +1,80 @@
+// Creates shared spacing, color, border, shadow, and text style helpers.
+@mixin spacing($multiplier: 1) {
+  &.horizontal > * {
+    margin: 0 calc(var(--spacing) * $multiplier / 2);
+
+    &:first-child {
+      margin-left: 0;
+    }
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+
+  &.vertical > * {
+    margin: calc(var(--spacing) * $multiplier / 2) 0;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+%outlined-button {
+  all: unset;
+  transition: var(--transition);
+  border-radius: var(--radius);
+  color: var(--fg);
+  padding: var(--padding);
+  background-color: var(--widget-bg);
+  box-shadow:
+    inset 0 0 0 var(--border-width) var(--border-color),
+    var(--neu-button-highlight),
+    var(--neu-button-shadow);
+  font-weight: bold;
+
+  &:hover:not(.active) {
+    background-color: var(--hover-bg);
+    color: var(--hover-fg);
+    box-shadow:
+      inset 0 0 0 var(--border-width) var(--border-color),
+      var(--neu-button-hover-highlight),
+      var(--neu-button-hover-shadow);
+  }
+
+  &:focus-visible {
+    outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+    outline-offset: -1px;
+  }
+
+  &:active,
+  &.on,
+  &.active,
+  &:checked {
+    background-image: var(--active-gradient);
+    background-color: var(--primary-bg);
+    color: var(--primary-fg);
+    box-shadow:
+      inset 0 0 0 var(--border-width) var(--border-color),
+      var(--neu-button-active-highlight),
+      var(--neu-button-active-shadow);
+  }
+
+  &:disabled {
+    box-shadow: none;
+    background-color: transparent;
+    color: color-mix(in srgb, var(--fg) 30%, transparent);
+  }
+}
+
+.flat-button {
+  @extend %outlined-button;
+
+  background-color: transparent;
+  box-shadow: none;
+}

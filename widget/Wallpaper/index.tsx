@@ -1,3 +1,5 @@
+// Starts the wallpaper parent and child processes and draws animated images on each monitor.
+
 import app from "ags/gtk4/app"
 import { createBinding, createRoot, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
@@ -11,12 +13,13 @@ import GLib from "gi://GLib"
 import { programArgs } from "system"
 
 import env from "$lib/env"
+import { basicMonitorKey } from "$lib/monitor-state"
 import { attempt, attemptAsync } from "$lib/result"
 import { releaseMonitorWindow } from "$lib/windows"
 
 type ActiveGif = {
 	iter: GdkPixbuf.PixbufAnimationIter
-	pics: Set<Gtk.Picture>
+	pictures: Set<Gtk.Picture>
 	current: Gdk.Texture | null
 	sourceId: number
 }
@@ -161,17 +164,20 @@ export default class Wallpaper extends GObject.Object {
 	}
 }
 
+export const wallpaper = Wallpaper.get_default()
+
+// Child-process rendering shares GIF frames and crossfades updates across monitor windows.
 function scheduleGif(gif: ActiveGif) {
 	const delay = Math.max(10, gif.iter.get_delay_time())
 	gif.sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
 		gif.sourceId = 0
-		if (gif.pics.size === 0) return GLib.SOURCE_REMOVE
+		if (gif.pictures.size === 0) return GLib.SOURCE_REMOVE
 
 		if (gif.iter.advance(null)) {
-			const pb = gif.iter.get_pixbuf()
-			if (pb) {
-				gif.current = Gdk.Texture.new_for_pixbuf(pb)
-				for (const pic of gif.pics) pic.set_paintable(gif.current)
+			const pixbuf = gif.iter.get_pixbuf()
+			if (pixbuf) {
+				gif.current = Gdk.Texture.new_for_pixbuf(pixbuf)
+				for (const picture of gif.pictures) picture.set_paintable(gif.current)
 			}
 		}
 		scheduleGif(gif)
@@ -179,65 +185,65 @@ function scheduleGif(gif: ActiveGif) {
 	})
 }
 
-function playGif(key: string, anim: GdkPixbuf.PixbufAnimation, pic: Gtk.Picture): () => void {
+function playGif(key: string, animation: GdkPixbuf.PixbufAnimation, picture: Gtk.Picture): () => void {
 	let gif = activeGifs.get(key)
 	if (!gif) {
-		const iter = anim.get_iter(null)
-		const pb = iter.get_pixbuf()
+		const iter = animation.get_iter(null)
+		const pixbuf = iter.get_pixbuf()
 		gif = {
 			iter,
-			pics: new Set(),
-			current: pb ? Gdk.Texture.new_for_pixbuf(pb) : null,
+			pictures: new Set(),
+			current: pixbuf ? Gdk.Texture.new_for_pixbuf(pixbuf) : null,
 			sourceId: 0,
 		}
 		activeGifs.set(key, gif)
 		scheduleGif(gif)
 	}
 
-	gif.pics.add(pic)
-	if (gif.current) pic.set_paintable(gif.current)
+	gif.pictures.add(picture)
+	if (gif.current) picture.set_paintable(gif.current)
 
 	return () => {
-		gif.pics.delete(pic)
-		if (gif.pics.size === 0) {
+		gif.pictures.delete(picture)
+		if (gif.pictures.size === 0) {
 			if (gif.sourceId > 0) GLib.source_remove(gif.sourceId)
 			activeGifs.delete(key)
 		}
 	}
 }
 
-function paint(path: string, revision: number, pic: Gtk.Picture): () => void {
-	pic.set_paintable(null)
+function paint(path: string, revision: number, picture: Gtk.Picture): () => void {
+	picture.set_paintable(null)
 	const animated = attempt(() => {
-		const anim = GdkPixbuf.PixbufAnimation.new_from_file(path)
-		if (!anim.is_static_image()) return playGif(`${path}:${revision}`, anim, pic)
-		pic.set_paintable(Gdk.Texture.new_for_pixbuf(anim.get_static_image()!))
+		const animation = GdkPixbuf.PixbufAnimation.new_from_file(path)
+		if (!animation.is_static_image()) return playGif(`${path}:${revision}`, animation, picture)
+		picture.set_paintable(Gdk.Texture.new_for_pixbuf(animation.get_static_image()!))
 		return () => {}
 	})
 	if (animated.ok) return animated.value
 
-	attempt(() => pic.set_paintable(Gdk.Texture.new_from_filename(path)))
+	attempt(() => picture.set_paintable(Gdk.Texture.new_from_filename(path)))
 	return () => {}
 }
 
-function setupCrossfadeStack(stack: Gtk.Stack, pics: [Gtk.Picture, Gtk.Picture], svc: Wallpaper) {
+function setupCrossfadeStack(stack: Gtk.Stack, pictures: [Gtk.Picture, Gtk.Picture], wallpaperService: Wallpaper) {
 	let slot: 0 | 1 = 1
 	let stopAnim = () => {}
 	let transitionTimer: Timer | null = null
 
-	stack.add_named(pics[0], "a")
-	stack.add_named(pics[1], "b")
+	stack.add_named(pictures[0], "a")
+	stack.add_named(pictures[1], "b")
 	stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
 
-	stopAnim = paint(svc.wallpaper, svc.revision, pics[1])
+	stopAnim = paint(wallpaperService.wallpaper, wallpaperService.revision, pictures[1])
 	stack.set_transition_duration(0)
 	stack.set_visible_child_name("b")
 	stack.set_transition_duration(FADE_MS)
 
-	const id = svc.connect("notify::wallpaper", () => {
+	const handlerId = wallpaperService.connect("notify::wallpaper", () => {
 		const next: 0 | 1 = slot === 0 ? 1 : 0
 		stopAnim()
-		stopAnim = paint(svc.wallpaper, svc.revision, pics[next])
+		stopAnim = paint(wallpaperService.wallpaper, wallpaperService.revision, pictures[next])
 		transitionTimer?.cancel()
 		transitionTimer = idle(() => {
 			transitionTimer = null
@@ -246,7 +252,7 @@ function setupCrossfadeStack(stack: Gtk.Stack, pics: [Gtk.Picture, Gtk.Picture],
 		})
 	})
 	onCleanup(() => {
-		svc.disconnect(id)
+		wallpaperService.disconnect(handlerId)
 		transitionTimer?.cancel()
 		stopAnim()
 	})
@@ -254,12 +260,13 @@ function setupCrossfadeStack(stack: Gtk.Stack, pics: [Gtk.Picture, Gtk.Picture],
 
 export namespace WallpaperWindow {
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
-		const svc = Wallpaper.get_default()
-		const pics: [Gtk.Picture, Gtk.Picture] = [new Gtk.Picture(), new Gtk.Picture()]
-		for (const p of pics) {
-			p.content_fit = Gtk.ContentFit.COVER
-			p.hexpand = true
-			p.vexpand = true
+		const wallpaperService = wallpaper
+		const geometry = gdkmonitor.get_geometry()
+		const pictures: [Gtk.Picture, Gtk.Picture] = [new Gtk.Picture(), new Gtk.Picture()]
+		for (const picture of pictures) {
+			picture.content_fit = Gtk.ContentFit.COVER
+			picture.hexpand = true
+			picture.vexpand = true
 		}
 
 		const win = (
@@ -273,10 +280,15 @@ export namespace WallpaperWindow {
 				gdkmonitor={gdkmonitor}
 				keymode={NONE}
 				focusable={false}
+				decorated={false}
+				css="background: black; border: none; border-radius: 0; box-shadow: none; margin: 0; padding: 0;"
 				visible
 			>
 				<Gtk.Stack
-					$={self => setupCrossfadeStack(self, pics, svc)}
+					$={self => setupCrossfadeStack(self, pictures, wallpaperService)}
+					widthRequest={geometry.width}
+					heightRequest={geometry.height}
+					css="background: black; border: none; border-radius: 0; box-shadow: none; margin: 0; padding: 0;"
 					hexpand
 					vexpand
 				/>
@@ -289,6 +301,7 @@ export namespace WallpaperWindow {
 	}
 }
 
+// Main-process supervision restarts the isolated renderer and terminates it with the shell.
 let child: Process | null = null
 let restartTimer: Timer | null = null
 let stopping = false
@@ -371,8 +384,7 @@ export function startWallpaperProcess() {
 
 function monitorKey(monitor: Gdk.Monitor, index: number) {
 	const geometry = monitor.get_geometry()
-	return monitor.get_connector()
-		?? `${index}:${monitor.get_description() ?? "unknown"}:${geometry.x}x${geometry.y}`
+	return basicMonitorKey(monitor, `${index}:${monitor.get_description() ?? "unknown"}:${geometry.x}x${geometry.y}`)
 }
 
 function initWallpaperMonitors() {

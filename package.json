@@ -1,7 +1,7 @@
 {
   "dependencies": {
-    "ags": "*",
-    "gnim": "*"
+    "ags": "3.0.0",
+    "gnim": "1.6.5"
   },
   "scripts": {
     "types": "ags types -d . -u -v ."

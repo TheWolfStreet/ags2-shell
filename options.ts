@@ -1,46 +1,82 @@
+// Lists the default settings that users can change and save.
+
 import { mkOptions } from "$lib/option"
-import icons from "$lib/icons"
-import { icon } from "$lib/utils"
+import icons, { resolveIcon } from "$lib/icons"
 import env from "$lib/env"
 
-const options = mkOptions({
-	autotheme: false,
+export const optionValues = {
+	themeScheme: ["dark", "light"],
+	barPosition: ["top-center", "bottom-center"],
+	taskbarLocation: ["bar", "dock"],
+	dockMode: ["static", "autohide"],
+	dockPosition: ["bottom-center", "center-left"],
+	desktopIconSize: ["small", "medium", "large", "extralarge"],
+	launcherPosition: ["top-center", "bottom-center"],
+	favoritesLocation: ["disabled", "dock", "launcher", "both"],
+	popupPosition: ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"],
+	dateMenuPosition: ["center", "top-center", "bottom-center"],
+	powerMenuLayout: ["box", "line"],
+	osdPosition: ["center", "bottom-center"],
+	refreshRate: [60, 144, 240],
+} as const
 
+const constraints = {
+	"theme.scheme": optionValues.themeScheme,
+	"bar.position": optionValues.barPosition,
+	"taskbar.location": optionValues.taskbarLocation,
+	"dock.mode": optionValues.dockMode,
+	"dock.position": optionValues.dockPosition,
+	"desktop.iconSize": optionValues.desktopIconSize,
+	"launcher.position": optionValues.launcherPosition,
+	"favorites.location": optionValues.favoritesLocation,
+	"quicksettings.position": optionValues.popupPosition,
+	"batterystate.position": optionValues.popupPosition,
+	"datemenu.position": optionValues.dateMenuPosition,
+	"powermenu.layout": optionValues.powerMenuLayout,
+	"osd.position": optionValues.osdPosition,
+	"notifications.position": optionValues.popupPosition,
+	"asus.ac_hz": optionValues.refreshRate,
+	"asus.bat_hz": optionValues.refreshRate,
+} as const
+
+const options = mkOptions({
+	// Appearance
+	autotheme: false,
 	scale: 100,
+	font: "SFProDisplay Nerd Font 11",
+	transition: {
+		duration: 200,
+	},
 
 	theme: {
+		scheme: "dark",
 		dark: {
+			bg: "#171717",
+			fg: "#eeeeee",
 			primary: {
 				bg: "#51a4e7",
 				fg: "#141414",
 			},
 			error: {
 				bg: "#e55f86",
-				fg: "#141414",
 			},
-			bg: "#171717",
-			fg: "#eeeeee",
 			widget: "#eeeeee",
 			border: "#9a9996",
 		},
 		light: {
+			bg: "#fffffa",
+			fg: "#080808",
 			primary: {
 				bg: "#426ede",
 				fg: "#eeeeee",
 			},
 			error: {
 				bg: "#b13558",
-				fg: "#eeeeee",
 			},
-			bg: "#fffffa",
-			fg: "#080808",
 			widget: "#080808",
 			border: "#080808",
 		},
-		scheme: "dark",
-		shadows: true,
-		blur: true,
-		neumorphic: true,
+
 		opacity: 30,
 		widget: {
 			opacity: 94,
@@ -49,33 +85,35 @@ const options = mkOptions({
 			width: 1,
 			opacity: 86,
 		},
+		shadows: true,
+		blur: true,
+		neumorphic: true,
+
 		padding: 8,
 		spacing: 6,
 		roundness: 12,
-		exportGtk: false,
 	},
 
-	transition: {
-		duration: 200,
-	},
-
-	font: "SFProDisplay Nerd Font 11",
-
+	// Shell surfaces
 	bar: {
 		position: "top-center",
-		corners: 50,
 		transparent: false,
+		corners: 50,
+
 		launcher: {
-			icon: icon(env.distro.logo, icons.ui.search),
-		},
-		date: {
-			format: "%a %b %-d %H:%M",
+			icon: resolveIcon(env.distro.logo, icons.ui.search),
 		},
 		workspaces: {
 			count: 7,
 		},
 		taskbar: {
 			exclusive: false,
+		},
+		date: {
+			format: "%a %b %-d %H:%M",
+		},
+		media: {
+			preferred: "spotify",
 		},
 		systray: {
 			ignore: [
@@ -84,13 +122,17 @@ const options = mkOptions({
 				"spotify",
 			],
 		},
-		media: {
-			preferred: "spotify",
-		},
 	},
 
 	taskbar: {
 		location: "bar",
+	},
+
+	dock: {
+		mode: "static",
+		position: "bottom-center",
+		scale: 100,
+		trash: true,
 	},
 
 	desktop: {
@@ -98,23 +140,16 @@ const options = mkOptions({
 		iconSize: "medium",
 	},
 
-	dock: {
-		mode: "static",
-		trash: true,
-		position: "bottom-center",
-		scale: 100,
+	launcher: {
+		position: "top-center",
+		margin: 40,
+		apps: {
+			max: 6,
+		},
 	},
 
 	favorites: {
 		location: "both",
-	},
-
-	launcher: {
-		margin: 40,
-		position: "top-center",
-		apps: {
-			max: 6,
-		},
 	},
 
 	overview: {
@@ -122,24 +157,10 @@ const options = mkOptions({
 		workspaces: 7,
 	},
 
-	powermenu: {
-		sleep: "systemctl suspend",
-		reboot: "systemctl reboot",
-		logout: "hyprctl dispatch exit",
-		shutdown: "shutdown now",
-		layout: "line",
-		labels: true,
-	},
-
-	asus: {
-		resolution: "1920x1200",
-		ac_hz: 144,
-		bat_hz: 60,
-	},
-
+	// Popups and tools
 	quicksettings: {
-		width: 380,
 		position: "top-right",
+		width: 380,
 	},
 
 	batterystate: {
@@ -150,8 +171,13 @@ const options = mkOptions({
 		position: "center",
 	},
 
-	colorpicker: {
-		maxColors: 10,
+	powermenu: {
+		layout: "line",
+		labels: true,
+		sleep: "systemctl suspend",
+		reboot: "systemctl reboot",
+		logout: "hyprctl dispatch exit",
+		shutdown: "shutdown now",
 	},
 
 	osd: {
@@ -164,10 +190,21 @@ const options = mkOptions({
 		dismiss: 3500,
 	},
 
+	colorpicker: {
+		maxColors: 10,
+	},
+
+	// External integrations
 	hyprland: {
 		gaps: 2.4,
 		inactiveBorder: "#282828",
 	},
-})
+
+	asus: {
+		resolution: "1920x1200",
+		ac_hz: 144,
+		bat_hz: 60,
+	},
+}, constraints)
 
 export default options

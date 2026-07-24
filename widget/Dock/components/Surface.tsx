@@ -1,3 +1,5 @@
+// Draws dock items and pointer zones along a monitor edge.
+
 import app from "ags/gtk4/app"
 import { Accessor, For, createComputed } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
@@ -5,7 +7,8 @@ import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { renderItem } from "widget/Dock/components/Icons"
 import { Hover } from "widget/Dock/components/hover"
 import { DockItem, Side, isOnLeft } from "widget/Dock/components/items"
-import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { Position } from "$lib/popup"
+import { PopupWindow } from "widget/shared/PopupWindow"
 
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { CENTER } = Gtk.Align

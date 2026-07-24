@@ -1,3 +1,5 @@
+// Handles icon drag data, previews, and drops within or between monitors.
+
 import { Accessor, createState, onCleanup } from "ags"
 import GObject from "ags/gobject"
 import { Gdk, Gtk } from "ags/gtk4"
@@ -5,11 +7,12 @@ import { Gdk, Gtk } from "ags/gtk4"
 import Gio from "gi://Gio"
 import Graphene from "gi://Graphene"
 
-import { desktop, hypr } from "$lib/services"
+import { desktop } from "$service/Desktop"
+import { hyprland } from "$service/system"
 import { attempt } from "$lib/result"
 import { hiddenDragIcon } from "$lib/textures"
 import { buildFileContentProvider } from "$service/Desktop/clipboard"
-import type { GridModel } from "./Grid"
+import type { GridModel } from "./model"
 import { session } from "./session"
 
 const { DragAction, ModifierType } = Gdk
@@ -40,8 +43,8 @@ type Hover = {
 }
 
 const EMPTY_DRAG: DragState = { paths: [], anchor: null, source: null }
-const [active, setActive] = createState<DragState>(EMPTY_DRAG)
-const [preview, setPreview] = createState<DragPreview | null>(null)
+const [activeDrag, setActiveDrag] = createState<DragState>(EMPTY_DRAG)
+const [dragPreview, setDragPreview] = createState<DragPreview | null>(null)
 const targets = new Map<string, (paths: string[], anchor: string, x: number, y: number) => void>()
 const dragSession: { handled: boolean, hover: Hover | null } = { handled: false, hover: null }
 
@@ -111,7 +114,7 @@ function createPreview(widgets: Map<string, Gtk.Widget>, paths: string[], anchor
 	if (!anchorWidget)
 		return null
 
-	const nodes: Array<{ paintable: Gdk.Paintable, x: number, y: number, width: number, height: number }> = []
+	const previewItems: Array<{ paintable: Gdk.Paintable, x: number, y: number, width: number, height: number }> = []
 	let minX = 0
 	let minY = 0
 	let maxX = 0
@@ -131,24 +134,24 @@ function createPreview(widgets: Map<string, Gtk.Widget>, paths: string[], anchor
 		const intrinsicHeight = paintable.get_intrinsic_height?.() ?? -1
 		const width = Math.max(1, intrinsicWidth > 0 ? intrinsicWidth : widget.get_width())
 		const height = Math.max(1, intrinsicHeight > 0 ? intrinsicHeight : widget.get_height())
-		nodes.push({ paintable, x, y, width, height })
+		previewItems.push({ paintable, x, y, width, height })
 		minX = Math.min(minX, x)
 		minY = Math.min(minY, y)
 		maxX = Math.max(maxX, x + width)
 		maxY = Math.max(maxY, y + height)
 	}
 
-	if (nodes.length === 0)
+	if (previewItems.length === 0)
 		return null
 
 	const width = Math.max(1, maxX - minX)
 	const height = Math.max(1, maxY - minY)
 	const snapshot = new Gtk.Snapshot()
 	snapshot.push_opacity(0.9)
-	for (const node of nodes) {
+	for (const item of previewItems) {
 		snapshot.save()
-		snapshot.translate(new Graphene.Point({ x: node.x - minX, y: node.y - minY }))
-		node.paintable.snapshot(snapshot, node.width, node.height)
+		snapshot.translate(new Graphene.Point({ x: item.x - minX, y: item.y - minY }))
+		item.paintable.snapshot(snapshot, item.width, item.height)
 		snapshot.restore()
 	}
 	snapshot.pop()
@@ -172,7 +175,7 @@ function preferredOperation(target: Gtk.DropTarget, operation: "copy" | "move") 
 }
 
 function dropAction(target: Gtk.DropTarget) {
-	if (active.peek().paths.length > 0)
+	if (activeDrag.peek().paths.length > 0)
 		return DragAction.MOVE
 	const actions = target.get_current_drop()?.get_actions() ?? 0
 	if ((actions & DragAction.COPY) !== 0)
@@ -185,8 +188,9 @@ function dropAction(target: Gtk.DropTarget) {
 function attemptCursorDrop(snapshot: DragState) {
 	if (snapshot.paths.length === 0 || !snapshot.source)
 		return
+	// GTK can finish a cross-monitor drag without delivering the target drop, so resolve it from the cursor.
 	const result = attempt(() => {
-		const cursor: unknown = JSON.parse(hypr.message("j/cursorpos"))
+		const cursor: unknown = JSON.parse(hyprland.message("j/cursorpos"))
 		if (!cursor || typeof cursor !== "object")
 			return
 		const x = Reflect.get(cursor, "x")
@@ -194,7 +198,7 @@ function attemptCursorDrop(snapshot: DragState) {
 		if (typeof x !== "number" || typeof y !== "number")
 			return
 
-		for (const monitor of hypr.monitors ?? []) {
+		for (const monitor of hyprland.monitors ?? []) {
 			if (x < monitor.x || x >= monitor.x + monitor.width || y < monitor.y || y >= monitor.y + monitor.height)
 				continue
 			const target = `monitor:${monitor.name.toLowerCase()}`
@@ -230,7 +234,13 @@ export function createDrag(grid: GridModel): DesktopDrag {
 
 	function finish(snapshot: DragState, deleteData: boolean) {
 		const hover = dragSession.hover
-		if (deleteData && !dragSession.handled && snapshot.paths.length > 0 && snapshot.source && hover && hover.monitorId !== snapshot.source) {
+		const canFinishOnHoveredMonitor = deleteData
+			&& !dragSession.handled
+			&& snapshot.paths.length > 0
+			&& !!snapshot.source
+			&& !!hover
+			&& hover.monitorId !== snapshot.source
+		if (canFinishOnHoveredMonitor) {
 			dragSession.handled = true
 			targets.get(hover.monitorId)?.(snapshot.paths, snapshot.anchor ?? snapshot.paths[0], hover.x, hover.y)
 		} else if (!dragSession.handled) {
@@ -240,8 +250,8 @@ export function createDrag(grid: GridModel): DesktopDrag {
 		dragSession.handled = false
 		dragSession.hover = null
 		session.press(null)
-		setActive(EMPTY_DRAG)
-		setPreview(null)
+		setActiveDrag(EMPTY_DRAG)
+		setDragPreview(null)
 		session.redraw()
 	}
 
@@ -254,15 +264,15 @@ export function createDrag(grid: GridModel): DesktopDrag {
 			const selected = session.selected.peek()
 			const paths = selected.includes(path) ? selected : [path]
 			controller.set_icon(hiddenDragIcon(), 0, 0)
-			setPreview(createPreview(widgets, paths, path, x, y))
+			setDragPreview(createPreview(widgets, paths, path, x, y))
 			dragSession.handled = false
 			dragSession.hover = null
 			session.select(paths)
-			setActive({ paths, anchor: path, source: grid.id.peek() })
+			setActiveDrag({ paths, anchor: path, source: grid.id.peek() })
 			return buildFileContentProvider(paths, "cut")
 		})
 		source.connect("drag-cancel", () => true)
-		source.connect("drag-end", (_source, _drag, deleteData) => finish(active.peek(), deleteData))
+		source.connect("drag-end", (_source, _drag, deleteData) => finish(activeDrag.peek(), deleteData))
 		widget.add_controller(source)
 		onCleanup(() => {
 			if (widgets.get(path) === widget)
@@ -276,7 +286,7 @@ export function createDrag(grid: GridModel): DesktopDrag {
 		target.set_gtypes([GObject.TYPE_STRING, Gdk.FileList.$gtype])
 
 		const hover = (controller: Gtk.DropTarget, x: number, y: number) => {
-			const state = active.peek()
+			const state = activeDrag.peek()
 			if (state.paths.length > 0 && state.source && state.source !== grid.id.peek())
 				dragSession.hover = { monitorId: grid.id.peek(), x, y }
 			return dropAction(controller)
@@ -293,13 +303,13 @@ export function createDrag(grid: GridModel): DesktopDrag {
 			if (!payload || payload.paths.length === 0)
 				return false
 
-			const state = active.peek()
+			const state = activeDrag.peek()
 			const paths = state.paths.length > 0 ? state.paths : payload.paths
 			const activePaths = new Set(state.paths)
 			const internal = payload.paths.every(path => activePaths.has(path) && !!desktop.monitorOf(path))
 			if (internal) {
 				dragSession.handled = true
-				setPreview(null)
+				setDragPreview(null)
 				move(paths, state.anchor ?? payload.paths[0], grid.slotAt(x, y))
 			} else {
 				grid.import(payload.paths, preferredOperation(controller, payload.operation))
@@ -313,7 +323,7 @@ export function createDrag(grid: GridModel): DesktopDrag {
 		const id = grid.id.peek()
 		targets.set(id, (paths, anchor, x, y) => {
 			dragSession.handled = true
-			setPreview(null)
+			setDragPreview(null)
 			move(paths, anchor, grid.slotAt(x, y))
 		})
 		return id
@@ -330,8 +340,8 @@ export function createDrag(grid: GridModel): DesktopDrag {
 	})
 
 	return {
-		state: active,
-		preview,
+		state: activeDrag,
+		preview: dragPreview,
 		position,
 		hovered,
 		attachSource,

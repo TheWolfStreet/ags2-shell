@@ -1,3 +1,5 @@
+// Starts services and windows and handles launcher, power, recording, and screenshot requests.
+
 import init from "$lib/init"
 import env from "$lib/env"
 
@@ -14,10 +16,10 @@ import { QuickSettings } from "widget/Bar/components/QuickSettings"
 import { Network } from "widget/Bar/components/QuickSettings/components/Network"
 import { Date } from "widget/Bar/components/Date"
 import { OSD } from "widget/OSD"
-import { initMonitors } from "$lib/monitors"
+import { initMonitors } from "$lib/monitor-manager"
 import { startWallpaperProcess } from "widget/Wallpaper"
 
-import { scr } from "$lib/services"
+import { capturer } from "$service/capturer"
 
 function preloadWindows(...names: string[]) {
 	idle(() => {
@@ -34,6 +36,13 @@ function preloadWindows(...names: string[]) {
 			})
 		}
 	})
+}
+
+function toggleRecording(selectArea: boolean) {
+	if (capturer.recording)
+		capturer.stopRecord()
+	else
+		capturer.startRecord(selectArea)
 }
 
 app.start({
@@ -70,16 +79,16 @@ app.start({
 				Power.selAction("shutdown")
 				break
 			case "record":
-				scr.recording ? scr.stopRecord() : scr.startRecord()
+				toggleRecording(false)
 				break
 			case "record-area":
-				scr.recording ? scr.stopRecord() : scr.startRecord(true)
+				toggleRecording(true)
 				break
 			case "screenshot":
-				scr.screenshot()
+				capturer.screenshot()
 				break
 			case "screenshot-area":
-				scr.screenshot(true)
+				capturer.screenshot(true)
 				break
 			default:
 				res(`Unknown request: ${request}`)

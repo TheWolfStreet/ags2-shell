@@ -1,3 +1,5 @@
+// Shows dock icons and handles actions for windows, applications, separators, and trash.
+
 import { Accessor, createBinding, createState } from "ags"
 import { Gtk } from "ags/gtk4"
 import { timeout } from "ags/time"
@@ -6,8 +8,8 @@ import AstalApps from "gi://AstalApps"
 import AstalHyprland from "gi://AstalHyprland"
 
 import icons from "$lib/icons"
-import { hypr } from "$lib/services"
-import { focusClientFullscreen, normalizeTaskClients, onClientClick } from "$lib/tasks"
+import { hyprland } from "$service/system"
+import { focusClientFullscreen, focusedClient, normalizeTaskClients, onClientClick } from "$lib/tasks"
 
 import * as Trash from "widget/Dock/components/Trash"
 import { DockItem, Side, isLeftPosition, isOnLeft } from "widget/Dock/components/items"
@@ -17,9 +19,7 @@ import options from "options"
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { CENTER } = Gtk.Align
 
-const focusedClientBinding = createBinding(hypr, "focusedClient")
-
-function DockIconBox({ children }: { children: JSX.Element }) {
+function DockIconBox({ children }: { children: JSX.Element | JSX.Element[] }) {
 	const pos = options.dock.position
 	return (
 		<box
@@ -38,8 +38,8 @@ function GroupedIcon({ clients, appClass, iconName, iconSize }: {
 	iconName?: string,
 	iconSize: Accessor<number>,
 }) {
-	const isFocused = focusedClientBinding.as(fc =>
-		fc != null && clients.some(c => c.address === fc.address)
+	const isFocused = focusedClient.as(currentClient =>
+		currentClient != null && clients.some(client => client.address === currentClient.address)
 	)
 
 	const tooltipText = clients.length === 1
@@ -53,8 +53,8 @@ function GroupedIcon({ clients, appClass, iconName, iconSize }: {
 	}
 
 	function focusNext() {
-		const focused = hypr.focusedClient
-		const idx = focused ? clients.findIndex(c => c.address === focused.address) : -1
+		const currentClient = focusedClient.peek()
+		const idx = currentClient ? clients.findIndex(client => client.address === currentClient.address) : -1
 		clients[idx >= 0 ? (idx + 1) % clients.length : 0].focus()
 	}
 
@@ -106,8 +106,8 @@ function TrashIcon({ iconSize }: { iconSize: Accessor<number> }) {
 		<DockIconBox>
 			<button class="app-button" tooltipText="Trash" canFocus={false}
 				onClicked={() => Trash.openOrFocus(
-					normalizeTaskClients(hypr.clients ?? []),
-					hypr.focusedWorkspace?.id ?? null,
+					normalizeTaskClients(hyprland.clients ?? []),
+					hyprland.focusedWorkspace?.id ?? null,
 				)}
 			>
 				<image

@@ -1,11 +1,11 @@
+// Lists desktop files and handles monitor layouts, icon placement, selection, and file changes.
+
 import { Accessor, createComputed, createState } from "ags"
-import { readFile, writeFileAsync } from "ags/file"
 import GObject, { register } from "ags/gobject"
 
 import Gio from "gi://Gio"
 
-import env from "$lib/env"
-import { attempt, attemptAsync } from "$lib/result"
+import { attempt } from "$lib/result"
 import { debounce } from "$lib/timing"
 
 import {
@@ -26,27 +26,17 @@ import {
 } from "./files"
 import type { DesktopFile } from "./files"
 import {
-	equalGrid,
-	isRecord,
 	movePathsToGrid,
 	movePathsToSlot,
 	normalizePositions,
-	normalizeMonitorId,
 	pickPositions,
-	positionsEqual,
 	remapSlotsAcrossColumns,
-	StoredGrid,
-	StoredLayout,
-	StoredMonitorLayout,
-	sanitizeGrid,
-	sanitizePositions,
-} from "./layout"
-import type { GridMetrics } from "./layout"
+} from "./placement"
+import { DesktopLayoutStore } from "./storage"
+import type { GridMetrics } from "./geometry"
 import type { ClipboardPayload } from "./clipboard"
 
-const cacheFile = `${env.paths.cache.base}/desktop-layout.json`
-
-export type Grid = {
+type Grid = {
 	files: Accessor<DesktopFile[]>
 	positions: Accessor<Record<string, number>>
 	resize(metrics: GridMetrics): void
@@ -56,10 +46,10 @@ export type Grid = {
 	createFolder(): string | null
 }
 
-type Visible = { files: DesktopFile[], positions: Record<string, number> }
+type ProjectedGridView = { files: DesktopFile[], positions: Record<string, number> }
 
 @register()
-export default class DesktopService extends GObject.Object {
+class DesktopService extends GObject.Object {
 	declare static $gtype: GObject.GType<DesktopService>
 	static instance: DesktopService
 
@@ -67,29 +57,22 @@ export default class DesktopService extends GObject.Object {
 		return this.instance ??= new DesktopService()
 	}
 
-	#store: StoredLayout
-	#save = debounce(500, async () => {
-		const result = await attemptAsync(async () => {
-			await writeFileAsync(cacheFile, JSON.stringify(this.#store, null, 2))
-		})
-		if (!result.ok)
-			console.error("desktop.save: Failed to save desktop layout", result.err)
-	})
+	#layoutStore: DesktopLayoutStore
 	#refresh = debounce(120, () => this.#reload())
 
 	#files: Accessor<DesktopFile[]>
-	#setFiles: (v: DesktopFile[]) => void
-	#sizes: Accessor<Record<string, GridMetrics>>
-	#setSizes: (v: Record<string, GridMetrics>) => void
-	#connected: Accessor<Set<string>>
-	#setConnected: (v: Set<string>) => void
-	#primary: Accessor<string>
-	#setPrimary: (v: string) => void
-	#rev: Accessor<number>
-	#setRev: (v: number) => void
+	#setFiles: (next: DesktopFile[]) => void
+	#gridMetrics: Accessor<Record<string, GridMetrics>>
+	#setGridMetrics: (next: Record<string, GridMetrics>) => void
+	#connectedMonitors: Accessor<Set<string>>
+	#setConnectedMonitors: (next: Set<string>) => void
+	#primaryMonitor: Accessor<string>
+	#setPrimaryMonitor: (next: string) => void
+	#layoutRevision: Accessor<number>
+	#setLayoutRevision: (next: number) => void
 
 	#clipboardState: Accessor<ClipboardPayload | null>
-	#setClipboardState: (v: ClipboardPayload | null) => void
+	#setClipboardState: (next: ClipboardPayload | null) => void
 
 	#grids: Map<string, Grid>
 	#monitor: Gio.FileMonitor | null
@@ -99,27 +82,27 @@ export default class DesktopService extends GObject.Object {
 
 		this.#grids = new Map()
 		this.#monitor = null
-		this.#store = this.#load()
+		this.#layoutStore = new DesktopLayoutStore()
 
 		const [files, setFiles] = createState<DesktopFile[]>([])
-		const [sizes, setSizes] = createState<Record<string, GridMetrics>>({})
-		const [connected, setConnected] = createState<Set<string>>(new Set())
-		const [primary, setPrimary] = createState("")
-		const [rev, setRev] = createState(0)
-		const [clip, setClip] = createState<ClipboardPayload | null>(null)
+		const [gridMetrics, setGridMetrics] = createState<Record<string, GridMetrics>>({})
+		const [connectedMonitors, setConnectedMonitors] = createState<Set<string>>(new Set())
+		const [primaryMonitor, setPrimaryMonitor] = createState("")
+		const [layoutRevision, setLayoutRevision] = createState(0)
+		const [clipboardState, setClipboardState] = createState<ClipboardPayload | null>(null)
 
 		this.#files = files
 		this.#setFiles = setFiles
-		this.#sizes = sizes
-		this.#setSizes = setSizes
-		this.#connected = connected
-		this.#setConnected = setConnected
-		this.#primary = primary
-		this.#setPrimary = setPrimary
-		this.#rev = rev
-		this.#setRev = setRev
-		this.#clipboardState = clip
-		this.#setClipboardState = setClip
+		this.#gridMetrics = gridMetrics
+		this.#setGridMetrics = setGridMetrics
+		this.#connectedMonitors = connectedMonitors
+		this.#setConnectedMonitors = setConnectedMonitors
+		this.#primaryMonitor = primaryMonitor
+		this.#setPrimaryMonitor = setPrimaryMonitor
+		this.#layoutRevision = layoutRevision
+		this.#setLayoutRevision = setLayoutRevision
+		this.#clipboardState = clipboardState
+		this.#setClipboardState = setClipboardState
 
 		this.#reload()
 		this.#watch()
@@ -129,45 +112,6 @@ export default class DesktopService extends GObject.Object {
 		return this.#clipboardState
 	}
 
-	#load(): StoredLayout {
-		const result = attempt((): unknown => JSON.parse(readFile(cacheFile) || "{}"))
-		if (!result.ok)
-			console.error("desktop.loadLayout: Failed to load desktop layout", result.err)
-		const parsed: unknown = result.ok ? result.value : {}
-
-		if (!isRecord(parsed))
-			return { version: 1, entries: {}, monitors: {} }
-
-		const entries: Record<string, string> = {}
-		const monitors: Record<string, StoredMonitorLayout> = {}
-
-		const rawEntries = parsed.entries
-		if (isRecord(rawEntries)) {
-			for (const [path, value] of Object.entries(rawEntries)) {
-				const monitor = typeof value === "string" ? value
-					: isRecord(value) && typeof value.monitor === "string" ? value.monitor
-						: null
-				if (!path || !monitor)
-					continue
-				entries[path] = normalizeMonitorId(monitor)
-			}
-		}
-
-		const rawMonitors = parsed.monitors
-		if (isRecord(rawMonitors)) {
-			for (const [monitorId, value] of Object.entries(rawMonitors)) {
-				if (!isRecord(value))
-					continue
-				monitors[normalizeMonitorId(monitorId)] = {
-					positions: sanitizePositions(value.positions),
-					grid: sanitizeGrid(value.grid),
-				}
-			}
-		}
-
-		return { version: 1, entries, monitors }
-	}
-
 	#reload(preferredMonitorId?: string) {
 		const files = loadDesktopFiles()
 		if (files instanceof Error) {
@@ -175,7 +119,7 @@ export default class DesktopService extends GObject.Object {
 			return
 		}
 
-		this.#syncEntries(files, preferredMonitorId?.trim() || this.#primary() || this.fallbackMonitor())
+		this.#layoutStore.syncPaths(files, preferredMonitorId?.trim() || this.#primaryMonitor() || this.#layoutStore.fallbackMonitor())
 		this.#normalizeKnownPositions(files)
 		this.#setFiles(files)
 		this.#bumpRevision()
@@ -193,17 +137,17 @@ export default class DesktopService extends GObject.Object {
 			console.error("desktop.watchDesktopDir: Failed to watch desktop directory", result.err)
 	}
 
-	#bumpRevision() {
-		this.#setRev(this.#rev() + 1)
+	#bumpRevision(): void {
+		this.#setLayoutRevision(this.#layoutRevision() + 1)
 	}
 
 	grid(monitorId: string): Grid {
-		const id = normalizeMonitorId(monitorId)
+		const id = this.#layoutStore.normalizeMonitorId(monitorId)
 		const cached = this.#grids.get(id)
 		if (cached)
 			return cached
 
-		const visible = createComputed((): Visible => {
+		const visible = createComputed((): ProjectedGridView => {
 			return this.#computeVisible(id)
 		})
 
@@ -222,69 +166,78 @@ export default class DesktopService extends GObject.Object {
 	}
 
 	#resize(id: string, metrics: GridMetrics) {
-		const key = this.#ensureMonitor(id)
-		const prevGrid = this.#gridOf(key)
+		const key = this.#layoutStore.ensureMonitor(id)
+		const prevGrid = this.#layoutStore.gridOf(key)
 		let positionsChanged = false
 
 		if (prevGrid && prevGrid.columns !== metrics.columns) {
 			const slotCount = metrics.rows * metrics.columns
-			const remapped = remapSlotsAcrossColumns(this.#store.monitors[key].positions, prevGrid.columns, metrics.columns, slotCount)
-			positionsChanged = this.#setStoredPositions(key, remapped)
+			const remapped = remapSlotsAcrossColumns(this.#layoutStore.positionsOf(key), prevGrid.columns, metrics.columns, slotCount)
+			positionsChanged = this.#layoutStore.setPositions(key, remapped)
 		}
 
-		this.#storeGrid(key, metrics)
-		this.#setSizes({ ...this.#sizes(), [key]: metrics })
+		this.#layoutStore.setGrid(key, metrics)
+		this.#setGridMetrics({ ...this.#gridMetrics(), [key]: metrics })
 		if (this.#normalizeOwnedPositions(key, this.#files(), metrics))
 			positionsChanged = true
 		if (positionsChanged)
 			this.#bumpRevision()
 	}
 
-	setMonitors(ids: string[], primaryId: string) {
-		this.#setConnected(new Set(ids.map(normalizeMonitorId)))
-		this.#setPrimary(normalizeMonitorId(primaryId))
+	setMonitors(ids: string[], primaryId: string): void {
+		this.#setConnectedMonitors(new Set(ids.map(id => this.#layoutStore.normalizeMonitorId(id))))
+		this.#setPrimaryMonitor(this.#layoutStore.normalizeMonitorId(primaryId))
 	}
 
-	#computeVisible(id: string): Visible {
+	#computeVisible(id: string): ProjectedGridView {
 		const files = this.#files()
-		const metrics = this.#sizes()[id]
-		const connected = this.#connected()
-		const isPrimary = this.#primary() === id
-		this.#rev()
+		const metrics = this.#gridMetrics()[id]
+		this.#layoutRevision()
 
-		const owned = this.#filesOnMonitor(files, id)
+		const owned = this.#computeOwnedVisible(id, files, metrics)
+		if (!metrics || this.#primaryMonitor() !== id)
+			return owned
+
+		const disconnected = this.#filesFromDisconnectedMonitors(files, id, this.#connectedMonitors())
+		return this.#projectDisconnectedFiles(disconnected, owned, metrics)
+	}
+
+	#computeOwnedVisible(id: string, files: DesktopFile[], metrics?: GridMetrics): ProjectedGridView {
+		const ownedFiles = this.#layoutStore.filesOnMonitor(files, id)
 		if (!metrics)
-			return { files: owned, positions: this.#positionsOf(id) }
-
+			return { files: ownedFiles, positions: this.#layoutStore.positionsOf(id) }
 		const totalSlots = metrics.rows * metrics.columns
-		const stored = this.#positionsOf(id)
-		const positions = normalizePositions(owned, stored, totalSlots, metrics.columns)
+		return {
+			files: ownedFiles,
+			positions: normalizePositions(ownedFiles, this.#layoutStore.positionsOf(id), totalSlots, metrics.columns),
+		}
+	}
 
-		const usedSlots = new Set(Object.values(positions))
-		const visibleFiles = [...owned]
-		const visiblePositions: Record<string, number> = { ...positions }
+	#filesFromDisconnectedMonitors(files: DesktopFile[], targetId: string, connected: Set<string>): DesktopFile[] {
+		return files.filter(file => {
+			const home = this.monitorOf(file.path)
+			return !!home && home !== targetId && !connected.has(home)
+		})
+	}
 
-		const projected = isPrimary
-			? files.filter((file) => {
-				const home = this.monitorOf(file.path)
-				return !!home && home !== id && !connected.has(home)
-			})
-			: []
-
-		const firstFreeSlot = () => {
+	#projectDisconnectedFiles(projectedFiles: DesktopFile[], owned: ProjectedGridView, metrics: GridMetrics): ProjectedGridView {
+		const totalSlots = metrics.rows * metrics.columns
+		const usedSlots = new Set(Object.values(owned.positions))
+		const visibleFiles = [...owned.files]
+		const visiblePositions = { ...owned.positions }
+		const firstFreeSlot = (): number | null => {
 			for (let slot = 0; slot < totalSlots; slot += 1)
 				if (!usedSlots.has(slot)) return slot
 			return null
 		}
-
-		const byHomeSlot = [...projected].sort((a, b) => {
-			const aSlot = this.#homeSlotOf(a.path) ?? Number.MAX_SAFE_INTEGER
-			const bSlot = this.#homeSlotOf(b.path) ?? Number.MAX_SAFE_INTEGER
+		const byHomeSlot = [...projectedFiles].sort((a, b) => {
+			const aSlot = this.#layoutStore.homeSlotOf(a.path) ?? Number.MAX_SAFE_INTEGER
+			const bSlot = this.#layoutStore.homeSlotOf(b.path) ?? Number.MAX_SAFE_INTEGER
 			return aSlot !== bSlot ? aSlot - bSlot : a.name.localeCompare(b.name)
 		})
 
 		for (const file of byHomeSlot) {
-			const home = this.#homeSlotOf(file.path)
+			const home = this.#layoutStore.homeSlotOf(file.path)
 			const homeFree = home != null && home >= 0 && home < totalSlots && !usedSlots.has(home)
 			const slot = homeFree ? home : firstFreeSlot()
 			if (slot == null)
@@ -299,68 +252,81 @@ export default class DesktopService extends GObject.Object {
 	}
 
 	#normalizeOwnedPositions(id: string, files: DesktopFile[], metrics: GridMetrics) {
-		const owned = this.#filesOnMonitor(files, id)
+		const owned = this.#layoutStore.filesOnMonitor(files, id)
 		const slotCount = metrics.rows * metrics.columns
-		const positions = normalizePositions(owned, this.#positionsOf(id), slotCount, metrics.columns)
-		return this.#setPositions(id, positions)
+		const positions = normalizePositions(owned, this.#layoutStore.positionsOf(id), slotCount, metrics.columns)
+		return this.#layoutStore.setPositions(id, positions)
 	}
 
 	#normalizeKnownPositions(files: DesktopFile[]) {
-		for (const [id, metrics] of Object.entries(this.#sizes())) {
+		for (const [id, metrics] of Object.entries(this.#gridMetrics())) {
 			this.#normalizeOwnedPositions(id, files, metrics)
 		}
 	}
 
-	#move(targetId: string, paths: string[], targetSlot: number, anchor?: string) {
+	#move(targetId: string, paths: string[], targetSlot: number, anchor?: string): void {
 		const uniquePaths = Array.from(new Set(paths)).filter(Boolean)
 		if (uniquePaths.length === 0)
 			return
 
-		const metrics = this.#sizes()[targetId]
+		const metrics = this.#gridMetrics()[targetId]
 		if (!metrics)
 			return
 
 		const anchorPath = anchor ?? uniquePaths[0]
 		const sourceMonitor = this.monitorOf(anchorPath) ?? this.monitorOf(uniquePaths[0]) ?? targetId
 
-		const slotCount = metrics.rows * metrics.columns
-		const columns = metrics.columns
-		const target = this.#computeVisible(targetId)
-
-		if (normalizeMonitorId(sourceMonitor) === targetId) {
-			this.#assignToMonitor(uniquePaths, targetId)
-			const nextPositions = movePathsToSlot(
-				{ positions: target.positions, columns, slotCount },
-				target.files,
-				{ paths: uniquePaths, anchorPath, targetSlot },
-			)
-			const ownedPaths = new Set(this.#filesOnMonitor(this.#files(), targetId).map(file => file.path))
-			this.#setPositions(targetId, pickPositions(ownedPaths, nextPositions))
-			this.#bumpRevision()
+		if (this.#layoutStore.normalizeMonitorId(sourceMonitor) === targetId) {
+			this.#moveWithinMonitor(targetId, uniquePaths, anchorPath, targetSlot, metrics)
 			return
 		}
+		this.#moveAcrossMonitors(sourceMonitor, targetId, uniquePaths, anchorPath, targetSlot, metrics)
+	}
 
-		const sourcePositions = this.#positionsOf(sourceMonitor)
-		const sourceCols = this.#gridOf(sourceMonitor)?.columns ?? columns
+	#moveWithinMonitor(targetId: string, paths: string[], anchorPath: string, targetSlot: number, metrics: GridMetrics): void {
+		const target = this.#computeVisible(targetId)
+		this.#layoutStore.assignPaths(paths, targetId)
+		const nextPositions = movePathsToSlot(
+			{ positions: target.positions, columns: metrics.columns, slotCount: metrics.rows * metrics.columns },
+			target.files,
+			{ paths, anchorPath, targetSlot },
+		)
+		const ownedPaths = new Set(this.#layoutStore.filesOnMonitor(this.#files(), targetId).map(file => file.path))
+		this.#layoutStore.setPositions(targetId, pickPositions(ownedPaths, nextPositions))
+		this.#bumpRevision()
+	}
+
+	#moveAcrossMonitors(
+		sourceMonitor: string,
+		targetId: string,
+		paths: string[],
+		anchorPath: string,
+		targetSlot: number,
+		metrics: GridMetrics,
+	): void {
+		const target = this.#computeVisible(targetId)
+		const columns = metrics.columns
+		const sourcePositions = this.#layoutStore.positionsOf(sourceMonitor)
+		const sourceCols = this.#layoutStore.gridOf(sourceMonitor)?.columns ?? columns
 		const targetPositions = { ...target.positions }
-		for (const path of uniquePaths)
+		for (const path of paths)
 			delete targetPositions[path]
 
 		const nextTarget = movePathsToGrid(
 			{ positions: sourcePositions, columns: sourceCols },
-			{ positions: targetPositions, columns, slotCount },
-			{ paths: uniquePaths, anchorPath, targetSlot },
+			{ positions: targetPositions, columns, slotCount: metrics.rows * metrics.columns },
+			{ paths, anchorPath, targetSlot },
 		)
 
-		this.#assignToMonitor(uniquePaths, targetId)
+		this.#layoutStore.assignPaths(paths, targetId)
 
-		const targetPaths = new Set(this.#filesOnMonitor(this.#files(), targetId).map(file => file.path))
-		this.#setPositions(targetId, pickPositions(targetPaths, nextTarget))
+		const targetPaths = new Set(this.#layoutStore.filesOnMonitor(this.#files(), targetId).map(file => file.path))
+		this.#layoutStore.setPositions(targetId, pickPositions(targetPaths, nextTarget))
 
 		this.#bumpRevision()
 	}
 
-	open(paths: string[]) {
+	open(paths: string[]): void {
 		for (const path of paths) {
 			const error = openFile(path)
 			if (error instanceof Error)
@@ -368,11 +334,11 @@ export default class DesktopService extends GObject.Object {
 		}
 	}
 
-	copy(paths: string[]) {
+	copy(paths: string[]): void {
 		this.#setClipboard("copy", paths)
 	}
 
-	cut(paths: string[]) {
+	cut(paths: string[]): void {
 		this.#setClipboard("cut", paths)
 	}
 
@@ -388,7 +354,7 @@ export default class DesktopService extends GObject.Object {
 		this.#setClipboardState({ operation, files })
 	}
 
-	async cancelCut() {
+	async cancelCut(): Promise<void> {
 		const current = await getClipboardFiles()
 		if (current && current.operation === "cut") {
 			const error = await clearClipboardFiles()
@@ -401,22 +367,22 @@ export default class DesktopService extends GObject.Object {
 
 	async #paste(monitorId: string) {
 		const current = await getClipboardFiles()
-		const data = current || this.#clipboardState()
-		if (!data || data.files.length === 0)
+		const payload = current || this.#clipboardState()
+		if (!payload || payload.files.length === 0)
 			return
 
-		const monitor = monitorId.trim() || this.fallbackMonitor()
-		const error = await pasteFiles(data.files, data.operation, () => this.#reload(monitor))
+		const monitor = monitorId.trim() || this.#layoutStore.fallbackMonitor()
+		const error = await pasteFiles(payload.files, payload.operation, () => this.#reload(monitor))
 		if (error instanceof Error) {
 			console.error("desktop.pasteFiles: Failed to paste desktop files", error)
 			return
 		}
 
-		if (data.operation === "cut")
+		if (payload.operation === "cut")
 			this.#setClipboardState(null)
 	}
 
-	remove(paths: string[], opts: { permanently?: boolean } = {}) {
+	remove(paths: string[], opts: { permanently?: boolean } = {}): void {
 		if (paths.length === 0)
 			return
 
@@ -443,7 +409,7 @@ export default class DesktopService extends GObject.Object {
 			return null
 		}
 
-		this.#assignToMonitor([path], monitorId)
+		this.#layoutStore.assignPaths([path], monitorId)
 		this.#reload(monitorId)
 		return path
 	}
@@ -458,7 +424,7 @@ export default class DesktopService extends GObject.Object {
 			return null
 		}
 
-		this.#renameEntry(target, path)
+		this.#layoutStore.renamePath(target, path)
 		this.#setFiles(this.#files().map(file => file.path === target
 			? { ...file, path, name: path.split("/").pop() ?? file.name }
 			: file))
@@ -466,170 +432,17 @@ export default class DesktopService extends GObject.Object {
 		return path
 	}
 
-	monitorOf(path: string) {
-		if (!path)
-			return null
-		return this.#store.entries[path] ?? null
+	monitorOf(path: string): string | null {
+		return this.#layoutStore.monitorOf(path)
 	}
 
-	monitorIds() {
-		return Object.keys(this.#store.monitors)
-	}
-
-	fallbackMonitor() {
-		return this.monitorIds()[0] ?? "monitor:default"
-	}
-
-	#ensureMonitor(monitorId: string) {
-		const key = normalizeMonitorId(monitorId)
-		if (!this.#store.monitors[key])
-			this.#store.monitors[key] = { positions: {}, grid: null }
-		return key
-	}
-
-	#storeGrid(monitorId: string, grid?: GridMetrics) {
-		if (!grid)
-			return false
-
-		const key = this.#ensureMonitor(monitorId)
-		const next: StoredGrid = { rows: grid.rows, columns: grid.columns, cellWidth: grid.cellWidth, cellHeight: grid.cellHeight }
-		if (equalGrid(this.#store.monitors[key].grid, next))
-			return false
-
-		this.#store.monitors[key].grid = next
-		this.#save.call()
-		return true
-	}
-
-	#filesOnMonitor(files: DesktopFile[], monitorId: string) {
-		const key = normalizeMonitorId(monitorId)
-		return files.filter(file => this.#store.entries[file.path] === key)
-	}
-
-	#homeSlotOf(path: string) {
-		if (!path)
-			return null
-		const monitorId = this.#store.entries[path]
-		if (!monitorId)
-			return null
-		const slot = this.#store.monitors[monitorId]?.positions[path]
-		if (typeof slot !== "number" || !Number.isFinite(slot))
-			return null
-		return Math.max(0, Math.floor(slot))
-	}
-
-	#gridOf(monitorId: string) {
-		const grid = this.#store.monitors[normalizeMonitorId(monitorId)]?.grid
-		return grid ? { ...grid } : null
-	}
-
-	#positionsOf(monitorId: string) {
-		return { ...(this.#store.monitors[normalizeMonitorId(monitorId)]?.positions ?? {}) }
-	}
-
-	#setStoredPositions(key: string, positions: Record<string, number>) {
-		const monitor = this.#store.monitors[key]
-		if (positionsEqual(monitor.positions, positions))
-			return false
-		monitor.positions = positions
-		this.#save.call()
-		return true
-	}
-
-	#setPositions(monitorId: string, nextPositions: Record<string, number>) {
-		const key = this.#ensureMonitor(monitorId)
-		return this.#setStoredPositions(key, sanitizePositions(nextPositions))
-	}
-
-	#assignToMonitor(paths: string[], monitorId: string) {
-		const target = this.#ensureMonitor(monitorId)
-		let changed = false
-
-		for (const path of new Set(paths)) {
-			if (!path)
-				continue
-
-			if (this.#store.entries[path] !== target) {
-				this.#store.entries[path] = target
-				changed = true
-			}
-
-			for (const [id, monitor] of Object.entries(this.#store.monitors)) {
-				if (id === target)
-					continue
-				if (path in monitor.positions) {
-					delete monitor.positions[path]
-					changed = true
-				}
-			}
-		}
-
-		if (changed)
-			this.#save.call()
-		return changed
-	}
-
-	#renameEntry(oldPath: string, newPath: string) {
-		if (!oldPath || !newPath || oldPath === newPath)
-			return
-
-		const oldEntry = this.#store.entries[oldPath]
-		if (oldEntry) {
-			this.#store.entries[newPath] = oldEntry
-			delete this.#store.entries[oldPath]
-		}
-
-		for (const monitor of Object.values(this.#store.monitors)) {
-			if (!(oldPath in monitor.positions))
-				continue
-			monitor.positions[newPath] = monitor.positions[oldPath]
-			delete monitor.positions[oldPath]
-		}
-
-		this.#save.call()
-	}
-
-	#syncEntries(files: DesktopFile[], fallbackMonitorId: string) {
-		const fallback = this.#ensureMonitor(fallbackMonitorId)
-		const validPaths = new Set(files.map(file => file.path))
-		let changed = false
-
-		for (const path of Object.keys(this.#store.entries)) {
-			if (!validPaths.has(path)) {
-				delete this.#store.entries[path]
-				changed = true
-			}
-		}
-
-		for (const monitor of Object.values(this.#store.monitors)) {
-			for (const path of Object.keys(monitor.positions)) {
-				if (!validPaths.has(path)) {
-					delete monitor.positions[path]
-					changed = true
-				}
-			}
-		}
-
-		for (const file of files) {
-			let monitor = this.#store.entries[file.path]
-			if (!monitor) {
-				this.#store.entries[file.path] = fallback
-				changed = true
-				continue
-			}
-
-			if (monitor === "monitor:default" && fallback !== "monitor:default")
-				monitor = fallback
-
-			const key = this.#ensureMonitor(monitor)
-			if (this.#store.entries[file.path] !== key) {
-				this.#store.entries[file.path] = key
-				changed = true
-			}
-		}
-
-		if (changed)
-			this.#save.call()
-		return changed
+	vfunc_finalize(): void {
+		this.#monitor?.cancel()
+		this.#monitor = null
+		this.#refresh.cancel()
+		this.#layoutStore.dispose()
+		super.vfunc_finalize()
 	}
 }
+
+export const desktop = DesktopService.get_default()

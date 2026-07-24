@@ -1,3 +1,5 @@
+// Lists Wi-Fi and wired devices and shows connection and password controls.
+
 import app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 import { timeout } from "ags/time"
@@ -11,7 +13,7 @@ import { ToggleButton, Menu, Settings } from "./shared/MenuElements"
 
 import icons from "$lib/icons"
 import { attempt } from "$lib/result"
-import { net } from "$lib/services"
+import { network } from "$service/system"
 
 import options from "options"
 
@@ -25,6 +27,16 @@ const [passwordVisible, setPasswordVisible] = createState(false)
 const [isConnecting, setIsConnecting] = createState(false)
 
 let stateChangedId: number | null = null
+let watchedWifi: AstalNetwork.Wifi | null = null
+
+function disconnectActivationWatcher() {
+	if (stateChangedId !== null && watchedWifi)
+		watchedWifi.disconnect(stateChangedId)
+	stateChangedId = null
+	watchedWifi = null
+}
+
+app.connect("shutdown", disconnectActivationWatcher)
 
 export namespace Network {
 	export namespace Wifi {
@@ -34,21 +46,17 @@ export namespace Network {
 				setPassword("")
 				setPasswordVisible(false)
 
-				if (stateChangedId !== null && net.wifi) {
-					net.wifi.disconnect(stateChangedId)
-					stateChangedId = null
-				}
+				disconnectActivationWatcher()
 
-				if (net.wifi) {
-					stateChangedId = net.wifi.connect("state-changed", (_wifi: any, _oldState: any, newState: AstalNetwork.DeviceState) => {
+				if (network.wifi) {
+					watchedWifi = network.wifi
+					stateChangedId = watchedWifi.connect("state-changed", (_wifi, _oldState, newState: AstalNetwork.DeviceState) => {
 						if (newState === AstalNetwork.DeviceState.FAILED) {
 							const win = app.get_window("wifi-auth")
 							win?.show()
-							if (stateChangedId !== null && net.wifi) {
-								net.wifi.disconnect(stateChangedId)
-								stateChangedId = null
-							}
 						}
+						if (newState === AstalNetwork.DeviceState.FAILED || newState === AstalNetwork.DeviceState.ACTIVATED)
+							disconnectActivationWatcher()
 					})
 				}
 
@@ -64,7 +72,7 @@ export namespace Network {
 							iconName={icons.ui.tick}
 							hexpand
 							halign={END}
-							visible={createBinding(net.wifi, "activeAccessPoint").as(v => v?.bssid === ap.bssid)}
+							visible={createBinding(network.wifi, "activeAccessPoint").as(v => v?.bssid === ap.bssid)}
 						/>
 					</box>
 				</button>
@@ -73,7 +81,7 @@ export namespace Network {
 		}
 
 		export function Toggle() {
-			const wifi = createBinding(net, "wifi")
+			const wifi = createBinding(network, "wifi")
 			return (
 				<With value={wifi}>
 					{w => {
@@ -104,7 +112,7 @@ export namespace Network {
 		}
 
 		export function Selector() {
-			const wifi = createBinding(net, "wifi")
+			const wifi = createBinding(network, "wifi")
 
 			return (
 				<Menu
@@ -172,10 +180,7 @@ export namespace Network {
 
 				setIsConnecting(true)
 
-				if (stateChangedId !== null && net.wifi) {
-					net.wifi.disconnect(stateChangedId)
-					stateChangedId = null
-				}
+				disconnectActivationWatcher()
 
 				const result = attempt(() => {
 					currentAp.peek()?.activate(password.peek() || null, null)
@@ -190,10 +195,7 @@ export namespace Network {
 			}
 
 			const handleCancel = () => {
-				if (stateChangedId !== null && net.wifi) {
-					net.wifi.disconnect(stateChangedId)
-					stateChangedId = null
-				}
+				disconnectActivationWatcher()
 
 				const win = app.get_window("wifi-auth")
 				win?.hide()
@@ -256,9 +258,9 @@ export namespace Network {
 
 	export function State() {
 		const { WIRED, WIFI } = AstalNetwork.Primary
-		const primary = createBinding(net, "primary")
-		const wifi = createBinding(net, "wifi")
-		const wired = createBinding(net, "wired")
+		const primary = createBinding(network, "primary")
+		const wifi = createBinding(network, "wifi")
+		const wired = createBinding(network, "wired")
 		const adapter = createComputed(() => {
 			switch (primary()) {
 				case (WIFI):

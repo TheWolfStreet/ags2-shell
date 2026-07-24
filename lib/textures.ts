@@ -1,6 +1,8 @@
+// Loads and caches images from files, URLs, and embedded data and retries failed loads.
+
 import { Accessor, createState } from "ags"
 import { Gdk } from "ags/gtk4"
-import { idle } from "ags/time"
+import { idle, timeout } from "ags/time"
 
 import GLib from "gi://GLib"
 import Gio from "gi://Gio"
@@ -24,8 +26,22 @@ type CachedSignature = {
 const SQUARE_TEXTURE_CACHE_LIMIT = 256
 const FILE_SIGNATURE_CACHE_TTL_US = 1_000_000
 const SQUARE_TEXTURE_DISK_CACHE_DIR = env.paths.cache.thumbnails
+// Memory caches are bounded and evict their oldest entries; async accessors use FIFO.
 const squareContainTextureCache = new Map<string, { signature: string, texture: Gdk.Texture }>()
 const fileSignatureCache = new Map<string, CachedSignature>()
+
+type ImageUriKind = "local" | "http" | "data" | "unknown"
+
+function classifyImageUri(uri: string): ImageUriKind {
+	if (uri.startsWith("/") || uri.startsWith("file://")) return "local"
+	if (uri.startsWith("http://") || uri.startsWith("https://")) return "http"
+	if (isDataImageUri(uri)) return "data"
+	return "unknown"
+}
+
+function normalizeLocalImagePath(uri: string) {
+	return uri.startsWith("file://") ? uri.slice(7) : uri
+}
 
 export function getFileSize(filePath: string): number | null {
 	const signature = getFileSignature(filePath)
@@ -211,7 +227,8 @@ export function isDataImageUri(uri: string): boolean {
 function pixbufFromDataUri(uri: string): GdkPixbuf.Pixbuf | null {
 	const result = attempt(() => {
 		const base64 = uri.startsWith("data:") ? uri.split(",")[1] : uri
-		return pixbufFromBytes(GLib.base64_decode(base64.replace(/\s/g, "")))
+		const bytes = new GLib.Bytes(GLib.base64_decode(base64.replace(/\s/g, "")))
+		return pixbufFromBytes(bytes)
 	})
 	if (!result.ok) {
 		console.error("textures.pixbufFromDataUri: Failed to decode base64 image", result.err)
@@ -270,17 +287,17 @@ function loadLocalPixbufAsync(filePath: string, size: number, onLoaded: (texture
 
 function textureFromUriSquareContain(uri: string, size: number): Gdk.Texture | null {
 	if (!uri) return null
+	const kind = classifyImageUri(uri)
 
-	if (uri.startsWith("/") || uri.startsWith("file://")) {
-		const filePath = uri.startsWith("file://") ? uri.slice(7) : uri
-		return textureFromFileSquareContain(filePath, size)
+	if (kind === "local") {
+		return textureFromFileSquareContain(normalizeLocalImagePath(uri), size)
 	}
 
-	if (uri.startsWith("http://") || uri.startsWith("https://")) {
+	if (kind === "http") {
 		return null
 	}
 
-	if (isDataImageUri(uri)) {
+	if (kind === "data") {
 		const pixbuf = pixbufFromDataUri(uri)
 		if (!pixbuf) return null
 		const square = pixbufSquareContain(pixbuf, size)
@@ -292,6 +309,31 @@ function textureFromUriSquareContain(uri: string, size: number): Gdk.Texture | n
 
 const asyncTextureCache = new Map<string, Accessor<Gdk.Texture | null>>()
 const ASYNC_TEXTURE_CACHE_LIMIT = 64
+const ASYNC_TEXTURE_RETRY_DELAYS_MS = [250, 750, 1500]
+
+function loadTextureWithRetry(
+	key: string,
+	texture: Accessor<Gdk.Texture | null>,
+	setTexture: (texture: Gdk.Texture) => void,
+	load: (done: (texture: Gdk.Texture | null) => void) => void,
+	attempt = 0,
+) {
+	load(loaded => {
+		if (loaded) {
+			setTexture(loaded)
+			return
+		}
+
+		const delay = ASYNC_TEXTURE_RETRY_DELAYS_MS[attempt]
+		if (delay !== undefined) {
+			timeout(delay, () => loadTextureWithRetry(key, texture, setTexture, load, attempt + 1))
+			return
+		}
+
+		if (asyncTextureCache.get(key) === texture)
+			asyncTextureCache.delete(key)
+	})
+}
 
 export function textureFromUriSquareContainAsync(uri: string, size: number): Accessor<Gdk.Texture | null> {
 	if (!uri) {
@@ -310,19 +352,22 @@ export function textureFromUriSquareContainAsync(uri: string, size: number): Acc
 		if (oldest) asyncTextureCache.delete(oldest)
 	}
 
-	if (uri.startsWith("http://") || uri.startsWith("https://")) {
-		loadHttpPixbufAsync(uri, pixbuf => {
-			if (!pixbuf) return
-			const square = pixbufSquareContain(pixbuf, size)
-			if (square) setTexture(Texture.new_for_pixbuf(square))
+	const kind = classifyImageUri(uri)
+	if (kind === "http") {
+		loadTextureWithRetry(key, texture, setTexture, done => {
+			loadHttpPixbufAsync(uri, pixbuf => {
+				if (!pixbuf) return done(null)
+				const square = pixbufSquareContain(pixbuf, size)
+				done(square ? Texture.new_for_pixbuf(square) : null)
+			})
 		})
 		return texture
 	}
 
-	if (uri.startsWith("/") || uri.startsWith("file://")) {
-		const filePath = uri.startsWith("file://") ? uri.slice(7) : uri
-		loadLocalPixbufAsync(filePath, size, tex => {
-			if (tex) setTexture(tex)
+	if (kind === "local") {
+		const filePath = normalizeLocalImagePath(uri)
+		loadTextureWithRetry(key, texture, setTexture, done => {
+			loadLocalPixbufAsync(filePath, size, done)
 		})
 		return texture
 	}

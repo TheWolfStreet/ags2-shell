@@ -1,4 +1,4 @@
-@use 'sass:color';
+// Styles the clock, calendar, and notification history popup.
 @use '../../../../style/base' as *;
 
 window#datemenu {
@@ -36,7 +36,6 @@ window#datemenu {
       border-radius: var(--radius);
       margin-right: calc(var(--padding) * 1.5);
     }
-
 
     box.clock-box {
       label.clock {

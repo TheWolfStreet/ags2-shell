@@ -1,3 +1,5 @@
+// Calculates dock size and icon scale for the selected monitor edge.
+
 import { Accessor, createComputed } from "ags"
 import { Gdk } from "ags/gtk4"
 

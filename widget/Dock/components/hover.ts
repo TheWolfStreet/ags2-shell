@@ -1,3 +1,5 @@
+// Watches the pointer around the dock and delays hiding after it leaves.
+
 import { createState } from "ags"
 import { timeout, Timer } from "ags/time"
 

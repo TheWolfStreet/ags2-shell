@@ -1,3 +1,5 @@
+// Shows the clock and opens a calendar with notification history.
+
 import app from "ags/gtk4/app"
 import { Astal, Gtk } from "ags/gtk4"
 import { createBinding } from "ags"
@@ -8,9 +10,10 @@ import { Notifications } from "../Notifications"
 import { PanelButton } from "../PanelButton"
 
 import env from "$lib/env"
-import { notifications } from "$lib/services"
+import { notificationManager } from "$service/notifications"
 import icons from "$lib/icons"
-import { popupLayout, toggleWindow } from "$lib/utils"
+import { popupLayout } from "$lib/popup"
+import { toggleWindow } from "$lib/windows"
 
 import options from "options"
 
@@ -21,7 +24,7 @@ const { VERTICAL } = Gtk.Orientation
 
 export namespace Date {
 	const layout = popupLayout(options.bar.position, options.datemenu.position)
-	const notifList = createBinding(notifications, "notifications")
+	const notifList = createBinding(notificationManager, "notifications")
 
 	function uptimeFmt(up: number) {
 		const h = Math.floor(up / 60)

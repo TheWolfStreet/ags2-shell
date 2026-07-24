@@ -1,9 +1,11 @@
+// Lists running applications, favorites, separators, and trash in the dock.
+
 import { Accessor, createBinding, createComputed } from "ags"
 
 import AstalApps from "gi://AstalApps"
 import AstalHyprland from "gi://AstalHyprland"
 
-import { apps } from "$lib/services"
+import { apps } from "$service/apps"
 import { createTaskItems } from "$lib/tasks"
 
 import options from "options"

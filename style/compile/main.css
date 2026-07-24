@@ -1,5 +1,5 @@
-button, .flat-button, window#desktop-context-menu .contents button, window#bar button, window#bar popover contents modelbutton,
-window#bar popover contents button.model-item, window#bar box.tasks overlay, window#datemenu box.datemenu box.calendar calendar button, window#launcher box.launcher box.quicklaunch button, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, popover.menu > contents modelbutton {
+button, .flat-button, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window#bar button, window#bar popover contents modelbutton,
+window#bar popover contents button.model-item, window#bar box.tasks overlay, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#launcher box.launcher box.quicklaunch button, window#datemenu box.datemenu box.calendar calendar button, popover.menu > contents modelbutton {
   all: unset;
   transition: var(--transition);
   border-radius: var(--radius);
@@ -9,35 +9,35 @@ window#bar popover contents button.model-item, window#bar box.tasks overlay, win
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow);
   font-weight: bold;
 }
-button:hover:not(.active), .flat-button:hover:not(.active), window#desktop-context-menu .contents button:hover:not(.active), window#bar button:hover:not(.active), window#bar popover contents modelbutton:hover:not(.active), window#bar box.tasks overlay:hover:not(.active), window#datemenu box.datemenu box.calendar calendar button:hover:not(.active), window#launcher box.launcher box.quicklaunch button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.volume button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.control-unit button:hover:not(.active), window#quicksettings .quicksettings box.menu button:hover:not(.active), window#quicksettings .quicksettings box.media box.player button:hover:not(.active), window.settings-dialog box.group .header button.reset:hover:not(.active), window.settings-dialog box.row button.reset:hover:not(.active), popover.menu > contents modelbutton:hover:not(.active) {
+button:hover:not(.active), .flat-button:hover:not(.active), window.settings-dialog box.group .header button.reset:hover:not(.active), window.settings-dialog box.row button.reset:hover:not(.active), window#desktop-context-menu .contents button:hover:not(.active), window#bar button:hover:not(.active), window#bar popover contents modelbutton:hover:not(.active), window#bar box.tasks overlay:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.volume button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.control-unit button:hover:not(.active), window#quicksettings .quicksettings box.menu button:hover:not(.active), window#quicksettings .quicksettings box.media box.player button:hover:not(.active), window#launcher box.launcher box.quicklaunch button:hover:not(.active), window#datemenu box.datemenu box.calendar calendar button:hover:not(.active), popover.menu > contents modelbutton:hover:not(.active) {
   background-color: var(--hover-bg);
   color: var(--hover-fg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
 }
-button:focus-visible, .flat-button:focus-visible, window#desktop-context-menu .contents button:focus-visible, window#bar button:focus-visible, window#bar popover contents modelbutton:focus-visible,
-window#bar popover contents button.model-item:focus-visible, window#bar box.tasks overlay:focus-visible, window#datemenu box.datemenu box.calendar calendar button:focus-visible, window#launcher box.launcher box.quicklaunch button:focus-visible, window#quicksettings .quicksettings box.sliders-box box.volume button:focus-visible, window#quicksettings .quicksettings box.sliders-box box.control-unit button:focus-visible, window#quicksettings .quicksettings box.menu button:focus-visible, window#quicksettings .quicksettings box.media box.player button:focus-visible, window.settings-dialog box.group .header button.reset:focus-visible, window.settings-dialog box.row button.reset:focus-visible, popover.menu > contents modelbutton:focus-visible {
+button:focus-visible, .flat-button:focus-visible, window.settings-dialog box.group .header button.reset:focus-visible, window.settings-dialog box.row button.reset:focus-visible, window#desktop-context-menu .contents button:focus-visible, window#bar button:focus-visible, window#bar popover contents modelbutton:focus-visible,
+window#bar popover contents button.model-item:focus-visible, window#bar box.tasks overlay:focus-visible, window#quicksettings .quicksettings box.sliders-box box.volume button:focus-visible, window#quicksettings .quicksettings box.sliders-box box.control-unit button:focus-visible, window#quicksettings .quicksettings box.menu button:focus-visible, window#quicksettings .quicksettings box.media box.player button:focus-visible, window#launcher box.launcher box.quicklaunch button:focus-visible, window#datemenu box.datemenu box.calendar calendar button:focus-visible, popover.menu > contents modelbutton:focus-visible {
   outline: calc(var(--border-width) / 2) solid var(--primary-bg);
   outline-offset: -1px;
 }
-button:active, .flat-button:active, window#desktop-context-menu .contents button:active, window#bar button:active, window#bar popover contents modelbutton:active,
-window#bar popover contents button.model-item:active, window#bar box.tasks overlay:active, window#datemenu box.datemenu box.calendar calendar button:active, window#launcher box.launcher box.quicklaunch button:active, window#quicksettings .quicksettings box.sliders-box box.volume button:active, window#quicksettings .quicksettings box.sliders-box box.control-unit button:active, window#quicksettings .quicksettings box.menu button:active, window#quicksettings .quicksettings box.media box.player button:active, window.settings-dialog box.group .header button.reset:active, window.settings-dialog box.row button.reset:active, popover.menu > contents modelbutton:active, button.on, .on.flat-button, window#desktop-context-menu .contents button.on, window#bar button.on, window#bar popover contents modelbutton.on,
-window#bar popover contents button.on.model-item, window#bar box.tasks overlay.on, window#datemenu box.datemenu box.calendar calendar button.on, window#launcher box.launcher box.quicklaunch button.on, window#quicksettings .quicksettings box.sliders-box box.volume button.on, window#quicksettings .quicksettings box.sliders-box box.control-unit button.on, window#quicksettings .quicksettings box.menu button.on, window#quicksettings .quicksettings box.media box.player button.on, window.settings-dialog box.group .header button.on.reset, window.settings-dialog box.row button.on.reset, popover.menu > contents modelbutton.on, button.active, .active.flat-button, window#desktop-context-menu .contents button.active, window#bar button.active, window#bar popover contents modelbutton.active,
-window#bar popover contents button.active.model-item, window#bar box.tasks overlay.active, window#datemenu box.datemenu box.calendar calendar button.active, window#launcher box.launcher box.quicklaunch button.active, window#quicksettings .quicksettings box.sliders-box box.volume button.active, window#quicksettings .quicksettings box.sliders-box box.control-unit button.active, window#quicksettings .quicksettings box.menu button.active, window#quicksettings .quicksettings box.media box.player button.active, window.settings-dialog box.group .header button.active.reset, window.settings-dialog box.row button.active.reset, popover.menu > contents modelbutton.active, button:checked, .flat-button:checked, window#desktop-context-menu .contents button:checked, window#bar button:checked, window#bar popover contents modelbutton:checked,
-window#bar popover contents button.model-item:checked, window#bar box.tasks overlay:checked, window#datemenu box.datemenu box.calendar calendar button:checked, window#launcher box.launcher box.quicklaunch button:checked, window#quicksettings .quicksettings box.sliders-box box.volume button:checked, window#quicksettings .quicksettings box.sliders-box box.control-unit button:checked, window#quicksettings .quicksettings box.menu button:checked, window#quicksettings .quicksettings box.media box.player button:checked, window.settings-dialog box.group .header button.reset:checked, window.settings-dialog box.row button.reset:checked, popover.menu > contents modelbutton:checked {
+button:active, .flat-button:active, window.settings-dialog box.group .header button.reset:active, window.settings-dialog box.row button.reset:active, window#desktop-context-menu .contents button:active, window#bar button:active, window#bar popover contents modelbutton:active,
+window#bar popover contents button.model-item:active, window#bar box.tasks overlay:active, window#quicksettings .quicksettings box.sliders-box box.volume button:active, window#quicksettings .quicksettings box.sliders-box box.control-unit button:active, window#quicksettings .quicksettings box.menu button:active, window#quicksettings .quicksettings box.media box.player button:active, window#launcher box.launcher box.quicklaunch button:active, window#datemenu box.datemenu box.calendar calendar button:active, popover.menu > contents modelbutton:active, button.on, .on.flat-button, window.settings-dialog box.group .header button.on.reset, window.settings-dialog box.row button.on.reset, window#desktop-context-menu .contents button.on, window#bar button.on, window#bar popover contents modelbutton.on,
+window#bar popover contents button.on.model-item, window#bar box.tasks overlay.on, window#quicksettings .quicksettings box.sliders-box box.volume button.on, window#quicksettings .quicksettings box.sliders-box box.control-unit button.on, window#quicksettings .quicksettings box.menu button.on, window#quicksettings .quicksettings box.media box.player button.on, window#launcher box.launcher box.quicklaunch button.on, window#datemenu box.datemenu box.calendar calendar button.on, popover.menu > contents modelbutton.on, button.active, .active.flat-button, window.settings-dialog box.group .header button.active.reset, window.settings-dialog box.row button.active.reset, window#desktop-context-menu .contents button.active, window#bar button.active, window#bar popover contents modelbutton.active,
+window#bar popover contents button.active.model-item, window#bar box.tasks overlay.active, window#quicksettings .quicksettings box.sliders-box box.volume button.active, window#quicksettings .quicksettings box.sliders-box box.control-unit button.active, window#quicksettings .quicksettings box.menu button.active, window#quicksettings .quicksettings box.media box.player button.active, window#launcher box.launcher box.quicklaunch button.active, window#datemenu box.datemenu box.calendar calendar button.active, popover.menu > contents modelbutton.active, button:checked, .flat-button:checked, window.settings-dialog box.group .header button.reset:checked, window.settings-dialog box.row button.reset:checked, window#desktop-context-menu .contents button:checked, window#bar button:checked, window#bar popover contents modelbutton:checked,
+window#bar popover contents button.model-item:checked, window#bar box.tasks overlay:checked, window#quicksettings .quicksettings box.sliders-box box.volume button:checked, window#quicksettings .quicksettings box.sliders-box box.control-unit button:checked, window#quicksettings .quicksettings box.menu button:checked, window#quicksettings .quicksettings box.media box.player button:checked, window#launcher box.launcher box.quicklaunch button:checked, window#datemenu box.datemenu box.calendar calendar button:checked, popover.menu > contents modelbutton:checked {
   background-image: var(--active-gradient);
   background-color: var(--primary-bg);
   color: var(--primary-fg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
 }
-button:disabled, .flat-button:disabled, window#desktop-context-menu .contents button:disabled, window#bar button:disabled, window#bar popover contents modelbutton:disabled,
-window#bar popover contents button.model-item:disabled, window#bar box.tasks overlay:disabled, window#datemenu box.datemenu box.calendar calendar button:disabled, window#launcher box.launcher box.quicklaunch button:disabled, window#quicksettings .quicksettings box.sliders-box box.volume button:disabled, window#quicksettings .quicksettings box.sliders-box box.control-unit button:disabled, window#quicksettings .quicksettings box.menu button:disabled, window#quicksettings .quicksettings box.media box.player button:disabled, window.settings-dialog box.group .header button.reset:disabled, window.settings-dialog box.row button.reset:disabled, popover.menu > contents modelbutton:disabled {
+button:disabled, .flat-button:disabled, window.settings-dialog box.group .header button.reset:disabled, window.settings-dialog box.row button.reset:disabled, window#desktop-context-menu .contents button:disabled, window#bar button:disabled, window#bar popover contents modelbutton:disabled,
+window#bar popover contents button.model-item:disabled, window#bar box.tasks overlay:disabled, window#quicksettings .quicksettings box.sliders-box box.volume button:disabled, window#quicksettings .quicksettings box.sliders-box box.control-unit button:disabled, window#quicksettings .quicksettings box.menu button:disabled, window#quicksettings .quicksettings box.media box.player button:disabled, window#launcher box.launcher box.quicklaunch button:disabled, window#datemenu box.datemenu box.calendar calendar button:disabled, popover.menu > contents modelbutton:disabled {
   box-shadow: none;
   background-color: transparent;
   color: color-mix(in srgb, var(--fg) 30%, transparent);
 }
 
-.flat-button, window#desktop-context-menu .contents button, window#bar button, window#bar popover contents modelbutton,
-window#bar popover contents button.model-item, window#bar box.tasks overlay, window#datemenu box.datemenu box.calendar calendar button, window#launcher box.launcher box.quicklaunch button, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, popover.menu > contents modelbutton {
+.flat-button, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window#bar button, window#bar popover contents modelbutton,
+window#bar popover contents button.model-item, window#bar box.tasks overlay, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#launcher box.launcher box.quicklaunch button, window#datemenu box.datemenu box.calendar calendar button, popover.menu > contents modelbutton {
   background-color: transparent;
   box-shadow: none;
 }
@@ -141,7 +141,7 @@ popover.menu > contents separator {
   background-color: color-mix(in srgb, var(--fg) 20%, transparent);
 }
 
-.widget, window#datemenu box.datemenu box.notifications box.notification, window#datemenu box.datemenu box.calendar, window#quicksettings .quicksettings picture.avatar, window#quicksettings .quicksettings box.sliders-box, window#quicksettings .quicksettings box.menu, window#quicksettings .quicksettings box.media box.player {
+.widget, window#quicksettings .quicksettings picture.avatar, window#quicksettings .quicksettings box.sliders-box, window#quicksettings .quicksettings box.menu, window#quicksettings .quicksettings box.media box.player, window#datemenu box.datemenu box.notifications box.notification, window#datemenu box.datemenu box.calendar {
   transition: var(--transition);
   border-radius: var(--radius);
   color: var(--fg);
@@ -150,7 +150,7 @@ popover.menu > contents separator {
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
 }
 
-.floating, window#datemenu box.datemenu, window#launcher box.launcher, window#quicksettings .quicksettings, window.notifications box.notification, window#overview box.overview, window#batterystate box.batterystate, window#state-display box.state-display, window#verification box.verification, window#powermenu box.powermenu {
+.floating, window#verification box.verification, window#powermenu box.powermenu, window#state-display box.state-display, window#quicksettings .quicksettings, window#overview box.overview, window.notifications box.notification, window#launcher box.launcher, window#datemenu box.datemenu, window#batterystate box.batterystate {
   box-shadow: 0 0 5px 0 var(--shadow-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
   margin: max(var(--spacing), 8px);
   border: var(--border-width) solid var(--popover-border-color);
@@ -439,493 +439,6 @@ scrolledwindow scrollbar.vertical slider {
   transition: var(--transition);
 }
 
-window.settings-dialog {
-  background-color: var(--bg);
-  color: var(--fg);
-}
-window.settings-dialog box.header {
-  padding: var(--padding);
-}
-window.settings-dialog box.header box.pager.horizontal > * {
-  margin: 0 calc(var(--spacing) * 1 / 2);
-}
-window.settings-dialog box.header box.pager.horizontal > *:first-child {
-  margin-left: 0;
-}
-window.settings-dialog box.header box.pager.horizontal > *:last-child {
-  margin-right: 0;
-}
-window.settings-dialog box.header box.pager.vertical > * {
-  margin: calc(var(--spacing) * 1 / 2) 0;
-}
-window.settings-dialog box.header box.pager.vertical > *:first-child {
-  margin-top: 0;
-}
-window.settings-dialog box.header box.pager.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window.settings-dialog box.header box.pager {
-  padding: 0 var(--spacing);
-}
-window.settings-dialog box.header box.pager button {
-  padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
-}
-window.settings-dialog box.header box.pager button > box.horizontal > * {
-  margin: 0 0.15em;
-}
-window.settings-dialog box.header box.pager button > box.horizontal > *:first-child {
-  margin-left: 0;
-}
-window.settings-dialog box.header box.pager button > box.horizontal > *:last-child {
-  margin-right: 0;
-}
-window.settings-dialog box.header box.pager button > box.vertical > * {
-  margin: 0.15em 0;
-}
-window.settings-dialog box.header box.pager button > box.vertical > *:first-child {
-  margin-top: 0;
-}
-window.settings-dialog box.header box.pager button > box.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window.settings-dialog box.header button.reset {
-  padding: calc(var(--padding) / 2);
-}
-window.settings-dialog box.header button.close {
-  padding: calc(var(--padding) / 2);
-}
-window.settings-dialog scrolledwindow.page box.page-content {
-  padding: calc(var(--padding) * 2);
-  padding-top: 0;
-}
-window.settings-dialog box.group .header label.title {
-  color: var(--primary-bg);
-  font-weight: bold;
-}
-window.settings-dialog box.group .header button.reset {
-  padding: calc(var(--padding) / 2);
-}
-window.settings-dialog box.group .header button.reset:disabled {
-  color: transparent;
-}
-window.settings-dialog box.row {
-  background-color: var(--widget-bg);
-  padding: var(--padding);
-  border: var(--border);
-  border-top: none;
-}
-window.settings-dialog box.row:first-child {
-  border-radius: var(--radius) var(--radius) 0 0;
-  border: var(--border);
-}
-window.settings-dialog box.row:last-child {
-  border-radius: 0 0 var(--radius) var(--radius);
-}
-window.settings-dialog box.row:first-child:last-child {
-  border-radius: var(--radius);
-  border: var(--border);
-}
-window.settings-dialog box.row label.id,
-window.settings-dialog box.row label.note {
-  color: color-mix(in srgb, var(--fg) 60%, transparent);
-}
-window.settings-dialog box.row button.reset {
-  padding: calc(var(--padding) / 2);
-  margin-left: var(--spacing);
-}
-window.settings-dialog box.row colorswatch {
-  border-radius: calc(var(--radius) / 4);
-}
-window.settings-dialog box.row picture.preview {
-  border-radius: var(--radius);
-  min-height: 15em;
-  min-width: 15em;
-}
-
-window#powermenu,
-window#verification {
-  background-color: rgba(0, 0, 0, 0.4);
-}
-
-window#verification box.verification {
-  padding: calc(var(--popover-padding) * 1.5);
-  min-width: 300px;
-  min-height: 100px;
-}
-window#verification box.verification box.text-box {
-  margin-bottom: var(--spacing);
-}
-window#verification box.verification box.text-box label.title {
-  font-weight: bold;
-  font-size: 1.3em;
-}
-window#verification box.verification box.text-box label.desc {
-  color: color-mix(in srgb, var(--fg) 90%, transparent);
-  font-size: 1.1em;
-}
-window#verification box.verification box.buttons.horizontal > * {
-  margin: 0 calc(var(--spacing) * 1 / 2);
-}
-window#verification box.verification box.buttons.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#verification box.verification box.buttons.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#verification box.verification box.buttons.vertical > * {
-  margin: calc(var(--spacing) * 1 / 2) 0;
-}
-window#verification box.verification box.buttons.vertical > *:first-child {
-  margin-top: 0;
-}
-window#verification box.verification box.buttons.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window#verification box.verification box.buttons {
-  margin-top: var(--padding);
-}
-window#verification box.verification box.buttons button:focus {
-  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-  outline-offset: -1px;
-}
-
-window#powermenu box.powermenu.line {
-  padding: calc(var(--popover-padding) * 1.5);
-}
-window#powermenu box.powermenu.line button {
-  padding: var(--popover-padding);
-}
-window#powermenu box.powermenu.line label {
-  margin-bottom: calc(var(--spacing) * -0.5);
-}
-window#powermenu box.powermenu.box {
-  padding: calc(var(--popover-padding) * 2);
-}
-window#powermenu box.powermenu.box button {
-  padding: calc(var(--popover-padding) * 1.5);
-}
-window#powermenu box.powermenu.box label {
-  margin-bottom: calc(var(--spacing) * -1);
-}
-window#powermenu box.powermenu button {
-  all: unset;
-}
-window#powermenu box.powermenu button image {
-  border-radius: calc(var(--radius) + var(--popover-padding) * 1.4);
-  min-width: 1.7em;
-  min-height: 1.7em;
-  font-size: 4em;
-  background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow);
-  transition: var(--transition);
-}
-window#powermenu box.powermenu button label,
-window#powermenu box.powermenu button image {
-  color: color-mix(in srgb, var(--fg) 90%, transparent);
-}
-window#powermenu box.powermenu button label {
-  margin-top: calc(var(--spacing) * 0.8);
-}
-window#powermenu box.powermenu button:hover image {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
-  background-color: var(--hover-bg);
-  color: var(--hover-fg);
-}
-window#powermenu box.powermenu button:hover label {
-  color: var(--fg);
-}
-window#powermenu box.powermenu button:focus image {
-  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg), var(--neu-button-highlight), var(--neu-button-shadow);
-  background-color: var(--hover-bg);
-  color: var(--hover-fg);
-}
-window#powermenu box.powermenu button:active image {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
-  background-image: var(--active-gradient);
-  background-color: var(--primary-bg);
-  color: var(--primary-fg);
-}
-window#powermenu box.powermenu button:focus label, window#powermenu box.powermenu button:active label {
-  color: var(--primary-bg);
-}
-
-window#dock,
-window#dock-left,
-window#dock-bottom {
-  all: unset;
-  background-color: transparent;
-  box-shadow: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-}
-
-window#dock-hotzone,
-window#dock-hotzone-left,
-window#dock-hotzone-bottom,
-window#dock-hotzone .dock-hotzone,
-window#dock-hotzone-left .dock-hotzone,
-window#dock-hotzone-bottom .dock-hotzone {
-  all: unset;
-  background-color: transparent;
-  box-shadow: none;
-  border: none;
-}
-
-window#dock .dock-container,
-window#dock-left .dock-container,
-window#dock-bottom .dock-container {
-  all: unset;
-  margin: 0;
-  --dock-pad: calc(var(--padding) * var(--dock-scale, 1));
-  --dock-space: calc(var(--spacing) * var(--dock-scale, 1));
-  --dock-icon-gap: var(--dock-pad-inline);
-  --dock-separator-gap: calc(var(--dock-space) * 1.5);
-  --dock-separator-size: calc(var(--dock-space) * 4);
-  --dock-pad-block: calc(var(--dock-pad) * 0.375);
-  --dock-pad-inline: calc(var(--dock-pad) * 0.375);
-  --dock-pad-block-vertical: calc(var(--dock-pad) * 0.375);
-  --dock-pad-inline-vertical: calc(var(--dock-pad) * 0.375);
-  --dock-icon-padding: calc(var(--dock-pad) * 0.375);
-  --dock-hover-offset: calc(2px * var(--dock-scale, 1));
-  --dock-radius: calc(var(--radius) * 2.3 * var(--dock-scale, 1));
-  --dock-icon-radius: calc(var(--radius) * 0.8 * var(--dock-scale, 1));
-  --dock-image-radius: calc(var(--radius) * 0.6 * var(--dock-scale, 1));
-  background-color: var(--bg);
-  border-radius: var(--dock-radius);
-  border: var(--border-width) solid color-mix(in srgb, var(--fg) 14%, transparent);
-  box-shadow: 0 0 5px 0 var(--shadow-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
-  transition: var(--transition);
-}
-window#dock .dock-container .dock-icon,
-window#dock-left .dock-container .dock-icon,
-window#dock-bottom .dock-container .dock-icon {
-  margin: 0 var(--dock-icon-gap);
-}
-window#dock .dock-container .dock-icon .app-button,
-window#dock-left .dock-container .dock-icon .app-button,
-window#dock-bottom .dock-container .dock-icon .app-button {
-  all: unset;
-  padding: var(--dock-icon-padding);
-  border-radius: var(--dock-icon-radius);
-  transition: all 200ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-window#dock .dock-container .dock-icon .app-button image,
-window#dock-left .dock-container .dock-icon .app-button image,
-window#dock-bottom .dock-container .dock-icon .app-button image {
-  transition: all 200ms cubic-bezier(0.23, 1, 0.32, 1);
-  border-radius: var(--dock-image-radius);
-}
-window#dock .dock-container .dock-icon .window-dots .window-dot,
-window#dock-left .dock-container .dock-icon .window-dots .window-dot,
-window#dock-bottom .dock-container .dock-icon .window-dots .window-dot {
-  min-width: calc(5px * var(--dock-scale, 1));
-  min-height: calc(5px * var(--dock-scale, 1));
-  border-radius: 50%;
-  background: var(--fg);
-  opacity: 0.45;
-  margin: calc(2px * var(--dock-scale, 1)) calc(2px * var(--dock-scale, 1)) 0;
-}
-window#dock .dock-container .dock-icon .window-dots .window-dot.focused,
-window#dock-left .dock-container .dock-icon .window-dots .window-dot.focused,
-window#dock-bottom .dock-container .dock-icon .window-dots .window-dot.focused {
-  background: var(--primary-bg);
-  opacity: 1;
-}
-window#dock .dock-container .dock-icon.dock-horizontal .app-button:hover,
-window#dock-left .dock-container .dock-icon.dock-horizontal .app-button:hover,
-window#dock-bottom .dock-container .dock-icon.dock-horizontal .app-button:hover {
-  transform: translateY(calc(0px - var(--dock-hover-offset)));
-}
-window#dock .dock-container .dock-icon.dock-horizontal .app-button:active,
-window#dock-left .dock-container .dock-icon.dock-horizontal .app-button:active,
-window#dock-bottom .dock-container .dock-icon.dock-horizontal .app-button:active {
-  transform: translateY(0) scale(0.98);
-}
-window#dock .dock-container .dock-icon.dock-horizontal .app-button.launching,
-window#dock-left .dock-container .dock-icon.dock-horizontal .app-button.launching,
-window#dock-bottom .dock-container .dock-icon.dock-horizontal .app-button.launching {
-  animation: subtle-jump 250ms ease-out;
-}
-window#dock .dock-container .dock-icon.dock-vertical .app-button:hover,
-window#dock-left .dock-container .dock-icon.dock-vertical .app-button:hover,
-window#dock-bottom .dock-container .dock-icon.dock-vertical .app-button:hover {
-  transform: translateX(var(--dock-hover-offset));
-}
-window#dock .dock-container .dock-icon.dock-vertical .app-button:active,
-window#dock-left .dock-container .dock-icon.dock-vertical .app-button:active,
-window#dock-bottom .dock-container .dock-icon.dock-vertical .app-button:active {
-  transform: translateX(0) scale(0.98);
-}
-window#dock .dock-container .dock-icon.dock-vertical .app-button.launching,
-window#dock-left .dock-container .dock-icon.dock-vertical .app-button.launching,
-window#dock-bottom .dock-container .dock-icon.dock-vertical .app-button.launching {
-  animation: subtle-jump-right 250ms ease-out;
-}
-window#dock .dock-container .dock-separator,
-window#dock-left .dock-container .dock-separator,
-window#dock-bottom .dock-container .dock-separator {
-  min-width: 1px;
-  min-height: var(--dock-separator-size);
-  margin: calc(var(--dock-space) * 1.25) 0;
-  margin-left: var(--dock-separator-gap);
-  border-radius: 1px;
-  background-color: color-mix(in srgb, var(--fg) 20%, transparent);
-}
-
-window#dock .dock-container.dock-horizontal,
-window#dock-left .dock-container.dock-horizontal,
-window#dock-bottom .dock-container.dock-horizontal {
-  padding: var(--dock-pad-block) var(--dock-pad-inline);
-}
-window#dock .dock-container.dock-horizontal .dock-separator,
-window#dock-left .dock-container.dock-horizontal .dock-separator,
-window#dock-bottom .dock-container.dock-horizontal .dock-separator {
-  min-height: calc(var(--dock-pad) * 2);
-  margin-top: 0;
-  margin-bottom: 0;
-}
-window#dock .dock-container.dock-horizontal .dock-icon .app-button,
-window#dock-left .dock-container.dock-horizontal .dock-icon .app-button,
-window#dock-bottom .dock-container.dock-horizontal .dock-icon .app-button {
-  padding-left: 0;
-  padding-right: 0;
-  margin-bottom: calc(7px * var(--dock-scale, 1));
-}
-window#dock .dock-container.dock-horizontal .dock-icon .window-dots:last-child,
-window#dock-left .dock-container.dock-horizontal .dock-icon .window-dots:last-child,
-window#dock-bottom .dock-container.dock-horizontal .dock-icon .window-dots:last-child {
-  margin-top: calc(-7px * var(--dock-scale, 1));
-}
-
-window#dock .dock-container.dock-vertical,
-window#dock-left .dock-container.dock-vertical,
-window#dock-bottom .dock-container.dock-vertical {
-  padding: var(--dock-pad-block-vertical) var(--dock-pad-inline-vertical);
-}
-window#dock .dock-container.dock-vertical .dock-icon,
-window#dock-left .dock-container.dock-vertical .dock-icon,
-window#dock-bottom .dock-container.dock-vertical .dock-icon {
-  margin: var(--dock-icon-gap) 0;
-}
-window#dock .dock-container.dock-vertical .dock-icon .app-button,
-window#dock-left .dock-container.dock-vertical .dock-icon .app-button,
-window#dock-bottom .dock-container.dock-vertical .dock-icon .app-button {
-  padding-top: 0;
-  padding-bottom: 0;
-  margin-left: calc(7px * var(--dock-scale, 1));
-}
-window#dock .dock-container.dock-vertical .dock-icon .window-dots:first-child,
-window#dock-left .dock-container.dock-vertical .dock-icon .window-dots:first-child,
-window#dock-bottom .dock-container.dock-vertical .dock-icon .window-dots:first-child {
-  margin-right: calc(-7px * var(--dock-scale, 1));
-}
-window#dock .dock-container.dock-vertical .dock-separator,
-window#dock-left .dock-container.dock-vertical .dock-separator,
-window#dock-bottom .dock-container.dock-vertical .dock-separator {
-  min-width: var(--dock-separator-size);
-  min-height: 1px;
-  margin: 0 calc(var(--dock-space) * 1.25);
-  margin-top: var(--dock-separator-gap);
-}
-
-window#dock .dock-container.neumorphic,
-window#dock-left .dock-container.neumorphic,
-window#dock-bottom .dock-container.neumorphic {
-  box-shadow: var(--neu-widget-highlight), var(--neu-widget-shadow);
-}
-
-@keyframes subtle-jump {
-  0% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-8px);
-  }
-  100% {
-    transform: translateY(0);
-  }
-}
-@keyframes subtle-jump-right {
-  0% {
-    transform: translateX(0);
-  }
-  30% {
-    transform: translateX(8px);
-  }
-  100% {
-    transform: translateX(0);
-  }
-}
-window#state-display {
-  background-color: transparent;
-}
-
-window#state-display box.state-display {
-  padding: calc(var(--padding) * 2.25);
-}
-window#state-display box.state-display image {
-  padding: var(--popover-padding);
-  color: color-mix(in srgb, var(--fg) 90%, transparent);
-}
-window#state-display box.state-display progressbar.percentage.muted trough progress {
-  background-image: none;
-  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
-}
-
-.placeholder.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-.placeholder.horizontal > *:first-child {
-  margin-left: 0;
-}
-.placeholder.horizontal > *:last-child {
-  margin-right: 0;
-}
-.placeholder.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-.placeholder.vertical > *:first-child {
-  margin-top: 0;
-}
-.placeholder.vertical > *:last-child {
-  margin-bottom: 0;
-}
-.placeholder {
-  padding: calc(var(--padding) * 2);
-}
-.placeholder image {
-  color: color-mix(in srgb, var(--fg) 70%, transparent);
-  margin-bottom: 0.1em;
-}
-.placeholder label {
-  color: color-mix(in srgb, var(--fg) 70%, transparent);
-  font-size: 1.25em;
-}
-
-window.placeholder box.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-window.placeholder box.horizontal > *:first-child {
-  margin-left: 0;
-}
-window.placeholder box.horizontal > *:last-child {
-  margin-right: 0;
-}
-window.placeholder box.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-window.placeholder box.vertical > *:first-child {
-  margin-top: 0;
-}
-window.placeholder box.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window.placeholder label {
-  font-size: 72pt;
-  font-weight: bold;
-}
-
 window#bar box.battery.horizontal > * {
   margin: 0 calc(var(--spacing) * 0.5 / 2);
 }
@@ -970,38 +483,266 @@ window#batterystate box.batterystate label {
   font-weight: bold;
 }
 
-window#overview {
-  background-color: transparent;
+window#bar box.colorpicker.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
 }
-window#overview box.overview.horizontal > * {
-  margin: 0 calc(var(--spacing) * 1 / 2);
-}
-window#overview box.overview.horizontal > *:first-child {
+window#bar box.colorpicker.horizontal > *:first-child {
   margin-left: 0;
 }
-window#overview box.overview.horizontal > *:last-child {
+window#bar box.colorpicker.horizontal > *:last-child {
   margin-right: 0;
 }
-window#overview box.overview.vertical > * {
-  margin: calc(var(--spacing) * 1 / 2) 0;
+window#bar box.colorpicker.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
 }
-window#overview box.overview.vertical > *:first-child {
+window#bar box.colorpicker.vertical > *:first-child {
   margin-top: 0;
 }
-window#overview box.overview.vertical > *:last-child {
+window#bar box.colorpicker.vertical > *:last-child {
   margin-bottom: 0;
 }
-window#overview box.overview button.workspace {
-  padding: calc(var(--spacing) * 0.25);
+window#bar box.colorpicker button {
+  padding: calc(var(--padding) / 2) calc(var(--padding));
 }
-window#overview box.overview button.client {
+window#bar button.recorder box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#bar button.recorder box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#bar button.recorder box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#bar button.recorder box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#bar button.recorder box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#bar button.recorder box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#bar button.recorder image {
+  color: color-mix(in srgb, var(--error-bg) 70%, transparent);
+}
+window#bar button.recorder:hover image {
+  color: color-mix(in srgb, var(--error-bg) 85%, transparent);
+}
+window#bar button.recorder:active image {
+  color: var(--primary-fg);
+}
+window#bar button.media box.media-content {
+  all: unset;
+}
+window#bar button.media box.media-content revealer label {
+  margin-left: calc(var(--spacing) / 2);
+}
+
+window#datemenu {
+  background-color: transparent;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header {
+  margin-bottom: calc(var(--padding) * 1.5);
+  margin-right: calc(var(--padding) * 1.5);
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button {
+  padding: calc(var(--padding) * 0.7) var(--padding);
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#datemenu box.datemenu box.notifications scrolledwindow.notification-scrollable {
+  margin-right: calc(var(--padding) * 1.5);
+}
+window#datemenu box.datemenu box.notifications box.notification {
+  padding: var(--padding);
+  margin-bottom: var(--spacing);
+}
+window#datemenu box.datemenu separator {
+  background-color: var(--popover-border-color);
   border-radius: var(--radius);
-  margin: calc(var(--spacing) * 0.25);
+  margin-right: calc(var(--padding) * 1.5);
 }
-window#overview box.overview button.active {
-  background-color: var(--widget-bg);
+window#datemenu box.datemenu box.clock-box label.clock {
+  font-size: 5em;
+}
+window#datemenu box.datemenu box.clock-box label.uptime {
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
+  margin-bottom: calc(var(--padding) * 2);
+}
+window#datemenu box.datemenu box.calendar {
+  padding: var(--padding) var(--padding) 0;
+}
+window#datemenu box.datemenu box.calendar calendar {
+  all: unset;
+  font-size: 1.1em;
+  padding: 0.3em;
+}
+window#datemenu box.datemenu box.calendar calendar:focus {
+  outline: none;
+}
+window#datemenu box.datemenu box.calendar calendar button {
+  padding: calc(var(--padding) / 2);
+}
+window#datemenu box.datemenu box.calendar calendar label:focus {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+  border-radius: calc(var(--radius) * 0.6);
+}
+window#datemenu box.datemenu box.calendar calendar label:selected {
+  background-color: var(--primary-bg);
+  border-radius: calc(var(--radius) * 0.6);
+}
+window#datemenu box.datemenu box.calendar calendar label:selected:focus {
+  outline: calc(var(--border-width) / 2) solid var(--primary-fg);
+  outline-offset: -1px;
+}
+window#datemenu box.datemenu box.calendar calendar header {
+  background-color: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--fg) 50%, transparent);
+}
+window#datemenu box.datemenu box.calendar calendar label.day-name {
+  background-color: transparent;
+  color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+}
+window#datemenu box.datemenu box.calendar calendar label.other-month {
+  color: color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+window#launcher {
+  background-color: transparent;
+}
+window#launcher box.launcher box.quicklaunch.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#launcher box.launcher box.quicklaunch.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#launcher box.launcher box.quicklaunch.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#launcher box.launcher box.quicklaunch.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#launcher box.launcher box.quicklaunch.vertical > *:first-child {
+  margin-top: 0;
+}
+window#launcher box.launcher box.quicklaunch.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#launcher box.launcher box.quicklaunch {
+  margin-top: var(--spacing);
+}
+window#launcher box.launcher box.quicklaunch button {
+  padding: calc(var(--padding) / 2);
+}
+window#launcher box.launcher box.quicklaunch button image {
+  transition: var(--transition);
+}
+window#launcher box.launcher box.quicklaunch button:hover, window#launcher box.launcher box.quicklaunch button:focus-visible {
+  outline: none;
+}
+window#launcher box.launcher box.quicklaunch button:hover image, window#launcher box.launcher box.quicklaunch button:focus-visible image {
+  -gtk-icon-shadow: 2px 2px var(--primary-bg);
+}
+window#launcher box.launcher entry {
+  margin: var(--spacing);
+}
+window#launcher box.launcher entry:focus-visible {
+  outline: none;
+}
+window#launcher box.launcher entry selection {
+  color: color-mix(in srgb, var(--fg) 50%, var(--bg));
+  background-color: transparent;
+}
+window#launcher box.launcher entry label,
+window#launcher box.launcher entry image {
+  color: var(--fg);
+}
+window#launcher box.launcher image.spinner {
+  color: var(--primary-bg);
+  margin-right: var(--spacing);
+}
+window#launcher box.launcher separator {
+  margin: 4pt 0;
+  background-color: var(--popover-border-color);
+}
+window#launcher box.launcher button.app-item {
+  padding: var(--padding);
+  transition: var(--transition);
+  background-color: transparent;
   background-image: none;
-  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
+  box-shadow: none;
+}
+window#launcher box.launcher button.app-item:focus-visible {
+  outline: none;
+}
+window#launcher box.launcher button.app-item > box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window#launcher box.launcher button.app-item > box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#launcher box.launcher button.app-item > box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#launcher box.launcher button.app-item > box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window#launcher box.launcher button.app-item > box.vertical > *:first-child {
+  margin-top: 0;
+}
+window#launcher box.launcher button.app-item > box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#launcher box.launcher button.app-item label {
+  transition: var(--transition);
+}
+window#launcher box.launcher button.app-item label.title {
+  color: var(--fg);
+}
+window#launcher box.launcher button.app-item label.description {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  font-weight: normal;
+}
+window#launcher box.launcher button.app-item image {
+  transition: var(--transition);
+}
+window#launcher box.launcher button.app-item:hover label.title, window#launcher box.launcher button.app-item:focus label.title {
+  color: var(--primary-bg);
+}
+window#launcher box.launcher button.app-item:hover label.description, window#launcher box.launcher button.app-item:focus label.description {
+  color: color-mix(in srgb, var(--primary-bg) 60%, transparent);
+}
+window#launcher box.launcher button.app-item:hover image, window#launcher box.launcher button.app-item:focus image {
+  -gtk-icon-shadow: 2px 2px var(--primary-bg);
+}
+window#launcher box.launcher button.app-item:active {
+  background-color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+window#launcher box.launcher button.app-item:active label.title {
+  color: var(--fg);
+}
+window#launcher box.launcher label.launch-hint {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
 }
 
 .notification.critical {
@@ -1087,6 +828,40 @@ window.notifications box.notification {
 }
 window.notifications box.notification box.description {
   min-width: 350px;
+}
+
+window#overview {
+  background-color: transparent;
+}
+window#overview box.overview.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#overview box.overview.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#overview box.overview.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#overview box.overview.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#overview box.overview.vertical > *:first-child {
+  margin-top: 0;
+}
+window#overview box.overview.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#overview box.overview button.workspace {
+  padding: calc(var(--spacing) * 0.25);
+}
+window#overview box.overview button.client {
+  border-radius: var(--radius);
+  margin: calc(var(--spacing) * 0.25);
+}
+window#overview box.overview button.active {
+  background-color: var(--widget-bg);
+  background-image: none;
+  box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
 }
 
 window#wifi-auth box.horizontal > * {
@@ -1560,268 +1335,6 @@ window#quicksettings .quicksettings box.media box.player box.horizontal.vertical
   margin-bottom: 0;
 }
 
-window#bar box.colorpicker.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-window#bar box.colorpicker.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#bar box.colorpicker.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#bar box.colorpicker.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-window#bar box.colorpicker.vertical > *:first-child {
-  margin-top: 0;
-}
-window#bar box.colorpicker.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window#bar box.colorpicker button {
-  padding: calc(var(--padding) / 2) calc(var(--padding));
-}
-window#bar button.recorder box.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-window#bar button.recorder box.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#bar button.recorder box.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#bar button.recorder box.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-window#bar button.recorder box.vertical > *:first-child {
-  margin-top: 0;
-}
-window#bar button.recorder box.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window#bar button.recorder image {
-  color: color-mix(in srgb, var(--error-bg) 70%, transparent);
-}
-window#bar button.recorder:hover image {
-  color: color-mix(in srgb, var(--error-bg) 85%, transparent);
-}
-window#bar button.recorder:active image {
-  color: var(--primary-fg);
-}
-window#bar button.media box {
-  all: unset;
-}
-window#bar button.media box revealer label {
-  margin-left: calc(var(--spacing) / 2);
-}
-
-window#launcher {
-  background-color: transparent;
-}
-window#launcher box.launcher box.quicklaunch.horizontal > * {
-  margin: 0 calc(var(--spacing) * 1 / 2);
-}
-window#launcher box.launcher box.quicklaunch.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#launcher box.launcher box.quicklaunch.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#launcher box.launcher box.quicklaunch.vertical > * {
-  margin: calc(var(--spacing) * 1 / 2) 0;
-}
-window#launcher box.launcher box.quicklaunch.vertical > *:first-child {
-  margin-top: 0;
-}
-window#launcher box.launcher box.quicklaunch.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window#launcher box.launcher box.quicklaunch {
-  margin-top: var(--spacing);
-}
-window#launcher box.launcher box.quicklaunch button {
-  padding: calc(var(--padding) / 2);
-}
-window#launcher box.launcher box.quicklaunch button image {
-  transition: var(--transition);
-}
-window#launcher box.launcher box.quicklaunch button:hover, window#launcher box.launcher box.quicklaunch button:focus-visible {
-  outline: none;
-}
-window#launcher box.launcher box.quicklaunch button:hover image, window#launcher box.launcher box.quicklaunch button:focus-visible image {
-  -gtk-icon-shadow: 2px 2px var(--primary-bg);
-}
-window#launcher box.launcher entry {
-  margin: var(--spacing);
-}
-window#launcher box.launcher entry:focus-visible {
-  outline: none;
-}
-window#launcher box.launcher entry selection {
-  color: color-mix(in srgb, var(--fg) 50%, var(--bg));
-  background-color: transparent;
-}
-window#launcher box.launcher entry label,
-window#launcher box.launcher entry image {
-  color: var(--fg);
-}
-window#launcher box.launcher image.spinner {
-  color: var(--primary-bg);
-  margin-right: var(--spacing);
-}
-window#launcher box.launcher separator {
-  margin: 4pt 0;
-  background-color: var(--popover-border-color);
-}
-window#launcher box.launcher button.app-item {
-  padding: var(--padding);
-  transition: var(--transition);
-  background-color: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-window#launcher box.launcher button.app-item:focus-visible {
-  outline: none;
-}
-window#launcher box.launcher button.app-item > box.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-window#launcher box.launcher button.app-item > box.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#launcher box.launcher button.app-item > box.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#launcher box.launcher button.app-item > box.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-window#launcher box.launcher button.app-item > box.vertical > *:first-child {
-  margin-top: 0;
-}
-window#launcher box.launcher button.app-item > box.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window#launcher box.launcher button.app-item label {
-  transition: var(--transition);
-}
-window#launcher box.launcher button.app-item label.title {
-  color: var(--fg);
-}
-window#launcher box.launcher button.app-item label.description {
-  color: color-mix(in srgb, var(--fg) 70%, transparent);
-  font-weight: normal;
-}
-window#launcher box.launcher button.app-item image {
-  transition: var(--transition);
-}
-window#launcher box.launcher button.app-item:hover label.title, window#launcher box.launcher button.app-item:focus label.title {
-  color: var(--primary-bg);
-}
-window#launcher box.launcher button.app-item:hover label.description, window#launcher box.launcher button.app-item:focus label.description {
-  color: color-mix(in srgb, var(--primary-bg) 60%, transparent);
-}
-window#launcher box.launcher button.app-item:hover image, window#launcher box.launcher button.app-item:focus image {
-  -gtk-icon-shadow: 2px 2px var(--primary-bg);
-}
-window#launcher box.launcher button.app-item:active {
-  background-color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
-  border-radius: var(--radius);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-}
-window#launcher box.launcher button.app-item:active label.title {
-  color: var(--fg);
-}
-window#launcher box.launcher label.launch-hint {
-  color: color-mix(in srgb, var(--fg) 70%, transparent);
-}
-
-window#datemenu {
-  background-color: transparent;
-}
-window#datemenu box.datemenu box.notifications box.notifications-header {
-  margin-bottom: calc(var(--padding) * 1.5);
-  margin-right: calc(var(--padding) * 1.5);
-}
-window#datemenu box.datemenu box.notifications box.notifications-header button {
-  padding: calc(var(--padding) * 0.7) var(--padding);
-}
-window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#datemenu box.datemenu box.notifications box.notifications-header button box.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > *:first-child {
-  margin-top: 0;
-}
-window#datemenu box.datemenu box.notifications box.notifications-header button box.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window#datemenu box.datemenu box.notifications scrolledwindow.notification-scrollable {
-  margin-right: calc(var(--padding) * 1.5);
-}
-window#datemenu box.datemenu box.notifications box.notification {
-  padding: var(--padding);
-  margin-bottom: var(--spacing);
-}
-window#datemenu box.datemenu separator {
-  background-color: var(--popover-border-color);
-  border-radius: var(--radius);
-  margin-right: calc(var(--padding) * 1.5);
-}
-window#datemenu box.datemenu box.clock-box label.clock {
-  font-size: 5em;
-}
-window#datemenu box.datemenu box.clock-box label.uptime {
-  color: color-mix(in srgb, var(--fg) 80%, transparent);
-  margin-bottom: calc(var(--padding) * 2);
-}
-window#datemenu box.datemenu box.calendar {
-  padding: var(--padding) var(--padding) 0;
-}
-window#datemenu box.datemenu box.calendar calendar {
-  all: unset;
-  font-size: 1.1em;
-  padding: 0.3em;
-}
-window#datemenu box.datemenu box.calendar calendar:focus {
-  outline: none;
-}
-window#datemenu box.datemenu box.calendar calendar button {
-  padding: calc(var(--padding) / 2);
-}
-window#datemenu box.datemenu box.calendar calendar label:focus {
-  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-  outline-offset: -1px;
-  border-radius: calc(var(--radius) * 0.6);
-}
-window#datemenu box.datemenu box.calendar calendar label:selected {
-  background-color: var(--primary-bg);
-  border-radius: calc(var(--radius) * 0.6);
-}
-window#datemenu box.datemenu box.calendar calendar label:selected:focus {
-  outline: calc(var(--border-width) / 2) solid var(--primary-fg);
-  outline-offset: -1px;
-}
-window#datemenu box.datemenu box.calendar calendar header {
-  background-color: transparent;
-  border: none;
-  color: color-mix(in srgb, var(--fg) 50%, transparent);
-}
-window#datemenu box.datemenu box.calendar calendar label.day-name {
-  background-color: transparent;
-  color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
-}
-window#datemenu box.datemenu box.calendar calendar label.other-month {
-  color: color-mix(in srgb, var(--fg) 10%, transparent);
-}
-
 window#bar {
   transition: var(--transition);
   background-color: var(--bg);
@@ -2251,4 +1764,489 @@ window#desktop-context-menu .contents separator {
   background-color: color-mix(in srgb, var(--fg) 20%, transparent);
 }
 
-/*# sourceMappingURL=main.css.map */
+window#dock,
+window#dock-left,
+window#dock-bottom {
+  all: unset;
+  background-color: transparent;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+window#dock-hotzone,
+window#dock-hotzone-left,
+window#dock-hotzone-bottom,
+window#dock-hotzone .dock-hotzone,
+window#dock-hotzone-left .dock-hotzone,
+window#dock-hotzone-bottom .dock-hotzone {
+  all: unset;
+  background-color: transparent;
+  box-shadow: none;
+  border: none;
+}
+
+window#dock .dock-container,
+window#dock-left .dock-container,
+window#dock-bottom .dock-container {
+  all: unset;
+  margin: 0;
+  --dock-pad: calc(var(--padding) * var(--dock-scale, 1));
+  --dock-space: calc(var(--spacing) * var(--dock-scale, 1));
+  --dock-icon-gap: var(--dock-pad-inline);
+  --dock-separator-gap: calc(var(--dock-space) * 1.5);
+  --dock-separator-size: calc(var(--dock-space) * 4);
+  --dock-pad-block: calc(var(--dock-pad) * 0.375);
+  --dock-pad-inline: calc(var(--dock-pad) * 0.375);
+  --dock-pad-block-vertical: calc(var(--dock-pad) * 0.375);
+  --dock-pad-inline-vertical: calc(var(--dock-pad) * 0.375);
+  --dock-icon-padding: calc(var(--dock-pad) * 0.375);
+  --dock-hover-offset: calc(2px * var(--dock-scale, 1));
+  --dock-radius: calc(var(--radius) * 2.3 * var(--dock-scale, 1));
+  --dock-icon-radius: calc(var(--radius) * 0.8 * var(--dock-scale, 1));
+  --dock-image-radius: calc(var(--radius) * 0.6 * var(--dock-scale, 1));
+  background-color: var(--bg);
+  border-radius: var(--dock-radius);
+  border: var(--border-width) solid color-mix(in srgb, var(--fg) 14%, transparent);
+  box-shadow: 0 0 5px 0 var(--shadow-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
+  transition: var(--transition);
+}
+window#dock .dock-container .dock-icon,
+window#dock-left .dock-container .dock-icon,
+window#dock-bottom .dock-container .dock-icon {
+  margin: 0 var(--dock-icon-gap);
+}
+window#dock .dock-container .dock-icon .app-button,
+window#dock-left .dock-container .dock-icon .app-button,
+window#dock-bottom .dock-container .dock-icon .app-button {
+  all: unset;
+  padding: var(--dock-icon-padding);
+  border-radius: var(--dock-icon-radius);
+  transition: all 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+window#dock .dock-container .dock-icon .app-button image,
+window#dock-left .dock-container .dock-icon .app-button image,
+window#dock-bottom .dock-container .dock-icon .app-button image {
+  transition: all 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  border-radius: var(--dock-image-radius);
+}
+window#dock .dock-container .dock-icon .window-dots .window-dot,
+window#dock-left .dock-container .dock-icon .window-dots .window-dot,
+window#dock-bottom .dock-container .dock-icon .window-dots .window-dot {
+  min-width: calc(5px * var(--dock-scale, 1));
+  min-height: calc(5px * var(--dock-scale, 1));
+  border-radius: 50%;
+  background: var(--fg);
+  opacity: 0.45;
+  margin: calc(2px * var(--dock-scale, 1)) calc(2px * var(--dock-scale, 1)) 0;
+}
+window#dock .dock-container .dock-icon .window-dots .window-dot.focused,
+window#dock-left .dock-container .dock-icon .window-dots .window-dot.focused,
+window#dock-bottom .dock-container .dock-icon .window-dots .window-dot.focused {
+  background: var(--primary-bg);
+  opacity: 1;
+}
+window#dock .dock-container .dock-icon.dock-horizontal .app-button:hover,
+window#dock-left .dock-container .dock-icon.dock-horizontal .app-button:hover,
+window#dock-bottom .dock-container .dock-icon.dock-horizontal .app-button:hover {
+  transform: translateY(calc(0px - var(--dock-hover-offset)));
+}
+window#dock .dock-container .dock-icon.dock-horizontal .app-button:active,
+window#dock-left .dock-container .dock-icon.dock-horizontal .app-button:active,
+window#dock-bottom .dock-container .dock-icon.dock-horizontal .app-button:active {
+  transform: translateY(0) scale(0.98);
+}
+window#dock .dock-container .dock-icon.dock-horizontal .app-button.launching,
+window#dock-left .dock-container .dock-icon.dock-horizontal .app-button.launching,
+window#dock-bottom .dock-container .dock-icon.dock-horizontal .app-button.launching {
+  animation: subtle-jump 250ms ease-out;
+}
+window#dock .dock-container .dock-icon.dock-vertical .app-button:hover,
+window#dock-left .dock-container .dock-icon.dock-vertical .app-button:hover,
+window#dock-bottom .dock-container .dock-icon.dock-vertical .app-button:hover {
+  transform: translateX(var(--dock-hover-offset));
+}
+window#dock .dock-container .dock-icon.dock-vertical .app-button:active,
+window#dock-left .dock-container .dock-icon.dock-vertical .app-button:active,
+window#dock-bottom .dock-container .dock-icon.dock-vertical .app-button:active {
+  transform: translateX(0) scale(0.98);
+}
+window#dock .dock-container .dock-icon.dock-vertical .app-button.launching,
+window#dock-left .dock-container .dock-icon.dock-vertical .app-button.launching,
+window#dock-bottom .dock-container .dock-icon.dock-vertical .app-button.launching {
+  animation: subtle-jump-right 250ms ease-out;
+}
+window#dock .dock-container .dock-separator,
+window#dock-left .dock-container .dock-separator,
+window#dock-bottom .dock-container .dock-separator {
+  min-width: 1px;
+  min-height: var(--dock-separator-size);
+  margin: calc(var(--dock-space) * 1.25) 0;
+  margin-left: var(--dock-separator-gap);
+  border-radius: 1px;
+  background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+}
+
+window#dock .dock-container.dock-horizontal,
+window#dock-left .dock-container.dock-horizontal,
+window#dock-bottom .dock-container.dock-horizontal {
+  padding: var(--dock-pad-block) var(--dock-pad-inline);
+}
+window#dock .dock-container.dock-horizontal .dock-separator,
+window#dock-left .dock-container.dock-horizontal .dock-separator,
+window#dock-bottom .dock-container.dock-horizontal .dock-separator {
+  min-height: calc(var(--dock-pad) * 2);
+  margin-top: 0;
+  margin-bottom: 0;
+}
+window#dock .dock-container.dock-horizontal .dock-icon .app-button,
+window#dock-left .dock-container.dock-horizontal .dock-icon .app-button,
+window#dock-bottom .dock-container.dock-horizontal .dock-icon .app-button {
+  padding-left: 0;
+  padding-right: 0;
+  margin-bottom: calc(7px * var(--dock-scale, 1));
+}
+window#dock .dock-container.dock-horizontal .dock-icon .window-dots:last-child,
+window#dock-left .dock-container.dock-horizontal .dock-icon .window-dots:last-child,
+window#dock-bottom .dock-container.dock-horizontal .dock-icon .window-dots:last-child {
+  margin-top: calc(-7px * var(--dock-scale, 1));
+}
+
+window#dock .dock-container.dock-vertical,
+window#dock-left .dock-container.dock-vertical,
+window#dock-bottom .dock-container.dock-vertical {
+  padding: var(--dock-pad-block-vertical) var(--dock-pad-inline-vertical);
+}
+window#dock .dock-container.dock-vertical .dock-icon,
+window#dock-left .dock-container.dock-vertical .dock-icon,
+window#dock-bottom .dock-container.dock-vertical .dock-icon {
+  margin: var(--dock-icon-gap) 0;
+}
+window#dock .dock-container.dock-vertical .dock-icon .app-button,
+window#dock-left .dock-container.dock-vertical .dock-icon .app-button,
+window#dock-bottom .dock-container.dock-vertical .dock-icon .app-button {
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-left: calc(7px * var(--dock-scale, 1));
+}
+window#dock .dock-container.dock-vertical .dock-icon .window-dots:first-child,
+window#dock-left .dock-container.dock-vertical .dock-icon .window-dots:first-child,
+window#dock-bottom .dock-container.dock-vertical .dock-icon .window-dots:first-child {
+  margin-right: calc(-7px * var(--dock-scale, 1));
+}
+window#dock .dock-container.dock-vertical .dock-separator,
+window#dock-left .dock-container.dock-vertical .dock-separator,
+window#dock-bottom .dock-container.dock-vertical .dock-separator {
+  min-width: var(--dock-separator-size);
+  min-height: 1px;
+  margin: 0 calc(var(--dock-space) * 1.25);
+  margin-top: var(--dock-separator-gap);
+}
+
+window#dock .dock-container.neumorphic,
+window#dock-left .dock-container.neumorphic,
+window#dock-bottom .dock-container.neumorphic {
+  box-shadow: var(--neu-widget-highlight), var(--neu-widget-shadow);
+}
+
+@keyframes subtle-jump {
+  0% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-8px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes subtle-jump-right {
+  0% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(8px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+window#state-display {
+  background-color: transparent;
+}
+
+window#state-display box.state-display {
+  padding: calc(var(--padding) * 2.25);
+}
+window#state-display box.state-display image {
+  padding: var(--popover-padding);
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+}
+window#state-display box.state-display progressbar.percentage.muted trough progress {
+  background-image: none;
+  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+}
+
+window#powermenu,
+window#verification {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+window#verification box.verification {
+  padding: calc(var(--popover-padding) * 1.5);
+  min-width: 300px;
+  min-height: 100px;
+}
+window#verification box.verification box.text-box {
+  margin-bottom: var(--spacing);
+}
+window#verification box.verification box.text-box label.title {
+  font-weight: bold;
+  font-size: 1.3em;
+}
+window#verification box.verification box.text-box label.desc {
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+  font-size: 1.1em;
+}
+window#verification box.verification box.buttons.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window#verification box.verification box.buttons.horizontal > *:first-child {
+  margin-left: 0;
+}
+window#verification box.verification box.buttons.horizontal > *:last-child {
+  margin-right: 0;
+}
+window#verification box.verification box.buttons.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window#verification box.verification box.buttons.vertical > *:first-child {
+  margin-top: 0;
+}
+window#verification box.verification box.buttons.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window#verification box.verification box.buttons {
+  margin-top: var(--padding);
+}
+window#verification box.verification box.buttons button:focus {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+}
+
+window#powermenu box.powermenu.line {
+  padding: calc(var(--popover-padding) * 1.5);
+}
+window#powermenu box.powermenu.line button {
+  padding: var(--popover-padding);
+}
+window#powermenu box.powermenu.line label {
+  margin-bottom: calc(var(--spacing) * -0.5);
+}
+window#powermenu box.powermenu.box {
+  padding: calc(var(--popover-padding) * 2);
+}
+window#powermenu box.powermenu.box button {
+  padding: calc(var(--popover-padding) * 1.5);
+}
+window#powermenu box.powermenu.box label {
+  margin-bottom: calc(var(--spacing) * -1);
+}
+window#powermenu box.powermenu button {
+  all: unset;
+}
+window#powermenu box.powermenu button image {
+  border-radius: calc(var(--radius) + var(--popover-padding) * 1.4);
+  min-width: 1.7em;
+  min-height: 1.7em;
+  font-size: 4em;
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow);
+  transition: var(--transition);
+}
+window#powermenu box.powermenu button label,
+window#powermenu box.powermenu button image {
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
+}
+window#powermenu box.powermenu button label {
+  margin-top: calc(var(--spacing) * 0.8);
+}
+window#powermenu box.powermenu button:hover image {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#powermenu box.powermenu button:hover label {
+  color: var(--fg);
+}
+window#powermenu box.powermenu button:focus image {
+  box-shadow: inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg), var(--neu-button-highlight), var(--neu-button-shadow);
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window#powermenu box.powermenu button:active image {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
+window#powermenu box.powermenu button:focus label, window#powermenu box.powermenu button:active label {
+  color: var(--primary-bg);
+}
+
+window.settings-dialog {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+window.settings-dialog box.header {
+  padding: var(--padding);
+}
+window.settings-dialog box.header box.pager.horizontal > * {
+  margin: 0 calc(var(--spacing) * 1 / 2);
+}
+window.settings-dialog box.header box.pager.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.settings-dialog box.header box.pager.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.settings-dialog box.header box.pager.vertical > * {
+  margin: calc(var(--spacing) * 1 / 2) 0;
+}
+window.settings-dialog box.header box.pager.vertical > *:first-child {
+  margin-top: 0;
+}
+window.settings-dialog box.header box.pager.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.settings-dialog box.header box.pager {
+  padding: 0 var(--spacing);
+}
+window.settings-dialog box.header box.pager button {
+  padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
+}
+window.settings-dialog box.header box.pager button > box.horizontal > * {
+  margin: 0 0.15em;
+}
+window.settings-dialog box.header box.pager button > box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.settings-dialog box.header box.pager button > box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.settings-dialog box.header box.pager button > box.vertical > * {
+  margin: 0.15em 0;
+}
+window.settings-dialog box.header box.pager button > box.vertical > *:first-child {
+  margin-top: 0;
+}
+window.settings-dialog box.header box.pager button > box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.settings-dialog box.header button.reset {
+  padding: calc(var(--padding) / 2);
+}
+window.settings-dialog box.header button.close {
+  padding: calc(var(--padding) / 2);
+}
+window.settings-dialog scrolledwindow.page box.page-content {
+  padding: calc(var(--padding) * 2);
+  padding-top: 0;
+}
+window.settings-dialog box.group .header label.title {
+  color: var(--primary-bg);
+  font-weight: bold;
+}
+window.settings-dialog box.group .header button.reset {
+  padding: calc(var(--padding) / 2);
+}
+window.settings-dialog box.group .header button.reset:disabled {
+  color: transparent;
+}
+window.settings-dialog box.row {
+  background-color: var(--widget-bg);
+  padding: var(--padding);
+  border: var(--border);
+  border-top: none;
+}
+window.settings-dialog box.row:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+  border: var(--border);
+}
+window.settings-dialog box.row:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+window.settings-dialog box.row:first-child:last-child {
+  border-radius: var(--radius);
+  border: var(--border);
+}
+window.settings-dialog box.row label.id,
+window.settings-dialog box.row label.note {
+  color: color-mix(in srgb, var(--fg) 60%, transparent);
+}
+window.settings-dialog box.row button.reset {
+  padding: calc(var(--padding) / 2);
+  margin-left: var(--spacing);
+}
+window.settings-dialog box.row colorswatch {
+  border-radius: calc(var(--radius) / 4);
+}
+window.settings-dialog box.row picture.preview {
+  border-radius: var(--radius);
+  min-height: 15em;
+  min-width: 15em;
+}
+
+.placeholder.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+.placeholder.horizontal > *:first-child {
+  margin-left: 0;
+}
+.placeholder.horizontal > *:last-child {
+  margin-right: 0;
+}
+.placeholder.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+.placeholder.vertical > *:first-child {
+  margin-top: 0;
+}
+.placeholder.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.placeholder {
+  padding: calc(var(--padding) * 2);
+}
+.placeholder image {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  margin-bottom: 0.1em;
+}
+.placeholder label {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  font-size: 1.25em;
+}
+
+window.placeholder box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window.placeholder box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.placeholder box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.placeholder box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window.placeholder box.vertical > *:first-child {
+  margin-top: 0;
+}
+window.placeholder box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.placeholder label {
+  font-size: 72pt;
+  font-weight: bold;
+}

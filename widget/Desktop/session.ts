@@ -1,9 +1,11 @@
+// Tracks desktop selection, copied files, redraw requests, and renaming across monitors.
+
 import { createComputed, createState } from "ags"
 import { Gtk } from "ags/gtk4"
 import { idle } from "ags/time"
 
-import { desktop } from "$lib/services"
-import { getDesktopIconMetrics } from "$service/Desktop/layout"
+import { desktop } from "$service/Desktop"
+import { getDesktopIconMetrics } from "$service/Desktop/geometry"
 
 import options from "options"
 

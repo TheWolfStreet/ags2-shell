@@ -1,3 +1,5 @@
+// Copies, moves, renames, removes, imports, and opens desktop files.
+
 import { execAsync } from "ags/process"
 import { timeout, Timer } from "ags/time"
 
@@ -49,6 +51,12 @@ function uniqueDesktopTargetPath(baseName: string) {
 	return candidate
 }
 
+async function copyRecursively(sourcePath: string, targetPath: string): Promise<boolean> {
+	return execAsync(["gio", "copy", "--recursive", sourcePath, targetPath])
+		.then(() => true)
+		.catch(() => false)
+}
+
 export async function importDesktopFiles(
 	filePaths: string[],
 	preferredOperation: "copy" | "move",
@@ -81,15 +89,11 @@ export async function importDesktopFiles(
 				if (moved)
 					continue
 
-				const copied = await execAsync(["gio", "copy", "--recursive", sourcePath, targetPath])
-					.then(() => true)
-					.catch(() => false)
+				const copied = await copyRecursively(sourcePath, targetPath)
 				if (copied)
 					continue
 			} else {
-				const copied = await execAsync(["gio", "copy", "--recursive", sourcePath, targetPath])
-					.then(() => true)
-					.catch(() => false)
+				const copied = await copyRecursively(sourcePath, targetPath)
 				if (copied)
 					continue
 			}
@@ -328,16 +332,20 @@ export function loadDesktopFiles(): DesktopFile[] | Error {
 
 		fileEnum.close(null)
 
-		return foundFiles.sort((a, b) => {
-			const af = a.type === "inode/directory"
-			const bf = b.type === "inode/directory"
-			return af !== bf ? (af ? -1 : 1) : a.name.localeCompare(b.name)
-		})
+		return foundFiles.sort(compareDesktopFiles)
 	})
 
 	if (!result.ok)
 		return new Error("Failed to scan desktop directory", { cause: result.err })
 	return result.value
+}
+
+function compareDesktopFiles(left: DesktopFile, right: DesktopFile): number {
+	const leftIsDirectory = left.type === "inode/directory"
+	const rightIsDirectory = right.type === "inode/directory"
+	if (leftIsDirectory && !rightIsDirectory) return -1
+	if (!leftIsDirectory && rightIsDirectory) return 1
+	return left.name.localeCompare(right.name)
 }
 
 export function openFile(filePath: string): void | Error {

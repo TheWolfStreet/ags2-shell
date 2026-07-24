@@ -1,3 +1,5 @@
+// Shows a bar on each monitor and moves hidden bars to newly connected monitors.
+
 import app from "ags/gtk4/app"
 import { Accessor, createComputed, createState, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
@@ -14,8 +16,8 @@ import { QuickSettings } from "./components/QuickSettings"
 import { Power } from "widget/PowerMenu"
 
 import options from "options"
-import { ignoreInput, releaseMonitorWindow } from "$lib/utils"
-import type { MonitorControl } from "$lib/monitors"
+import type { MonitorWindowController } from "$lib/monitor-state"
+import { ignoreInput, releaseMonitorWindow } from "$lib/windows"
 import { trackMonitorFullscreen } from "$lib/fullscreen"
 
 const { CENTER } = Gtk.Align
@@ -52,12 +54,12 @@ function setupMarginTracking() {
 		if (height <= 0)
 			return
 
-		const next_margin = height % 2 === 1 ? height - 1 : height
-		if (next_margin <= 0 || next_margin === prevMargin)
+		const nextMargin = height % 2 === 1 ? height - 1 : height
+		if (nextMargin <= 0 || nextMargin === prevMargin)
 			return
 
-		prevMargin = next_margin
-		setMargin(next_margin)
+		prevMargin = nextMargin
+		setMargin(nextMargin)
 	}
 
 	const bindBarWindow = (self: Astal.Window) => {
@@ -148,7 +150,7 @@ function Layout() {
 	)
 }
 
-export function Bar({ gdkmonitor, control, initialVisible = true }: { gdkmonitor: Gdk.Monitor, control?: Partial<MonitorControl>, initialVisible?: boolean }) {
+export function Bar({ gdkmonitor, initialVisible = true }: { gdkmonitor: Gdk.Monitor, initialVisible?: boolean }): MonitorWindowController {
 	let barWin: Astal.Window | undefined
 	let topWin: Astal.Window | undefined
 	let bottomWin: Astal.Window | undefined
@@ -173,16 +175,16 @@ export function Bar({ gdkmonitor, control, initialVisible = true }: { gdkmonitor
 		marginTrackingCleanup,
 	} = setupMarginTracking()
 
-	if (control) {
-		control.park = () => setShown(false)
-		control.unpark = (mon) => {
-			fullscreen.retarget(mon)
-			barWin?.set_property("gdkmonitor", mon)
-			topWin?.set_property("gdkmonitor", mon)
-			bottomWin?.set_property("gdkmonitor", mon)
+	const controller: MonitorWindowController = {
+		park: () => setShown(false),
+		retarget(monitor) {
+			fullscreen.retarget(monitor)
+			barWin?.set_property("gdkmonitor", monitor)
+			topWin?.set_property("gdkmonitor", monitor)
+			bottomWin?.set_property("gdkmonitor", monitor)
 			setShown(true)
 			idle(updateMargin)
-		}
+		},
 	}
 
 	const paddingUnsub = padding.subscribe(updateMargin)
@@ -206,7 +208,7 @@ export function Bar({ gdkmonitor, control, initialVisible = true }: { gdkmonitor
 		repositionUnsub()
 	})
 
-	return (
+	void (
 		<>
 			<window
 				$={self => {
@@ -254,4 +256,6 @@ export function Bar({ gdkmonitor, control, initialVisible = true }: { gdkmonitor
 			/>
 		</>
 	)
+
+	return controller
 }

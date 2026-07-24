@@ -1,3 +1,5 @@
+// Shows power actions and asks for confirmation before running one.
+
 import { createState, With } from "ags"
 import { exec } from "ags/process"
 import { Gtk } from "ags/gtk4"
@@ -7,7 +9,7 @@ import { PopupWindow } from "widget/shared/PopupWindow"
 import { PanelButton } from "widget/Bar/components/PanelButton"
 
 import icons from "$lib/icons"
-import { onWindowToggle, toggleWindow } from "$lib/utils"
+import { onWindowToggle, toggleWindow } from "$lib/windows"
 
 import options from "options"
 

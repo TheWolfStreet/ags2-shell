@@ -1,11 +1,14 @@
+// Lists notifications, joins duplicates, removes old ones, and handles dismissal.
+
 import GObject, { getter, property, register } from "ags/gobject"
-import { timeout } from "ags/time"
+import { Timer, timeout } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
 import { attempt } from "$lib/result"
+import { notificationDaemon } from "$service/system"
 import options from "options"
 
 const DISPLAY_LIMIT = 50
@@ -16,7 +19,7 @@ const COALESCE_MS = 16
 const PRUNE_DELAY_MS = 250
 
 @register()
-export default class NotificationManager extends GObject.Object {
+class NotificationManager extends GObject.Object {
 	declare static $gtype: GObject.GType<NotificationManager>
 	static instance: NotificationManager
 
@@ -28,6 +31,8 @@ export default class NotificationManager extends GObject.Object {
 	#storeHandlers: number[]
 	#coalesceSourceId: number | null
 	#pruneSourceId: number | null
+	#ownerWarningTimer: Timer | null
+	#dismissAllTimer: Timer | null
 
 	readonly sessionStart: number
 
@@ -37,10 +42,12 @@ export default class NotificationManager extends GObject.Object {
 	constructor() {
 		super()
 
-		this.#notifd = AstalNotifd.get_default()
+		this.#notifd = notificationDaemon
 		this.#storeHandlers = []
 		this.#coalesceSourceId = null
 		this.#pruneSourceId = null
+		this.#ownerWarningTimer = null
+		this.#dismissAllTimer = null
 		this.sessionStart = Math.floor(Date.now() / 1000)
 		this.dismissingAll = false
 		this.popupHovered = false
@@ -51,7 +58,10 @@ export default class NotificationManager extends GObject.Object {
 		)
 
 		this.#schedulePrune()
-		timeout(5000, () => this.#warnIfNotDaemonOwner())
+		this.#ownerWarningTimer = timeout(5000, () => {
+			this.#ownerWarningTimer = null
+			this.#warnIfNotDaemonOwner()
+		})
 	}
 
 	#warnIfNotDaemonOwner() {
@@ -99,7 +109,9 @@ export default class NotificationManager extends GObject.Object {
 
 	dismissAll(transitionDuration: number, maxStaggerDelay: number) {
 		this.dismissingAll = true
-		timeout(transitionDuration + maxStaggerDelay, () => {
+		this.#dismissAllTimer?.cancel()
+		this.#dismissAllTimer = timeout(transitionDuration + maxStaggerDelay, () => {
+			this.#dismissAllTimer = null
 			this.dismissingAll = false
 			this.clearAll()
 		})
@@ -138,6 +150,10 @@ export default class NotificationManager extends GObject.Object {
 	}
 
 	vfunc_finalize() {
+		this.#ownerWarningTimer?.cancel()
+		this.#ownerWarningTimer = null
+		this.#dismissAllTimer?.cancel()
+		this.#dismissAllTimer = null
 		if (this.#coalesceSourceId !== null) {
 			GLib.Source.remove(this.#coalesceSourceId)
 			this.#coalesceSourceId = null
@@ -155,3 +171,5 @@ export default class NotificationManager extends GObject.Object {
 		super.vfunc_finalize()
 	}
 }
+
+export const notificationManager = NotificationManager.get_default()
