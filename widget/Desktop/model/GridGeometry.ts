@@ -48,11 +48,19 @@ const ICON_METRICS_BY_SIZE: Record<DesktopIconSize, DesktopIconMetrics> = {
 
 const ZERO_PADDING: WorkAreaPadding = { left: 0, right: 0, top: 0, bottom: 0 }
 
-export function getDesktopIconMetrics(size: string): DesktopIconMetrics {
-	if (size === "medium") return ICON_METRICS_BY_SIZE.medium
-	if (size === "large") return ICON_METRICS_BY_SIZE.large
-	if (size === "extralarge") return ICON_METRICS_BY_SIZE.extralarge
-	return ICON_METRICS_BY_SIZE.small
+export function getDesktopIconMetrics(size: string, scale = 1): DesktopIconMetrics {
+	const metrics = size === "medium"
+		? ICON_METRICS_BY_SIZE.medium
+		: size === "large"
+			? ICON_METRICS_BY_SIZE.large
+			: size === "extralarge"
+				? ICON_METRICS_BY_SIZE.extralarge
+				: ICON_METRICS_BY_SIZE.small
+	return {
+		...metrics,
+		iconPx: Math.max(8, Math.round(metrics.iconPx * scale)),
+		cellPx: Math.max(16, Math.round(metrics.cellPx * scale)),
+	}
 }
 
 export function getGridMetrics(
@@ -60,11 +68,12 @@ export function getGridMetrics(
 	height: number,
 	padding: WorkAreaPadding = ZERO_PADDING,
 	cellSize = ICON_METRICS_BY_SIZE.small.cellPx,
+	scale = 1,
 ): GridMetrics {
-	const requestedEdgeLeft = Math.max(0, Math.floor(GRID.edgeMargins.left))
-	const requestedEdgeRight = Math.max(0, Math.floor(GRID.edgeMargins.right))
-	const edgeTop = Math.max(0, Math.floor(GRID.edgeMargins.top))
-	const edgeBottom = Math.max(0, Math.floor(GRID.edgeMargins.bottom))
+	const requestedEdgeLeft = Math.max(0, Math.floor(GRID.edgeMargins.left * scale))
+	const requestedEdgeRight = Math.max(0, Math.floor(GRID.edgeMargins.right * scale))
+	const edgeTop = Math.max(0, Math.floor(GRID.edgeMargins.top * scale))
+	const edgeBottom = Math.max(0, Math.floor(GRID.edgeMargins.bottom * scale))
 	const paddingLeft = Math.max(0, Math.floor(padding.left))
 	const paddingRight = Math.max(0, Math.floor(padding.right))
 	const paddingTop = Math.max(0, Math.floor(padding.top))

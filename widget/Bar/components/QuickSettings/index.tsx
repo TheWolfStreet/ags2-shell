@@ -1,7 +1,7 @@
 // Shows network, audio, power, media, and display controls on each monitor.
 
 import app from "ags/gtk4/app"
-import { createBinding, For, onCleanup } from "ags"
+import { createBinding, createComputed, For, onCleanup } from "ags"
 import { monitorFile } from "ags/file"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
@@ -148,6 +148,8 @@ export namespace QuickSettings {
 
 	export function Window() {
 		const players = createBinding(media, "players")
+		const avatarSize = options.scale.as(scale => Math.round(64 * scale / 100))
+		const popupWidth = createComputed(() => Math.round(quicksettings.width() * options.scale() / 100))
 
 		// Each toggle row is followed by the collapsible menus controlled by those toggles.
 		function ToggleRow({ toggles, menus = [] }: { toggles: JSX.Element[], menus?: JSX.Element[] }) {
@@ -165,14 +167,19 @@ export namespace QuickSettings {
 			<Gtk.Picture
 				class="avatar"
 				$={self => {
-					const monitor = monitorFile(env.paths.avatar, () => {
-						self.paintable = textureFromFileSquareContain(env.paths.avatar, 64) as Gdk.Paintable
+					const refresh = () => {
+						self.paintable = textureFromFileSquareContain(env.paths.avatar, avatarSize.peek()) as Gdk.Paintable
+					}
+					const monitor = monitorFile(env.paths.avatar, refresh)
+					const unsubscribe = avatarSize.subscribe(refresh)
+					refresh()
+					onCleanup(() => {
+						monitor.cancel()
+						unsubscribe()
 					})
-					onCleanup(() => monitor.cancel())
 				}}
-				paintable={textureFromFileSquareContain(env.paths.avatar, 64) as Gdk.Paintable}
-				widthRequest={64}
-				heightRequest={64}
+				widthRequest={avatarSize}
+				heightRequest={avatarSize}
 				halign={CENTER}
 				valign={CENTER}
 				contentFit={COVER}
@@ -193,7 +200,8 @@ export namespace QuickSettings {
 			</box >
 
 		const monitorHeights = app.get_monitors().map(m => m.get_geometry().height)
-		const maxContentHeight = (monitorHeights.length ? Math.min(...monitorHeights) : 1080) - 96
+		const monitorHeight = monitorHeights.length ? Math.min(...monitorHeights) : 1080
+		const maxContentHeight = options.scale.as(scale => monitorHeight - Math.round(96 * scale / 100))
 
 		return (
 			<PopupWindow
@@ -210,7 +218,7 @@ export namespace QuickSettings {
 					maxContentHeight={maxContentHeight}
 				>
 					<box class="quicksettings vertical"
-						css={quicksettings.width.as((width: number) => `min-width: ${width}px;`)}
+						css={popupWidth.as(width => `min-width: ${width}px;`)}
 						orientation={VERTICAL}>
 						<Header />
 						<box class="sliders-box vertical" orientation={VERTICAL}>

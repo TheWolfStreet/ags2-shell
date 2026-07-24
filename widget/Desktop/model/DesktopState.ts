@@ -97,7 +97,8 @@ export function createDesktopGridModel(monitor: Gdk.Monitor): DesktopGridModel {
 	const padding = createComputed(desktopPadding)
 	const metrics = createComputed(() => {
 		const matchedMonitor = matchMonitor(monitor, hyprMonitors() ?? [])
-		return getGridMetrics(matchedMonitor.geometry.width, matchedMonitor.geometry.height, padding(), desktopInteraction.iconMetrics().cellPx)
+		const scale = options.scale() / 100
+		return getGridMetrics(matchedMonitor.geometry.width, matchedMonitor.geometry.height, padding(), desktopInteraction.iconMetrics().cellPx, scale)
 	})
 	const files = createComputed(() => desktopController.getGridController(id()).files())
 	const positions = createComputed(() => desktopController.getGridController(id()).positions())
@@ -150,7 +151,7 @@ const roots = new Set<Gtk.Widget>()
 
 export const desktopInteraction = {
 	enabled: options.desktop.enabled,
-	iconMetrics: createComputed(() => getDesktopIconMetrics(options.desktop.iconSize())),
+	iconMetrics: createComputed(() => getDesktopIconMetrics(options.desktop.iconSize(), options.scale() / 100)),
 	clipboard: desktopController.clipboard,
 	selected,
 	pressed,

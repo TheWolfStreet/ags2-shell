@@ -29,9 +29,7 @@ function ensureProviders() {
 		return
 
 	staticProvider = new Gtk.CssProvider()
-	runtimeProvider = new Gtk.CssProvider()
 	Gtk.StyleContext.add_provider_for_display(display, staticProvider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-	Gtk.StyleContext.add_provider_for_display(display, runtimeProvider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
 	loadStaticCss()
 }
 
@@ -50,9 +48,18 @@ function performResetCss() {
 	if (runtimeCssContent === lastRuntimeCssContent)
 		return
 
-	lastRuntimeCssContent = runtimeCssContent
 	ensureProviders()
-	runtimeProvider?.load_from_string(runtimeCssContent)
+	const display = Gdk.Display.get_default()
+	if (!display)
+		return
+
+	const nextProvider = new Gtk.CssProvider()
+	nextProvider.load_from_string(runtimeCssContent)
+	if (runtimeProvider)
+		Gtk.StyleContext.remove_provider_for_display(display, runtimeProvider)
+	runtimeProvider = nextProvider
+	Gtk.StyleContext.add_provider_for_display(display, runtimeProvider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+	lastRuntimeCssContent = runtimeCssContent
 }
 
 function resetCss() {

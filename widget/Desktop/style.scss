@@ -26,7 +26,7 @@ window#desktop {
 
     .desktop-icon {
       padding: 0;
-      margin: 3px;
+      margin: calc(3px * var(--scale, 1));
       border: 1px solid transparent;
       min-width: 0;
       min-height: 0;
@@ -65,7 +65,7 @@ window#desktop {
       }
 
       .desktop-icon-inner {
-        padding: 6px;
+        padding: calc(6px * var(--scale, 1));
         border-radius: inherit;
 
         image {
@@ -78,7 +78,7 @@ window#desktop {
         }
 
         .desktop-icon-preview {
-          border-radius: 14px;
+          border-radius: calc(14px * var(--scale, 1));
           box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 16%, transparent);
         }
       }
@@ -88,8 +88,8 @@ window#desktop {
         color: #ffffff;
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 3px rgba(0, 0, 0, 0.5);
         font-weight: 500;
-        padding: 1px 6px;
-        border-radius: 9px;
+        padding: calc(1px * var(--scale, 1)) calc(6px * var(--scale, 1));
+        border-radius: calc(9px * var(--scale, 1));
         background: transparent;
         transition: background-color var(--transition), box-shadow var(--transition);
 
@@ -126,7 +126,7 @@ window#desktop-context-menu {
     color: var(--fg);
     border-radius: calc(var(--popover-radius) / 2);
     padding: calc(var(--padding) / 2);
-    min-width: 180px;
+    min-width: calc(180px * var(--scale, 1));
 
     button {
       @extend .flat-button;

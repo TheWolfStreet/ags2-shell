@@ -43,8 +43,8 @@ type CornerProps = {
 
 function setupMarginTracking() {
 	let barWin: Astal.Window | undefined
-	let tickID = 0
 	let prevMargin = 0
+	let unsubscribe: (() => void)[] = []
 
 	const [margin, setMargin] = createState(34)
 
@@ -61,18 +61,29 @@ function setupMarginTracking() {
 		setMargin(nextMargin)
 	}
 
-	const bindBarWindow = (self: Astal.Window) => {
-		barWin = self
-		updateMargin()
-		tickID = self.add_tick_callback(() => {
+	const settle = () => {
+		if (!barWin)
+			return
+		let frames = 0
+		barWin.add_tick_callback(() => {
 			updateMargin()
-			return true
+			return ++frames < 5
 		})
 	}
 
+	const bindBarWindow = (self: Astal.Window) => {
+		barWin = self
+		updateMargin()
+		settle()
+		unsubscribe = [
+			options.scale.subscribe(settle),
+			options.font.subscribe(settle),
+			options.theme.padding.subscribe(settle),
+		]
+	}
+
 	const destroy = () => {
-		if (barWin && tickID > 0)
-			barWin.remove_tick_callback(tickID)
+		unsubscribe.forEach(u => u())
 	}
 
 	return {

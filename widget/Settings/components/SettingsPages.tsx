@@ -26,7 +26,10 @@ function Page({ name, iconName, children = [] }: PageProps) {
 			name={name}
 			iconName={iconName}
 			child={
-				<Gtk.ScrolledWindow class="page" css="min-height: 300px;">
+				<Gtk.ScrolledWindow
+					class="page"
+					css={options.scale.as(scale => `min-height: ${Math.round(300 * scale / 100)}px;`)}
+				>
 					<box class="page-content" vexpand orientation={VERTICAL}>
 						{children}
 					</box>
@@ -270,8 +273,8 @@ const System = () => (
 		</Group>
 
 		<Group title="ASUS" visible={createBinding(asusctl, "available")}>
-			<Row opt={asus.ac_hz} title="Refresh Rate (AC)" type="enum" enums={optionValues.refreshRate} />
-			<Row opt={asus.bat_hz} title="Refresh Rate (Battery)" type="enum" enums={optionValues.refreshRate} />
+			<Row opt={asus.ac_hz} title="Refresh Rate (AC)" type="enum" enums={asusctl.refreshRates} />
+			<Row opt={asus.bat_hz} title="Refresh Rate (Battery)" type="enum" enums={asusctl.refreshRates} />
 			<Row
 				opt={asus.resolution}
 				title="Resolution"

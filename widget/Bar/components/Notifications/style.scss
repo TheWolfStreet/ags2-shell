@@ -34,8 +34,8 @@
 
   box.content {
     box.image-preview {
-      min-height: 75px;
-      min-width: 75px;
+      min-height: calc(75px * var(--scale, 1));
+      min-width: calc(75px * var(--scale, 1));
       margin-right: var(--spacing);
     }
 
@@ -84,7 +84,7 @@ window.notifications {
     margin-bottom: 0;
 
     box.description {
-      min-width: 350px;
+      min-width: calc(350px * var(--scale, 1));
     }
   }
 }

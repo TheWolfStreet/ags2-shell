@@ -38,8 +38,8 @@ window#quicksettings {
     picture.avatar {
       @extend .widget;
       border-radius: calc(var(--radius) * 3);
-      min-width: 65px;
-      min-height: 65px;
+      min-width: calc(65px * var(--scale, 1));
+      min-height: calc(65px * var(--scale, 1));
       background-clip: padding-box;
     }
 
@@ -151,7 +151,7 @@ window#quicksettings {
       }
 
       scrolledwindow {
-        min-height: 200px;
+        min-height: calc(200px * var(--scale, 1));
       }
 
       box.settings,
@@ -301,19 +301,19 @@ window#quicksettings {
           margin: 0 calc(var(--spacing) / 2);
           trough {
             border: none;
-            min-height: 0.45em;
+            min-height: calc(6px * var(--scale, 1));
             margin-top: var(--spacing);
             margin-bottom: var(--spacing);
 
             highlight,
             progress {
-              min-height: 0.45em;
+              min-height: calc(6px * var(--scale, 1));
             }
           }
 
           slider {
-            min-height: 0.5em;
-            min-width: 0.5em;
+            min-height: calc(6px * var(--scale, 1));
+            min-width: calc(6px * var(--scale, 1));
             margin: 0;
           }
         }

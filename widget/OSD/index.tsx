@@ -84,7 +84,7 @@ export namespace OSD {
 				<Gtk.AspectFrame obeyChild={false} ratio={1}>
 					<box
 						class="state-display" orientation={VERTICAL} hexpand vexpand>
-						<image iconName={icon} pixelSize={64} useFallback vexpand hexpand />
+						<image iconName={icon} pixelSize={options.scale.as(scale => Math.round(64 * scale / 100))} useFallback vexpand hexpand />
 						<Gtk.ProgressBar class={muted.as(v => v ? "percentage muted" : "percentage")} fraction={value} hexpand />
 					</box>
 				</Gtk.AspectFrame>

@@ -23,13 +23,16 @@ import options from "options"
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { WORD } = Gtk.WrapMode
-const { SLIDE_DOWN, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
+const { SLIDE_DOWN, SLIDE_UP, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
 const { EllipsizeMode } = Pango
 const { NORMAL } = Astal.Exclusivity
 const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor
 const POPUP_LIMIT = 50
 
 export namespace Notifications {
+	const previewSize = options.scale.as(scale => Math.round(75 * scale / 100))
+	const popupWidth = options.scale.as(scale => Math.round(350 * scale / 100))
+
 	type NotificationProps = {
 		entry: AstalNotifd.Notification
 		widthRequest?: Accessor<number> | number
@@ -37,6 +40,7 @@ export namespace Notifications {
 		index?: EntryIndex
 		onExit?: () => void
 		registerClose?: (close: () => void) => void
+		transitionType?: Accessor<Gtk.RevealerTransitionType> | Gtk.RevealerTransitionType
 	}
 
 	type PopupEntry = {
@@ -139,19 +143,22 @@ export namespace Notifications {
 	}
 
 	function Content({ notification, imagePath }: ContentProps) {
-		const previewPaintable = imagePath ? createSquareTextureAccessor(imagePath, 75) : null
+		const previewPaintable = imagePath
+			? createComputed(() => createSquareTextureAccessor(imagePath, previewSize())())
+			: null
 
 		return (
 			<box class="content">
 				{previewPaintable && (
-					<box class="image-preview" widthRequest={75} heightRequest={75}>
+					<box class="image-preview" widthRequest={previewSize} heightRequest={previewSize}>
 						<Gtk.Picture
 							class="preview"
-							widthRequest={75}
-							heightRequest={75}
+							widthRequest={previewSize}
+							heightRequest={previewSize}
 							halign={CENTER}
 							valign={CENTER}
 							paintable={previewPaintable as unknown as Accessor<Gdk.Paintable>}
+							canShrink
 						/>
 					</box>
 				)}
@@ -180,7 +187,7 @@ export namespace Notifications {
 		)
 	}
 
-	function Notification({ entry: notification, widthRequest, persistent, index, onExit, registerClose }: NotificationProps) {
+	function Notification({ entry: notification, widthRequest, persistent, index, onExit, registerClose, transitionType = SLIDE_DOWN }: NotificationProps) {
 		const visibility = createVisibilityController(false)
 		const [showActions, setShowActions] = createState(false)
 
@@ -217,7 +224,7 @@ export namespace Notifications {
 			<revealer
 				revealChild={visibility.value}
 				transitionDuration={options.transition.duration}
-				transitionType={SLIDE_DOWN}
+				transitionType={transitionType}
 				onMap={state.onMap}
 				onNotifyChildRevealed={(self) => {
 					state.onHidden(!self.get_child_revealed() && !self.get_reveal_child())
@@ -262,6 +269,7 @@ export namespace Notifications {
 		const entries = new Map<number, PopupEntry>()
 		const pending = new Map<number, AstalNotifd.Notification>()
 		const container = <box class="notifications-stack" orientation={VERTICAL} valign={START} /> as Gtk.Box
+		const transitionType = options.notifications.position.as(position => position.startsWith("bottom") ? SLIDE_UP : SLIDE_DOWN)
 
 		function remove(entry: PopupEntry) {
 			if (entries.get(entry.notification.id) !== entry) return
@@ -281,6 +289,7 @@ export namespace Notifications {
 					entry={notification}
 					persistent={false}
 					index={entries.size - 1}
+					transitionType={transitionType}
 					onExit={() => remove(entry)}
 					registerClose={close => {
 						entry.close = close
@@ -368,7 +377,7 @@ export namespace Notifications {
 				visible
 				resizable={false}
 				heightRequest={1}
-				widthRequest={350}
+				widthRequest={popupWidth}
 				name="notifications"
 				class="notifications"
 				application={app}

@@ -17,7 +17,6 @@ export const optionValues = {
 	dateMenuPosition: ["center", "top-center", "bottom-center"],
 	powerMenuLayout: ["box", "line"],
 	osdPosition: ["center", "bottom-center"],
-	refreshRate: [60, 144, 240],
 } as const
 
 const constraints = {
@@ -35,8 +34,6 @@ const constraints = {
 	"powermenu.layout": optionValues.powerMenuLayout,
 	"osd.position": optionValues.osdPosition,
 	"notifications.position": optionValues.popupPosition,
-	"asus.ac_hz": optionValues.refreshRate,
-	"asus.bat_hz": optionValues.refreshRate,
 } as const
 
 const options = mkOptions({
@@ -123,7 +120,7 @@ const options = mkOptions({
 	},
 
 	taskbar: {
-		location: "bar",
+		location: "dock",
 	},
 
 	dock: {

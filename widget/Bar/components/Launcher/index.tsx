@@ -86,6 +86,7 @@ function rankApplications(index: IndexedApplication[], query: string, limit: num
 
 export namespace Launcher {
 	const allApps = createBinding(applications, "list")
+	const iconSize = options.scale.as(scale => Math.round(64 * scale / 100))
 	const revealers = new Map<string, Gtk.Revealer>()
 	const isOnBottom = createComputed(() => position() === "bottom-center")
 	const appTransition = isOnBottom.as(isBottom => isBottom ? SLIDE_UP : SLIDE_DOWN)
@@ -150,7 +151,7 @@ export namespace Launcher {
 							<button tooltipText={app.get_name()} onClicked={() => launch(app)} hexpand>
 								<image
 									iconName={app.get_icon_name()}
-									pixelSize={64}
+									pixelSize={iconSize}
 								/>
 							</button>
 						) : (
@@ -189,7 +190,7 @@ export namespace Launcher {
 				<box>
 					<image
 						iconName={iconReady.as(ready => ready ? app.get_icon_name() : "")}
-						pixelSize={64}
+						pixelSize={iconSize}
 						useFallback
 					/>
 					<box valign={CENTER} orientation={VERTICAL}>
@@ -394,7 +395,7 @@ export namespace Launcher {
 		)
 
 		const launcherCss = createComputed(() => {
-			const margin = options.launcher.margin()
+			const margin = options.launcher.margin() * options.scale() / 100
 			return position() === "bottom-center"
 				? `margin-bottom: ${margin}pt;`
 				: `margin-top: ${margin}pt;`

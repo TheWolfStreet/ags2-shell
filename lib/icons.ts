@@ -26,7 +26,7 @@ const iconList = {
 		settings: "org.gnome.Settings-symbolic",
 		themes: "dark-mode-symbolic",
 		tick: "object-select-symbolic",
-		toolbars: "toolbars-symbolic",
+		toolbars: "preferences-desktop-multitasking-symbolic",
 		eye: "view-reveal-symbolic",
 		hidden: "view-conceal-symbolic",
 		arrow: {
@@ -75,6 +75,7 @@ const iconList = {
 			low: "display-brightness-low-symbolic",
 			medium: "display-brightness-medium-symbolic",
 			high: "display-brightness-high-symbolic",
+			full: "display-brightness-symbolic",
 		},
 	},
 	powermenu: {
@@ -112,8 +113,8 @@ const iconList = {
 		next: "media-skip-forward-symbolic",
 	},
 	color: {
-		dark: "dark-mode-symbolic",
-		light: "display-brightness-symbolic",
+		dark: "weather-clear-night-symbolic",
+		light: "weather-clear-symbolic",
 	},
 }
 
@@ -128,11 +129,20 @@ export function resolveIcon(name?: string, fallback = iconList.missing): string 
 }
 
 export function getBrightnessIcon(percent: number, type: "screen" | "keyboard" = "screen"): string {
-	const icons = type === "keyboard" ? iconList.brightness.keyboard : iconList.brightness.screen
+	if (type === "keyboard") {
+		const icons = iconList.brightness.keyboard
+		if (percent === 0) return icons.off
+		if (percent < 0.4) return icons.low
+		if (percent < 0.8) return icons.medium
+		return icons.high
+	}
+
+	const icons = iconList.brightness.screen
 	if (percent === 0) return icons.off
-	if (percent < 0.4) return icons.low
-	if (percent < 0.8) return icons.medium
-	return icons.high
+	if (percent < 0.25) return icons.low
+	if (percent < 0.5) return icons.medium
+	if (percent < 0.75) return icons.high
+	return icons.full
 }
 
 export default iconList

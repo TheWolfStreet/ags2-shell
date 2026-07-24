@@ -3,6 +3,8 @@
 import { Gtk } from "ags/gtk4"
 import { FCProps, Accessor } from "ags"
 
+import options from "options"
+
 const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 
@@ -23,7 +25,7 @@ export function Placeholder({ iconName, label, visible }: PlaceholderProps) {
 			hexpand
 			orientation={VERTICAL}
 		>
-			<image iconName={iconName} useFallback pixelSize={64} />
+			<image iconName={iconName} useFallback pixelSize={options.scale.as(scale => Math.round(64 * scale / 100))} />
 			<label label={label} />
 		</box>
 	)

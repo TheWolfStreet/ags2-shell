@@ -22,7 +22,7 @@ window.placeholder {
   }
 
   label {
-    font-size: 72pt;
+    font-size: calc(72pt * var(--scale, 1));
     font-weight: bold;
   }
 }

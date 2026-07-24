@@ -98,12 +98,10 @@ pkgs,
     extraPackages = with pkgs; [
       brightnessctl # Setting brightness
       libwebp # WebP wallpaper support (dwebp)
-      # Recording and screenshot functionality
       grim # Screenshot software
       wf-recorder # Recording software
       swappy # Edit screenshot button
       slurp # Area selector
-      #---
       libheif # Converting HEIC wallpapers
       wl-clipboard # Copying colors from the colorpicker
       hyprpicker # Colorpicker
@@ -149,8 +147,8 @@ Apply the recommended gtk settings to match the appearance shown in the example 
     package = pkgs.qogir-icon-theme;
   };
   iconTheme = {
-    name = "WhiteSur";
-    package = pkgs.whitesur-icon-theme;
+    name = "MacTahoe";
+    package = inputs.mactahoe-icon-theme.packages.${pkgs.system}.default;
   };
 in {
   home = {

@@ -14,7 +14,7 @@ function pickThemeValue<T>(isDarkMode: boolean, darkValue: Opt<T> | T, lightValu
 	return unwrapOption(isDarkMode ? darkValue : lightValue)
 }
 
-function calculateNeumorphicEffects(enabled: boolean, isDarkMode: boolean, fgColor: string) {
+function calculateNeumorphicEffects(enabled: boolean, isDarkMode: boolean, fgColor: string, scale: number) {
 	if (!enabled) {
 		const transparent = "0 0 0 0 transparent"
 		return {
@@ -35,20 +35,21 @@ function calculateNeumorphicEffects(enabled: boolean, isDarkMode: boolean, fgCol
 
 	const highlightColor = isDarkMode ? "white" : fgColor
 	const shadowBaseColor = isDarkMode ? "black" : fgColor
+	const px = (value: number) => `${value * scale}px`
 
 	return {
-		buttonHighlight: `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 15 : 10}%, transparent)`,
-		buttonShadow: `0 1px 2px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)`,
-		buttonHoverHighlight: `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)`,
-		buttonHoverShadow: `0 1px 3px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 25 : 18}%, transparent)`,
-		buttonActiveHighlight: "inset 0 1px 0 0 color-mix(in srgb, white 35%, transparent)",
-		buttonActiveShadow: "0 1px 3px 0 color-mix(in srgb, black 35%, transparent)",
-		widgetHighlight: `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} 12%, transparent)`,
-		widgetShadow: `0 1px 2px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 17 : 12}%, transparent)`,
-		troughInset: `inset 0 1px 2px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 15 : 10}%, transparent), inset 0 -1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 5 : 4}%, transparent)`,
-		progressHighlight: `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)`,
-		progressShadow: `0 1px 1px 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)`,
-		sliderHighlight: `inset 0 1px 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 30 : 22}%, transparent)`,
+		buttonHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 15 : 10}%, transparent)`,
+		buttonShadow: `0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)`,
+		buttonHoverHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)`,
+		buttonHoverShadow: `0 ${px(1)} ${px(3)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 25 : 18}%, transparent)`,
+		buttonActiveHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, white 35%, transparent)`,
+		buttonActiveShadow: `0 ${px(1)} ${px(3)} 0 color-mix(in srgb, black 35%, transparent)`,
+		widgetHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} 12%, transparent)`,
+		widgetShadow: `0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 17 : 12}%, transparent)`,
+		troughInset: `inset 0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 15 : 10}%, transparent), inset 0 ${px(-1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 5 : 4}%, transparent)`,
+		progressHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)`,
+		progressShadow: `0 ${px(1)} ${px(1)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)`,
+		sliderHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 30 : 22}%, transparent)`,
 	}
 }
 
@@ -262,7 +263,7 @@ export function buildRuntimeCss(): string {
 	const isDarkMode = options.theme.scheme.peek().includes("dark")
 	const palette = computePalette(isDarkMode)
 	const layout = computeLayout()
-	const neu = calculateNeumorphicEffects(options.theme.neumorphic.peek(), isDarkMode, palette.fg)
+	const neu = calculateNeumorphicEffects(options.theme.neumorphic.peek(), isDarkMode, palette.fg, layout.scale)
 	const definitions = buildGtkColorDefinitions(palette)
 	const properties = buildCustomProperties(palette, layout, neu)
 

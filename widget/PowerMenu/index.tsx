@@ -118,7 +118,11 @@ export namespace PowerMenu {
 		return (
 			<button onClicked={() => onSelect(action)}>
 				<box orientation={VERTICAL}>
-					<image iconName={icons.powermenu[action]} useFallback pixelSize={52} />
+					<image
+						iconName={icons.powermenu[action]}
+						useFallback
+						pixelSize={options.scale.as(scale => Math.round(52 * scale / 100))}
+					/>
 					<label label={label} visible={labels} />
 				</box>
 			</button>

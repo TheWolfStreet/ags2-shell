@@ -31,6 +31,26 @@ window#launcher {
 
     entry {
       margin: var(--spacing);
+      min-height: 0;
+      padding: calc(var(--padding) * 0.75) var(--padding);
+
+      > text {
+        all: unset;
+        color: var(--fg);
+        min-height: 0;
+
+        > placeholder {
+          color: color-mix(in srgb, var(--fg) 60%, transparent);
+          opacity: 1;
+        }
+      }
+
+      > image {
+        all: unset;
+        color: color-mix(in srgb, var(--fg) 60%, transparent);
+        -gtk-icon-size: var(--icon-size);
+        margin-right: calc(var(--spacing) / 2);
+      }
 
       &:focus-visible {
         outline: none;
@@ -41,10 +61,6 @@ window#launcher {
         background-color: transparent;
       }
 
-      label,
-      image {
-        color: var(--fg);
-      }
     }
 
     image.spinner {
@@ -53,7 +69,7 @@ window#launcher {
     }
 
     separator {
-      margin: 4pt 0;
+      margin: calc(4pt * var(--scale, 1)) 0;
       background-color: var(--popover-border-color);
     }
 

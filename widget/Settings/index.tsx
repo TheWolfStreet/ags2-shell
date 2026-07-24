@@ -82,8 +82,8 @@ export namespace Settings {
 				name="settings-dialog"
 				class="settings-dialog"
 				application={app}
-				defaultHeight={600}
-				defaultWidth={500}
+				defaultHeight={options.scale.as(scale => Math.round(600 * scale / 100))}
+				defaultWidth={options.scale.as(scale => Math.round(500 * scale / 100))}
 				hideOnClose
 				iconName={icons.ui.settings}
 			>

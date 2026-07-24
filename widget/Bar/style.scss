@@ -38,7 +38,7 @@ window#bar {
     }
 
     .tray-menu {
-      min-width: 180px;
+      min-width: calc(180px * var(--scale, 1));
 
       button.model-item .check {
         margin-right: calc(var(--spacing) / 2);

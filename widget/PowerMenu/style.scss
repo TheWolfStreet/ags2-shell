@@ -9,8 +9,8 @@ window#verification {
 window#verification box.verification {
   @extend .floating;
   padding: calc(var(--popover-padding) * 1.5);
-  min-width: 300px;
-  min-height: 100px;
+  min-width: calc(300px * var(--scale, 1));
+  min-height: calc(100px * var(--scale, 1));
 
   box.text-box {
     margin-bottom: var(--spacing);

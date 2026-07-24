@@ -13,11 +13,14 @@ import { formatClock } from "$lib/time"
 import { createSquareTextureAccessor } from "$lib/textures"
 import { debounce } from "$lib/timing"
 
+import options from "options"
+
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { COVER } = Gtk.ContentFit
 const durationCache = new Map<string, number>()
 const DURATION_CACHE_LIMIT = 64
+const coverSize = options.scale.as(scale => Math.round(100 * scale / 100))
 
 function rememberDuration(track: string, duration: number) {
 	if (durationCache.has(track)) durationCache.delete(track)
@@ -44,7 +47,7 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const coverArt = createBinding(player, "coverArt")
 	const artUrl = createBinding(player, "artUrl")
 	const coverUri = createComputed(() => coverArt() || artUrl() || "")
-	const coverTexture = createComputed(() => createSquareTextureAccessor(coverUri(), 100)())
+	const coverTexture = createComputed(() => createSquareTextureAccessor(coverUri(), coverSize())())
 	const hasCoverArt = coverTexture.as(texture => texture !== null)
 	const textMaxWidth = 20
 	const playerIcon = createBinding(player, "entry").as(entry => entry || "audio-x-generic-symbolic")
@@ -138,12 +141,13 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 			<Gtk.Picture
 				class="cover-art"
 				visible={hasCoverArt}
-				widthRequest={100}
-				heightRequest={100}
+				widthRequest={coverSize}
+				heightRequest={coverSize}
 				halign={CENTER}
 				valign={CENTER}
 				paintable={coverTexture.as(texture => texture as Gdk.Paintable)}
 				contentFit={COVER}
+				canShrink
 			/>
 
 			<box orientation={VERTICAL}>

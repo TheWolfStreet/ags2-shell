@@ -143,7 +143,7 @@ export namespace Overview {
 					$={self => imageWidget = self}
 					vexpand hexpand
 					valign={CENTER} halign={CENTER}
-					iconName={client.get_class()} pixelSize={16}
+					iconName={client.get_class()} pixelSize={options.scale.as(scale => Math.round(16 * scale / 100))}
 				/>
 				<Gtk.DragSource
 					actions={MOVE}

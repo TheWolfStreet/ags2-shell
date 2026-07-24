@@ -51,7 +51,7 @@ export namespace DisplayMirroring {
 				}}
 			>
 				<box class="mirror-item horizontal">
-					<image iconName={icons.ui.projector} pixelSize={16} />
+					<image iconName={icons.ui.projector} pixelSize={options.scale.as(scale => Math.round(16 * scale / 100))} />
 					<label label={`${monitor.model} (${monitor.name}) ${canEnableMirror ? "" : "(Mirrored)"}`} />
 				</box>
 			</button>

@@ -46,7 +46,7 @@ export namespace Battery {
 					<Gtk.ProgressBar
 						class="percentage"
 						fraction={percentage}
-						widthRequest={125}
+						widthRequest={options.scale.as(scale => Math.round(125 * scale / 100))}
 					/>
 					<label label={remainingTime} />
 				</box>

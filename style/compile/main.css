@@ -196,6 +196,8 @@ box.compact.vertical > *:last-child {
 
 scale {
   all: unset;
+  min-width: 0;
+  min-height: 0;
 }
 scale trough,
 scale highlight,
@@ -209,16 +211,16 @@ scale trough {
   border: var(--border);
   background-color: var(--widget-bg);
   box-shadow: var(--neu-trough-inset);
-  min-height: 0.6em;
-  min-width: 0.6em;
+  min-height: calc(8px * var(--scale, 1));
+  min-width: calc(8px * var(--scale, 1));
 }
 scale trough highlight,
 scale trough progress {
   transition: none;
   border-radius: max(var(--radius) - var(--border-width), 0px);
   background-image: var(--active-gradient);
-  min-height: 0.6em;
-  min-width: 0.6em;
+  min-height: calc(8px * var(--scale, 1));
+  min-width: calc(8px * var(--scale, 1));
   box-shadow: var(--neu-progress-highlight), var(--neu-progress-shadow);
 }
 scale slider {
@@ -227,14 +229,14 @@ scale slider {
   border: var(--border-width) solid transparent;
   transition: var(--transition);
   border-radius: var(--radius);
-  min-height: 0.6em;
-  min-width: 0.6em;
+  min-height: calc(8px * var(--scale, 1));
+  min-width: calc(8px * var(--scale, 1));
   margin: 0;
 }
 scale:hover slider {
   background-color: var(--fg);
   border-color: var(--border-color);
-  box-shadow: var(--neu-slider-highlight), 0 1px 3px 0 var(--shadow-color);
+  box-shadow: var(--neu-slider-highlight), 0 calc(1px * var(--scale, 1)) calc(3px * var(--scale, 1)) 0 var(--shadow-color);
 }
 scale:disabled highlight,
 scale:disabled progress {
@@ -271,8 +273,8 @@ switch:checked:focus-visible {
 switch slider {
   all: unset;
   border-radius: calc(var(--radius) * 2);
-  min-width: 24px;
-  min-height: 24px;
+  min-width: calc(24px * var(--scale, 1));
+  min-height: calc(24px * var(--scale, 1));
   background-color: var(--fg);
   box-shadow: var(--neu-button-highlight), var(--neu-button-shadow);
 }
@@ -289,6 +291,11 @@ entry {
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
   padding: var(--padding);
 }
+entry > text {
+  all: unset;
+  color: var(--fg);
+  min-height: 1em;
+}
 entry:focus-visible {
   outline: calc(var(--border-width) / 2) solid var(--primary-bg);
   outline-offset: -1px;
@@ -304,6 +311,8 @@ box.enum-setter button, spinbutton button {
   box-shadow: none;
   padding: var(--padding);
   background-color: transparent;
+  min-height: 1em;
+  -gtk-icon-size: 1em;
 }
 box.enum-setter button:not(:last-child), spinbutton button:not(:last-child) {
   margin-left: calc(var(--padding) / 2);
@@ -328,6 +337,19 @@ box.enum-setter button:active, spinbutton button:active {
   color: var(--primary-fg);
 }
 
+spinbutton {
+  all: unset;
+  color: var(--fg);
+  min-height: 0;
+  border-radius: var(--radius);
+  background-color: var(--widget-bg);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
+}
+spinbutton button {
+  color: var(--fg);
+  min-width: 0;
+  min-height: 1em;
+}
 spinbutton:focus-within {
   outline: none;
 }
@@ -337,16 +359,32 @@ spinbutton:focus-visible {
 }
 spinbutton text {
   all: unset;
+  color: var(--fg);
+  min-height: 1em;
   padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
   border-radius: var(--radius) 0 0 var(--radius);
 }
 spinbutton text:focus {
   all: unset;
+  color: var(--fg);
   padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
   border-radius: var(--radius) 0 0 var(--radius);
 }
 
+button.color-setter {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--padding);
+}
+button.color-setter > box.color-swatch {
+  min-width: calc(32px * var(--scale, 1));
+  min-height: calc(16px * var(--scale, 1));
+  border-radius: max(var(--radius) / 4, 1px);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+}
+
 box.enum-setter label {
+  min-height: 1em;
   padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
   border-radius: var(--radius) 0 0 var(--radius);
 }
@@ -663,6 +701,23 @@ window#launcher box.launcher box.quicklaunch button:hover image, window#launcher
 }
 window#launcher box.launcher entry {
   margin: var(--spacing);
+  min-height: 0;
+  padding: calc(var(--padding) * 0.75) var(--padding);
+}
+window#launcher box.launcher entry > text {
+  all: unset;
+  color: var(--fg);
+  min-height: 0;
+}
+window#launcher box.launcher entry > text > placeholder {
+  color: color-mix(in srgb, var(--fg) 60%, transparent);
+  opacity: 1;
+}
+window#launcher box.launcher entry > image {
+  all: unset;
+  color: color-mix(in srgb, var(--fg) 60%, transparent);
+  -gtk-icon-size: var(--icon-size);
+  margin-right: calc(var(--spacing) / 2);
 }
 window#launcher box.launcher entry:focus-visible {
   outline: none;
@@ -671,16 +726,12 @@ window#launcher box.launcher entry selection {
   color: color-mix(in srgb, var(--fg) 50%, var(--bg));
   background-color: transparent;
 }
-window#launcher box.launcher entry label,
-window#launcher box.launcher entry image {
-  color: var(--fg);
-}
 window#launcher box.launcher image.spinner {
   color: var(--primary-bg);
   margin-right: var(--spacing);
 }
 window#launcher box.launcher separator {
-  margin: 4pt 0;
+  margin: calc(4pt * var(--scale, 1)) 0;
   background-color: var(--popover-border-color);
 }
 window#launcher box.launcher button.app-item {
@@ -770,8 +821,8 @@ window#launcher box.launcher label.launch-hint {
   color: var(--fg);
 }
 .notification box.content box.image-preview {
-  min-height: 75px;
-  min-width: 75px;
+  min-height: calc(75px * var(--scale, 1));
+  min-width: calc(75px * var(--scale, 1));
   margin-right: var(--spacing);
 }
 .notification box.content picture.preview {
@@ -827,7 +878,7 @@ window.notifications box.notification {
   margin-bottom: 0;
 }
 window.notifications box.notification box.description {
-  min-width: 350px;
+  min-width: calc(350px * var(--scale, 1));
 }
 
 window#overview {
@@ -930,8 +981,8 @@ window#quicksettings .quicksettings {
 }
 window#quicksettings .quicksettings picture.avatar {
   border-radius: calc(var(--radius) * 3);
-  min-width: 65px;
-  min-height: 65px;
+  min-width: calc(65px * var(--scale, 1));
+  min-height: calc(65px * var(--scale, 1));
   background-clip: padding-box;
 }
 window#quicksettings .quicksettings label.username {
@@ -1093,7 +1144,7 @@ window#quicksettings .quicksettings box.menu button icon:first-child {
   margin-right: calc(var(--spacing) / 2);
 }
 window#quicksettings .quicksettings box.menu scrolledwindow {
-  min-height: 200px;
+  min-height: calc(200px * var(--scale, 1));
 }
 window#quicksettings .quicksettings box.menu box.settings.horizontal > *,
 window#quicksettings .quicksettings box.menu box.bluetooth-item.horizontal > *,
@@ -1303,17 +1354,17 @@ window#quicksettings .quicksettings box.media box.player scale {
 }
 window#quicksettings .quicksettings box.media box.player scale trough {
   border: none;
-  min-height: 0.45em;
+  min-height: calc(6px * var(--scale, 1));
   margin-top: var(--spacing);
   margin-bottom: var(--spacing);
 }
 window#quicksettings .quicksettings box.media box.player scale trough highlight,
 window#quicksettings .quicksettings box.media box.player scale trough progress {
-  min-height: 0.45em;
+  min-height: calc(6px * var(--scale, 1));
 }
 window#quicksettings .quicksettings box.media box.player scale slider {
-  min-height: 0.5em;
-  min-width: 0.5em;
+  min-height: calc(6px * var(--scale, 1));
+  min-width: calc(6px * var(--scale, 1));
   margin: 0;
 }
 window#quicksettings .quicksettings box.media box.player box.horizontal.horizontal > * {
@@ -1382,7 +1433,7 @@ window#bar popover contents button.model-item {
   padding: calc(var(--padding) * 0.8);
 }
 window#bar popover contents .tray-menu {
-  min-width: 180px;
+  min-width: calc(180px * var(--scale, 1));
 }
 window#bar popover contents .tray-menu button.model-item .check {
   margin-right: calc(var(--spacing) / 2);
@@ -1663,7 +1714,7 @@ window#desktop .desktop-container .desktop-icon:drop(active) {
 }
 window#desktop .desktop-container .desktop-icon {
   padding: 0;
-  margin: 3px;
+  margin: calc(3px * var(--scale, 1));
   border: 1px solid transparent;
   min-width: 0;
   min-height: 0;
@@ -1696,7 +1747,7 @@ window#desktop .desktop-container .desktop-icon.drag-pack {
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary-bg) 85%, transparent);
 }
 window#desktop .desktop-container .desktop-icon .desktop-icon-inner {
-  padding: 6px;
+  padding: calc(6px * var(--scale, 1));
   border-radius: inherit;
 }
 window#desktop .desktop-container .desktop-icon .desktop-icon-inner image {
@@ -1707,7 +1758,7 @@ window#desktop .desktop-container .desktop-icon .desktop-icon-inner .desktop-ico
   min-height: 0;
 }
 window#desktop .desktop-container .desktop-icon .desktop-icon-inner .desktop-icon-preview {
-  border-radius: 14px;
+  border-radius: calc(14px * var(--scale, 1));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 16%, transparent);
 }
 window#desktop .desktop-container .desktop-icon .desktop-icon-label {
@@ -1715,8 +1766,8 @@ window#desktop .desktop-container .desktop-icon .desktop-icon-label {
   color: #ffffff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 3px rgba(0, 0, 0, 0.5);
   font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 9px;
+  padding: calc(1px * var(--scale, 1)) calc(6px * var(--scale, 1));
+  border-radius: calc(9px * var(--scale, 1));
   background: transparent;
   transition: background-color var(--transition), box-shadow var(--transition);
 }
@@ -1748,7 +1799,7 @@ window#desktop-context-menu .contents {
   color: var(--fg);
   border-radius: calc(var(--popover-radius) / 2);
   padding: calc(var(--padding) / 2);
-  min-width: 180px;
+  min-width: calc(180px * var(--scale, 1));
 }
 window#desktop-context-menu .contents button {
   padding: calc(var(--padding) * 0.8);
@@ -2037,7 +2088,7 @@ window.placeholder box.vertical > *:last-child {
   margin-bottom: 0;
 }
 window.placeholder label {
-  font-size: 72pt;
+  font-size: calc(72pt * var(--scale, 1));
   font-weight: bold;
 }
 
@@ -2048,8 +2099,8 @@ window#verification {
 
 window#verification box.verification {
   padding: calc(var(--popover-padding) * 1.5);
-  min-width: 300px;
-  min-height: 100px;
+  min-width: calc(300px * var(--scale, 1));
+  min-height: calc(100px * var(--scale, 1));
 }
 window#verification box.verification box.text-box {
   margin-bottom: var(--spacing);

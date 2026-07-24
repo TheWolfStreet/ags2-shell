@@ -16,7 +16,6 @@ const { FONT } = Gtk.FontLevel
 const { RGBA } = Gdk
 const { FontDescription, FontFamily, FontFace, SCALE } = Pango
 
-const COLOR_UPDATE_DEBOUNCE_MS = 48
 const NUMBER_UPDATE_DEBOUNCE_MS = 70
 const TEXT_UPDATE_DEBOUNCE_MS = 180
 const FONT_UPDATE_DEBOUNCE_MS = 120
@@ -284,26 +283,33 @@ export default function Setter(props: SetterProps) {
 			)
 		}
 		case "color": {
-			const update = debounce<[string]>(COLOR_UPDATE_DEBOUNCE_MS, value => {
-				opt.set(value)
-			})
+			const dialog = new Gtk.ColorDialog
+			const chooseColor = (self: Gtk.Button) => {
+				const initial = new RGBA()
+				initial.parse(String(opt.peek()))
+				const root = self.get_root()
 
-			onCleanup(update.cancel)
+				dialog.choose_rgba(root instanceof Gtk.Window ? root : null, initial, null, (_source, result) => {
+					try {
+						opt.set(toHex(dialog.choose_rgba_finish(result)))
+					} catch {
+						// Closing the dialog cancels the asynchronous selection.
+					}
+				})
+			}
 
 			return (
-				<Gtk.ColorDialogButton
+				<button
+					class="color-setter"
 					valign={CENTER}
 					tooltipText={"Select a color"}
-					dialog={new Gtk.ColorDialog}
-					onNotifyRgba={self => {
-						update.call(toHex(self.get_rgba()))
-					}}
-					rgba={createComputed(() => {
-						const color = new RGBA()
-						color.parse(String(opt()))
-						return color
-					})}
-				/>
+					onClicked={chooseColor}
+				>
+					<box
+						class="color-swatch"
+						css={createComputed(() => `background-color: ${String(opt())};`)}
+					/>
+				</button>
 			)
 		}
 		default:

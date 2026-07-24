@@ -1,7 +1,7 @@
 // Starts the wallpaper parent and child processes and draws animated images on each monitor.
 
 import app from "ags/gtk4/app"
-import { createBinding, createRoot, onCleanup } from "ags"
+import { createBinding, createRoot, createState, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject, { property, register } from "ags/gobject"
 import { Process, execAsync, subprocess } from "ags/process"
@@ -10,6 +10,7 @@ import { idle, interval, timeout, Timer } from "ags/time"
 import Gio from "gi://Gio"
 import GdkPixbuf from "gi://GdkPixbuf"
 import GLib from "gi://GLib"
+import AstalHyprland from "gi://AstalHyprland"
 import { programArgs } from "system"
 
 import env from "$lib/env"
@@ -33,6 +34,25 @@ const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 
 const FADE_MS = 600
 const RESTART_DELAY_MS = 1000
+
+type MonitorSize = {
+	width: number
+	height: number
+}
+
+type MonitorSizeSnapshot = MonitorSize & {
+	name?: string
+}
+
+function readMonitorSize(monitorName: string): MonitorSize | null {
+	try {
+		const monitors = JSON.parse(AstalHyprland.get_default().message("j/monitors")) as MonitorSizeSnapshot[]
+		const monitor = monitors.find(monitor => monitor.name === monitorName)
+		return monitor ? { width: monitor.width, height: monitor.height } : null
+	} catch {
+		return null
+	}
+}
 
 function hasCommand(command: string) {
 	const found = GLib.find_program_in_path(command) !== null
@@ -263,10 +283,23 @@ function setupCrossfadeStack(stack: Gtk.Stack, pictures: [Gtk.Picture, Gtk.Pictu
 
 export namespace WallpaperWindow {
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
-		const geometry = gdkmonitor.get_geometry()
+		let monitorName = gdkmonitor.get_connector() ?? ""
+		const initialGeometry = gdkmonitor.get_geometry()
+		const [size, setSize] = createState(readMonitorSize(monitorName) ?? {
+			width: initialGeometry.width,
+			height: initialGeometry.height,
+		})
+		const syncSize = () => {
+			const next = readMonitorSize(monitorName)
+			const current = size.peek()
+			if (next && (next.width !== current.width || next.height !== current.height))
+				setSize(next)
+		}
+		const sizeTimer = interval(100, syncSize)
 		const pictures: [Gtk.Picture, Gtk.Picture] = [new Gtk.Picture(), new Gtk.Picture()]
 		for (const picture of pictures) {
 			picture.content_fit = Gtk.ContentFit.COVER
+			picture.can_shrink = true
 			picture.hexpand = true
 			picture.vexpand = true
 		}
@@ -280,6 +313,8 @@ export namespace WallpaperWindow {
 				anchor={TOP | BOTTOM | LEFT | RIGHT}
 				application={app}
 				gdkmonitor={gdkmonitor}
+				widthRequest={size.as(current => current.width)}
+				heightRequest={size.as(current => current.height)}
 				keymode={NONE}
 				focusable={false}
 				decorated={false}
@@ -288,8 +323,8 @@ export namespace WallpaperWindow {
 			>
 				<Gtk.Stack
 					$={self => setupCrossfadeStack(self, pictures, wallpaperService)}
-					widthRequest={geometry.width}
-					heightRequest={geometry.height}
+					widthRequest={size.as(current => current.width)}
+					heightRequest={size.as(current => current.height)}
 					css="background: black; border: none; border-radius: 0; box-shadow: none; margin: 0; padding: 0;"
 					hexpand
 					vexpand
@@ -297,9 +332,18 @@ export namespace WallpaperWindow {
 			</window>
 		) as Gtk.Window
 
-		onCleanup(() => scheduleMonitorWindowRelease(win))
+		onCleanup(() => {
+			sizeTimer.cancel()
+			scheduleMonitorWindowRelease(win)
+		})
 
-		return win
+		return {
+			retarget(nextMonitor: Gdk.Monitor) {
+				win.set_property("gdkmonitor", nextMonitor)
+				monitorName = nextMonitor.get_connector() ?? monitorName
+				syncSize()
+			},
+		}
 	}
 }
 
@@ -389,26 +433,30 @@ function monitorKey(monitor: Gdk.Monitor, index: number) {
 }
 
 function startWallpaperWindows() {
-	const active = new Map<string, { monitor: Gdk.Monitor, dispose: () => void }>()
+	const active = new Map<string, { monitor: Gdk.Monitor, retarget: (monitor: Gdk.Monitor) => void, dispose: () => void }>()
 
 	const sync = () => {
 		const current = new Map(app.get_monitors().map((monitor, index) => [monitorKey(monitor, index), monitor]))
 
 		for (const [key, slot] of active) {
 			const monitor = current.get(key)
-			if (!monitor || monitor !== slot.monitor) {
+			if (!monitor) {
 				slot.dispose()
 				active.delete(key)
+			} else if (monitor !== slot.monitor) {
+				slot.retarget(monitor)
+				slot.monitor = monitor
 			}
 		}
 
 		for (const [key, monitor] of current) {
 			if (active.has(key)) continue
+			let retarget = (_monitor: Gdk.Monitor) => { }
 			const dispose = createRoot(dispose => {
-				WallpaperWindow.Window({ gdkmonitor: monitor })
+				retarget = WallpaperWindow.Window({ gdkmonitor: monitor }).retarget
 				return dispose
 			})
-			active.set(key, { monitor, dispose })
+			active.set(key, { monitor, retarget, dispose })
 		}
 	}
 
