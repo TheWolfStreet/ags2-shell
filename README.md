@@ -163,8 +163,9 @@ in {
       XCURSOR_SIZE = "${toString cursorTheme.size}";
     };
     pointerCursor =
-      cursorTheme
+      (theme.cursor or {})
       // {
+        enable = true;
         gtk.enable = true;
       };
   };
