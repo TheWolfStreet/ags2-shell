@@ -138,6 +138,7 @@ const options = mkOptions({
 	launcher: {
 		position: "top-center",
 		margin: 40,
+		scale: 100,
 		apps: {
 			max: 6,
 		},
@@ -194,7 +195,6 @@ const options = mkOptions({
 	},
 
 	asus: {
-		resolution: "1920x1200",
 		ac_hz: 144,
 		bat_hz: 60,
 	},

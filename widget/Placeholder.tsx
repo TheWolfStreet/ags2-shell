@@ -10,11 +10,12 @@ const { VERTICAL } = Gtk.Orientation
 
 type PlaceholderProps = FCProps<Gtk.Box, {
 	iconName?: Accessor<string> | string
+	iconSize?: Accessor<number> | number
 	label?: Accessor<string> | string
 	visible?: Accessor<boolean> | boolean
 }>
 
-export function Placeholder({ iconName, label, visible }: PlaceholderProps) {
+export function Placeholder({ iconName, iconSize, label, visible }: PlaceholderProps) {
 	return (
 		<box
 			class="placeholder vertical"
@@ -25,7 +26,7 @@ export function Placeholder({ iconName, label, visible }: PlaceholderProps) {
 			hexpand
 			orientation={VERTICAL}
 		>
-			<image iconName={iconName} useFallback pixelSize={options.scale.as(scale => Math.round(64 * scale / 100))} />
+			<image iconName={iconName} useFallback pixelSize={iconSize ?? options.scale.as(scale => Math.round(64 * scale / 100))} />
 			<label label={label} />
 		</box>
 	)

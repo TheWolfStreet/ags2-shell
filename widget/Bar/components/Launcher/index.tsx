@@ -86,7 +86,8 @@ function rankApplications(index: IndexedApplication[], query: string, limit: num
 
 export namespace Launcher {
 	const allApps = createBinding(applications, "list")
-	const iconSize = options.scale.as(scale => Math.round(64 * scale / 100))
+	const launcherScale = createComputed(() => Math.max(0.5, options.launcher.scale() / 100))
+	const iconSize = createComputed(() => Math.round(64 * options.scale() / 100 * launcherScale()))
 	const revealers = new Map<string, Gtk.Revealer>()
 	const isOnBottom = createComputed(() => position() === "bottom-center")
 	const appTransition = isOnBottom.as(isBottom => isBottom ? SLIDE_UP : SLIDE_DOWN)
@@ -364,7 +365,7 @@ export namespace Launcher {
 				transitionType={appTransition}
 				transitionDuration={options.transition.duration}
 			>
-				<Placeholder iconName={icons.ui.search} label="No results found" />
+				<Placeholder iconName={icons.ui.search} iconSize={iconSize} label="No results found" />
 			</revealer>
 		)
 
@@ -395,10 +396,24 @@ export namespace Launcher {
 		)
 
 		const launcherCss = createComputed(() => {
-			const margin = options.launcher.margin() * options.scale() / 100
-			return position() === "bottom-center"
+			const componentScale = launcherScale()
+			const margin = options.launcher.margin() * options.scale() / 100 * componentScale
+			const positionMargin = position() === "bottom-center"
 				? `margin-bottom: ${margin}pt;`
 				: `margin-top: ${margin}pt;`
+
+			return [
+				positionMargin,
+				`--padding: calc(var(--ui-padding) * ${componentScale});`,
+				`--spacing: calc(var(--ui-spacing) * ${componentScale});`,
+				`--radius: calc(var(--ui-radius) * ${componentScale});`,
+				`--border-width: calc(var(--ui-border-width) * ${componentScale});`,
+				`--font-size: calc(var(--ui-font-size) * ${componentScale});`,
+				`--icon-size: calc(var(--ui-icon-size) * ${componentScale});`,
+				`--popover-padding: calc(var(--ui-popover-padding) * ${componentScale});`,
+				`--popover-radius: calc(var(--ui-popover-radius) * ${componentScale});`,
+				`--scale: ${Math.max(0.1, options.scale() / 100) * componentScale};`,
+			].join("")
 		})
 
 		return (

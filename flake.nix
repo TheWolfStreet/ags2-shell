@@ -37,27 +37,35 @@
       powerprofiles
     ];
 
-    runtimePackages = with pkgs;
+    runtimeLibraries =
       astalPackages
-      ++ [
-        ddcutil
-        libsoup_3
-        brightnessctl
-        libwebp
-        libheif
+      ++ (with pkgs; [
         dconf
-        xdg-utils
-        bluez
-        gnome-control-center
-        wf-recorder
-        wl-clipboard
-        grim
-        slurp
-        swappy
-        hyprpicker
-        pavucontrol
-        networkmanager
-      ];
+        gsettings-desktop-schemas
+      ]);
+
+    runtimePrograms = with pkgs; [
+      bash
+      bluez
+      brightnessctl
+      coreutils
+      dconf
+      ddcutil
+      glib
+      gnome-control-center
+      grim
+      hyprpicker
+      libheif
+      libwebp
+      pavucontrol
+      procps
+      slurp
+      swappy
+      systemd
+      wf-recorder
+      wl-clipboard
+      xdg-utils
+    ];
   in {
     packages.${system} = {
       default = pkgs.stdenv.mkDerivation {
@@ -71,7 +79,7 @@
           dart-sass
         ];
 
-        buildInputs = runtimePackages ++ [pkgs.gjs];
+        buildInputs = runtimeLibraries ++ [pkgs.gjs];
 
         buildPhase = ''
           runHook preBuild
@@ -82,14 +90,16 @@
         installPhase = ''
           runHook preInstall
 
-          mkdir -p $out/bin
-          mkdir -p $out/libexec
-          mkdir -p $out/share
-          cp -r * $out/share
-          ags bundle ${wallpaperEntry} $out/libexec/${pname}-wallpaper -g 4 -d "SRC='$out/share'"
+          install -Dm644 style/compile/main.css $out/share/${pname}/style/compile/main.css
+          mkdir -p $out/bin $out/libexec
+
+          ags bundle ${wallpaperEntry} $out/libexec/${pname}-wallpaper -g 4
           ags bundle ${entry} $out/bin/${pname} \
-            -d "SRC='$out/share'" \
-            -d "WALLPAPER_BIN='$out/libexec/${pname}-wallpaper'"
+            -d "WALLPAPER_BIN='$out/libexec/${pname}-wallpaper'" \
+            -d "STYLE_DIR='$out/share/${pname}'"
+
+          # AGS derives the extracted module name from its encoded prefix, so
+          # independently bundled entry points otherwise overwrite each other.
           substituteInPlace $out/libexec/${pname}-wallpaper \
             --replace-fail 'dmFyIF-ags.js' '${pname}-wallpaper-ags.js'
           substituteInPlace $out/bin/${pname} \
@@ -97,24 +107,33 @@
 
           runHook postInstall
         '';
-        postInstall = ''
-          wrapProgram $out/bin/${pname} \
-          	--prefix PATH : ${pkgs.lib.makeBinPath runtimePackages} \
-          	--set AGS2SHELL_STYLES $out/share
+
+        preFixup = ''
+          gappsWrapperArgs+=(
+            --prefix PATH : "${pkgs.lib.makeBinPath runtimePrograms}"
+            --set AGS2SHELL_STYLES "$out/share/${pname}"
+          )
         '';
+
+        meta = {
+          mainProgram = pname;
+          platforms = [system];
+        };
       };
     };
 
     devShells.${system} = {
       default = pkgs.mkShell {
-        buildInputs = [
-          (ags.packages.${system}.default.override {
-            extraPackages = runtimePackages;
-          })
-          pkgs.dart-sass
-          pkgs.vtsls
-          pkgs.inotify-tools
-        ];
+        packages =
+          runtimePrograms
+          ++ [
+            (ags.packages.${system}.default.override {
+              extraPackages = runtimeLibraries;
+            })
+            pkgs.dart-sass
+            pkgs.vtsls
+            pkgs.inotify-tools
+          ];
 
         shellHook = ''
           export GIO_EXTRA_MODULES=${pkgs.gvfs}/lib/gio/modules

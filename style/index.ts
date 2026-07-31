@@ -101,7 +101,8 @@ function watchStaticCss() {
 }
 
 export function initCss() {
-	const configDir = GLib.getenv("AGS2SHELL_STYLES") ?? env.paths.cfg
+	const bundledStyleDir = typeof STYLE_DIR !== "undefined" ? STYLE_DIR : null
+	const configDir = GLib.getenv("AGS2SHELL_STYLES") ?? bundledStyleDir ?? env.paths.cfg
 	cssFilePath = GLib.build_filenamev([configDir, "style", "compile", "main.css"])
 
 	ensureProviders()

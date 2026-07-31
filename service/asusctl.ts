@@ -11,6 +11,8 @@ import options from "options"
 type MonitorConfiguration = {
 	name: string
 	disabled: boolean
+	width: number
+	height: number
 	availableModes?: string[]
 }
 
@@ -57,13 +59,12 @@ function parseMonitorMode(mode: string): MonitorMode | null {
 		: null
 }
 
-function getPanel() {
-	return hyprland.get_monitors().find(monitor => monitor.name.startsWith("eDP-")) ?? hyprland.get_monitor(0)
+function isInternalPanel(name: string) {
+	return /^(?:eDP|LVDS)-/i.test(name)
 }
 
 function selectPanel(monitors: MonitorConfiguration[]): MonitorConfiguration | undefined {
-	return monitors.find(monitor => !monitor.disabled && monitor.name.startsWith("eDP-"))
-		?? monitors.find(monitor => !monitor.disabled)
+	return monitors.find(monitor => isInternalPanel(monitor.name))
 }
 
 function parsePanelModes(modes: string[]): MonitorMode[] {
@@ -71,7 +72,7 @@ function parsePanelModes(modes: string[]): MonitorMode[] {
 }
 
 function readPanelConfiguration(): MonitorConfiguration | undefined {
-	const result = attempt((): unknown => JSON.parse(hyprland.message("j/monitors")))
+	const result = attempt((): unknown => JSON.parse(hyprland.message("j/monitors all")))
 	if (!result.ok || !Array.isArray(result.value))
 		return undefined
 
@@ -79,11 +80,10 @@ function readPanelConfiguration(): MonitorConfiguration | undefined {
 }
 
 function getPanelModes(configuration = readPanelConfiguration()): MonitorMode[] {
-	return parsePanelModes(configuration?.availableModes ?? getPanel()?.availableModes ?? [])
-}
-
-function uniqueResolutions(modes: MonitorMode[]): string[] {
-	return [...new Set(modes.map(mode => mode.resolution))]
+	if (!configuration) return []
+	const resolution = `${configuration.width}x${configuration.height}`
+	return parsePanelModes(configuration.availableModes ?? [])
+		.filter(mode => mode.resolution === resolution)
 }
 
 function uniqueRefreshRates(modes: MonitorMode[]): number[] {
@@ -97,17 +97,13 @@ function nearestValue(values: number[], preferred: number): number {
 }
 
 function normalizeRefreshRate(value: number, available: number[]): number {
-	if (available.length === 0 || available.includes(value))
+	if (available.includes(value))
 		return value
 	return nearestValue(available, value)
 }
 
-function resolveRefreshRate(modes: MonitorMode[], resolution: string, preferred: number): number {
-	const available = modes
-		.filter(mode => mode.resolution === resolution)
-		.map(mode => mode.refreshRate)
-	if (available.length === 0)
-		return preferred
+function resolveRefreshRate(modes: MonitorMode[], preferred: number): number {
+	const available = modes.map(mode => mode.refreshRate)
 	return nearestValue(available, preferred)
 }
 
@@ -117,10 +113,13 @@ function isMonitorConfiguration(value: unknown): value is MonitorConfiguration {
 
 	return typeof value.name === "string"
 		&& typeof value.disabled === "boolean"
+		&& typeof value.width === "number"
+		&& value.width > 0
+		&& typeof value.height === "number"
+		&& value.height > 0
 		&& (value.availableModes === undefined
 			|| (Array.isArray(value.availableModes) && value.availableModes.every(mode => typeof mode === "string")))
 }
-
 
 namespace Asusctl {
 	export type Profile = "Performance" | "Balanced" | "Quiet"
@@ -175,17 +174,8 @@ class Asusctl extends GObject.Object {
 	}
 
 	@getter(Array)
-	get resolutions(): string[] {
-		const resolutions = uniqueResolutions(getPanelModes())
-		return resolutions.length > 0 ? resolutions : [options.asus.resolution.peek()]
-	}
-
-	@getter(Array)
 	get refreshRates(): number[] {
-		const refreshRates = uniqueRefreshRates(getPanelModes())
-		return refreshRates.length > 0
-			? refreshRates
-			: [...new Set([options.asus.bat_hz.peek(), options.asus.ac_hz.peek()])].sort((a, b) => a - b)
+		return uniqueRefreshRates(getPanelModes())
 	}
 
 	@getter(String)
@@ -241,17 +231,12 @@ class Asusctl extends GObject.Object {
 			return
 
 		const panel = selectPanel(parsed.filter(isMonitorConfiguration))
-		if (panel?.disabled) return
 		if (!panel) return
+		if (panel.disabled) return
 
 		const panelModes = getPanelModes(panel)
-		const availableResolutions = uniqueResolutions(panelModes)
-		let resolution = options.asus.resolution.peek()
-		if (availableResolutions.length > 0 && !availableResolutions.includes(resolution)) {
-			resolution = availableResolutions[0]
-			options.asus.resolution.set(resolution)
-		}
 		const availableRefreshRates = uniqueRefreshRates(panelModes)
+		if (availableRefreshRates.length === 0) return
 		const acHz = normalizeRefreshRate(options.asus.ac_hz.peek(), availableRefreshRates)
 		const batHz = normalizeRefreshRate(options.asus.bat_hz.peek(), availableRefreshRates)
 
@@ -262,7 +247,8 @@ class Asusctl extends GObject.Object {
 		if (sequence !== this.#monitorUpdateSequence) return
 
 		const preferredRefreshRate = this.#profile === "Quiet" ? batHz : acHz
-		const refreshRate = resolveRefreshRate(panelModes, resolution, preferredRefreshRate)
+		const refreshRate = resolveRefreshRate(panelModes, preferredRefreshRate)
+		const resolution = `${panel.width}x${panel.height}`
 		hyprland.message_async(`keyword monitor ${panel.name},${resolution}@${refreshRate},0x0,1`, null)
 	}
 
@@ -297,7 +283,6 @@ class Asusctl extends GObject.Object {
 		void this.#updateMonitorConfiguration()
 
 		this.#optionDisposers.push(
-			options.asus.resolution.subscribe(() => this.#updateMonitorConfiguration()),
 			options.asus.ac_hz.subscribe(() => this.#updateMonitorConfiguration()),
 			options.asus.bat_hz.subscribe(() => this.#updateMonitorConfiguration()),
 		)

@@ -236,6 +236,7 @@ const Shell = () => (
 
 		<Group title="Launcher">
 			<Row opt={launcher.position} title="Position" type="enum" enums={optionValues.launcherPosition} />
+			<Row opt={launcher.scale} title="Scale" min={50} max={200} />
 			<Row opt={favorites.location} title="Favorites" type="enum" enums={optionValues.favoritesLocation} />
 			<Row opt={launcher.apps.max} title="Max Items" max={9} />
 			<Row opt={bar.launcher.icon} title="Icon" />
@@ -275,13 +276,6 @@ const System = () => (
 		<Group title="ASUS" visible={createBinding(asusctl, "available")}>
 			<Row opt={asus.ac_hz} title="Refresh Rate (AC)" type="enum" enums={asusctl.refreshRates} />
 			<Row opt={asus.bat_hz} title="Refresh Rate (Battery)" type="enum" enums={asusctl.refreshRates} />
-			<Row
-				opt={asus.resolution}
-				title="Resolution"
-				type="enum"
-				enums={asusctl.resolutions}
-				note="Available panel resolutions; refresh rate is configured separately above."
-			/>
 		</Group>
 	</Page>
 ) as Gtk.StackPage
