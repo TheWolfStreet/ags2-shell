@@ -6,82 +6,21 @@ import { execAsync } from "ags/process"
 
 import AstalBluetooth from "gi://AstalBluetooth"
 
-import { ToggleButton, Menu, SettingsButton } from "widget/Bar/components/QuickSettings/components/MenuControls"
-import { Placeholder } from "widget/Placeholder"
+import {
+	ToggleButton,
+	Menu,
+	SettingsButton,
+} from "widget/Bar/components/QuickSettings/components/MenuControls"
+import { Placeholder } from "widget/shared/Placeholder"
 
 import icons from "$lib/icons"
 import { bluetooth } from "$service/astal"
-import { requirePrograms } from "$lib/programs"
+import { notifyMissingPrograms } from "$service/notifications"
 import { toggleClass } from "$lib/ui"
 
-import options from "options"
-
-const { VERTICAL } = Gtk.Orientation
-const { CENTER } = Gtk.Align
-const { BUTTON_PRIMARY, BUTTON_SECONDARY } = Gdk
+import options from "$shell/options"
 
 export namespace Bluetooth {
-	function Entry({ device }: { device: AstalBluetooth.Device }) {
-		const connecting = createBinding(device, "connecting")
-		const name = createBinding(device, "name")
-		const address = createBinding(device, "address")
-		const battery = createBinding(device, "batteryPercentage")
-		const paired = createBinding(device, "paired")
-		const label = createComputed(() => {
-			const displayName = name() ?? address()
-			const batteryStatus = paired() && battery() != undefined && battery() >= 0
-				? ` ${battery() * 100}%`
-				: ""
-			const isPaired = paired() ? " • Paired" : ""
-			return `${displayName}${batteryStatus}${isPaired}`
-		})
-
-		let btn: Gtk.Button
-
-		return (
-			<button $={self => (btn = self)} tooltipText={createBinding(device, "paired").as(p => p ? "Right-click to unpair" : "")}>
-				<Gtk.GestureClick
-					button={0}
-					onPressed={self => {
-						const mBtn = self.get_current_button()
-						switch (mBtn) {
-							case BUTTON_PRIMARY: {
-								const onConnectionChanged = () => toggleClass(btn, "active", !device.get_connected())
-								if (device.get_connected()) device.disconnect_device(onConnectionChanged)
-								else device.connect_device(onConnectionChanged)
-								break
-							}
-							case BUTTON_SECONDARY:
-								if (device.paired) {
-									void execAsync(["bluetoothctl", "remove", device.get_address()])
-								}
-								break
-						}
-						self.reset()
-					}}
-				/>
-
-				<box class="bluetooth-item horizontal">
-					<image iconName={createBinding(device, "icon").as(v => v + "-symbolic")} />
-					<label label={label} />
-					<box hexpand />
-					<Gtk.Spinner spinning={connecting} visible={connecting} />
-				</box>
-			</button>
-		)
-	}
-
-	function setBluetoothPowered(on: boolean) {
-		if (requirePrograms("bluetoothctl")) {
-			let state = "off"
-			if (on)
-				state = "on"
-			void execAsync(["bluetoothctl", "power", state])
-			return
-		}
-		bluetooth.toggle()
-	}
-
 	export function Toggle() {
 		const powered = createBinding(bluetooth, "isPowered")
 		const connected = createBinding(bluetooth, "isConnected")
@@ -90,7 +29,8 @@ export namespace Bluetooth {
 		const label = createComputed(() => {
 			if (adapters().length == 0) return "No Device"
 			if (!powered()) return "Disabled"
-			if (connected()) return bluetooth.devices.filter(d => d.connected).at(0)?.name ?? ""
+			if (connected())
+				return bluetooth.devices.filter((d) => d.connected).at(0)?.name ?? ""
 			return "Not Connected"
 		})
 
@@ -99,9 +39,13 @@ export namespace Bluetooth {
 				arrow
 				name="bluetooth-selector"
 				label={label}
-				iconName={powered.as(p => p ? icons.bluetooth.enabled : icons.bluetooth.disabled)}
+				iconName={powered.as((p) =>
+					p ? icons.bluetooth.enabled : icons.bluetooth.disabled,
+				)}
 				activateOnArrow={true}
-				activate={() => { if (!powered.peek()) setBluetoothPowered(true) }}
+				activate={() => {
+					if (!powered.peek()) setBluetoothPowered(true)
+				}}
 				deactivate={() => setBluetoothPowered(false)}
 				connection={powered}
 			/>
@@ -110,12 +54,12 @@ export namespace Bluetooth {
 
 	export function Selector() {
 		const adapter = createBinding(bluetooth, "adapter")
-		const devices = createBinding(bluetooth, "devices").as(d =>
+		const devices = createBinding(bluetooth, "devices").as((d) =>
 			(d ?? []).slice().sort((a, b) => {
 				const aName = a.name && a.name.trim() !== ""
 				const bName = b.name && b.name.trim() !== ""
 				return (bName ? 1 : 0) - (aName ? 1 : 0)
-			})
+			}),
 		)
 
 		return (
@@ -125,7 +69,7 @@ export namespace Bluetooth {
 				title="Bluetooth devices"
 				headerChild={
 					<With value={adapter}>
-						{adapter => {
+						{(adapter) => {
 							if (!adapter) return <box visible={false} />
 
 							const discovering = createBinding(adapter, "discovering")
@@ -139,15 +83,18 @@ export namespace Bluetooth {
 							return (
 								<centerbox hexpand>
 									<button $type="end" onClicked={onToggleDiscover}>
-										<label label={discovering.as(d => (d ? "Cancel" : "Scan"))} />
+										<label
+											label={discovering.as((d) => (d ? "Cancel" : "Scan"))}
+										/>
 									</button>
 								</centerbox>
 							)
 						}}
 					</With>
-				}>
+				}
+			>
 				<With value={adapter}>
-					{adapter => {
+					{(adapter) => {
 						if (!adapter)
 							return (
 								<Placeholder
@@ -157,17 +104,26 @@ export namespace Bluetooth {
 							)
 
 						const discovering = createBinding(adapter, "discovering")
-						const hasDevices = devices.as(d => d.length > 0)
+						const hasDevices = devices.as((d) => d.length > 0)
 
 						return (
 							<box orientation={VERTICAL}>
-								<revealer halign={CENTER} revealChild={hasDevices.as(v => !v)} transitionDuration={options.transition.duration}>
+								<revealer
+									halign={CENTER}
+									revealChild={hasDevices.as((v) => !v)}
+									transitionDuration={options.transition.duration}
+								>
 									<Placeholder
 										iconName={icons.bluetooth.disabled}
-										label={discovering.as(d => (d ? "Searching for devices..." : "No devices found"))}
+										label={discovering.as((d) =>
+											d ? "Searching for devices..." : "No devices found",
+										)}
 									/>
 								</revealer>
-								<revealer revealChild={hasDevices} transitionDuration={options.transition.duration}>
+								<revealer
+									revealChild={hasDevices}
+									transitionDuration={options.transition.duration}
+								>
 									<Gtk.ScrolledWindow class="device-scroll" vexpand>
 										<box orientation={VERTICAL} vexpand hexpand>
 											<For each={devices}>
@@ -177,7 +133,16 @@ export namespace Bluetooth {
 									</Gtk.ScrolledWindow>
 								</revealer>
 								<Gtk.Separator />
-								<SettingsButton callback={() => void execAsync(["env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center", "bluetooth"])} />
+								<SettingsButton
+									callback={() =>
+										void execAsync([
+											"env",
+											"XDG_CURRENT_DESKTOP=GNOME",
+											"gnome-control-center",
+											"bluetooth",
+										])
+									}
+								/>
 							</box>
 						)
 					}}
@@ -189,11 +154,95 @@ export namespace Bluetooth {
 	export function State() {
 		return (
 			<image
-				class={createBinding(bluetooth, "isConnected").as(v => v ? "bluetooth-connected" : "")}
+				class={createBinding(bluetooth, "isConnected").as((v) =>
+					v ? "bluetooth-connected" : "",
+				)}
 				visible={createBinding(bluetooth, "isPowered")}
 				iconName={icons.bluetooth.enabled}
 				useFallback
 			/>
 		)
+	}
+
+	const { VERTICAL } = Gtk.Orientation
+	const { CENTER } = Gtk.Align
+	const { BUTTON_PRIMARY, BUTTON_SECONDARY } = Gdk
+
+	function Entry({ device }: { device: AstalBluetooth.Device }) {
+		const connecting = createBinding(device, "connecting")
+		const name = createBinding(device, "name")
+		const address = createBinding(device, "address")
+		const battery = createBinding(device, "batteryPercentage")
+		const paired = createBinding(device, "paired")
+		const label = createComputed(
+			() => `${name() ?? address()}${paired() ? " • Paired" : ""}`,
+		)
+		const batteryLabel = createComputed(() =>
+			paired() && battery() != undefined && battery() >= 0
+				? `${Math.round(battery() * 100)}%`
+				: "",
+		)
+
+		let btn: Gtk.Button
+
+		return (
+			<button
+				$={(self) => (btn = self)}
+				tooltipText={createBinding(device, "paired").as((p) =>
+					p ? "Right-click to unpair" : "",
+				)}
+			>
+				<Gtk.GestureClick
+					button={0}
+					onPressed={(self) => {
+						const mBtn = self.get_current_button()
+						switch (mBtn) {
+							case BUTTON_PRIMARY: {
+								const onConnectionChanged = () =>
+									toggleClass(btn, "active", !device.get_connected())
+								if (device.get_connected())
+									device.disconnect_device(onConnectionChanged)
+								else device.connect_device(onConnectionChanged)
+								break
+							}
+							case BUTTON_SECONDARY:
+								if (device.paired) {
+									void execAsync([
+										"bluetoothctl",
+										"remove",
+										device.get_address(),
+									])
+								}
+								break
+						}
+						self.reset()
+					}}
+				/>
+
+				<box class="bluetooth-item horizontal">
+					<image
+						iconName={createBinding(device, "icon").as((v) => v + "-symbolic")}
+					/>
+					<label label={label} />
+					<box hexpand />
+					<label
+						class="device-detail"
+						label={batteryLabel}
+						visible={batteryLabel.as((value) => value.length > 0)}
+					/>
+					<Gtk.Spinner spinning={connecting} visible={connecting} />
+				</box>
+			</button>
+		)
+	}
+
+	function setBluetoothPowered(on: boolean) {
+		if (notifyMissingPrograms("bluetoothctl")) {
+			let state = "off"
+			if (on) state = "on"
+			void execAsync(["bluetoothctl", "power", state])
+			return
+		}
+		bluetooth.toggle()
 	}
 }
