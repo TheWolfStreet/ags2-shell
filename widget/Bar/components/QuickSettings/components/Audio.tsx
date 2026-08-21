@@ -90,16 +90,15 @@ export namespace Audio {
 		}) {
 			return (
 				<With value={binding}>
-					{(endpoint: AstalWp.Endpoint | null) =>
-						endpoint ? (
+					{(endpoint: AstalWp.Endpoint | null) => {
+						if (!endpoint) return <box visible={false} />
+						return (
 							<image
 								iconName={createBinding(endpoint, "volumeIcon")}
 								useFallback
 							/>
-						) : (
-							<box visible={false} />
 						)
-					}
+					}}
 				</With>
 			)
 		}

@@ -31,29 +31,46 @@ let wallpaperRestart: Timer | null = null
 let stopping = false
 
 function mountDeferredWindows(build: () => void) {
-	deferredRoots.push(createRoot(dispose => {
-		build()
-		return dispose
-	}))
+	deferredRoots.push(
+		createRoot((dispose) => {
+			build()
+			return dispose
+		}),
+	)
 }
 
 function toggleRecording(selectArea: boolean) {
-	if (screenCapture.recording)
-		screenCapture.stopRecording()
-	else
-		screenCapture.startRecording(selectArea)
+	if (screenCapture.recording) screenCapture.stopRecording()
+	else screenCapture.startRecording(selectArea)
 }
 
 function wallpaperCommand() {
 	const parentArg = `--parent-pid=${GLib.file_read_link("/proc/self")}`
-	if (typeof WALLPAPER_BIN !== "undefined" && GLib.file_test(WALLPAPER_BIN, GLib.FileTest.IS_EXECUTABLE))
+	if (
+		typeof WALLPAPER_BIN !== "undefined" &&
+		GLib.file_test(WALLPAPER_BIN, GLib.FileTest.IS_EXECUTABLE)
+	)
 		return [WALLPAPER_BIN, parentArg]
 
 	const sourceRoot = GLib.getenv("AGS2SHELL_STYLES") ?? GLib.get_current_dir()
-	const sourceEntry = GLib.build_filenamev([sourceRoot, "shell", "wallpaper.tsx"])
-	return GLib.file_test(sourceEntry, GLib.FileTest.EXISTS)
-		? ["env", "-C", sourceRoot, "ags", "run", "--gtk", "4", "shell/wallpaper.tsx", "--", parentArg]
-		: null
+	const sourceEntry = GLib.build_filenamev([
+		sourceRoot,
+		"shell",
+		"wallpaper.tsx",
+	])
+	if (!GLib.file_test(sourceEntry, GLib.FileTest.EXISTS)) return null
+	return [
+		"env",
+		"-C",
+		sourceRoot,
+		"ags",
+		"run",
+		"--gtk",
+		"4",
+		"shell/wallpaper.tsx",
+		"--",
+		parentArg,
+	]
 }
 
 function startWallpaper() {
@@ -69,7 +86,7 @@ function startWallpaper() {
 
 	let lastError = ""
 	try {
-		const process = subprocess(command, print, error => lastError = error)
+		const process = subprocess(command, print, (error) => (lastError = error))
 		wallpaperChild = process
 		process.connect("exit", (_, code, signaled) => {
 			if (wallpaperChild !== process) return
@@ -77,7 +94,9 @@ function startWallpaper() {
 			if (stopping) return
 
 			const reason = signaled ? `signal ${code}` : `status ${code}`
-			console.error(`wallpaper: Child exited with ${reason}${lastError ? `: ${lastError}` : ""}`)
+			console.error(
+				`wallpaper: Child exited with ${reason}${lastError ? `: ${lastError}` : ""}`,
+			)
 			wallpaperRestart = timeout(1000, startWallpaper)
 		})
 	} catch (error) {
@@ -89,21 +108,29 @@ function startWallpaper() {
 app.start({
 	instanceName: env.appName,
 	main() {
-		startShell().catch(err => console.error("Startup error:", err))
+		startShell().catch((err) => console.error("Startup error:", err))
 		startWallpaper()
 
-		const activeMonitorWindows = new Map<string, { monitor: Gdk.Monitor, dispose: Array<() => void> }>()
+		const activeMonitorWindows = new Map<
+			string,
+			{ monitor: Gdk.Monitor; dispose: Array<() => void> }
+		>()
 		let monitorWindowsStopped = false
 		const syncMonitorWindows = () => {
-			const current = new Map(app.get_monitors().map(monitor => {
-				const geometry = monitor.get_geometry()
-				const key = basicMonitorKey(monitor, `mon-${geometry.x}x${geometry.y}`)
-				return [key, monitor] as const
-			}))
+			const current = new Map(
+				app.get_monitors().map((monitor) => {
+					const geometry = monitor.get_geometry()
+					const key = basicMonitorKey(
+						monitor,
+						`mon-${geometry.x}x${geometry.y}`,
+					)
+					return [key, monitor] as const
+				}),
+			)
 
 			for (const [key, windows] of activeMonitorWindows) {
 				if (current.get(key) !== windows.monitor) {
-					windows.dispose.forEach(dispose => dispose())
+					windows.dispose.forEach((dispose) => dispose())
 					activeMonitorWindows.delete(key)
 				}
 			}
@@ -113,19 +140,19 @@ app.start({
 					activeMonitorWindows.set(key, {
 						monitor,
 						dispose: [
-							createRoot(dispose => {
+							createRoot((dispose) => {
 								Bar({ gdkmonitor: monitor })
 								return dispose
 							}),
-							createRoot(dispose => {
+							createRoot((dispose) => {
 								Desktop.Window({ gdkmonitor: monitor })
 								return dispose
 							}),
-							createRoot(dispose => {
+							createRoot((dispose) => {
 								Dock.Window({ gdkmonitor: monitor })
 								return dispose
 							}),
-							createRoot(dispose => {
+							createRoot((dispose) => {
 								Desktop.ContextMenuWindow({ gdkmonitor: monitor })
 								return dispose
 							}),
@@ -143,7 +170,7 @@ app.start({
 			app.disconnect(monitorHandler)
 			if (monitorShutdownHandler) app.disconnect(monitorShutdownHandler)
 			for (const windows of activeMonitorWindows.values())
-				windows.dispose.forEach(dispose => dispose())
+				windows.dispose.forEach((dispose) => dispose())
 			activeMonitorWindows.clear()
 		}
 
@@ -184,12 +211,14 @@ app.start({
 		switch (request) {
 			case "launcher-search": {
 				const query = rest.join(" ")
-				if (!app.get_window("launcher")) mountDeferredWindows(() => Launcher.Window())
+				if (!app.get_window("launcher"))
+					mountDeferredWindows(() => Launcher.Window())
 				Launcher.setSearchQuery(query, true)
 				break
 			}
 			case "shutdown":
-				if (!app.get_window("verification")) mountDeferredWindows(() => PowerMenu.VerificationModal())
+				if (!app.get_window("verification"))
+					mountDeferredWindows(() => PowerMenu.VerificationModal())
 				PowerMenu.requestActionConfirmation("shutdown")
 				break
 			case "record":

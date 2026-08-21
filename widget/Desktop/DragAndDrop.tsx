@@ -278,14 +278,15 @@ export function createDesktopDragController(
 
 	function finish(snapshot: DragState, deleteData: boolean) {
 		const hover = dragSession.hover
-		const canFinishOnHoveredMonitor =
+		const hoveredAnotherMonitor =
 			deleteData &&
 			!dragSession.handled &&
 			snapshot.paths.length > 0 &&
-			!!snapshot.source &&
-			!!hover &&
+			snapshot.source !== null &&
+			hover !== null &&
 			hover.monitorId !== snapshot.source
-		if (canFinishOnHoveredMonitor) {
+
+		if (hoveredAnotherMonitor) {
 			dragSession.handled = true
 			targets.get(hover.monitorId)?.(
 				snapshot.paths,
@@ -293,9 +294,7 @@ export function createDesktopDragController(
 				hover.x,
 				hover.y,
 			)
-		} else if (!dragSession.handled) {
-			attemptCursorDrop(snapshot)
-		}
+		} else if (!dragSession.handled) attemptCursorDrop(snapshot)
 
 		dragSession.handled = false
 		dragSession.hover = null

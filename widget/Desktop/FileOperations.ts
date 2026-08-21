@@ -72,37 +72,27 @@ export async function importDesktopFiles(
 
 			const fileName = sourceFile.get_basename()
 			if (!fileName) continue
-
-			const currentDesktopPath = `${DESKTOP_PATH}/${fileName}`
-			if (sourcePath === currentDesktopPath) continue
+			if (sourcePath === `${DESKTOP_PATH}/${fileName}`) continue
 
 			const targetPath = uniqueDesktopTargetPath(fileName)
+			let transferred = false
+
 			if (preferredOperation === "move") {
-				const moved = await execAsync(["gio", "move", sourcePath, targetPath])
+				transferred = await execAsync(["gio", "move", sourcePath, targetPath])
 					.then(() => true)
 					.catch(() => false)
-				if (moved) {
-					createdPaths.push(targetPath)
-					continue
-				}
-
-				const copied = await copyRecursively(sourcePath, targetPath)
-				if (copied) {
-					createdPaths.push(targetPath)
-					continue
-				}
-			} else {
-				const copied = await copyRecursively(sourcePath, targetPath)
-				if (copied) {
-					createdPaths.push(targetPath)
-					continue
-				}
 			}
 
-			const targetFile = Gio.File.new_for_path(targetPath)
-			if (preferredOperation === "move")
-				sourceFile.move(targetFile, Gio.FileCopyFlags.NONE, null, null)
-			else sourceFile.copy(targetFile, Gio.FileCopyFlags.NONE, null, null)
+			if (!transferred)
+				transferred = await copyRecursively(sourcePath, targetPath)
+
+			if (!transferred) {
+				const targetFile = Gio.File.new_for_path(targetPath)
+				if (preferredOperation === "move")
+					sourceFile.move(targetFile, Gio.FileCopyFlags.NONE, null, null)
+				else sourceFile.copy(targetFile, Gio.FileCopyFlags.NONE, null, null)
+			}
+
 			createdPaths.push(targetPath)
 		} catch (error) {
 			failures.push({ path: sourcePath, error })
@@ -405,13 +395,12 @@ function desktopLauncherMetadata(path: string) {
 		if (!launcher) return null
 		const iconName = firstIconName(launcher.get_icon())
 		const iconValue = launcher.get_string("Icon") ?? ""
+		let icon = iconName
+		if (!icon && iconValue && !GLib.path_is_absolute(iconValue))
+			icon = iconValue
 		return {
 			displayName: launcher.get_display_name() || launcher.get_name(),
-			icon: iconName
-				? iconName
-				: iconValue && !GLib.path_is_absolute(iconValue)
-					? iconValue
-					: null,
+			icon,
 			iconFile: GLib.path_is_absolute(iconValue) ? iconValue : null,
 		}
 	})
@@ -528,15 +517,16 @@ export async function openPathWithChooser(
 					const cancelled =
 						error instanceof GLib.Error &&
 						error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED)
+					if (cancelled) {
+						resolve(ok(undefined))
+						return
+					}
 					resolve(
-						cancelled
-							? ok(undefined)
-							: err(
-									new Error(
-										`Failed to open ${filePath} with application chooser`,
-										{ cause: error },
-									),
-								),
+						err(
+							new Error(`Failed to open ${filePath} with application chooser`, {
+								cause: error,
+							}),
+						),
 					)
 				},
 			)

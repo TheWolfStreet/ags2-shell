@@ -76,17 +76,20 @@ export namespace Dock {
 		const windows: Gtk.Window[] = []
 
 		const dockScale = createComputed(() => {
-			const baseScale = globalScale() / 100
-			const userScale = scale() / 100
-			const count = dockItems().length
-			if (count === 0) return userScale
+			const requestedScale = scale() / 100
+			const itemCount = dockItems().length
+			if (itemCount === 0) return requestedScale
+
 			const monitorGeometry = geometry()
-			const availableLength =
+			const monitorLength =
 				dockSide() === "left" ? monitorGeometry.height : monitorGeometry.width
-			const maxScale =
-				(availableLength * 0.88 - 2 - count * 11 * baseScale) /
-				(count * 64 * baseScale)
-			return Math.max(0.3, Math.min(userScale, maxScale))
+			const globalScaleFactor = globalScale() / 100
+			const usableLength = monitorLength * 0.88 - 2
+			const totalSpacing = itemCount * 11 * globalScaleFactor
+			const totalIconSize = itemCount * 64 * globalScaleFactor
+			const scaleThatFits = (usableLength - totalSpacing) / totalIconSize
+
+			return Math.max(0.3, Math.min(requestedScale, scaleThatFits))
 		})
 		const pixelScale = createComputed(() => dockScale() * (globalScale() / 100))
 		const hotzoneThickness = createComputed(() =>

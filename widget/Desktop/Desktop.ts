@@ -435,52 +435,69 @@ export function getDesktopGrid(monitorId: string): DesktopGridData {
 	const id = normalizeMonitorId(monitorId)
 	const layout = desktopLayout()
 	const files = desktopFiles()
-	const baseMetrics = gridMetrics()[id] ?? null
 	const ownedFiles = filesOnMonitor(layout, files, id)
-	const disconnected =
-		baseMetrics && primaryMonitor() === id
-			? files.filter((file) => {
-					const home = layout.placements[file.path]?.monitor
-					return !!home && home !== id && !connectedMonitors().has(home)
-				})
-			: []
-	const metrics = baseMetrics
-		? expandGridMetrics(baseMetrics, ownedFiles.length + disconnected.length)
-		: null
-	const ownedPositions = metrics
-		? reconcileGridPositions(
-				ownedFiles,
-				positionsOf(layout, id),
-				metrics.rows * metrics.columns,
-				metrics.columns,
-			)
-		: positionsOf(layout, id)
-	if (!metrics || disconnected.length === 0)
+	const savedPositions = positionsOf(layout, id)
+	const baseMetrics = gridMetrics()[id]
+
+	if (!baseMetrics)
+		return { id, metrics: null, files: ownedFiles, positions: savedPositions }
+
+	const projectedFiles: DesktopFile[] = []
+	if (primaryMonitor() === id) {
+		const connected = connectedMonitors()
+		for (const file of files) {
+			const owner = layout.placements[file.path]?.monitor
+			if (owner && owner !== id && !connected.has(owner))
+				projectedFiles.push(file)
+		}
+	}
+
+	const metrics = expandGridMetrics(
+		baseMetrics,
+		ownedFiles.length + projectedFiles.length,
+	)
+	const ownedPositions = reconcileGridPositions(
+		ownedFiles,
+		savedPositions,
+		metrics.rows * metrics.columns,
+		metrics.columns,
+	)
+
+	if (projectedFiles.length === 0)
 		return { id, metrics, files: ownedFiles, positions: ownedPositions }
 
-	const usedSlots = new Set(Object.values(ownedPositions))
+	projectedFiles.sort((left, right) => {
+		const leftSlot =
+			layout.placements[left.path]?.slot ?? Number.MAX_SAFE_INTEGER
+		const rightSlot =
+			layout.placements[right.path]?.slot ?? Number.MAX_SAFE_INTEGER
+		return leftSlot === rightSlot
+			? left.name.localeCompare(right.name)
+			: leftSlot - rightSlot
+	})
+
 	const visibleFiles = [...ownedFiles]
 	const visiblePositions = { ...ownedPositions }
-	const totalSlots = metrics.rows * metrics.columns
-	const firstFreeSlot = (): number | null => {
-		for (let slot = 0; slot < totalSlots; slot += 1)
-			if (!usedSlots.has(slot)) return slot
-		return null
-	}
-	const ordered = [...disconnected].sort((a, b) => {
-		const aSlot = layout.placements[a.path]?.slot ?? Number.MAX_SAFE_INTEGER
-		const bSlot = layout.placements[b.path]?.slot ?? Number.MAX_SAFE_INTEGER
-		return aSlot !== bSlot ? aSlot - bSlot : a.name.localeCompare(b.name)
-	})
-	for (const file of ordered) {
-		const home = layout.placements[file.path]?.slot
-		const homeFree = home != null && home < totalSlots && !usedSlots.has(home)
-		const slot = homeFree ? home : firstFreeSlot()
-		if (slot == null) continue
+	const usedSlots = new Set(Object.values(ownedPositions))
+	const slotCount = metrics.rows * metrics.columns
+	let nextFreeSlot = 0
+
+	for (const file of projectedFiles) {
+		const savedSlot = layout.placements[file.path]?.slot
+		let slot = savedSlot
+
+		if (slot == null || slot >= slotCount || usedSlots.has(slot)) {
+			while (nextFreeSlot < slotCount && usedSlots.has(nextFreeSlot))
+				nextFreeSlot += 1
+			if (nextFreeSlot >= slotCount) break
+			slot = nextFreeSlot
+		}
+
 		usedSlots.add(slot)
 		visibleFiles.push(file)
 		visiblePositions[file.path] = slot
 	}
+
 	return { id, metrics, files: visibleFiles, positions: visiblePositions }
 }
 
@@ -523,67 +540,64 @@ export function moveDesktopFiles(
 	targetSlot: number,
 	anchor?: string,
 ): void {
+	const movingPaths = [...new Set(paths)].filter(Boolean)
+	if (movingPaths.length === 0) return
+
 	const targetId = normalizeMonitorId(targetMonitorId)
-	const uniquePaths = [...new Set(paths)].filter(Boolean)
-	if (uniquePaths.length === 0) return
 	const target = getDesktopGrid(targetId)
-	let metrics = target.metrics
-	if (!metrics) return
+	if (!target.metrics) return
 
 	const layout = desktopLayout.peek()
-	const anchorPath = anchor ?? uniquePaths[0]
-	const sourceId =
-		monitorOfDesktopPath(anchorPath) ??
-		monitorOfDesktopPath(uniquePaths[0]) ??
-		targetId
-	if (normalizeMonitorId(sourceId) !== targetId) {
-		const targetPaths = new Set(target.files.map((file) => file.path))
-		const incoming = uniquePaths.filter((path) => !targetPaths.has(path)).length
-		metrics = expandGridMetrics(metrics, target.files.length + incoming)
+	const anchorPath = anchor ?? movingPaths[0]
+	const sourceId = normalizeMonitorId(
+		layout.placements[anchorPath]?.monitor ??
+			layout.placements[movingPaths[0]]?.monitor ??
+			targetId,
+	)
+	const crossingMonitors = sourceId !== targetId
+
+	let metrics = target.metrics
+	if (crossingMonitors) {
+		const visibleTargetPaths = new Set(target.files.map((file) => file.path))
+		const incomingCount = movingPaths.filter(
+			(path) => !visibleTargetPaths.has(path),
+		).length
+		metrics = expandGridMetrics(metrics, target.files.length + incomingCount)
 	}
-	let next = layout
-	if (normalizeMonitorId(sourceId) === targetId) {
-		next = assignPaths(next, uniquePaths, targetId)
-		const positions = movePathsToSlot(
-			{
-				positions: target.positions,
-				columns: metrics.columns,
-				slotCount: metrics.rows * metrics.columns,
-			},
-			target.files,
-			{ paths: uniquePaths, anchorPath, targetSlot },
-		)
-		const owned = new Set(
-			filesOnMonitor(next, desktopFiles.peek(), targetId).map(
-				(file) => file.path,
-			),
-		)
-		next = setPositions(next, targetId, pickPositions(owned, positions))
-	} else {
-		const targetPositions = { ...target.positions }
-		for (const path of uniquePaths) delete targetPositions[path]
-		const positions = movePathsToGrid(
+
+	const targetGrid = {
+		positions: { ...target.positions },
+		columns: metrics.columns,
+		slotCount: metrics.rows * metrics.columns,
+	}
+	let movedPositions: Record<string, number>
+
+	if (crossingMonitors) {
+		for (const path of movingPaths) delete targetGrid.positions[path]
+		movedPositions = movePathsToGrid(
 			{
 				positions: positionsOf(layout, sourceId),
-				columns:
-					layout.columns[normalizeMonitorId(sourceId)] ?? metrics.columns,
+				columns: layout.columns[sourceId] ?? metrics.columns,
 			},
-			{
-				positions: targetPositions,
-				columns: metrics.columns,
-				slotCount: metrics.rows * metrics.columns,
-			},
-			{ paths: uniquePaths, anchorPath, targetSlot },
+			targetGrid,
+			{ paths: movingPaths, anchorPath, targetSlot },
 		)
-		next = assignPaths(next, uniquePaths, targetId)
-		const owned = new Set(
-			filesOnMonitor(next, desktopFiles.peek(), targetId).map(
-				(file) => file.path,
-			),
-		)
-		next = setPositions(next, targetId, pickPositions(owned, positions))
+	} else {
+		movedPositions = movePathsToSlot(targetGrid, target.files, {
+			paths: movingPaths,
+			anchorPath,
+			targetSlot,
+		})
 	}
-	updateLayout(next)
+
+	const reassignedLayout = assignPaths(layout, movingPaths, targetId)
+	const ownedPaths = new Set(
+		filesOnMonitor(reassignedLayout, desktopFiles.peek(), targetId).map(
+			(file) => file.path,
+		),
+	)
+	const ownedPositions = pickPositions(ownedPaths, movedPositions)
+	updateLayout(setPositions(reassignedLayout, targetId, ownedPositions))
 }
 
 export function openDesktopFiles(paths: string[]): void {
@@ -639,20 +653,21 @@ export async function cancelDesktopCut(): Promise<void> {
 export async function pasteDesktopFiles(monitorId: string): Promise<void> {
 	const payload = (await readClipboardFilePayload()) || desktopClipboard.peek()
 	if (!payload?.files.length) return
+
 	const monitor = monitorId.trim() || fallbackMonitor(desktopLayout.peek())
 	let createdPaths: string[] = []
 	beginDesktopTransfer()
+
 	try {
 		const result = await pasteFilesToDesktop(payload.files, payload.operation)
 		createdPaths = result.createdPaths
-		if (result.failures.length > 0) {
+
+		if (result.failures.length > 0)
 			console.error(
 				"desktop.pasteFiles: Failed to paste some desktop files",
 				result.failures,
 			)
-			return
-		}
-		if (payload.operation === "cut") updateDesktopClipboard(null)
+		else if (payload.operation === "cut") updateDesktopClipboard(null)
 	} finally {
 		finishDesktopTransfer(createdPaths, monitor)
 	}
@@ -683,9 +698,9 @@ export function removeDesktopFiles(
 	opts: { permanently?: boolean } = {},
 ): void {
 	if (paths.length === 0) return
-	const result = opts.permanently
-		? permanentlyDeleteFiles(paths)
-		: trashFiles(paths)
+	let result: ReturnType<typeof trashFiles>
+	if (opts.permanently) result = permanentlyDeleteFiles(paths)
+	else result = trashFiles(paths)
 	if (!result.ok) {
 		console.error("desktop.remove: Failed to remove desktop files", result.err)
 		return
@@ -693,34 +708,34 @@ export function removeDesktopFiles(
 	reloadDesktopFiles()
 }
 
-function rememberCreatedPath(
-	result: ReturnType<typeof createDesktopFolder>,
-	monitorId: string,
-) {
-	if (!result.ok) return null
-	updateLayout(assignPaths(desktopLayout.peek(), [result.value], monitorId))
+function rememberCreatedPath(path: string, monitorId: string): string {
+	updateLayout(assignPaths(desktopLayout.peek(), [path], monitorId))
 	reloadDesktopFiles(monitorId)
-	return result.value
+	return path
 }
 
 export function createDesktopFolderOn(monitorId: string): string | null {
 	const result = createDesktopFolder()
-	if (!result.ok)
+	if (!result.ok) {
 		console.error(
 			"desktop.createFolder: Failed to create desktop folder",
 			result.err,
 		)
-	return rememberCreatedPath(result, monitorId)
+		return null
+	}
+	return rememberCreatedPath(result.value, monitorId)
 }
 
 export function createDesktopTextFileOn(monitorId: string): string | null {
 	const result = createDesktopTextFile()
-	if (!result.ok)
+	if (!result.ok) {
 		console.error(
 			"desktop.createTextFile: Failed to create desktop text file",
 			result.err,
 		)
-	return rememberCreatedPath(result, monitorId)
+		return null
+	}
+	return rememberCreatedPath(result.value, monitorId)
 }
 
 export function createDesktopLauncherOn(
@@ -728,12 +743,14 @@ export function createDesktopLauncherOn(
 	spec: DesktopLauncherSpec,
 ): string | null {
 	const result = createDesktopLauncher(spec)
-	if (!result.ok)
+	if (!result.ok) {
 		console.error(
 			"desktop.createLauncher: Failed to create desktop launcher",
 			result.err,
 		)
-	return rememberCreatedPath(result, monitorId)
+		return null
+	}
+	return rememberCreatedPath(result.value, monitorId)
 }
 
 function renameDesktopFile(target: string, name: string): string | null {
@@ -746,18 +763,17 @@ function renameDesktopFile(target: string, name: string): string | null {
 	const path = result.value
 	updateLayout(renamePlacement(desktopLayout.peek(), target, path))
 	setDesktopFiles(
-		desktopFiles.peek().map((file) =>
-			file.path === target
-				? {
-						...file,
-						path,
-						name: path.split("/").pop() ?? file.name,
-						displayName: path.toLowerCase().endsWith(".desktop")
-							? file.displayName
-							: undefined,
-					}
-				: file,
-		),
+		desktopFiles.peek().map((file) => {
+			if (file.path !== target) return file
+			return {
+				...file,
+				path,
+				name: path.split("/").pop() ?? file.name,
+				displayName: path.toLowerCase().endsWith(".desktop")
+					? file.displayName
+					: undefined,
+			}
+		}),
 	)
 	return path
 }

@@ -105,11 +105,9 @@ export namespace DesktopLauncherCreator {
 			const nameDifference = leftApplication
 				.get_name()
 				.localeCompare(rightApplication.get_name())
-			return nameDifference < 0
-				? Gtk.Ordering.SMALLER
-				: nameDifference > 0
-					? Gtk.Ordering.LARGER
-					: Gtk.Ordering.EQUAL
+			if (nameDifference < 0) return Gtk.Ordering.SMALLER
+			if (nameDifference > 0) return Gtk.Ordering.LARGER
+			return Gtk.Ordering.EQUAL
 		})
 		const sortedApplications = Gtk.SortListModel.new(
 			applicationModel,
@@ -346,15 +344,12 @@ export namespace DesktopLauncherCreator {
 			(hasOptions) => !hasOptions,
 		)
 		const hasVolumeOptions = volumeOptions.as((options) => options.length > 0)
-		const headerTitle = page.as((current) =>
-			current === "applications"
-				? "Choose a Target"
-				: current === "locations"
-					? "Choose a Folder or Disk"
-					: current === "icons"
-						? "Choose an Icon"
-						: "Create a Desktop Launcher",
-		)
+		const headerTitle = page.as((current) => {
+			if (current === "applications") return "Choose a Target"
+			if (current === "locations") return "Choose a Folder or Disk"
+			if (current === "icons") return "Choose an Icon"
+			return "Create a Desktop Launcher"
+		})
 
 		function selectApplication(application: AstalApps.Application) {
 			setApplicationLabel(application.get_name())
@@ -1157,11 +1152,9 @@ function commandTargetsDirectory(value: string) {
 		const [parsed, argv] = GLib.shell_parse_argv(value.trim())
 		if (!parsed || argv?.length !== 2 || argv[0] !== "xdg-open") return false
 		const target = argv[1]
-		const file = target.startsWith("file://")
-			? Gio.File.new_for_uri(target)
-			: GLib.path_is_absolute(target)
-				? Gio.File.new_for_path(target)
-				: null
+		let file: Gio.File | null = null
+		if (target.startsWith("file://")) file = Gio.File.new_for_uri(target)
+		else if (GLib.path_is_absolute(target)) file = Gio.File.new_for_path(target)
 		return (
 			file?.query_file_type(Gio.FileQueryInfoFlags.NONE, null) ===
 			Gio.FileType.DIRECTORY

@@ -15,7 +15,11 @@ const { START, CENTER } = Gtk.Align
 
 const STRING_VARIANT = GLib.VariantType.new("s")
 
-function attributeString(model: Gio.MenuModel, index: number, attribute: string) {
+function attributeString(
+	model: Gio.MenuModel,
+	index: number,
+	attribute: string,
+) {
 	const value = model.get_item_attribute_value(index, attribute, STRING_VARIANT)
 	return value ? value.get_string()[0] : ""
 }
@@ -25,13 +29,15 @@ function actionName(fullAction: string) {
 	return dot >= 0 ? fullAction.slice(dot + 1) : fullAction
 }
 
-function isChecked(actionGroup: Gio.ActionGroup, name: string, target: GLib.Variant | null) {
+function isChecked(
+	actionGroup: Gio.ActionGroup,
+	name: string,
+	target: GLib.Variant | null,
+) {
 	const state = actionGroup.get_action_state(name)
-	if (!state)
-		return false
+	if (!state) return false
 
-	if (state.get_type_string() === "b")
-		return state.get_boolean()
+	if (state.get_type_string() === "b") return state.get_boolean()
 
 	return target ? state.equal(target) : false
 }
@@ -54,16 +60,26 @@ function buildItemButton(
 
 	const content = new Gtk.Box({ orientation: HORIZONTAL })
 	if (known && isChecked(actionGroup!, name, target)) {
-		const check = new Gtk.Image({ iconName: "object-select-symbolic", valign: CENTER })
+		const check = new Gtk.Image({
+			iconName: "object-select-symbolic",
+			valign: CENTER,
+		})
 		check.add_css_class("check")
 		content.append(check)
 	}
-	content.append(new Gtk.Label({ label, useUnderline: true, xalign: 0, halign: START, hexpand: true }))
+	content.append(
+		new Gtk.Label({
+			label,
+			useUnderline: true,
+			xalign: 0,
+			halign: START,
+			hexpand: true,
+		}),
+	)
 	button.set_child(content)
 
 	button.connect("clicked", () => {
-		if (known)
-			actionGroup!.activate_action(name, target)
+		if (known) actionGroup!.activate_action(name, target)
 		closeRoot()
 	})
 
@@ -82,16 +98,33 @@ function buildSubmenuButton(
 	button.add_css_class("submenu")
 
 	const content = new Gtk.Box({ orientation: HORIZONTAL })
-	content.append(new Gtk.Label({ label, useUnderline: true, xalign: 0, halign: START, hexpand: true }))
-	content.append(new Gtk.Image({ iconName: "go-next-symbolic", valign: CENTER }))
+	content.append(
+		new Gtk.Label({
+			label,
+			useUnderline: true,
+			xalign: 0,
+			halign: START,
+			hexpand: true,
+		}),
+	)
+	content.append(
+		new Gtk.Image({ iconName: "go-next-symbolic", valign: CENTER }),
+	)
 	button.set_child(content)
 
 	const { popover, revealer } = createAnimatedPopover(RIGHT)
 	popover.set_parent(button)
-	revealer.set_child(buildMenuBox(submodel, actionGroup, () => {
-		popover.popdown()
-		closeRoot()
-	}, register))
+	revealer.set_child(
+		buildMenuBox(
+			submodel,
+			actionGroup,
+			() => {
+				popover.popdown()
+				closeRoot()
+			},
+			register,
+		),
+	)
 
 	button.connect("clicked", () => popover.popup())
 	register(() => popover.unparent())
@@ -110,8 +143,7 @@ function appendModel(
 	for (let i = 0; i < count; i++) {
 		const section = model.get_item_link(i, "section")
 		if (section) {
-			if (box.get_last_child())
-				box.append(new Gtk.Separator())
+			if (box.get_last_child()) box.append(new Gtk.Separator())
 			appendModel(box, section, actionGroup, closeRoot, register)
 			continue
 		}
@@ -119,7 +151,9 @@ function appendModel(
 		const label = attributeString(model, i, "label")
 		const submenu = model.get_item_link(i, "submenu")
 		if (submenu) {
-			box.append(buildSubmenuButton(label, submenu, actionGroup, closeRoot, register))
+			box.append(
+				buildSubmenuButton(label, submenu, actionGroup, closeRoot, register),
+			)
 			continue
 		}
 
@@ -145,7 +179,7 @@ export function createTrayMenuPopover(item: AstalTray.TrayItem) {
 	let cleanups: Array<() => void> = []
 	const register = (fn: () => void) => cleanups.push(fn)
 	const runCleanups = () => {
-		cleanups.forEach(fn => fn())
+		cleanups.forEach((fn) => fn())
 		cleanups = []
 	}
 
@@ -153,34 +187,40 @@ export function createTrayMenuPopover(item: AstalTray.TrayItem) {
 	// app (e.g. Spotify) mutating its Gio.MenuModel mid-iteration left attributeString()
 	// reading a freed GVariant. Build lazily, only right before the popover opens.
 	let dirty = true
-	const markDirty = () => { dirty = true }
+	const markDirty = () => {
+		dirty = true
+	}
 
 	const rebuild = () => {
 		runCleanups()
 		const model = item.menuModel
-		const content = model
-			? buildMenuBox(model, item.actionGroup, () => popover.popdown(), register)
-			: new Gtk.Box({ orientation: VERTICAL })
-		revealer.set_child(content)
+		if (!model) {
+			revealer.set_child(new Gtk.Box({ orientation: VERTICAL }))
+		} else {
+			revealer.set_child(
+				buildMenuBox(
+					model,
+					item.actionGroup,
+					() => popover.popdown(),
+					register,
+				),
+			)
+		}
 		dirty = false
 	}
 
 	const ensureBuilt = () => {
-		if (dirty)
-			rebuild()
+		if (dirty) rebuild()
 	}
 
 	let model: Gio.MenuModel | null = null
 	let modelConn = 0
 	const connectModel = () => {
-		if (model && modelConn)
-			model.disconnect(modelConn)
+		if (model && modelConn) model.disconnect(modelConn)
 
 		model = item.menuModel
-		if (model)
-			modelConn = model.connect("items-changed", markDirty)
-		else
-			modelConn = 0
+		if (model) modelConn = model.connect("items-changed", markDirty)
+		else modelConn = 0
 		markDirty()
 	}
 
@@ -192,9 +232,8 @@ export function createTrayMenuPopover(item: AstalTray.TrayItem) {
 	]
 
 	onCleanup(() => {
-		itemConns.forEach(id => item.disconnect(id))
-		if (model && modelConn)
-			model.disconnect(modelConn)
+		itemConns.forEach((id) => item.disconnect(id))
+		if (model && modelConn) model.disconnect(modelConn)
 		runCleanups()
 		popover.unparent()
 	})

@@ -52,14 +52,10 @@ export function getDesktopIconMetrics(
 	size: string,
 	scale = 1,
 ): DesktopIconMetrics {
-	const metrics =
-		size === "medium"
-			? ICON_METRICS_BY_SIZE.medium
-			: size === "large"
-				? ICON_METRICS_BY_SIZE.large
-				: size === "extralarge"
-					? ICON_METRICS_BY_SIZE.extralarge
-					: ICON_METRICS_BY_SIZE.small
+	let metrics = ICON_METRICS_BY_SIZE.small
+	if (size === "medium") metrics = ICON_METRICS_BY_SIZE.medium
+	else if (size === "large") metrics = ICON_METRICS_BY_SIZE.large
+	else if (size === "extralarge") metrics = ICON_METRICS_BY_SIZE.extralarge
 	return {
 		...metrics,
 		iconPx: Math.max(8, Math.round(metrics.iconPx * scale)),
@@ -263,46 +259,44 @@ export function reconcileGridPositions(
 	slotCount: number,
 	columns: number,
 ): Record<string, number> {
-	const nextPositions: Record<string, number> = { ...current }
 	const validPaths = new Set(fileList.map((file) => file.path))
-	Object.keys(nextPositions).forEach((path) => {
-		if (!validPaths.has(path)) delete nextPositions[path]
-	})
-	const used = new Set<number>()
-	const placed = new Set<string>()
+	const positions = { ...current }
+	for (const path of Object.keys(positions))
+		if (!validPaths.has(path)) delete positions[path]
 
+	const usedSlots = new Set<number>()
 	for (const file of fileList) {
-		const slot = nextPositions[file.path]
-		if (slot != null && slot >= 0 && slot < slotCount && !used.has(slot)) {
-			used.add(slot)
-			placed.add(file.path)
-		} else {
-			delete nextPositions[file.path]
-		}
+		const slot = positions[file.path]
+		if (slot != null && slot >= 0 && slot < slotCount && !usedSlots.has(slot))
+			usedSlots.add(slot)
+		else delete positions[file.path]
 	}
 
-	const safeColumns = Math.max(1, columns)
-	const rows = Math.max(1, Math.floor(slotCount / safeColumns))
+	const columnCount = Math.max(1, columns)
+	const rowCount = Math.max(1, Math.floor(slotCount / columnCount))
 	let cursor = 0
-	const nextFreeSlot = () => {
-		// New icons fill top-to-bottom before advancing to the next column.
-		while (cursor < slotCount) {
-			const slot = (cursor % rows) * safeColumns + Math.floor(cursor / rows)
-			cursor += 1
-			if (!used.has(slot)) return slot
-		}
-		return null
-	}
 
 	for (const file of fileList) {
-		if (placed.has(file.path)) continue
-		const slot = nextFreeSlot()
-		if (slot != null) {
-			nextPositions[file.path] = slot
-			used.add(slot)
+		if (positions[file.path] != null) continue
+
+		let freeSlot: number | null = null
+		while (cursor < slotCount) {
+			// New icons fill top-to-bottom before advancing to the next column.
+			const slot =
+				(cursor % rowCount) * columnCount + Math.floor(cursor / rowCount)
+			cursor += 1
+			if (!usedSlots.has(slot)) {
+				freeSlot = slot
+				break
+			}
 		}
+
+		if (freeSlot == null) break
+		positions[file.path] = freeSlot
+		usedSlots.add(freeSlot)
 	}
-	return nextPositions
+
+	return positions
 }
 
 type DragOffset = { path: string; row: number; column: number }
@@ -434,8 +428,10 @@ export function movePathsToGrid(
 	target: SlotLayout,
 	move: SlotMove,
 ): Record<string, number> {
-	const paths = Array.from(new Set(move.paths)).filter(Boolean)
-	if (paths.length === 0) return { ...target.positions }
+	const paths = [...new Set(move.paths)].filter(Boolean)
+	const positions = { ...target.positions }
+	if (paths.length === 0) return positions
+
 	const columns = Math.max(1, target.columns)
 	const offsets = getDragOffsets(
 		paths,
@@ -449,24 +445,23 @@ export function movePathsToGrid(
 		target.slotCount,
 		offsets,
 	)
-	const taken = new Set(Object.values(target.positions))
-	const next = { ...target.positions }
-	function firstFreeSlot() {
-		for (let slot = 0; slot < target.slotCount; slot += 1)
-			if (!taken.has(slot)) return slot
-		return null
-	}
+	const usedSlots = new Set(Object.values(target.positions))
+	let freeSlotCursor = 0
+
 	for (const offset of offsets) {
 		let slot =
 			(anchor.row + offset.row) * columns + anchor.column + offset.column
-		// Cross-grid moves keep relative slots when possible, then use the first free target slot.
-		if (slot < 0 || slot >= target.slotCount || taken.has(slot)) {
-			const freeSlot = firstFreeSlot()
-			if (freeSlot == null) continue
-			slot = freeSlot
+
+		if (slot < 0 || slot >= target.slotCount || usedSlots.has(slot)) {
+			while (freeSlotCursor < target.slotCount && usedSlots.has(freeSlotCursor))
+				freeSlotCursor += 1
+			if (freeSlotCursor >= target.slotCount) break
+			slot = freeSlotCursor
 		}
-		next[offset.path] = slot
-		taken.add(slot)
+
+		positions[offset.path] = slot
+		usedSlots.add(slot)
 	}
-	return next
+
+	return positions
 }

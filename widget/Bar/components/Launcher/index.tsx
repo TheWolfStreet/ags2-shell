@@ -181,10 +181,10 @@ export namespace Launcher {
 				}}
 			>
 				<With value={isOnBottom}>
-					{(isBottom) => (
-						<box class="launcher" orientation={VERTICAL} css={launcherCss}>
-							{isBottom ? (
-								<>
+					{(isBottom) => {
+						if (isBottom)
+							return (
+								<box class="launcher" orientation={VERTICAL} css={launcherCss}>
 									<AppList
 										allApps={allApps}
 										visibleApps={visibleApps}
@@ -197,25 +197,26 @@ export namespace Launcher {
 									/>
 									<NotFoundRevealer />
 									<SearchEntry />
-								</>
-							) : (
-								<>
-									<SearchEntry />
-									<NotFoundRevealer />
-									<Favorites
-										favorites={favorites}
-										visible={showFavorites}
-										launch={(a) => launchApp(win, a)}
-									/>
-									<AppList
-										allApps={allApps}
-										visibleApps={visibleApps}
-										launch={(a) => launchApp(win, a)}
-									/>
-								</>
-							)}
-						</box>
-					)}
+								</box>
+							)
+
+						return (
+							<box class="launcher" orientation={VERTICAL} css={launcherCss}>
+								<SearchEntry />
+								<NotFoundRevealer />
+								<Favorites
+									favorites={favorites}
+									visible={showFavorites}
+									launch={(a) => launchApp(win, a)}
+								/>
+								<AppList
+									allApps={allApps}
+									visibleApps={visibleApps}
+									launch={(a) => launchApp(win, a)}
+								/>
+							</box>
+						)
+					}}
 				</With>
 			</PopupWindow>
 		) as Gtk.Window
@@ -368,19 +369,21 @@ function Favorites({ favorites, visible, launch }: FavoritesProps) {
 	const quickLaunch = (
 		<box class="quicklaunch horizontal">
 			<For each={favorites}>
-				{(app: AstalApps.Application) =>
-					app ? (
+				{(favorite: AstalApps.Application | null) => {
+					if (!favorite) return <box visible={false} />
+					return (
 						<button
-							tooltipText={app.get_name()}
-							onClicked={() => launch(app)}
+							tooltipText={favorite.get_name()}
+							onClicked={() => launch(favorite)}
 							hexpand
 						>
-							<ApplicationIcon icon={app.get_icon_name()} size={iconSize} />
+							<ApplicationIcon
+								icon={favorite.get_icon_name()}
+								size={iconSize}
+							/>
 						</button>
-					) : (
-						<box visible={false} />
 					)
-				}
+				}}
 			</For>
 		</box>
 	)

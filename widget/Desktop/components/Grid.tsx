@@ -231,10 +231,15 @@ function DesktopInteractions({
 						(gesture.get_current_event_state() & ModifierType.SHIFT_MASK) !== 0
 					const widget = gesture.get_widget()
 					const root = widget?.get_root()
-					const [translated, menuX, menuY] =
-						widget && root instanceof Gtk.Widget
-							? widget.translate_coordinates(root, x, y)
-							: [false, x, y]
+					let translated = false
+					let menuX = x
+					let menuY = y
+					if (widget && root instanceof Gtk.Widget)
+						[translated, menuX, menuY] = widget.translate_coordinates(
+							root,
+							x,
+							y,
+						)
 					desktopContextMenu.show({
 						monitor,
 						monitorId: grid.peek().id,

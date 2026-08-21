@@ -83,12 +83,13 @@ class ScreenCaptureService extends GObject.Object {
 			const parsed: unknown = JSON.parse(
 				await execAsync(["hyprctl", "monitors", "-j"]),
 			)
-			return Array.isArray(parsed)
-				? (parsed.find(
-						(monitor): monitor is HyprlandMonitorJson =>
-							isHyprlandMonitorJson(monitor) && monitor.focused,
-					) ?? null)
-				: null
+			if (!Array.isArray(parsed)) return null
+			return (
+				parsed.find(
+					(monitor): monitor is HyprlandMonitorJson =>
+						isHyprlandMonitorJson(monitor) && monitor.focused,
+				) ?? null
+			)
 		})
 		return result.ok ? result.value : null
 	}
@@ -168,9 +169,9 @@ class ScreenCaptureService extends GObject.Object {
 			this.#recordingFile = `${RECORDINGS_DIRECTORY}${createCaptureTimestamp()}.mkv`
 
 			if (!notifyMissingPrograms("wf-recorder")) return
-			const area = select
-				? await this.#selectArea("wf-recorder")
-				: await this.#getFocusedScreenArea()
+			let area: string | null
+			if (select) area = await this.#selectArea("wf-recorder")
+			else area = await this.#getFocusedScreenArea()
 			if (this.#shuttingDown || (select && !area)) return
 
 			const args = ["wf-recorder"]

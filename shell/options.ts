@@ -24,9 +24,14 @@ namespace Store {
 			return JSON.parse(raw) as Record<string, unknown>
 		})
 		if (!result.ok)
-			console.error("option.store.load: Failed to load options store", result.err)
+			console.error(
+				"option.store.load: Failed to load options store",
+				result.err,
+			)
 		else if (!isStructured(result.value))
-			console.error("option.store.load: Options store does not contain an object")
+			console.error(
+				"option.store.load: Options store does not contain an object",
+			)
 		cache = result.ok && isStructured(result.value) ? result.value : {}
 	}
 
@@ -36,7 +41,10 @@ namespace Store {
 			await writeFileAsync(path, JSON.stringify(cache, null, 2))
 		})
 		if (!result.ok)
-			console.error("option.store.save: Failed to save options store", result.err)
+			console.error(
+				"option.store.save: Failed to save options store",
+				result.err,
+			)
 	})
 
 	export function get(pathStr: string): unknown {
@@ -44,8 +52,7 @@ namespace Store {
 		const parts = splitPath(pathStr)
 		let node: unknown = cache
 		for (const part of parts) {
-			if (!isStructured(node))
-				return undefined
+			if (!isStructured(node)) return undefined
 			node = node[part]
 		}
 		return node
@@ -64,8 +71,7 @@ namespace Store {
 		ensureLoaded()
 		const parts = splitPath(pathStr)
 		const root = cache
-		if (!root)
-			return
+		if (!root) return
 
 		let node: Record<string, unknown> = root
 		for (let i = 0; i < parts.length - 1; i++) {
@@ -88,14 +94,12 @@ namespace Store {
 		ensureLoaded()
 		const parts = splitPath(pathStr)
 		const root = cache
-		if (!root)
-			return
+		if (!root) return
 
 		let node = root
 		for (let i = 0; i < parts.length - 1; i++) {
 			const next = node[parts[i]]
-			if (!isStructured(next))
-				return
+			if (!isStructured(next)) return
 			node = next
 		}
 		delete node[parts[parts.length - 1]]
@@ -110,20 +114,25 @@ export class Opt<T> extends Accessor<T> {
 
 	constructor(initial: T, id = "") {
 		const [acc, set] = createState(initial)
-		super(() => acc.peek(), (cb) => acc.subscribe(cb))
+		super(
+			() => acc.peek(),
+			(cb) => acc.subscribe(cb),
+		)
 		this.#setter = set
 		this.#default = initial
 		this.id = id
 	}
 
 	[Symbol.toPrimitive]() {
-		console.warn("Opt implicitly converted to a primitive value.", new Error().stack)
+		console.warn(
+			"Opt implicitly converted to a primitive value.",
+			new Error().stack,
+		)
 		return this.toString()
 	}
 
 	set(v: T) {
-		if (Object.is(this.peek(), v))
-			return
+		if (Object.is(this.peek(), v)) return
 
 		this.#setter(v)
 		if (v === this.#default) {
@@ -151,38 +160,67 @@ function isStructured(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
-type WidenLiterals<T> = T extends boolean ? boolean : T extends string ? string : T extends number ? number : T
+type WidenLiterals<T> = T extends boolean
+	? boolean
+	: T extends string
+		? string
+		: T extends number
+			? number
+			: T
 
-function isPrimitive(value: unknown): value is string | number | boolean | null {
-	return value === null || ["string", "number", "boolean"].includes(typeof value)
+function isPrimitive(
+	value: unknown,
+): value is string | number | boolean | null {
+	return (
+		value === null || ["string", "number", "boolean"].includes(typeof value)
+	)
 }
 
 function isCompatibleLeaf(stored: unknown, defaultValue: unknown): boolean {
 	if (Array.isArray(defaultValue)) {
-		if (!Array.isArray(stored) || !stored.every(isPrimitive))
-			return false
+		if (!Array.isArray(stored) || !stored.every(isPrimitive)) return false
 
-		const elementTypes = new Set(defaultValue.filter(isPrimitive).map(value => value === null ? "null" : typeof value))
-		return elementTypes.size === 0 || stored.every(value => elementTypes.has(value === null ? "null" : typeof value))
+		const elementTypes = new Set(
+			defaultValue
+				.filter(isPrimitive)
+				.map((value) => (value === null ? "null" : typeof value)),
+		)
+		return (
+			elementTypes.size === 0 ||
+			stored.every((value) =>
+				elementTypes.has(value === null ? "null" : typeof value),
+			)
+		)
 	}
 
-	if (!isPrimitive(defaultValue) || !isPrimitive(stored))
-		return false
+	if (!isPrimitive(defaultValue) || !isPrimitive(stored)) return false
 
-	return defaultValue === null ? stored === null : typeof stored === typeof defaultValue
+	return defaultValue === null
+		? stored === null
+		: typeof stored === typeof defaultValue
 }
 
-export type OptionConstraints = Readonly<Record<string, readonly (string | number)[]>>
+export type OptionConstraints = Readonly<
+	Record<string, readonly (string | number)[]>
+>
 
 export type Options<T> =
-	T extends Record<string, unknown> ? { [K in keyof T]: Options<T[K]> } :
-	Opt<WidenLiterals<T>>
+	T extends Record<string, unknown>
+		? { [K in keyof T]: Options<T[K]> }
+		: Opt<WidenLiterals<T>>
 
-export function mkOptions<T>(node: T, constraints: OptionConstraints = {}): Options<T> {
+export function mkOptions<T>(
+	node: T,
+	constraints: OptionConstraints = {},
+): Options<T> {
 	return buildOptions(node, "", constraints) as Options<T>
 }
 
-function buildOptions(node: unknown, path: string, constraints: OptionConstraints): unknown {
+function buildOptions(
+	node: unknown,
+	path: string,
+	constraints: OptionConstraints,
+): unknown {
 	if (isStructured(node)) {
 		const newNode: Record<string, unknown> = {}
 
@@ -200,11 +238,11 @@ function buildOptions(node: unknown, path: string, constraints: OptionConstraint
 
 	if (storedVal !== undefined) {
 		const allowedValues = constraints[path]
-		const isAllowed = !allowedValues || allowedValues.some(value => Object.is(value, storedVal))
-		if (isCompatibleLeaf(storedVal, node) && isAllowed)
-			opt.set(storedVal)
-		else
-			Store.del(path)
+		const isAllowed =
+			!allowedValues ||
+			allowedValues.some((value) => Object.is(value, storedVal))
+		if (isCompatibleLeaf(storedVal, node) && isAllowed) opt.set(storedVal)
+		else Store.del(path)
 	}
 
 	return opt
@@ -218,7 +256,11 @@ export function subscribeOptions(
 	const disposers: Array<() => void> = []
 
 	if (opts instanceof Opt) {
-		if (prefixes.some(prefix => opts.id === prefix || opts.id.startsWith(`${prefix}.`)))
+		if (
+			prefixes.some(
+				(prefix) => opts.id === prefix || opts.id.startsWith(`${prefix}.`),
+			)
+		)
 			disposers.push(opts.subscribe(callback))
 	} else if (isStructured(opts)) {
 		for (const key in opts) {
@@ -227,7 +269,7 @@ export function subscribeOptions(
 		}
 	}
 
-	return () => disposers.forEach(dispose => dispose())
+	return () => disposers.forEach((dispose) => dispose())
 }
 
 export const optionValues = {
@@ -239,7 +281,14 @@ export const optionValues = {
 	desktopIconSize: ["small", "medium", "large", "extralarge"],
 	launcherPosition: ["top-center", "bottom-center"],
 	favoritesLocation: ["disabled", "dock", "launcher", "both"],
-	popupPosition: ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"],
+	popupPosition: [
+		"top-left",
+		"top-center",
+		"top-right",
+		"bottom-left",
+		"bottom-center",
+		"bottom-right",
+	],
 	dateMenuPosition: ["center", "top-center", "bottom-center"],
 	powerMenuLayout: ["box", "line"],
 	osdPosition: ["center", "bottom-center"],
@@ -261,167 +310,171 @@ const constraints = {
 	"notifications.position": optionValues.popupPosition,
 } as const
 
-const options = mkOptions({
-	autotheme: false,
-	scale: 100,
-	font: "SFProDisplay Nerd Font 11",
-	transition: {
-		duration: 200,
-	},
+let launcherIcon = icons.ui.search
+if (
+	env.distro.logo &&
+	new Gtk.IconTheme({ themeName: app.iconTheme }).has_icon(env.distro.logo)
+)
+	launcherIcon = env.distro.logo
 
-	theme: {
-		scheme: "dark",
-		dark: {
-			bg: "#171717",
-			fg: "#eeeeee",
-			primary: {
-				bg: "#51a4e7",
-				fg: "#141414",
-			},
-			error: {
-				bg: "#e55f86",
-			},
-			widget: "#eeeeee",
-			border: "#9a9996",
+const options = mkOptions(
+	{
+		autotheme: false,
+		scale: 100,
+		font: "SFProDisplay Nerd Font 11",
+		transition: {
+			duration: 200,
 		},
-		light: {
-			bg: "#fffffa",
-			fg: "#080808",
-			primary: {
-				bg: "#426ede",
+
+		theme: {
+			scheme: "dark",
+			dark: {
+				bg: "#171717",
 				fg: "#eeeeee",
+				primary: {
+					bg: "#51a4e7",
+					fg: "#141414",
+				},
+				error: {
+					bg: "#e55f86",
+				},
+				widget: "#eeeeee",
+				border: "#9a9996",
 			},
-			error: {
-				bg: "#b13558",
+			light: {
+				bg: "#fffffa",
+				fg: "#080808",
+				primary: {
+					bg: "#426ede",
+					fg: "#eeeeee",
+				},
+				error: {
+					bg: "#b13558",
+				},
+				widget: "#080808",
+				border: "#080808",
 			},
-			widget: "#080808",
-			border: "#080808",
+
+			opacity: 30,
+			widget: {
+				opacity: 94,
+			},
+			border: {
+				width: 1,
+				opacity: 86,
+			},
+			shadows: true,
+			blur: true,
+			neumorphic: true,
+
+			padding: 8,
+			spacing: 6,
+			roundness: 12,
 		},
 
-		opacity: 30,
-		widget: {
-			opacity: 94,
-		},
-		border: {
-			width: 1,
-			opacity: 86,
-		},
-		shadows: true,
-		blur: true,
-		neumorphic: true,
+		bar: {
+			position: "top-center",
+			transparent: false,
+			corners: 50,
 
-		padding: 8,
-		spacing: 6,
-		roundness: 12,
-	},
+			launcher: {
+				icon: launcherIcon,
+			},
+			workspaces: {
+				count: 7,
+			},
+			taskbar: {
+				exclusive: false,
+			},
+			date: {
+				format: "%a %b %-d %H:%M",
+			},
+			media: {
+				preferred: "spotify",
+			},
+			systray: {
+				ignore: ["KDE Connect Indicator", "spotify-client", "spotify"],
+			},
+		},
 
-	bar: {
-		position: "top-center",
-		transparent: false,
-		corners: 50,
+		taskbar: {
+			location: "dock",
+		},
+
+		dock: {
+			mode: "static",
+			position: "bottom-center",
+			scale: 100,
+			trash: true,
+		},
+
+		desktop: {
+			enabled: true,
+			iconSize: "medium",
+		},
 
 		launcher: {
-			icon: env.distro.logo && new Gtk.IconTheme({ themeName: app.iconTheme }).has_icon(env.distro.logo)
-				? env.distro.logo
-				: icons.ui.search,
+			position: "top-center",
+			margin: 40,
+			scale: 100,
+			apps: {
+				max: 6,
+			},
 		},
-		workspaces: {
-			count: 7,
+
+		favorites: {
+			location: "both",
 		},
-		taskbar: {
-			exclusive: false,
+
+		overview: {
+			scale: 100,
+			workspaces: 7,
 		},
-		date: {
-			format: "%a %b %-d %H:%M",
+
+		quicksettings: {
+			position: "top-right",
+			width: 380,
 		},
-		media: {
-			preferred: "spotify",
+
+		datemenu: {
+			position: "center",
 		},
-		systray: {
-			ignore: [
-				"KDE Connect Indicator",
-				"spotify-client",
-				"spotify",
-			],
+
+		powermenu: {
+			layout: "line",
+			labels: true,
+			sleep: "systemctl suspend",
+			reboot: "systemctl reboot",
+			logout: "hyprctl dispatch exit",
+			shutdown: "shutdown now",
+		},
+
+		osd: {
+			position: "bottom-center",
+			dismiss: 1200,
+		},
+
+		notifications: {
+			position: "top-right",
+			blacklist: ["Spotify", "com.spotify.Client"],
+			dismiss: 3500,
+		},
+
+		colorpicker: {
+			maxColors: 10,
+		},
+
+		hyprland: {
+			gaps: 2.4,
+			inactiveBorder: "#282828",
+		},
+
+		asus: {
+			ac_hz: 144,
+			bat_hz: 60,
 		},
 	},
-
-	taskbar: {
-		location: "dock",
-	},
-
-	dock: {
-		mode: "static",
-		position: "bottom-center",
-		scale: 100,
-		trash: true,
-	},
-
-	desktop: {
-		enabled: true,
-		iconSize: "medium",
-	},
-
-	launcher: {
-		position: "top-center",
-		margin: 40,
-		scale: 100,
-		apps: {
-			max: 6,
-		},
-	},
-
-	favorites: {
-		location: "both",
-	},
-
-	overview: {
-		scale: 100,
-		workspaces: 7,
-	},
-
-	quicksettings: {
-		position: "top-right",
-		width: 380,
-	},
-
-	datemenu: {
-		position: "center",
-	},
-
-	powermenu: {
-		layout: "line",
-		labels: true,
-		sleep: "systemctl suspend",
-		reboot: "systemctl reboot",
-		logout: "hyprctl dispatch exit",
-		shutdown: "shutdown now",
-	},
-
-	osd: {
-		position: "bottom-center",
-		dismiss: 1200,
-	},
-
-	notifications: {
-		position: "top-right",
-		blacklist: ["Spotify", "com.spotify.Client"],
-		dismiss: 3500,
-	},
-
-	colorpicker: {
-		maxColors: 10,
-	},
-
-	hyprland: {
-		gaps: 2.4,
-		inactiveBorder: "#282828",
-	},
-
-	asus: {
-		ac_hz: 144,
-		bat_hz: 60,
-	},
-}, constraints)
+	constraints,
+)
 
 export default options

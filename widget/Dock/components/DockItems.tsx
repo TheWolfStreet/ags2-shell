@@ -69,16 +69,6 @@ function lookupTokens(value: string | null | undefined) {
 	return [...tokens]
 }
 
-function favoriteKeys(favorite: AstalApps.Application) {
-	return [
-		...new Set([
-			...lookupTokens(favorite.get_name()),
-			...lookupTokens(favorite.get_executable()),
-			...lookupTokens(favorite.get_entry()),
-		]),
-	]
-}
-
 export function createDockItems(isDockLocation: Accessor<boolean>) {
 	const runningClients = createWindowClientList(options.bar.taskbar.exclusive)
 	const favoriteApps = createBinding(applications, "favorites")
@@ -98,19 +88,23 @@ export function createDockItems(isDockLocation: Accessor<boolean>) {
 
 		if (favoriteLocation === "dock" || favoriteLocation === "both") {
 			for (const favorite of favoriteApps()) {
-				const keys = favoriteKeys(favorite)
-				const appClass = [...groups.keys()].find((candidate) =>
-					lookupTokens(candidate).some((token) => keys.includes(token)),
+				const favoriteTokens = new Set([
+					...lookupTokens(favorite.get_name()),
+					...lookupTokens(favorite.get_executable()),
+					...lookupTokens(favorite.get_entry()),
+				])
+				const matchingGroup = [...groups].find(([appClass]) =>
+					lookupTokens(appClass).some((token) => favoriteTokens.has(token)),
 				)
-
-				if (appClass == null) {
+				if (!matchingGroup) {
 					items.push({ kind: "favorite", app: favorite })
 					continue
 				}
 
+				const [appClass, clients] = matchingGroup
 				items.push({
 					kind: "group",
-					clients: groups.get(appClass)!,
+					clients,
 					appClass,
 					icon: favorite.get_icon_name() || undefined,
 				})
@@ -185,10 +179,14 @@ function GroupedIcon({
 
 	function focusNext() {
 		const currentClient = focusedWindowClient.peek()
-		const index = currentClient
-			? clients.findIndex((client) => client.address === currentClient.address)
-			: -1
-		clients[index >= 0 ? (index + 1) % clients.length : 0].focus()
+		let nextIndex = 0
+		if (currentClient) {
+			const currentIndex = clients.findIndex(
+				(client) => client.address === currentClient.address,
+			)
+			if (currentIndex >= 0) nextIndex = (currentIndex + 1) % clients.length
+		}
+		clients[nextIndex].focus()
 	}
 
 	return (
@@ -314,9 +312,9 @@ export function renderDockItem(
 		case "trash":
 			return <TrashIcon iconSize={iconSize} side={side} />
 		case "separator":
-			return side === "left" ? (
-				<Gtk.Separator class="dock-separator" orientation={HORIZONTAL} />
-			) : (
+			if (side === "left")
+				return <Gtk.Separator class="dock-separator" orientation={HORIZONTAL} />
+			return (
 				<Gtk.Separator
 					class="dock-separator"
 					orientation={VERTICAL}
