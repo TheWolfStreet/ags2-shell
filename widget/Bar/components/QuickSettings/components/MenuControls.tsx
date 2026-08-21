@@ -2,15 +2,15 @@
 
 import { Accessor, createState, FCProps, Node, onCleanup } from "ags"
 import { Gtk } from "ags/gtk4"
-import app from "ags/gtk4/app"
 import { timeout, Timer } from "ags/time"
 
 import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
 import { isAccessor, readValue } from "$lib/ui"
+import { onWindowToggle } from "$lib/windowing"
 
-import options from "options"
+import options from "$shell/options"
 
 const { SLIDE_DOWN } = Gtk.RevealerTransitionType
 const { VERTICAL } = Gtk.Orientation
@@ -151,8 +151,8 @@ export function SettingsButton({ callback }: { callback: () => void }) {
 	)
 }
 
-app.connect("window-toggled", (_, w) => {
-	if (w.name === "quicksettings" && !w.visible) {
+onWindowToggle("quicksettings", window => {
+	if (!window.visible) {
 		timeout(1, () => quickSettingsSubmenu.close())
 	}
 })

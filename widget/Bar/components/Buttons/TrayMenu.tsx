@@ -1,63 +1,17 @@
 // Shows animated tray menus and runs their actions.
 
 import { Gtk } from "ags/gtk4"
-import GObject from "ags/gobject"
 import { onCleanup } from "ags"
 
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import AstalTray from "gi://AstalTray"
 
-import options from "options"
+import { createAnimatedPopover } from "widget/shared/AnimatedPopover"
 
 const { VERTICAL, HORIZONTAL } = Gtk.Orientation
-const { SLIDE_DOWN } = Gtk.RevealerTransitionType
 const { BOTTOM, RIGHT } = Gtk.PositionType
 const { START, CENTER } = Gtk.Align
-
-export class AnimatedPopoverImpl extends Gtk.Popover {
-	revealer?: Gtk.Revealer
-
-	override vfunc_show() {
-		super.vfunc_show()
-		this.revealer?.set_reveal_child(true)
-	}
-
-	override vfunc_hide() {
-		const revealer = this.revealer
-		if (revealer && (revealer.get_reveal_child() || revealer.get_child_revealed())) {
-			revealer.set_reveal_child(false)
-			return
-		}
-		super.vfunc_hide()
-	}
-
-	performHide() {
-		super.vfunc_hide()
-	}
-}
-
-export const AnimatedPopover = GObject.registerClass(AnimatedPopoverImpl)
-
-function createAnimatedPopover(position: Gtk.PositionType) {
-	const popover = new AnimatedPopover() as AnimatedPopoverImpl
-	popover.set_has_arrow(false)
-	popover.set_position(position)
-	popover.add_css_class("menu")
-
-	const revealer = new Gtk.Revealer({
-		transitionType: SLIDE_DOWN,
-		transitionDuration: options.transition.duration.peek(),
-	})
-	revealer.connect("notify::child-revealed", self => {
-		if (!self.get_child_revealed() && !self.get_reveal_child())
-			popover.performHide()
-	})
-
-	popover.revealer = revealer
-	popover.set_child(revealer)
-	return { popover, revealer }
-}
 
 const STRING_VARIANT = GLib.VariantType.new("s")
 
@@ -195,7 +149,7 @@ export function createTrayMenuPopover(item: AstalTray.TrayItem) {
 		cleanups = []
 	}
 
-	// BUG: Rebuilding eagerly on every items-changed crashed during monitor churn — a tray
+	// BUG: Rebuilding eagerly on every items-changed crashes during monitor churn, a tray
 	// app (e.g. Spotify) mutating its Gio.MenuModel mid-iteration left attributeString()
 	// reading a freed GVariant. Build lazily, only right before the popover opens.
 	let dirty = true

@@ -1,49 +1,32 @@
-// Shows the right editor for each setting and delays repeated saves while editing.
+// Shows the appropriate editor for each setting.
 
-import { createComputed, onCleanup } from "ags"
+import { createComputed } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
 import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
 import { attempt } from "$lib/result"
-import { debounce } from "$lib/timing"
+import { isDialogDismissed } from "$lib/ui"
+import { Opt } from "$shell/options"
 
 const { CENTER } = Gtk.Align
-const { OPEN } = Gtk.FileChooserAction
-const { ACCEPT } = Gtk.ResponseType
 const { FONT } = Gtk.FontLevel
 const { RGBA } = Gdk
 const { FontDescription, FontFamily, FontFace, SCALE } = Pango
 
-const NUMBER_UPDATE_DEBOUNCE_MS = 70
-const TEXT_UPDATE_DEBOUNCE_MS = 180
-const FONT_UPDATE_DEBOUNCE_MS = 120
-
 type EnumValue = string | number
-
-export type CommonOption = {
-	(): unknown
-	readonly id: string
-	peek(): unknown
-	set(value: unknown): void
-	getDefault(): unknown
-	reset(): void
-}
 
 export type EditorType =
 	| "number"
 	| "color"
-	| "float"
-	| "object"
 	| "string"
 	| "enum"
 	| "boolean"
-	| "img"
 	| "font"
 
 type SetterProps = {
-	opt: CommonOption
+	opt: Opt<any>
 	type?: EditorType
 	enums?: readonly EnumValue[]
 	max?: number
@@ -51,7 +34,7 @@ type SetterProps = {
 }
 
 type EnumSetterProps = {
-	opt: CommonOption
+	opt: Opt<any>
 	values: readonly EnumValue[]
 }
 
@@ -63,19 +46,8 @@ function resolveSetterType(opt: SetterProps["opt"], type: SetterProps["type"]): 
 	const valueType = typeof opt.peek()
 	if (valueType === "boolean") return "boolean"
 	if (valueType === "number") return "number"
-	if (valueType === "string") return "string"
-	return "object"
+	return "string"
 }
-
-function tryParseJson(text: string) {
-	return attempt(() => JSON.parse(text || ""))
-}
-
-const imageFilter = (() => {
-	const filter = new Gtk.FileFilter()
-	filter.add_mime_type("image/*")
-	return filter
-})()
 
 const fontDialog = (() => {
 	const filter = new Gtk.CustomFilter()
@@ -128,87 +100,23 @@ export default function Setter(props: SetterProps) {
 
 	switch (resolvedType) {
 		case "number": {
-			const update = debounce<[number]>(NUMBER_UPDATE_DEBOUNCE_MS, value => {
-				opt.set(value)
-			})
-
-			onCleanup(update.cancel)
-
 			return (
 				<Gtk.SpinButton
 					valign={CENTER}
 					adjustment={new Gtk.Adjustment({ lower: min, upper: max, stepIncrement: 1, pageIncrement: 5 })}
 					numeric
 					value={createComputed(() => Number(opt()))}
-					onValueChanged={self => {
-						update.call(self.value)
-					}
-					}
-				/>
-			)
-		}
-		case "float":
-		case "object": {
-			const update = debounce<[string]>(TEXT_UPDATE_DEBOUNCE_MS, (text) => {
-				const parsed = tryParseJson(text)
-				if (parsed.ok) {
-					opt.set(parsed.value)
-				}
-			})
-
-			onCleanup(update.cancel)
-
-			const commitText = (self: Gtk.Entry) => {
-				const text = self.get_text()
-				const parsed = tryParseJson(text)
-				if (parsed.ok) {
-					update.cancel()
-					opt.set(parsed.value)
-					return
-				}
-
-				self.set_text(JSON.stringify(opt.peek(), null, 2))
-			}
-
-			return (
-				<entry
-					valign={CENTER}
-					text={createComputed(() => JSON.stringify(opt(), null, 2))}
-					onNotifyText={self => {
-						update.call(self.get_text())
-					}}
-					onActivate={commitText}
-					onNotifyHasFocus={self => {
-						if (!self.has_focus) {
-							commitText(self)
-						}
-					}}
+					onValueChanged={self => opt.set(self.value)}
 				/>
 			)
 		}
 		case "string": {
-			const update = debounce<[string]>(TEXT_UPDATE_DEBOUNCE_MS, value => {
-				opt.set(value)
-			})
-
-			onCleanup(update.cancel)
-
-			const commitText = (self: Gtk.Entry) => {
-				update.flush(self.get_text())
-			}
-
 			return (
 				<entry
 					valign={CENTER}
-					tooltipText={"Enter text"}
+					tooltipText="Enter text"
 					text={createComputed(() => String(opt()))}
-					onNotifyText={self => update.call(self.get_text())}
-					onActivate={commitText}
-					onNotifyHasFocus={self => {
-						if (!self.has_focus) {
-							commitText(self)
-						}
-					}}
+					onNotifyText={self => opt.set(self.get_text())}
 				/>
 			)
 		}
@@ -227,46 +135,12 @@ export default function Setter(props: SetterProps) {
 				/>
 			)
 		}
-		case "img": {
-			return (
-				<Gtk.Button
-					valign={CENTER}
-					label="Select an image"
-					tooltipText="Select an image"
-					onClicked={() => {
-						const chooser = new Gtk.FileChooserNative({
-							title: "Select an image",
-							action: OPEN,
-							acceptLabel: "_Open",
-							cancelLabel: "_Cancel"
-						})
-						chooser.add_filter(imageFilter)
-
-						chooser.connect("response", (dialog, response) => {
-							if (response === ACCEPT) {
-								const filename = chooser.get_file()?.get_path()
-								if (filename)
-									opt.set(filename)
-							}
-							dialog.destroy()
-						})
-
-						chooser.show()
-					}}
-				/>
-			)
-		}
 		case "font": {
-			const update = debounce<[string]>(FONT_UPDATE_DEBOUNCE_MS, value => {
-				opt.set(value)
-			})
-
-			onCleanup(update.cancel)
-
 			return (
 				<Gtk.FontDialogButton
+					class="setting-setter"
 					valign={CENTER}
-					tooltipText={"Select a font"}
+					tooltipText="Select a font"
 					useSize={true}
 					level={FONT}
 					dialog={fontDialog}
@@ -276,7 +150,7 @@ export default function Setter(props: SetterProps) {
 						if (desc) {
 							const family = desc.get_family()
 							const size = desc.get_size() / SCALE
-							update.call(`${family} ${size}`)
+							opt.set(`${family} ${size}`)
 						}
 					}}
 				/>
@@ -290,11 +164,11 @@ export default function Setter(props: SetterProps) {
 				const root = self.get_root()
 
 				dialog.choose_rgba(root instanceof Gtk.Window ? root : null, initial, null, (_source, result) => {
-					try {
+					const outcome = attempt(() => {
 						opt.set(toHex(dialog.choose_rgba_finish(result)))
-					} catch {
-						// Closing the dialog cancels the asynchronous selection.
-					}
+					})
+					if (!outcome.ok && !isDialogDismissed(outcome.err))
+						console.error("settings.color_dialog: Failed to choose color", outcome.err)
 				})
 			}
 
@@ -302,7 +176,7 @@ export default function Setter(props: SetterProps) {
 				<button
 					class="color-setter"
 					valign={CENTER}
-					tooltipText={"Select a color"}
+					tooltipText="Select a color"
 					onClicked={chooseColor}
 				>
 					<box

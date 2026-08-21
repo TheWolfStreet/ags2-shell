@@ -4,7 +4,7 @@ import { createBinding, createComputed, For } from "ags"
 import { Gtk } from "ags/gtk4"
 
 import { tray } from "$service/astal"
-import options from "options"
+import options from "$shell/options"
 import { createTrayMenuPopover } from "./TrayMenu"
 
 export function SystemTray() {

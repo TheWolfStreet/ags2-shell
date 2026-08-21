@@ -11,10 +11,12 @@ import {
 	dispatchClientButtonAction,
 	focusedWindowClient,
 	focusClientAndToggleFullscreen,
-} from "widget/Windowing/WindowClients"
+} from "$lib/windowing"
+
+import options from "$shell/options"
 
 export function WindowList() {
-	const clients = createWindowClientList()
+	const clients = createWindowClientList(options.bar.taskbar.exclusive)
 	return (
 		<box class="tasks horizontal">
 			<For each={clients}>
@@ -25,9 +27,6 @@ export function WindowList() {
 }
 
 function TaskEntry({ client }: { client: AstalHyprland.Client }) {
-	if (!client || client.class === "")
-		return <box visible={false} />
-
 	const focused = focusedWindowClient.as(value => {
 		return value?.address === client.address
 	})

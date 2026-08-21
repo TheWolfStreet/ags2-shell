@@ -8,11 +8,9 @@ import GObject from "ags/gobject"
 
 import AstalHyprland from "gi://AstalHyprland"
 
-import { PopupWindow } from "widget/Windowing/PopupWindow"
+import { PopupWindow } from "widget/shared/PopupWindow"
 import { PanelButton } from "../PanelButton"
 
-import { range } from "$lib/ui"
-import { toggleWindow } from "widget/Windowing/WindowControl"
 import { hyprland } from "$service/astal"
 import {
 	createClientTitleAccessor,
@@ -20,18 +18,52 @@ import {
 	focusedWindowClient,
 	getClientWorkspaceId,
 	moveClientToWorkspaceSilent,
-} from "widget/Windowing/WindowClients"
+} from "$lib/windowing"
 
-import options from "options"
-
-const { CENTER } = Gtk.Align
-const { MOVE } = Gdk.DragAction
-const { OVERLAY } = Astal.Layer
-
-const FALLBACK_MONITOR_WIDTH = 1920
-const FALLBACK_MONITOR_HEIGHT = 1080
+import options from "$shell/options"
 
 export namespace Overview {
+	export function Button() {
+		const workspaces = createComputed(() => workspaceIds(options.bar.workspaces.count()))
+		const clients = createBinding(hyprland, "clients").as(list => filterValidWindowClients(list ?? []))
+		const className = (ws: number) => createBinding(hyprland, "focusedWorkspace").as(fws => {
+			const classes: string[] = []
+			if (fws?.id === ws) classes.push("active")
+			if (clients().some(client => getClientWorkspaceId(client) === ws)) classes.push("occupied")
+			return classes.join(" ")
+		})
+
+		return (
+			<PanelButton targetWindow="overview" class="workspaces">
+				<box valign={CENTER}>
+					<For each={workspaces}>
+						{(ws) => {
+							return (
+								<label valign={CENTER} name={`${ws}`} label={`${ws}`}
+									class={className(ws)}
+								/>
+							)
+						}}
+					</For>
+				</box>
+			</PanelButton>
+		)
+	}
+
+	export function Window() {
+		const existing = app.get_window("overview")
+		if (existing) return existing
+		const workspaces = createComputed(() => workspaceIds(options.overview.workspaces()))
+
+		return (
+			<PopupWindow application={app} name="overview" layer={OVERLAY}>
+				<box class="overview horizontal">
+					<For each={workspaces}>{ws => <Workspace entry={ws} />}</For>
+				</box>
+			</PopupWindow>
+		)
+	}
+
 	type ClientProps = {
 		entry: AstalHyprland.Client
 		update: (self: Gtk.Widget) => void
@@ -65,7 +97,7 @@ export namespace Overview {
 	}
 
 	function workspaceIds(total: number) {
-		return range(Math.max(1, total), 1)
+		return Array.from({ length: Math.max(1, total) }, (_, index) => index + 1)
 	}
 
 	function Client({ entry: client, update }: ClientProps) {
@@ -218,42 +250,11 @@ export namespace Overview {
 		)
 	}
 
-	export function Button() {
-		const workspaces = createComputed(() => workspaceIds(options.bar.workspaces.count()))
-		const clients = createBinding(hyprland, "clients").as(list => filterValidWindowClients(list ?? []))
-		const className = (ws: number) => createBinding(hyprland, "focusedWorkspace").as(fws => {
-			const classes: string[] = []
-			if (fws?.id === ws) classes.push("active")
-			if (clients().some(client => getClientWorkspaceId(client) === ws)) classes.push("occupied")
-			return classes.join(" ")
-		})
 
-		return (
-			<PanelButton name="overview" class="workspaces" onClicked={() => toggleWindow("overview")}>
-				<box valign={CENTER}>
-					<For each={workspaces}>
-						{(ws) => {
-							return (
-								<label valign={CENTER} name={`${ws}`} label={`${ws}`}
-									class={className(ws)}
-								/>
-							)
-						}}
-					</For>
-				</box>
-			</PanelButton>
-		)
-	}
+	const { CENTER } = Gtk.Align
+	const { MOVE } = Gdk.DragAction
+	const { OVERLAY } = Astal.Layer
 
-	export function Window() {
-		const workspaces = createComputed(() => workspaceIds(options.overview.workspaces()))
-
-		return (
-			<PopupWindow application={app} name="overview" layer={OVERLAY}>
-				<box class="overview horizontal">
-					<For each={workspaces}>{ws => <Workspace entry={ws} />}</For>
-				</box>
-			</PopupWindow>
-		)
-	}
+	const FALLBACK_MONITOR_WIDTH = 1920
+	const FALLBACK_MONITOR_HEIGHT = 1080
 }

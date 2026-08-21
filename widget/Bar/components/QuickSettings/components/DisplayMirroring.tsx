@@ -6,61 +6,16 @@ import { createState, onCleanup, For } from "ags"
 
 import AstalHyprland from "gi://AstalHyprland"
 
-import { Placeholder } from "widget/Placeholder"
+import { Placeholder } from "widget/shared/Placeholder"
 import { ToggleButton, Menu, quickSettingsSubmenu } from "./MenuControls"
 
 import icons from "$lib/icons"
 import { attemptAsync } from "$lib/result"
 import { hyprland } from "$service/astal"
 
-import options from "options"
-
-const { CENTER } = Gtk.Align
-const { VERTICAL } = Gtk.Orientation
-const { NEVER } = Gtk.PolicyType
-
-type MirrorAwareMonitor = AstalHyprland.Monitor & {
-	mirrorOf?: string | null
-}
+import options from "$shell/options"
 
 export namespace DisplayMirroring {
-	async function getMonitors(): Promise<AstalHyprland.Monitor[]> {
-		const result = await attemptAsync(async () =>
-			(JSON.parse(await execAsync(["hyprctl", "monitors", "all", "-j"])) as AstalHyprland.Monitor[]).filter(m => m.id !== 0))
-		if (!result.ok) {
-			console.error("Error fetching monitors:", result.err)
-			return []
-		}
-		return result.value
-	}
-
-	function Entry({ monitor, update }: { monitor: AstalHyprland.Monitor, update: () => void }) {
-		const mirrorOf = (monitor as MirrorAwareMonitor).mirrorOf
-		const canEnableMirror = (mirrorOf ?? "none") === "none"
-
-		return (
-			<button
-				onClicked={() => {
-					const primaryMonitorName = hyprland.get_monitor(0)?.name
-					const mirrorSuffix = canEnableMirror && primaryMonitorName
-						? `, mirror, ${primaryMonitorName}`
-						: ""
-					const command = `keyword monitor ${monitor.name}, highres, auto, 1${mirrorSuffix}`
-					hyprland.message_async(command, null)
-					update()
-				}}
-			>
-				<box class="mirror-item horizontal">
-					<image iconName={icons.ui.projector} pixelSize={options.scale.as(scale => Math.round(16 * scale / 100))} />
-					<label label={`${monitor.model} (${monitor.name}) ${canEnableMirror ? "" : "(Mirrored)"}`} />
-				</box>
-			</button>
-		)
-	}
-
-	const [monitors, setMonitors] = createState<AstalHyprland.Monitor[]>([])
-	void getMonitors().then(setMonitors)
-
 	export function Toggle() {
 		return (
 			<ToggleButton
@@ -75,13 +30,25 @@ export namespace DisplayMirroring {
 	}
 
 	export function Selector() {
-		const refresh = () => void getMonitors().then(setMonitors)
+		const [monitors, setMonitors] = createState<AstalHyprland.Monitor[]>([])
+		let active = true
+		const refresh = () => void getMonitors().then(monitors => {
+			if (active) setMonitors(monitors)
+		})
 		const ids = [
 			hyprland.connect("monitor-added", refresh),
 			hyprland.connect("monitor-removed", refresh),
 		]
+		const unsubscribeOpened = quickSettingsSubmenu.opened.subscribe(() => {
+			if (quickSettingsSubmenu.opened.peek() === "mirror-selector") refresh()
+		})
+		if (quickSettingsSubmenu.opened.peek() === "mirror-selector") refresh()
 
-		onCleanup(() => ids.forEach(id => hyprland.disconnect(id)))
+		onCleanup(() => {
+			active = false
+			unsubscribeOpened()
+			ids.forEach(id => hyprland.disconnect(id))
+		})
 
 		const hasMonitors = monitors.as(ms => ms.length > 0)
 		return (
@@ -114,6 +81,48 @@ export namespace DisplayMirroring {
 					</revealer>
 				</box>
 			</Menu>
+		)
+	}
+
+	const { CENTER } = Gtk.Align
+	const { VERTICAL } = Gtk.Orientation
+	const { NEVER } = Gtk.PolicyType
+
+	type MirrorAwareMonitor = AstalHyprland.Monitor & {
+		mirrorOf?: string | null
+	}
+
+	async function getMonitors(): Promise<AstalHyprland.Monitor[]> {
+		const result = await attemptAsync(async () =>
+			(JSON.parse(await execAsync(["hyprctl", "monitors", "all", "-j"])) as AstalHyprland.Monitor[]).filter(m => m.id !== 0))
+		if (!result.ok) {
+			console.error("Error fetching monitors:", result.err)
+			return []
+		}
+		return result.value
+	}
+
+	function Entry({ monitor, update }: { monitor: AstalHyprland.Monitor, update: () => void }) {
+		const mirrorOf = (monitor as MirrorAwareMonitor).mirrorOf
+		const canEnableMirror = (mirrorOf ?? "none") === "none"
+
+		return (
+			<button
+				onClicked={() => {
+					const primaryMonitorName = hyprland.get_monitor(0)?.name
+					const mirrorSuffix = canEnableMirror && primaryMonitorName
+						? `, mirror, ${primaryMonitorName}`
+						: ""
+					const command = `keyword monitor ${monitor.name}, highres, auto, 1${mirrorSuffix}`
+					hyprland.message_async(command, null)
+					update()
+				}}
+			>
+				<box class="mirror-item horizontal">
+					<image iconName={icons.ui.projector} pixelSize={options.scale.as(scale => Math.round(16 * scale / 100))} />
+					<label label={`${monitor.model} (${monitor.name}) ${canEnableMirror ? "" : "(Mirrored)"}`} />
+				</box>
+			</button>
 		)
 	}
 }

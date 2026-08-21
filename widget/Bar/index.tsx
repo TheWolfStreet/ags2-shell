@@ -1,13 +1,17 @@
 // Shows a bar on each monitor and moves hidden bars to newly connected monitors.
 
 import app from "ags/gtk4/app"
-import { Accessor, createComputed, createState, onCleanup } from "ags"
+import { Accessor, createBinding, createComputed, createState, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { idle } from "ags/time"
 
 import { DateMenu } from "./components/DateMenu"
-import { Battery } from "./components/Battery"
-import { ColorPicker, MediaIndicator, RecordingIndicator, SystemTray, WindowList } from "./components/Buttons"
+import { Battery } from "./components/Buttons/Battery"
+import { ColorPicker } from "./components/Buttons/ColorPicker"
+import { MediaIndicator } from "./components/Buttons/MediaIndicator"
+import { SystemTray } from "./components/Buttons/SystemTray"
+import { WindowList } from "./components/Buttons/WindowList"
+import { PanelButton } from "./components/PanelButton"
 import { Launcher } from "./components/Launcher"
 import { Overview } from "./components/Overview"
 import { Notifications } from "./components/Notifications"
@@ -15,9 +19,11 @@ import { QuickSettings } from "./components/QuickSettings"
 
 import { PowerMenu } from "widget/PowerMenu"
 
-import options from "options"
-import { trackMonitorFullscreen, type MonitorWindowController } from "widget/Windowing/MonitorState"
-import { ignoreInput, scheduleMonitorWindowRelease } from "widget/Windowing/WindowControl"
+import options from "$shell/options"
+import icons from "$lib/icons"
+import { formatClock } from "$lib/time"
+import { ignoreInput, scheduleMonitorWindowRelease, trackMonitorFullscreen } from "$lib/windowing"
+import { screenCapture } from "$service/screenCapture"
 
 const { CENTER } = Gtk.Align
 const { WindowAnchor, Exclusivity, Layer, Keymode } = Astal
@@ -88,7 +94,6 @@ function setupMarginTracking() {
 
 	return {
 		margin,
-		updateMargin,
 		bindBarWindow,
 		marginTrackingCleanup: destroy,
 	}
@@ -131,73 +136,38 @@ function Corner({
 	)
 }
 
-function Layout() {
+function RecordingIndicator() {
 	return (
-		<centerbox valign={CENTER}>
-			<box $type="start" class="horizontal" valign={CENTER}>
-				<Launcher.Button />
-				<Overview.Button />
-				<box visible={options.taskbar.location.as(v => v === "bar")}>
-					<WindowList />
-				</box>
+		<PanelButton class="recorder" visible={createBinding(screenCapture, "recording")} onClicked={() => screenCapture.stopRecording()}>
+			<box class="horizontal">
+				<image iconName={icons.recorder.recording} />
+				<label label={createBinding(screenCapture, "timer").as(value => formatClock(value) + " ")} />
 			</box>
-
-			<box $type="center" class="horizontal" valign={CENTER}>
-				<DateMenu.Button />
-			</box>
-
-			<box $type="end" class="horizontal" valign={CENTER}>
-				<MediaIndicator />
-				<Notifications.Button />
-				<ColorPicker />
-				<SystemTray />
-				<RecordingIndicator />
-				<QuickSettings.Button />
-				<Battery.Button />
-				<PowerMenu.Button />
-			</box>
-		</centerbox>
+		</PanelButton>
 	)
 }
 
-export function Bar({ gdkmonitor, initialVisible = true }: { gdkmonitor: Gdk.Monitor, initialVisible?: boolean }): MonitorWindowController {
+export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 	let barWin: Astal.Window | undefined
 	let topWin: Astal.Window | undefined
 	let bottomWin: Astal.Window | undefined
 
-	const [shown, setShown] = createState(initialVisible)
 	const fullscreen = trackMonitorFullscreen(gdkmonitor)
-	const visible = createComputed(() => shown() && !fullscreen.fullscreen())
+	const visible = fullscreen.as(value => !value)
 
 	const isTop = position.as(v => v === "top-center")
-	const isTransparent = createComputed(() => transparent())
 	const hasCorner = createComputed(() => {
 		const radius = options.theme.roundness() * options.hyprland.gaps() * corners() * 0.01
 		return radius >= padding()
 	})
-	const showTop = createComputed(() => visible() && !isTransparent() && isTop())
-	const showBottom = createComputed(() => visible() && !isTransparent() && !isTop())
+	const showTop = createComputed(() => visible() && !transparent() && isTop())
+	const showBottom = createComputed(() => visible() && !transparent() && !isTop())
 
 	const {
 		margin,
-		updateMargin,
 		bindBarWindow,
 		marginTrackingCleanup,
 	} = setupMarginTracking()
-
-	const controller: MonitorWindowController = {
-		park: () => setShown(false),
-		retarget(monitor) {
-			fullscreen.retarget(monitor)
-			barWin?.set_property("gdkmonitor", monitor)
-			topWin?.set_property("gdkmonitor", monitor)
-			bottomWin?.set_property("gdkmonitor", monitor)
-			setShown(true)
-			idle(updateMargin)
-		},
-	}
-
-	const paddingUnsub = padding.subscribe(updateMargin)
 
 	const repositionUnsub = position.subscribe(() => {
 		idle(() => {
@@ -214,7 +184,6 @@ export function Bar({ gdkmonitor, initialVisible = true }: { gdkmonitor: Gdk.Mon
 		scheduleMonitorWindowRelease(barWin)
 		scheduleMonitorWindowRelease(topWin)
 		scheduleMonitorWindowRelease(bottomWin)
-		paddingUnsub()
 		repositionUnsub()
 	})
 
@@ -236,7 +205,30 @@ export function Bar({ gdkmonitor, initialVisible = true }: { gdkmonitor: Gdk.Mon
 				})}
 				application={app}
 			>
-				<Layout />
+				<centerbox valign={CENTER}>
+					<box $type="start" class="horizontal" valign={CENTER}>
+						<Launcher.Button />
+						<Overview.Button />
+						<box visible={options.taskbar.location.as(v => v === "bar")}>
+							<WindowList />
+						</box>
+					</box>
+
+					<box $type="center" class="horizontal" valign={CENTER}>
+						<DateMenu.Button />
+					</box>
+
+					<box $type="end" class="horizontal" valign={CENTER}>
+						<MediaIndicator />
+						<Notifications.Button />
+						<ColorPicker />
+						<SystemTray />
+						<RecordingIndicator />
+						<QuickSettings.Button />
+						<Battery />
+						<PowerMenu.Button />
+					</box>
+				</centerbox>
 			</window>
 
 			<Corner
@@ -266,6 +258,4 @@ export function Bar({ gdkmonitor, initialVisible = true }: { gdkmonitor: Gdk.Mon
 			/>
 		</>
 	)
-
-	return controller
 }

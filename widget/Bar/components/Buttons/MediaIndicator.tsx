@@ -8,7 +8,7 @@ import AstalMpris from "gi://AstalMpris"
 import Pango from "gi://Pango"
 
 import { media } from "$service/astal"
-import options from "options"
+import options from "$shell/options"
 import { PanelButton } from "../PanelButton"
 
 export function MediaIndicator() {
@@ -25,7 +25,7 @@ export function MediaIndicator() {
 					return (
 						<PanelButton
 							visible
-							name="media"
+							class="media"
 							onClicked={() => {
 								if (currentPlayer.get_playback_status() === AstalMpris.PlaybackStatus.PLAYING)
 									currentPlayer.pause()
@@ -44,6 +44,7 @@ export function MediaIndicator() {
 									<label
 										valign={Gtk.Align.CENTER}
 										ellipsize={Pango.EllipsizeMode.END}
+										singleLineMode
 										maxWidthChars={45}
 										label={createPlayerLabel(currentPlayer)}
 									/>
@@ -111,7 +112,7 @@ function createPlayerLabel(player: AstalMpris.Player) {
 	const artist = createBinding(player, "artist")
 	return createComputed(() => {
 		const trackTitle = title() || "Untitled"
-		return artist() ? `${trackTitle} - ${artist()}` : trackTitle
+		return artist() ? `${artist()} - ${trackTitle}` : trackTitle
 	})
 }
 

@@ -3,33 +3,68 @@
 import { Accessor, createState, createBinding, createComputed, createRoot, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
+import { createPoll, timeout, type Timer } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
+import GLib from "gi://GLib"
 import Pango from "gi://Pango"
 
 import { PanelButton } from "../PanelButton"
 
-import env from "$lib/env"
 import icons, { substituteIconName } from "$lib/icons"
-import { timeAgo } from "$lib/time"
-import { toggleWindow } from "widget/Windowing/WindowControl"
-import { createSquareTextureAccessor, isInlineImageData } from "$lib/textures"
+import { classifyImageUri, createSquareTextureAccessor } from "$lib/textures"
 import { notificationManager } from "$service/notifications"
 import { notificationDaemon } from "$service/astal"
-import { createEntryLifecycle, type EntryIndex, type VisibilityController } from "./EntryLifecycle"
+import { createEntryLifecycle, type EntryIndex } from "./EntryLifecycle"
 
-import options from "options"
-
-const { START, CENTER, END } = Gtk.Align
-const { VERTICAL } = Gtk.Orientation
-const { WORD } = Gtk.WrapMode
-const { SLIDE_DOWN, SLIDE_UP, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
-const { EllipsizeMode } = Pango
-const { NORMAL } = Astal.Exclusivity
-const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor
-const POPUP_LIMIT = 50
+import options from "$shell/options"
 
 export namespace Notifications {
+	export function Button() {
+		return (
+			<PanelButton targetWindow="datemenu" class="messages" visible={notifications.as(v => v.length > 0)} tooltipText={notifications.as(v => `${v.length} pending notification${v.length === 1 ? "" : "s"}`)}>
+				<image iconName={icons.notifications.message} useFallback />
+			</PanelButton>
+		)
+	}
+
+	export function Window() {
+		const anchor = createComputed(() => anchorForPosition(options.notifications.position()))
+		return (
+			<window
+				visible
+				resizable={false}
+				heightRequest={1}
+				widthRequest={popupWidth}
+				name="notifications"
+				class="notifications"
+				application={app}
+				exclusivity={NORMAL}
+				anchor={anchor}
+			>
+				<PopupStack />
+			</window>
+		)
+	}
+
+	export function animateDismissAll() {
+		setDismissingAll(true)
+		dismissAllTimer?.cancel()
+		dismissAllTimer = timeout(options.transition.duration.peek() + maxStaggerDelay(), () => {
+			dismissAllTimer = null
+			setDismissingAll(false)
+			notificationManager.dismissAllImmediately()
+		})
+	}
+
+	export function Stack({ class: className }: { class?: string }) {
+		return (
+			<box class={className || "notifications-stack"} orientation={VERTICAL} valign={START}>
+				<For each={notifications}>{(n, i) => <Notification entry={n} persistent index={i} />}</For>
+			</box>
+		)
+	}
+
 	const previewSize = options.scale.as(scale => Math.round(75 * scale / 100))
 	const popupWidth = options.scale.as(scale => Math.round(350 * scale / 100))
 
@@ -71,7 +106,9 @@ export namespace Notifications {
 	}
 
 	const notifications = createBinding(notificationManager, "notifications")
-	const dismissingAll = createBinding(notificationManager, "dismissingAll")
+	const minuteTicker = createPoll(0, 60_000, tick => tick + 1)
+	const [dismissingAll, setDismissingAll] = createState(false)
+	let dismissAllTimer: Timer | null = null
 
 	function anchorForPosition(position: string) {
 		switch (position) {
@@ -96,27 +133,6 @@ export namespace Notifications {
 		return count > 0 ? count * 50 + 100 : 0
 	}
 
-	function isPreviewImage(value: string | null): value is string {
-		if (!value) return false
-		return (
-			value.startsWith("/")
-			|| value.startsWith("file://")
-			|| value.startsWith("http://")
-			|| value.startsWith("https://")
-			|| isInlineImageData(value)
-		)
-	}
-
-	function createVisibilityController(initial = false): VisibilityController {
-		const [value, setValue] = createState(initial)
-
-		return {
-			value,
-			show: () => setValue(true),
-			hide: () => setValue(false),
-		}
-	}
-
 	const URGENCY_CLASS: Record<number, string> = {
 		[AstalNotifd.Urgency.LOW]: "low",
 		[AstalNotifd.Urgency.CRITICAL]: "critical",
@@ -126,13 +142,52 @@ export namespace Notifications {
 		return URGENCY_CLASS[n.urgency] ?? "normal"
 	}
 
+	function decodeMarkupEntities(text: string) {
+		const named: Record<string, string> = {
+			amp: "&",
+			apos: "'",
+			gt: ">",
+			lt: "<",
+			quot: "\"",
+		}
+
+		return text.replace(/&(#(?:[xX][\da-fA-F]+|\d+)|amp|apos|gt|lt|quot);/g, (_entity, name: string) => {
+			if (!name.startsWith("#")) return named[name]
+
+			const hexadecimal = name[1]?.toLowerCase() === "x"
+			const codePoint = Number.parseInt(name.slice(hexadecimal ? 2 : 1), hexadecimal ? 16 : 10)
+			const validControl = codePoint === 9 || codePoint === 10 || codePoint === 13
+			if (!Number.isInteger(codePoint) || codePoint > 0x10ffff || (codePoint < 0x20 && !validControl))
+				return "\uFFFD"
+
+			return String.fromCodePoint(codePoint)
+		})
+	}
+
+	function bodyText(body: string) {
+		return decodeMarkupEntities(body
+			.replace(/<img\b[^>]*>/gi, tag => tag.match(/\balt\s*=\s*(["'])(.*?)\1/i)?.[2] ?? "")
+			.replace(/<br\s*\/?>/gi, "\n")
+			.replace(/<[^>]*>/g, ""))
+	}
+
+	function timeAgo(time: number) {
+		const now = GLib.DateTime.new_now_local()
+		const then = GLib.DateTime.new_from_unix_local(time)
+		if (!then) return ""
+		const diff = now.to_unix() - then.to_unix()
+		if (diff < 60) return "now"
+		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+		return `${Math.floor(diff / 86400)}d ago`
+	}
 
 	function Header({ notification, appIcon, appName, showActions, onDismiss }: HeaderProps) {
 		return (
 			<box class="header">
 				<image class="app-icon" iconName={appIcon} useFallback />
-				<label class="app-name" halign={START} maxWidthChars={24} ellipsize={EllipsizeMode.END} useMarkup label={appName} />
-				<label class="time" halign={END} hexpand label={env.uptime(() => timeAgo(notification.time))} />
+				<label class="app-name" halign={START} maxWidthChars={24} ellipsize={EllipsizeMode.END} label={appName} />
+				<label class="time" halign={END} hexpand label={minuteTicker(() => timeAgo(notification.time))} />
 				<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
 					<button class="close-button" onClicked={onDismiss}>
 						<image iconName={icons.ui.close} halign={CENTER} valign={CENTER} useFallback />
@@ -165,7 +220,7 @@ export namespace Notifications {
 				<box orientation={VERTICAL}>
 					<label class="summary" wrap wrapMode={WORD} maxWidthChars={28} halign={START} label={notification.summary} />
 					{notification.body && (
-						<label class="body" wrap wrapMode={WORD} maxWidthChars={28} halign={START} useMarkup label={notification.body} />
+						<label class="body" wrap wrapMode={WORD} maxWidthChars={28} halign={START} label={bodyText(notification.body)} />
 					)}
 				</box>
 			</box>
@@ -188,14 +243,12 @@ export namespace Notifications {
 	}
 
 	function Notification({ entry: notification, widthRequest, persistent, index, onExit, registerClose, transitionType = SLIDE_DOWN }: NotificationProps) {
-		const visibility = createVisibilityController(false)
 		const [showActions, setShowActions] = createState(false)
 
 		const state = createEntryLifecycle({
 			notification,
 			persistent,
 			index,
-			visibility,
 			dismissingAll,
 			onExit,
 		})
@@ -209,7 +262,7 @@ export namespace Notifications {
 		})
 
 		const imageValue = notification.get_image()
-		const imagePath = isPreviewImage(imageValue) ? imageValue : null
+		const imagePath = imageValue && classifyImageUri(imageValue) !== "unknown" ? imageValue : null
 		const appIcon = substituteIconName(
 			notification.get_app_icon() || (imageValue && !imagePath ? imageValue : "") || notification.get_desktop_entry() || icons.fallback.notification,
 			icons.fallback.notification,
@@ -222,7 +275,7 @@ export namespace Notifications {
 
 		return (
 			<revealer
-				revealChild={visibility.value}
+				revealChild={state.visible}
 				transitionDuration={options.transition.duration}
 				transitionType={transitionType}
 				onMap={state.onMap}
@@ -250,18 +303,6 @@ export namespace Notifications {
 					<Actions actions={validActions} showActions={showActions} onActionClick={state.onActionClick} />
 				</box>
 			</revealer>
-		)
-	}
-
-	export function animateDismissAll() {
-		notificationManager.dismissAllAfterTransitions(options.transition.duration.peek(), maxStaggerDelay())
-	}
-
-	export function Stack({ class: className }: { class?: string }) {
-		return (
-			<box class={className || "notifications-stack"} orientation={VERTICAL} valign={START}>
-				<For each={notifications}>{(n, i) => <Notification entry={n} persistent index={i} />}</For>
-			</box>
 		)
 	}
 
@@ -314,8 +355,7 @@ export namespace Notifications {
 
 		function enqueue(notification: AstalNotifd.Notification) {
 			if (notificationManager.doNotDisturb) return
-			const blacklist = options.notifications.blacklist.peek() || []
-			if (blacklist.includes(notification.get_app_name() || notification.get_desktop_entry())) return
+			if (notificationManager.isBlacklisted(notification)) return
 
 			const existing = entries.get(notification.id)
 			if (existing) {
@@ -362,30 +402,13 @@ export namespace Notifications {
 		return container
 	}
 
-	export function Button() {
-		return (
-			<PanelButton class="messages" visible={notifications.as(v => v.length > 0)} tooltipText={notifications.as(v => `${v.length} pending notification${v.length === 1 ? "" : "s"}`)} onClicked={() => toggleWindow("datemenu")}>
-				<image iconName={icons.notifications.message} useFallback />
-			</PanelButton>
-		)
-	}
 
-	export function Window() {
-		const anchor = createComputed(() => anchorForPosition(options.notifications.position()))
-		return (
-			<window
-				visible
-				resizable={false}
-				heightRequest={1}
-				widthRequest={popupWidth}
-				name="notifications"
-				class="notifications"
-				application={app}
-				exclusivity={NORMAL}
-				anchor={anchor}
-			>
-				<PopupStack />
-			</window>
-		)
-	}
+	const { START, CENTER, END } = Gtk.Align
+	const { VERTICAL } = Gtk.Orientation
+	const { WORD } = Gtk.WrapMode
+	const { SLIDE_DOWN, SLIDE_UP, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
+	const { EllipsizeMode } = Pango
+	const { NORMAL } = Astal.Exclusivity
+	const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor
+	const POPUP_LIMIT = 50
 }

@@ -3,16 +3,59 @@
 import { Gtk } from "ags/gtk4"
 import { Accessor, Node, With, createBinding, createComputed } from "ags"
 import { ToggleButton, Menu, SettingsButton } from "widget/Bar/components/QuickSettings/components/MenuControls"
-import { Placeholder } from "widget/Placeholder"
+import { Placeholder } from "widget/shared/Placeholder"
 import icons from "$lib/icons"
 import { powerProfiles } from "$service/astal"
 import { attempt } from "$lib/result"
-import { launchApp } from "$lib/programs"
+import { launchApp } from "$service/apps"
 import { asusctl } from "$service/asusctl"
 
-const { VERTICAL } = Gtk.Orientation
-
 export namespace PowerProfiles {
+	export namespace State {
+		export function Power() {
+			return (
+				<With value={provider}>
+					{current => {
+						if (!current) return <box visible={false} />
+						const active = current.active
+						const [, off] = current.toggleDefaults()
+						const icon = active.as(profile => current.icon(profile))
+						const visible = active.as(profile => profile !== off)
+						return <image iconName={icon} visible={visible} useFallback />
+					}}
+				</With>
+			)
+		}
+
+		export function Asus() {
+			const mode = createBinding(asusctl, "mode")
+			const modeIcon = mode.as(m => getMappedIcon(icons.asusctl.mode as IconMap, m))
+			return (
+				<image
+					iconName={modeIcon}
+					visible={createComputed(() => asusAvailable() && mode() !== "Hybrid")}
+					useFallback
+				/>
+			)
+		}
+	}
+
+	export function Toggle() {
+		return (
+			<With value={provider}>
+				{current => current ? makeToggle(current) : <MissingToggle />}
+			</With>
+		)
+	}
+
+	export function Selector() {
+		return (
+			<With value={provider}>
+				{current => current ? makeSelector(current) : <MissingSelector />}
+			</With>
+		)
+	}
+
 	type IconMap = Record<string, string | undefined>
 
 	interface Provider {
@@ -138,48 +181,6 @@ export namespace PowerProfiles {
 	const asusAvailable = createBinding(asusctl, "available")
 	const provider = createComputed(() => asusAvailable() ? asusProvider : getPowerProvider())
 
-	export namespace State {
-		export function Power() {
-			return (
-				<With value={provider}>
-					{current => {
-						if (!current) return <box visible={false} />
-						const active = current.active
-						const [, off] = current.toggleDefaults()
-						const icon = active.as(profile => current.icon(profile))
-						const visible = active.as(profile => profile !== off)
-						return <image iconName={icon} visible={visible} useFallback />
-					}}
-				</With>
-			)
-		}
 
-		export function Asus() {
-			const mode = createBinding(asusctl, "mode")
-			const modeIcon = mode.as(m => getMappedIcon(icons.asusctl.mode as IconMap, m))
-			return (
-				<image
-					iconName={modeIcon}
-					visible={createComputed(() => asusAvailable() && mode() !== "Hybrid")}
-					useFallback
-				/>
-			)
-		}
-	}
-
-	export function Toggle() {
-		return (
-			<With value={provider}>
-				{current => current ? makeToggle(current) : <MissingToggle />}
-			</With>
-		)
-	}
-
-	export function Selector() {
-		return (
-			<With value={provider}>
-				{current => current ? makeSelector(current) : <MissingSelector />}
-			</With>
-		)
-	}
+	const { VERTICAL } = Gtk.Orientation
 }

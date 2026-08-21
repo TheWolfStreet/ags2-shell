@@ -3,27 +3,65 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk } from "ags/gtk4"
 import { createBinding } from "ags"
+import { createPoll } from "ags/time"
 
-import { Placeholder } from "widget/Placeholder"
-import { createPopupPosition, PopupWindow } from "widget/Windowing/PopupWindow"
+import GLib from "gi://GLib"
+
+import { Placeholder } from "widget/shared/Placeholder"
+import { createPopupPosition, PopupWindow } from "widget/shared/PopupWindow"
 import { Notifications } from "../Notifications"
 import { PanelButton } from "../PanelButton"
 
-import env from "$lib/env"
 import { notificationManager } from "$service/notifications"
 import icons from "$lib/icons"
-import { toggleWindow } from "widget/Windowing/WindowControl"
 
-import options from "options"
-
-const { CENTER } = Gtk.Align
-const { NEVER } = Gtk.PolicyType
-const { EXCLUSIVE } = Astal.Exclusivity
-const { VERTICAL } = Gtk.Orientation
+import options from "$shell/options"
 
 export namespace DateMenu {
+	export function Button() {
+		return (
+			<PanelButton
+				targetWindow="datemenu"
+				halign={CENTER}
+			>
+				<label
+					valign={CENTER}
+					label={clock(v => v.format(options.bar.date.format.peek()) ?? "")}
+				/>
+			</PanelButton >
+		)
+	}
+
+	export function Window() {
+		return (
+			<PopupWindow
+				name="datemenu"
+				application={app}
+				exclusivity={EXCLUSIVE}
+				layout={layout}
+			>
+				<centerbox class="datemenu horizontal">
+					<NotifyColumn $type="start" />
+					<Gtk.Separator $type="center" orientation={VERTICAL} />
+					<DateColumn $type="end" />
+				</centerbox>
+			</PopupWindow>
+		) as Gtk.Window
+	}
+
 	const layout = createPopupPosition(options.bar.position, options.datemenu.position)
 	const notifList = createBinding(notificationManager, "notifications")
+	const clock = createPoll<GLib.DateTime>(
+		GLib.DateTime.new_now_local(),
+		1000,
+		() => GLib.DateTime.new_now_local(),
+	)
+	const uptime = createPoll<number>(
+		0,
+		60_000,
+		"cat /proc/uptime",
+		line => Math.round(parseInt(line.split(".")[0], 10) / 60),
+	)
 
 	function uptimeFmt(up: number) {
 		const h = Math.floor(up / 60)
@@ -36,6 +74,7 @@ export namespace DateMenu {
 		return (
 			<button
 				onClicked={Notifications.animateDismissAll}
+				sensitive={notifList.as(n => n.length > 0)}
 				valign={CENTER}
 			>
 				<box>
@@ -78,11 +117,11 @@ export namespace DateMenu {
 				<box class="clock-box" orientation={VERTICAL}>
 					<label
 						class="clock"
-						label={env.clock(v => v.format("%H:%M") ?? "")}
+						label={clock(v => v.format("%H:%M") ?? "")}
 					/>
 					<label
 						class="uptime"
-						label={env.uptime(uptimeFmt)}
+						label={uptime(uptimeFmt)}
 					/>
 				</box>
 				<box class="calendar" hexpand>
@@ -92,35 +131,9 @@ export namespace DateMenu {
 		)
 	}
 
-	export function Button() {
-		return (
-			<PanelButton
-				name="datemenu"
-				halign={CENTER}
-				onClicked={() => toggleWindow("datemenu")}
-			>
-				<label
-					valign={CENTER}
-					label={env.clock((v) => v.format(options.bar.date.format.peek()) ?? "")}
-				/>
-			</PanelButton >
-		)
-	}
 
-	export function Window() {
-		return (
-			<PopupWindow
-				name="datemenu"
-				application={app}
-				exclusivity={EXCLUSIVE}
-				layout={layout}
-			>
-				<centerbox class="datemenu horizontal">
-					<NotifyColumn $type="start" />
-					<Gtk.Separator $type="center" orientation={VERTICAL} />
-					<DateColumn $type="end" />
-				</centerbox>
-			</PopupWindow>
-		) as Gtk.Window
-	}
+	const { CENTER } = Gtk.Align
+	const { NEVER } = Gtk.PolicyType
+	const { EXCLUSIVE } = Astal.Exclusivity
+	const { VERTICAL } = Gtk.Orientation
 }

@@ -1,27 +1,21 @@
 // Times notification animations, pauses expiry on hover, and handles user actions.
 
-import { Accessor } from "ags"
+import { Accessor, createState } from "ags"
 import { timeout, Timer } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 
 import { attempt } from "$lib/result"
+import { readValue } from "$lib/ui"
 import { notificationManager } from "$service/notifications"
-import options from "options"
+import options from "$shell/options"
 
 export type EntryIndex = Accessor<number> | number | undefined
-
-export type VisibilityController = {
-	value: Accessor<boolean>
-	show: () => void
-	hide: () => void
-}
 
 type EntryLifecycleProps = {
 	notification: AstalNotifd.Notification
 	persistent: boolean
 	index: EntryIndex
-	visibility: VisibilityController
 	dismissingAll: Accessor<boolean>
 	onExit?: () => void
 }
@@ -30,19 +24,14 @@ export function staggerDelay(index: number) {
 	return index * 50 + Math.random() * 100
 }
 
-function resolveEntryIndex(index: EntryIndex) {
-	if (index === undefined) return undefined
-	return typeof index === "function" ? index.peek() : index
-}
-
 export function createEntryLifecycle({
 	notification,
 	persistent,
 	index,
-	visibility,
 	dismissingAll,
 	onExit,
 }: EntryLifecycleProps) {
+	const [visible, setVisible] = createState(false)
 	let autoHide: Timer | undefined
 	let staggeredHide: Timer | undefined
 	let pendingTimer: Timer | undefined
@@ -61,7 +50,7 @@ export function createEntryLifecycle({
 		cancelAutoHide()
 		pendingAction = action
 		pendingTimer = timeout(Math.max(100, options.transition.duration.peek() * 2), completePendingAction)
-		visibility.hide()
+		setVisible(false)
 	}
 
 	const completePendingAction = () => {
@@ -81,7 +70,7 @@ export function createEntryLifecycle({
 		if (persistent || closing) return
 
 		cancelAutoHide()
-		const entryIndex = resolveEntryIndex(index)
+		const entryIndex = readValue(index)
 		const delay = options.notifications.dismiss.peek()
 			+ (stagger && entryIndex !== undefined ? staggerDelay(entryIndex) : 0)
 		autoHide = timeout(delay, () => {
@@ -102,7 +91,7 @@ export function createEntryLifecycle({
 	}
 
 	const onDismissAllChanged = () => {
-		const entryIndex = resolveEntryIndex(index)
+		const entryIndex = readValue(index)
 		if (dismissingAll.peek() && entryIndex !== undefined) {
 			staggeredHide?.cancel()
 			staggeredHide = timeout(staggerDelay(entryIndex), () => {
@@ -115,7 +104,7 @@ export function createEntryLifecycle({
 	const isFresh = persistent || notification.time >= notificationManager.sessionStart
 	const onMap = () => {
 		if (!closing && !initialRevealHandled && isFresh && (!notificationManager.doNotDisturb || persistent)) {
-			visibility.show()
+			setVisible(true)
 			initialRevealHandled = true
 			scheduleAutoHide()
 		}
@@ -127,6 +116,7 @@ export function createEntryLifecycle({
 	}
 
 	return {
+		visible,
 		close: () => beginClose(),
 		dismiss,
 		onActionClick,

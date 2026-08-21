@@ -7,13 +7,13 @@ import { timeout, type Timer } from "ags/time"
 
 import AstalMpris from "gi://AstalMpris"
 import GLib from "gi://GLib"
+import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
-import { formatClock } from "$lib/time"
+import { debounce, formatClock } from "$lib/time"
 import { createSquareTextureAccessor } from "$lib/textures"
-import { debounce } from "$lib/timing"
 
-import options from "options"
+import options from "$shell/options"
 
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
@@ -156,6 +156,8 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 						label={title}
 						halign={START}
 						wrap hexpand
+						ellipsize={Pango.EllipsizeMode.END}
+						lines={2}
 						maxWidthChars={textMaxWidth}
 					/>
 					<image iconName={playerIcon} useFallback />
@@ -166,6 +168,8 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 					halign={START}
 					valign={START}
 					wrap vexpand
+					ellipsize={Pango.EllipsizeMode.END}
+					lines={3}
 					maxWidthChars={textMaxWidth}
 				/>
 				<slider

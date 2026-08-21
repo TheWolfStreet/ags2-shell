@@ -1,24 +1,34 @@
-// Shows three Settings tabs and finds each group's changed rows for automatic reset buttons.
+// Shows three tabs and finds each group's changed rows for automatic reset buttons.
 
-import { Gtk } from "ags/gtk4"
-import { Accessor, createBinding, createComputed, FCProps } from "ags"
+import { Gdk, Gtk } from "ags/gtk4"
+import { Accessor, createBinding, createComputed } from "ags"
 
-import Setter, { type CommonOption, type EditorType } from "./Setter"
-import WallpaperChooser from "./WallpaperChooser"
+import Gio from "gi://Gio"
+
+import Setter, { type EditorType } from "./Setter"
+
+import { Placeholder } from "widget/shared/Placeholder"
 
 import { asusctl } from "$service/asusctl"
+import { wallpaperService } from "$service/wallpaper"
+import { fileExists } from "$lib/files"
 import icons from "$lib/icons"
+import { attempt } from "$lib/result"
+import { getFileSize, textureFromFile } from "$lib/textures"
+import { isDialogDismissed } from "$lib/ui"
 
-import options, { optionValues } from "options"
+import options, { Opt, optionValues } from "$shell/options"
 
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
+const { COVER } = Gtk.ContentFit
+const { CROSSFADE } = Gtk.RevealerTransitionType
 
-type PageProps = FCProps<Gtk.StackPage, {
-	name: string,
-	iconName: string,
+type PageProps = {
+	name: string
+	iconName: string
 	children?: JSX.Element | Array<JSX.Element>
-}>
+}
 
 function Page({ name, iconName, children = [] }: PageProps) {
 	return (
@@ -39,26 +49,83 @@ function Page({ name, iconName, children = [] }: PageProps) {
 	)
 }
 
+function WallpaperChooser() {
+	const wall = createBinding(wallpaperService, "wallpaper")
+	const isSet = wall.as(path => !!path && (getFileSize(path) ?? 0) > 0)
+	let dialog: Gtk.FileDialog
+	let dialogOpen = false
+
+	function openDialog() {
+		if (dialogOpen) return
+		dialogOpen = true
+
+		const opened = attempt(() => {
+			dialog ??= new Gtk.FileDialog({ title: "Set wallpaper", modal: true })
+			if (fileExists(wallpaperService.wallpaper))
+				dialog.set_initial_file(Gio.File.new_for_path(wallpaperService.wallpaper))
+
+			dialog.open(null, null, (_, result) => {
+				dialogOpen = false
+				if (!result) return
+
+				const outcome = attempt(() => dialog.open_finish(result)?.get_path() ?? null)
+				if (outcome.ok) {
+					if (outcome.value) void wallpaperService.setWallpaper(outcome.value)
+					return
+				}
+
+				if (!isDialogDismissed(outcome.err))
+					console.error("wallpaper.dialog: Failed to choose wallpaper", outcome.err)
+			})
+		})
+
+		if (!opened.ok) {
+			dialogOpen = false
+			console.error("wallpaper.dialog: Failed to open wallpaper chooser", opened.err)
+		}
+	}
+
+	return (
+		<box class="row">
+			<overlay
+				cursor={Gdk.Cursor.new_from_name("pointer", null)}
+				tooltipText={isSet.as(set => set ? "Middle-click to clear" : "")}
+			>
+				<Gtk.GestureClick button={Gdk.BUTTON_PRIMARY} onPressed={openDialog} />
+				<Gtk.GestureClick button={Gdk.BUTTON_MIDDLE} onPressed={() => wallpaperService.clearWallpaper()} />
+				<revealer
+					transitionDuration={options.transition.duration.as(value => value * 4)}
+					revealChild={isSet.as(set => !set)}
+					transitionType={CROSSFADE}
+					$type="overlay"
+				>
+					<Placeholder iconName={icons.missing} label="Click here to set wallpaper" />
+				</revealer>
+				<Gtk.Picture
+					class="preview"
+					hexpand
+					vexpand
+					canShrink
+					contentFit={COVER}
+					paintable={wall.as(path => textureFromFile(path) as Gdk.Paintable)}
+				/>
+			</overlay>
+		</box>
+	)
+}
+
 type GroupProps = {
 	title: Accessor<string> | string
 	visible?: Accessor<boolean> | boolean
 	children?: JSX.Element | Array<JSX.Element>
 }
 
-const optionByRow = new WeakMap<object, CommonOption>()
+const optionByRow = new WeakMap<object, Opt<any>>()
 
 function collectRowOptions(children: JSX.Element | JSX.Element[]) {
-	const options = new Set<CommonOption>()
-	const visit = (child: unknown) => {
-		if (!child || typeof child !== "object") return
-		const option = optionByRow.get(child)
-		if (option) options.add(option)
-		if (!(child instanceof Gtk.Widget)) return
-		for (let nested = child.get_first_child(); nested; nested = nested.get_next_sibling())
-			visit(nested)
-	}
-	for (const child of Array.isArray(children) ? children : [children]) visit(child)
-	return [...options]
+	return (Array.isArray(children) ? children : [children])
+		.map(child => child && typeof child === "object" ? optionByRow.get(child) : undefined)
+		.filter((opt): opt is Opt<any> => opt !== undefined)
 }
 
 function Group({ title, visible = true, children = [] }: GroupProps) {
@@ -84,28 +151,22 @@ function Group({ title, visible = true, children = [] }: GroupProps) {
 	)
 }
 
-export type RowProps = FCProps<
-	Gtk.Box,
-	{
-		opt: CommonOption
-		title?: string
-		note?: string
-		type?: EditorType
-		enums?: readonly (string | number)[]
-		max?: number
-		min?: number
-	}
->
+type RowProps = {
+	opt: Opt<any>
+	title: string
+	note?: string
+	type?: EditorType
+	enums?: readonly (string | number)[]
+	max?: number
+	min?: number
+}
 
 function Row({ opt, title, note, type, enums, max, min }: RowProps) {
 	const isChanged = createComputed(() => opt() !== opt.getDefault())
 
 	const row = (
 		<box class="row" tooltipText={note}>
-			<box orientation={VERTICAL} valign={CENTER}>
-				<label class="row-title" xalign={0} label={title} />
-				<label class="id" xalign={0} label={opt.id} />
-			</box>
+			<label class="row-title" xalign={0} valign={CENTER} label={title} />
 
 			<box hexpand />
 
@@ -159,7 +220,7 @@ const {
 const Appearance = () => (
 	<Page name="Appearance" iconName={icons.ui.themes}>
 		<Group title="Theme">
-				<WallpaperChooser />
+			<WallpaperChooser />
 			<Row opt={scheme} title="Scheme" type="enum" enums={optionValues.themeScheme} />
 			<Row opt={autotheme} title="Generate from Wallpaper" />
 		</Group>
@@ -219,7 +280,7 @@ const Shell = () => (
 			<Row opt={bar.transparent} title="Use Transparency" note="Works best on minimalist wallpapers" />
 			<Row opt={bar.date.format} title="Date Format" />
 			<Row opt={bar.corners} title="Corners" max={100} />
-			<Row opt={bar.media.preferred} title="Media Player" />
+			<Row opt={bar.media.preferred} title="Preferred Player" />
 		</Group>
 
 		<Group title="Taskbar">
@@ -280,7 +341,7 @@ const System = () => (
 	</Page>
 ) as Gtk.StackPage
 
-export const createSettingsPages = (): Gtk.StackPage[] => [
+export const createPages = (): Gtk.StackPage[] => [
 	Appearance(),
 	Shell(),
 	System(),

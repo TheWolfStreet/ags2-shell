@@ -5,20 +5,24 @@ import { exec } from "ags/process"
 import { Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 
-import { PopupWindow } from "widget/Windowing/PopupWindow"
+import { PopupWindow } from "widget/shared/PopupWindow"
 import { PanelButton } from "widget/Bar/components/PanelButton"
 
 import icons from "$lib/icons"
-import { onWindowToggle, toggleWindow } from "widget/Windowing/WindowControl"
 
-import options from "options"
-
-const { END } = Gtk.Align
-const { CROSSFADE } = Gtk.RevealerTransitionType
-const { VERTICAL, HORIZONTAL } = Gtk.Orientation
-const { layout, labels } = options.powermenu
+import options from "$shell/options"
 
 export namespace PowerMenu {
+	export function Button() {
+		return (
+			<PanelButton
+				targetWindow="powermenu"
+			>
+				<image iconName={icons.powermenu.shutdown} useFallback />
+			</PanelButton>
+		)
+	}
+
 	export function Window() {
 		return (
 			<PopupWindow name="powermenu" transitionType={CROSSFADE} application={app}>
@@ -28,22 +32,22 @@ export namespace PowerMenu {
 							if (v === "line") {
 								return (
 									<box orientation={HORIZONTAL} homogeneous>
-										<Action action="shutdown" label="Shutdown" onSelect={PowerMenu.requestActionConfirmation} />
-										<Action action="logout" label="Log Out" onSelect={PowerMenu.requestActionConfirmation} />
-										<Action action="reboot" label="Reboot" onSelect={PowerMenu.requestActionConfirmation} />
-										<Action action="sleep" label="Sleep" onSelect={PowerMenu.requestActionConfirmation} />
+										<ActionButton action="shutdown" />
+										<ActionButton action="logout" />
+										<ActionButton action="reboot" />
+										<ActionButton action="sleep" />
 									</box>
 								)
 							} else if (v === "box") {
 								return (
 									<box>
 										<box orientation={VERTICAL}>
-											<Action action="shutdown" label="Shutdown" onSelect={PowerMenu.requestActionConfirmation} />
-											<Action action="logout" label="Log Out" onSelect={PowerMenu.requestActionConfirmation} />
+											<ActionButton action="shutdown" />
+											<ActionButton action="logout" />
 										</box>
 										<box orientation={VERTICAL}>
-											<Action action="reboot" label="Reboot" onSelect={PowerMenu.requestActionConfirmation} />
-											<Action action="sleep" label="Sleep" onSelect={PowerMenu.requestActionConfirmation} />
+											<ActionButton action="reboot" />
+											<ActionButton action="sleep" />
 										</box>
 									</box>
 								)
@@ -57,33 +61,44 @@ export namespace PowerMenu {
 	}
 
 	export function requestActionConfirmation(action: ActionType) {
-		if (!app.get_window("verification")?.is_visible()) {
-			setCmd(String(options.powermenu[action].peek()))
-			setTitle(actionTitles[action])
-			toggleWindow("verification")
-		}
+		const verification = app.get_window("verification")
+		if (!verification || verification.is_visible()) return
+		setSelectedAction(action)
+		verification.show()
 	}
 
 	export function VerificationModal() {
 		return (
-			<PopupWindow name="verification" class="verification" transitionType={CROSSFADE} anchor={undefined} application={app}>
+			<PopupWindow
+				name="verification"
+				class="verification"
+				transitionType={CROSSFADE}
+				anchor={undefined}
+				application={app}
+				onNotifyVisible={window => {
+					if (window.visible) cancelButton?.grab_focus()
+				}}
+			>
 				<box class="verification" orientation={VERTICAL}>
 					<box class="text-box" orientation={VERTICAL}>
-						<label class="title" label={title} />
+						<label class="title" label={selectedAction.as(action => action ? actionTitles[action] : "")} />
 						<label class="desc" label="Confirm action" />
 					</box>
 					<box class="buttons horizontal" valign={END} vexpand homogeneous>
 						<button
-							onClicked={() => toggleWindow("verification")}
-							$={self => onWindowToggle("verification", () => self.grab_focus())}
+							onClicked={() => app.get_window("verification")?.hide()}
+							$={self => { cancelButton = self }}
 						>
 							<label label="Cancel" />
 						</button>
 						<button
 							onClicked={() => {
-								exec(cmd.peek())
-								toggleWindow("verification")
-								toggleWindow("powermenu")
+								const action = selectedAction.peek()
+								if (!action) return
+
+								app.get_window("verification")?.hide()
+								app.get_window("powermenu")?.hide()
+								exec(String(options.powermenu[action].peek()))
 							}}
 						>
 							<label label="Confirm" />
@@ -94,18 +109,7 @@ export namespace PowerMenu {
 		)
 	}
 
-	export function Button() {
-		return (
-			<PanelButton onClicked={() => toggleWindow("powermenu")}>
-				<image iconName={icons.powermenu.shutdown} useFallback />
-			</PanelButton>
-		)
-	}
-
 	type ActionType = "sleep" | "reboot" | "logout" | "shutdown"
-
-	const [cmd, setCmd] = createState("")
-	const [title, setTitle] = createState("")
 
 	const actionTitles: Record<ActionType, string> = {
 		sleep: "Sleep",
@@ -114,16 +118,24 @@ export namespace PowerMenu {
 		shutdown: "Shutdown",
 	}
 
-	function Action({ action, label, onSelect }: { action: ActionType, label: string, onSelect: (a: ActionType) => void }) {
+	const [selectedAction, setSelectedAction] = createState<ActionType | null>(null)
+	let cancelButton: Gtk.Button | null = null
+
+	const { END } = Gtk.Align
+	const { CROSSFADE } = Gtk.RevealerTransitionType
+	const { VERTICAL, HORIZONTAL } = Gtk.Orientation
+	const { layout, labels } = options.powermenu
+
+	function ActionButton({ action }: { action: ActionType }) {
 		return (
-			<button onClicked={() => onSelect(action)}>
+			<button onClicked={() => requestActionConfirmation(action)}>
 				<box orientation={VERTICAL}>
 					<image
 						iconName={icons.powermenu[action]}
 						useFallback
 						pixelSize={options.scale.as(scale => Math.round(52 * scale / 100))}
 					/>
-					<label label={label} visible={labels} />
+					<label label={actionTitles[action]} visible={labels} />
 				</box>
 			</button>
 		)

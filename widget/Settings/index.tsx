@@ -1,43 +1,23 @@
 // Shows the Settings window and switches between editable pages.
 
-import { createComputed, createState } from "ags"
+import { createComputed, createRoot, createState } from "ags"
 import app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 
-import { createSettingsPages } from "./components/SettingsPages"
-import type { CommonOption } from "./components/Setter"
+import { createPages } from "./components/Pages"
 
-import { Opt } from "$lib/option"
 import icons from "$lib/icons"
 import { hyprland } from "$service/astal"
 
-import options from "options"
-
-const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
-const { CENTER } = Gtk.Align
-const { VERTICAL } = Gtk.Orientation
+import options, { Opt } from "$shell/options"
 
 export namespace Settings {
-
-	function collectOpts(obj: Record<string, unknown>): CommonOption[] {
-		let opts: CommonOption[] = []
-		for (const key in obj) {
-			const value = obj[key]
-			if (value instanceof Opt) {
-				opts.push(value)
-			} else if (value && typeof value === "object") {
-				opts = opts.concat(collectOpts(value as Record<string, unknown>))
-			}
-		}
-		return opts
-	}
-
 	export function Button() {
 		return (
 			<button
 				valign={CENTER}
 				onClicked={() => {
-					const settings = app.get_window("settings-dialog")
+					const settings = ensureWindow()
 					const qsettings = app.get_window("quicksettings")
 					qsettings?.hide()
 
@@ -56,7 +36,9 @@ export namespace Settings {
 	}
 
 	export function Window() {
-		const pages = createSettingsPages()
+		const existing = app.get_window("settings-dialog")
+		if (existing) return existing
+		const pages = createPages()
 		const allOpts = collectOpts(options)
 
 		let stack: Gtk.Stack | undefined
@@ -134,5 +116,36 @@ export namespace Settings {
 				</box>
 			</Gtk.Window>
 		)
+	}
+
+	const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
+	const { CENTER } = Gtk.Align
+	const { VERTICAL } = Gtk.Orientation
+
+	let root: (() => void) | null = null
+
+	function ensureWindow() {
+		const existing = app.get_window("settings-dialog")
+		if (existing) return existing
+
+		let window: Gtk.Window | null = null
+		root ??= createRoot(dispose => {
+			window = Settings.Window() as Gtk.Window
+			return dispose
+		})
+		return window
+	}
+
+	function collectOpts(obj: Record<string, unknown>): Opt<any>[] {
+		let opts: Opt<any>[] = []
+		for (const key in obj) {
+			const value = obj[key]
+			if (value instanceof Opt) {
+				opts.push(value)
+			} else if (value && typeof value === "object") {
+				opts = opts.concat(collectOpts(value as Record<string, unknown>))
+			}
+		}
+		return opts
 	}
 }

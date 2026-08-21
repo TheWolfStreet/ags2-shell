@@ -4,26 +4,33 @@ import { onCleanup } from "ags"
 import { Gtk } from "ags/gtk4"
 
 import { Props, toggleClass } from "$lib/ui"
-import { onWindowToggle } from "widget/Windowing/WindowControl"
+import { onWindowToggle, toggleWindow } from "$lib/windowing"
 
 const { CENTER } = Gtk.Align
 
+type PanelButtonProps = Props<Gtk.Button, Gtk.Button.ConstructorProps> & {
+	targetWindow?: string
+}
+
 export function PanelButton({
 	$,
-	name,
+	targetWindow,
+	name = targetWindow,
 	class: className,
+	onClicked = () => toggleWindow(targetWindow),
 	...props
-}: Props<Gtk.Button, Gtk.Button.ConstructorProps>) {
+}: PanelButtonProps) {
 	return (
 		<button
 			name={name}
 			valign={CENTER}
 			class={`${name ?? ""} ${className ?? ""}`}
 			canFocus={false}
+			onClicked={onClicked}
 			{...props}
 			$={self => {
-				if (self.name) {
-					onCleanup(onWindowToggle(self.name, (w) => {
+				if (targetWindow) {
+					onCleanup(onWindowToggle(targetWindow, (w) => {
 						toggleClass(self, "active", w.is_visible())
 					}))
 				}
