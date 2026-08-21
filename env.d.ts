@@ -1,5 +1,21 @@
-// Declares build-time source, stylesheet, and wallpaper paths injected by the bundler.
-
 declare const SRC: string
-declare const STYLE_DIR: string
-declare const WALLPAPER_BIN: string
+
+declare module "inline:*" {
+  const content: string
+  export default content
+}
+
+declare module "*.scss" {
+  const content: string
+  export default content
+}
+
+declare module "*.blp" {
+  const content: string
+  export default content
+}
+
+declare module "*.css" {
+  const content: string
+  export default content
+}

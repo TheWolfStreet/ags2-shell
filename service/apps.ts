@@ -1,4 +1,4 @@
-// Lists installed applications and updates GNOME favorites when the list changes.
+// Lists installed apps and updates GNOME favorites when the list changes.
 
 import GObject, { getter, register } from "ags/gobject"
 import { execAsync } from "ags/process"
@@ -6,12 +6,28 @@ import { idle } from "ags/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
+import GioUnix from "gi://GioUnix"
+import GLib from "gi://GLib"
 
 import env from "$lib/env"
 import { fileExists } from "$lib/files"
 import { attempt } from "$lib/result"
 import { hyprland } from "$service/astal"
-import { debounce } from "$lib/timing"
+import { debounce } from "$lib/time"
+
+export function launchApp(app: AstalApps.Application | string) {
+	if (typeof app !== "string") {
+		const entry = app.get_entry()
+		const desktopFile = entry ? GioUnix.DesktopAppInfo.new(entry)?.get_filename() : null
+		if (desktopFile)
+			hyprland.message_async(`dispatch exec gio launch ${GLib.shell_quote(desktopFile)}`, null)
+		else
+			app.launch()
+		return
+	}
+
+	hyprland.message_async(`dispatch exec '${app.trim()}'`, null)
+}
 
 @register()
 class ApplicationCatalog extends GObject.Object {

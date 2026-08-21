@@ -1,4 +1,4 @@
-// Loads and caches images from files, URLs, and embedded data and retries failed loads.
+// Loads and caches images from files, URLs, and embedded data.
 
 import { Accessor, createState } from "ags"
 import { Gdk } from "ags/gtk4"
@@ -25,14 +25,16 @@ type CachedSignature = {
 
 const SQUARE_TEXTURE_CACHE_LIMIT = 256
 const FILE_SIGNATURE_CACHE_TTL_US = 1_000_000
+const HTTP_ART_CACHE_TTL_SECONDS = 60
 const SQUARE_TEXTURE_DISK_CACHE_DIR = env.paths.cache.thumbnails
+const MPRIS_ART_CACHE_DIR = `${GLib.get_user_cache_dir()}/astal/mpris`
 // Memory caches are bounded and evict their oldest entries; async accessors use FIFO.
 const squareContainTextureCache = new Map<string, { signature: string, texture: Gdk.Texture }>()
 const fileSignatureCache = new Map<string, CachedSignature>()
 
-type ImageUriKind = "local" | "http" | "data" | "unknown"
+export type ImageUriKind = "local" | "http" | "data" | "unknown"
 
-function classifyImageUri(uri: string): ImageUriKind {
+export function classifyImageUri(uri: string): ImageUriKind {
 	if (uri.startsWith("/") || uri.startsWith("file://")) return "local"
 	if (uri.startsWith("http://") || uri.startsWith("https://")) return "http"
 	if (isInlineImageData(uri)) return "data"
@@ -241,22 +243,46 @@ function pixbufFromInlineImageData(uri: string): GdkPixbuf.Pixbuf | null {
 
 function loadHttpPixbufAsync(uri: string, onLoaded: (pixbuf: GdkPixbuf.Pixbuf | null) => void) {
 	const started = attempt(() => {
-		const file = Gio.File.new_for_uri(uri)
-		file.load_bytes_async(null, (source, result) => {
-			const loaded = attempt(() => {
-				const [bytes] = (source as Gio.File).load_bytes_finish(result)
-				return bytes ? pixbufFromBytes(bytes) : null
+		GLib.mkdir_with_parents(MPRIS_ART_CACHE_DIR, 0o755)
+		const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA1, uri, -1)
+		const cachePath = `${MPRIS_ART_CACHE_DIR}/${hash}`
+		const cached = Gio.File.new_for_path(cachePath)
+		if (cached.query_exists(null)) {
+			const fresh = attempt(() => {
+				const info = cached.query_info("time::modified", Gio.FileQueryInfoFlags.NONE, null)
+				return Math.floor(Date.now() / 1000) - info.get_attribute_uint64("time::modified") <= HTTP_ART_CACHE_TTL_SECONDS
 			})
-			if (!loaded.ok) {
-				console.error(`textures.loadHttpPixbufAsync: Failed to load ${uri}`, loaded.err)
-				onLoaded(null)
-				return
+			if (fresh.ok && fresh.value) {
+				const decoded = attempt(() => GdkPixbuf.Pixbuf.new_from_file(cachePath))
+				if (decoded.ok) {
+					onLoaded(decoded.value)
+					return
+				}
 			}
-			onLoaded(loaded.value)
+			attempt(() => cached.delete(null))
+		}
+
+		const process = Gio.Subprocess.new([
+			"curl",
+			"--fail",
+			"--silent",
+			"--location",
+			"--connect-timeout", "5",
+			"--max-time", "15",
+			"--remove-on-error",
+			"--output", cachePath,
+			uri,
+		], Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE)
+		process.wait_async(null, (_source, result) => {
+			const loaded = attempt(() => {
+				process.wait_finish(result)
+				return process.get_successful() ? GdkPixbuf.Pixbuf.new_from_file(cachePath) : null
+			})
+			if (!loaded.ok || !loaded.value) attempt(() => cached.delete(null))
+			onLoaded(loaded.ok ? loaded.value : null)
 		})
 	})
 	if (!started.ok) {
-		console.error(`textures.loadHttpPixbufAsync: Failed to load ${uri}`, started.err)
 		onLoaded(null)
 	}
 }
@@ -312,30 +338,29 @@ function textureFromUriSquareContain(uri: string, size: number): Gdk.Texture | n
 	return null
 }
 
-const asyncTextureCache = new Map<string, Accessor<Gdk.Texture | null>>()
+const asyncTextureCache = new Map<string, { texture: Accessor<Gdk.Texture | null>, createdAtUs: number }>()
 const ASYNC_TEXTURE_CACHE_LIMIT = 64
-const ASYNC_TEXTURE_RETRY_DELAYS_MS = [250, 750, 1500]
+const ASYNC_TEXTURE_RETRY_DELAYS_MS = [250, 1000, 3000]
 
-function loadTextureWithRetry(
+function loadTextureAsync(
 	key: string,
 	texture: Accessor<Gdk.Texture | null>,
 	setTexture: (texture: Gdk.Texture) => void,
 	load: (done: (texture: Gdk.Texture | null) => void) => void,
-	attempt = 0,
+	retry = 0,
 ) {
 	load(loaded => {
 		if (loaded) {
 			setTexture(loaded)
 			return
 		}
-
-		const delay = ASYNC_TEXTURE_RETRY_DELAYS_MS[attempt]
+		const delay = ASYNC_TEXTURE_RETRY_DELAYS_MS[retry]
 		if (delay !== undefined) {
-			timeout(delay, () => loadTextureWithRetry(key, texture, setTexture, load, attempt + 1))
+			timeout(delay, () => { loadTextureAsync(key, texture, setTexture, load, retry + 1) })
 			return
 		}
 
-		if (asyncTextureCache.get(key) === texture)
+		if (asyncTextureCache.get(key)?.texture === texture)
 			asyncTextureCache.delete(key)
 	})
 }
@@ -346,20 +371,24 @@ export function createSquareTextureAccessor(uri: string, size: number): Accessor
 		return empty
 	}
 
+	const kind = classifyImageUri(uri)
 	const key = `${size}:${uri}`
 	const cached = asyncTextureCache.get(key)
-	if (cached) return cached
+	const nowUs = GLib.get_monotonic_time()
+	if (cached && (kind !== "http" || nowUs - cached.createdAtUs <= HTTP_ART_CACHE_TTL_SECONDS * 1_000_000))
+		return cached.texture
+	if (cached)
+		asyncTextureCache.delete(key)
 
 	const [texture, setTexture] = createState<Gdk.Texture | null>(null)
-	asyncTextureCache.set(key, texture)
+	asyncTextureCache.set(key, { texture, createdAtUs: nowUs })
 	if (asyncTextureCache.size > ASYNC_TEXTURE_CACHE_LIMIT) {
 		const oldest = asyncTextureCache.keys().next().value
 		if (oldest) asyncTextureCache.delete(oldest)
 	}
 
-	const kind = classifyImageUri(uri)
 	if (kind === "http") {
-		loadTextureWithRetry(key, texture, setTexture, done => {
+		loadTextureAsync(key, texture, setTexture, done => {
 			loadHttpPixbufAsync(uri, pixbuf => {
 				if (!pixbuf) return done(null)
 				const square = pixbufSquareContain(pixbuf, size)
@@ -371,7 +400,7 @@ export function createSquareTextureAccessor(uri: string, size: number): Accessor
 
 	if (kind === "local") {
 		const filePath = normalizeLocalImagePath(uri)
-		loadTextureWithRetry(key, texture, setTexture, done => {
+		loadTextureAsync(key, texture, setTexture, done => {
 			loadLocalPixbufAsync(filePath, size, done)
 		})
 		return texture

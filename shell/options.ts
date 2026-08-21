@@ -1,12 +1,15 @@
-// Loads and saves settings and watches groups of settings for changes.
+// Loads, saves, and lists the settings users can change.
 
 import { Accessor, createState, Setter } from "ags"
 import { readFile, writeFileAsync } from "ags/file"
+import { Gtk } from "ags/gtk4"
+import app from "ags/gtk4/app"
 
+import icons from "$lib/icons"
 import env from "$lib/env"
 import { ensureFile } from "$lib/files"
 import { attempt, attemptAsync } from "$lib/result"
-import { debounce } from "$lib/timing"
+import { debounce } from "$lib/time"
 
 namespace Store {
 	export const path = `${env.paths.cache.base}/options.json`
@@ -226,3 +229,199 @@ export function subscribeOptions(
 
 	return () => disposers.forEach(dispose => dispose())
 }
+
+export const optionValues = {
+	themeScheme: ["dark", "light"],
+	barPosition: ["top-center", "bottom-center"],
+	taskbarLocation: ["bar", "dock"],
+	dockMode: ["static", "autohide"],
+	dockPosition: ["bottom-center", "center-left"],
+	desktopIconSize: ["small", "medium", "large", "extralarge"],
+	launcherPosition: ["top-center", "bottom-center"],
+	favoritesLocation: ["disabled", "dock", "launcher", "both"],
+	popupPosition: ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"],
+	dateMenuPosition: ["center", "top-center", "bottom-center"],
+	powerMenuLayout: ["box", "line"],
+	osdPosition: ["center", "bottom-center"],
+} as const
+
+const constraints = {
+	"theme.scheme": optionValues.themeScheme,
+	"bar.position": optionValues.barPosition,
+	"taskbar.location": optionValues.taskbarLocation,
+	"dock.mode": optionValues.dockMode,
+	"dock.position": optionValues.dockPosition,
+	"desktop.iconSize": optionValues.desktopIconSize,
+	"launcher.position": optionValues.launcherPosition,
+	"favorites.location": optionValues.favoritesLocation,
+	"quicksettings.position": optionValues.popupPosition,
+	"datemenu.position": optionValues.dateMenuPosition,
+	"powermenu.layout": optionValues.powerMenuLayout,
+	"osd.position": optionValues.osdPosition,
+	"notifications.position": optionValues.popupPosition,
+} as const
+
+const options = mkOptions({
+	autotheme: false,
+	scale: 100,
+	font: "SFProDisplay Nerd Font 11",
+	transition: {
+		duration: 200,
+	},
+
+	theme: {
+		scheme: "dark",
+		dark: {
+			bg: "#171717",
+			fg: "#eeeeee",
+			primary: {
+				bg: "#51a4e7",
+				fg: "#141414",
+			},
+			error: {
+				bg: "#e55f86",
+			},
+			widget: "#eeeeee",
+			border: "#9a9996",
+		},
+		light: {
+			bg: "#fffffa",
+			fg: "#080808",
+			primary: {
+				bg: "#426ede",
+				fg: "#eeeeee",
+			},
+			error: {
+				bg: "#b13558",
+			},
+			widget: "#080808",
+			border: "#080808",
+		},
+
+		opacity: 30,
+		widget: {
+			opacity: 94,
+		},
+		border: {
+			width: 1,
+			opacity: 86,
+		},
+		shadows: true,
+		blur: true,
+		neumorphic: true,
+
+		padding: 8,
+		spacing: 6,
+		roundness: 12,
+	},
+
+	bar: {
+		position: "top-center",
+		transparent: false,
+		corners: 50,
+
+		launcher: {
+			icon: env.distro.logo && new Gtk.IconTheme({ themeName: app.iconTheme }).has_icon(env.distro.logo)
+				? env.distro.logo
+				: icons.ui.search,
+		},
+		workspaces: {
+			count: 7,
+		},
+		taskbar: {
+			exclusive: false,
+		},
+		date: {
+			format: "%a %b %-d %H:%M",
+		},
+		media: {
+			preferred: "spotify",
+		},
+		systray: {
+			ignore: [
+				"KDE Connect Indicator",
+				"spotify-client",
+				"spotify",
+			],
+		},
+	},
+
+	taskbar: {
+		location: "dock",
+	},
+
+	dock: {
+		mode: "static",
+		position: "bottom-center",
+		scale: 100,
+		trash: true,
+	},
+
+	desktop: {
+		enabled: true,
+		iconSize: "medium",
+	},
+
+	launcher: {
+		position: "top-center",
+		margin: 40,
+		scale: 100,
+		apps: {
+			max: 6,
+		},
+	},
+
+	favorites: {
+		location: "both",
+	},
+
+	overview: {
+		scale: 100,
+		workspaces: 7,
+	},
+
+	quicksettings: {
+		position: "top-right",
+		width: 380,
+	},
+
+	datemenu: {
+		position: "center",
+	},
+
+	powermenu: {
+		layout: "line",
+		labels: true,
+		sleep: "systemctl suspend",
+		reboot: "systemctl reboot",
+		logout: "hyprctl dispatch exit",
+		shutdown: "shutdown now",
+	},
+
+	osd: {
+		position: "bottom-center",
+		dismiss: 1200,
+	},
+
+	notifications: {
+		position: "top-right",
+		blacklist: ["Spotify", "com.spotify.Client"],
+		dismiss: 3500,
+	},
+
+	colorpicker: {
+		maxColors: 10,
+	},
+
+	hyprland: {
+		gaps: 2.4,
+		inactiveBorder: "#282828",
+	},
+
+	asus: {
+		ac_hz: 144,
+		bat_hz: 60,
+	},
+}, constraints)
+
+export default options

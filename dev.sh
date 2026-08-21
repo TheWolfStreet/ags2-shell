@@ -90,7 +90,7 @@ SCSS_WATCH_PID=$!
 log_watch "Watching TS/TSX files for changes"
 while true; do
   log_info "Starting shell"
-  ags run app.tsx "${SHELL_ARGS[@]}" &
+  ags run shell/main.tsx "${SHELL_ARGS[@]}" &
   AGS_PID=$!
 
   inotifywait -qre "$watch_events" --include '\.(ts|tsx)$' @./@girs . 2>/dev/null || true

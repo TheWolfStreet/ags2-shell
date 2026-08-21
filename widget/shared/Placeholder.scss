@@ -1,5 +1,5 @@
 // Styles empty-list messages and full-window placeholders.
-@use '../style/base' as *;
+@use '../../style/base' as *;
 
 .placeholder {
   @include spacing(.5);

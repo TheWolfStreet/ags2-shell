@@ -6,7 +6,7 @@ import { execAsync } from "ags/process"
 import { hyprland } from "$service/astal"
 import { hasProgram } from "$lib/programs"
 import { attempt, attemptAsync, err, ok, type Result } from "$lib/result"
-import options from "options"
+import options from "$shell/options"
 
 type MonitorConfiguration = {
 	name: string

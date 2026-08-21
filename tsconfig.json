@@ -16,6 +16,9 @@
       "$service/*": [
         "service/*"
       ],
+      "$shell/*": [
+        "shell/*"
+      ],
       "ags": [
         "node_modules/ags/lib/index.ts"
       ],

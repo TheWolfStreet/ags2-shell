@@ -1,9 +1,4 @@
-// Stores app and user information, clocks, and config, cache, and temporary paths.
-
-import { createBinding } from "ags"
-import { Gtk } from "ags/gtk4"
-import app from "ags/gtk4/app"
-import { createPoll } from "ags/time"
+// Stores app and user information and config, cache, and temporary paths.
 
 import GLib from "gi://GLib"
 
@@ -16,20 +11,6 @@ function ensureDir(path: string) {
 const env = {
 	appName: APPNAME,
 	username: GLib.get_user_name(),
-	iconTheme: createBinding(app, "iconTheme").as(v => new Gtk.IconTheme({ themeName: v })),
-
-	clock: createPoll<GLib.DateTime>(
-		GLib.DateTime.new_now_local(),
-		1000,
-		() => GLib.DateTime.new_now_local()
-	),
-
-	uptime: createPoll<number>(
-		0,
-		60_000,
-		"cat /proc/uptime",
-		(line) => Math.round(parseInt(line.split(".")[0], 10) / 60)
-	),
 
 	paths: {
 		home: GLib.get_home_dir(),

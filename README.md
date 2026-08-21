@@ -7,7 +7,7 @@
 
 A GTK4 desktop shell for Hyprland, built with AGS v3 and Astal. It provides a bar, launcher, overview, dock, desktop, notifications, quick settings, capture tools, and wallpaper-aware theming through Nix and native AGS bundles.
 
-![Demonstration](thumbnail.png)
+![Demonstration](assets/thumbnail.png)
 
 ## Features
 
@@ -177,7 +177,7 @@ ags request --instance ags2-shell screenshot-area
 
 ## Other Linux Distributions
 
-On other distributions, ags2-shell installs as two AGS-bundled GJS launchers and a compiled stylesheet. It uses GTK4, GTK4 Layer Shell, host runtime commands, and the IO, Astal4, Apps, Battery, Bluetooth, Hyprland, MPRIS, Network, Notifd, PowerProfiles, Tray, and WirePlumber Astal libraries.
+On other distributions, ags2-shell installs as two AGS-bundled GJS launchers and a compiled stylesheet. It uses GTK4, GTK4 Layer Shell, GVfs metadata support, libportal, host runtime commands, and the IO, Astal4, Apps, Battery, Bluetooth, Hyprland, MPRIS, Network, Notifd, PowerProfiles, Tray, and WirePlumber Astal libraries. GVfs is required to mark generated desktop launchers as trusted.
 
 Install AGS v3 and those Astal libraries using the [AGS installation guide](https://aylur.github.io/ags/guide/install.html) and [Astal installation guide](https://aylur.github.io/astal/guide/installation) for your distribution.
 
@@ -193,9 +193,9 @@ Install the build tool, shell runtime commands, and portal backends:
 
 ```bash
 sudo pacman -S --needed \
-  dart-sass bluez-utils brightnessctl dconf ddcutil gjs glib2 \
-  gsettings-desktop-schemas gtk4 gtk4-layer-shell hyprland \
-  gnome-control-center grim hyprpicker libheif libwebp pavucontrol \
+  dart-sass bluez-utils brightnessctl curl dconf ddcutil gjs glib2 \
+  gsettings-desktop-schemas gtk4 gtk4-layer-shell gvfs hyprland \
+  gnome-control-center grim hyprpicker libheif libportal libportal-gtk4 libwebp pavucontrol \
   procps-ng slurp swappy wf-recorder wl-clipboard xdg-utils \
   xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
 ```
@@ -209,7 +209,7 @@ The native installer compiles the stylesheet, bundles the main and wallpaper ent
 ```bash
 git clone https://github.com/TheWolfStreet/ags2-shell
 cd ags2-shell
-./install-native.sh
+./scripts/install-native.sh
 ```
 
 Ensure the selected `bin` directory is in `PATH`, then add the shell to Hyprland autostart:

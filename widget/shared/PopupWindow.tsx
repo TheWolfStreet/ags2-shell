@@ -8,7 +8,7 @@ import Graphene from "gi://Graphene"
 
 import { isAccessor, type Props } from "$lib/ui"
 
-import options from "options"
+import options from "$shell/options"
 
 type VerticalPosition = "top" | "center" | "bottom"
 type HorizontalPosition = "left" | "center" | "right"
@@ -74,7 +74,7 @@ export function PopupWindow({
 					visibilityUnsubscribe = visible.subscribe(() => popupWindow.setRequestedVisible(visible.peek()))
 			}}
 			name={name}
-			class={`${name && name + " "}${className}`}
+			class={`popup-window${name ? ` ${name}` : ""}${className ? ` ${className}` : ""}`}
 			decorated={decorated}
 			visible={initialVisible}
 			keymode={keymode}

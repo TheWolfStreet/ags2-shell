@@ -1,6 +1,6 @@
 // Lists notifications, joins duplicates, removes old ones, and handles dismissal.
 
-import GObject, { getter, property, register } from "ags/gobject"
+import GObject, { getter, register } from "ags/gobject"
 import { execAsync } from "ags/process"
 import { Timer, timeout } from "ags/time"
 
@@ -8,9 +8,11 @@ import AstalNotifd from "gi://AstalNotifd"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
+import icons from "$lib/icons"
+import { hasProgram } from "$lib/programs"
 import { attempt, attemptAsync } from "$lib/result"
 import { notificationDaemon } from "$service/astal"
-import options from "options"
+import options from "$shell/options"
 
 const DISPLAY_LIMIT = 50
 const PERSIST_KEEP = 50
@@ -144,6 +146,17 @@ export async function notify(options: {
 	return result.value
 }
 
+export function notifyMissingPrograms(...bins: string[]) {
+	const missing = bins.filter(bin => !hasProgram(bin))
+
+	if (missing.length > 0) {
+		console.warn(`Missing dependencies: ${missing.join(", ")}`)
+		notify({ appIcon: icons.missing, appName: "Error", summary: "Missing dependencies", body: `Could not locate ${missing.join(", ")}`, urgency: "critical" })
+	}
+
+	return missing.length === 0
+}
+
 function wireNotificationActions(id: number) {
 	const attach = (notification: AstalNotifd.Notification) => {
 		notification.connect("invoked", (_, actionId: string) => {
@@ -184,11 +197,8 @@ class NotificationManager extends GObject.Object {
 	#coalesceSourceId: number | null
 	#pruneSourceId: number | null
 	#ownerWarningTimer: Timer | null
-	#dismissAllTimer: Timer | null
 
 	readonly sessionStart: number
-
-	@property(Boolean) dismissingAll: boolean
 
 	constructor() {
 		super()
@@ -198,9 +208,7 @@ class NotificationManager extends GObject.Object {
 		this.#coalesceSourceId = null
 		this.#pruneSourceId = null
 		this.#ownerWarningTimer = null
-		this.#dismissAllTimer = null
 		this.sessionStart = Math.floor(Date.now() / 1000)
-		this.dismissingAll = false
 
 		this.#storeHandlers.push(
 			this.#notifd.connect("notified", () => this.#onStoreChanged()),
@@ -245,26 +253,20 @@ class NotificationManager extends GObject.Object {
 
 	@getter(Array)
 	get notifications(): Array<AstalNotifd.Notification> {
-		const blacklist = options.notifications.blacklist.peek() || []
 		return this.#notifd.get_notifications()
-			.filter(n => !blacklist.includes(n.get_app_name() || n.get_desktop_entry()))
+			.filter(n => !this.isBlacklisted(n))
 			.sort((a, b) => b.time - a.time)
 			.slice(0, DISPLAY_LIMIT)
+	}
+
+	isBlacklisted(notification: AstalNotifd.Notification): boolean {
+		const app = notification.get_app_name() || notification.get_desktop_entry()
+		return (options.notifications.blacklist.peek() || []).includes(app)
 	}
 
 	dismissAllImmediately() {
 		for (const n of this.#notifd.get_notifications())
 			n.dismiss()
-	}
-
-	dismissAllAfterTransitions(transitionDuration: number, maxStaggerDelay: number) {
-		this.dismissingAll = true
-		this.#dismissAllTimer?.cancel()
-		this.#dismissAllTimer = timeout(transitionDuration + maxStaggerDelay, () => {
-			this.#dismissAllTimer = null
-			this.dismissingAll = false
-			this.dismissAllImmediately()
-		})
 	}
 
 	get doNotDisturb(): boolean {
@@ -298,8 +300,6 @@ class NotificationManager extends GObject.Object {
 	vfunc_finalize() {
 		this.#ownerWarningTimer?.cancel()
 		this.#ownerWarningTimer = null
-		this.#dismissAllTimer?.cancel()
-		this.#dismissAllTimer = null
 		if (this.#coalesceSourceId !== null) {
 			GLib.Source.remove(this.#coalesceSourceId)
 			this.#coalesceSourceId = null

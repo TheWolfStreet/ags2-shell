@@ -3,7 +3,7 @@
 import { Gtk } from "ags/gtk4"
 import { FCProps, Accessor } from "ags"
 
-import options from "options"
+import options from "$shell/options"
 
 const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation

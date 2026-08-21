@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 prefix=${PREFIX:-"$HOME/.local"}
 bindir=${BINDIR:-"$prefix/bin"}
 libexecdir=${LIBEXECDIR:-"$prefix/libexec"}
@@ -32,8 +32,8 @@ cd "$root"
 install -Dm644 style/compile/main.css "$appdatadir/style/compile/main.css"
 install -d "$bindir" "$libexecdir"
 
-ags bundle wallpaper.tsx "$wallpaper_bin" -g 4
-ags bundle app.tsx "$main_bin" -g 4 \
+ags bundle shell/wallpaper.tsx "$wallpaper_bin" -g 4
+ags bundle shell/main.tsx "$main_bin" -g 4 \
   -d "WALLPAPER_BIN='$wallpaper_bin'" \
   -d "STYLE_DIR='$appdatadir'"
 

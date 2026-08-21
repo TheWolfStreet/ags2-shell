@@ -19,8 +19,8 @@
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
     pname = "ags2-shell";
-    entry = "app.tsx";
-    wallpaperEntry = "wallpaper.tsx";
+    entry = "shell/main.tsx";
+    wallpaperEntry = "shell/wallpaper.tsx";
 
     astalPackages = with ags.packages.${system}; [
       io
@@ -42,13 +42,18 @@
       ++ (with pkgs; [
         dconf
         gsettings-desktop-schemas
+        gvfs
+        libportal-gtk4
       ]);
+
+    girPackages = runtimeLibraries ++ [pkgs.libportal-gtk4.dev];
 
     runtimePrograms = with pkgs; [
       bash
       bluez
       brightnessctl
       coreutils
+      curl
       dconf
       ddcutil
       glib
@@ -79,7 +84,7 @@
           dart-sass
         ];
 
-        buildInputs = runtimeLibraries ++ [pkgs.gjs];
+        buildInputs = girPackages ++ [pkgs.gjs];
 
         buildPhase = ''
           runHook preBuild
@@ -128,7 +133,7 @@
           runtimePrograms
           ++ [
             (ags.packages.${system}.default.override {
-              extraPackages = runtimeLibraries;
+              extraPackages = girPackages;
             })
             pkgs.dart-sass
             pkgs.vtsls

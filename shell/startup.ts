@@ -3,17 +3,20 @@ import { execAsync } from "ags/process"
 import { idle } from "ags/time"
 
 import Gio from "gi://Gio"
+import GdkPixbuf from "gi://GdkPixbuf"
 import GLib from "gi://GLib"
 
-import { initCss } from "style"
+import { beginCssBatch, endCssBatch, initCss } from "style"
+import { buildWallpaperPalette, type Rgb, type WallpaperPalette } from "$lib/colors"
 import env from "$lib/env"
-import { subscribeOptions } from "$lib/option"
-import { debounce } from "$lib/timing"
+import { attempt } from "$lib/result"
+import { debounce } from "$lib/time"
 import { hasProgram } from "$lib/programs"
+import { getFileSize } from "$lib/textures"
 import { hyprland } from "$service/astal"
-import { startWallpaperTheme } from "widget/Wallpaper/theme"
+import { wallpaperService } from "$service/wallpaper"
 
-import options from "options"
+import options, { subscribeOptions } from "$shell/options"
 
 const { scheme, dark, light } = options.theme
 const SCHEME_SYNC_DEBOUNCE_MS = 200
@@ -147,6 +150,94 @@ function startHyprlandAppearanceSync() {
 	hyprland.connect("config-reloaded", () => update.call())
 	subscribeOptions(options, dependencies, () => update.call())
 	update.call()
+}
+
+const SAMPLE_SIZE = 96
+const WALLPAPER_THEME_DELAY_MS = 180
+let lastWallpaperRevision = -1
+
+function sampleWallpaperPixels(path: string): Rgb[] {
+	const animation = GdkPixbuf.PixbufAnimation.new_from_file(path)
+	const source = animation.get_static_image()
+	const pixbuf = source.scale_simple(SAMPLE_SIZE, SAMPLE_SIZE, GdkPixbuf.InterpType.BILINEAR) ?? source
+	const pixels = pixbuf.get_pixels()
+	const width = pixbuf.get_width()
+	const height = pixbuf.get_height()
+	const rowstride = pixbuf.get_rowstride()
+	const channels = pixbuf.get_n_channels()
+	const hasAlpha = pixbuf.get_has_alpha()
+	const samples: Rgb[] = []
+
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const offset = y * rowstride + x * channels
+			if (hasAlpha && pixels[offset + 3] < 32) continue
+			samples.push({
+				r: pixels[offset] / 255,
+				g: pixels[offset + 1] / 255,
+				b: pixels[offset + 2] / 255,
+			})
+		}
+	}
+
+	return samples
+}
+
+function applyWallpaperPalette(colors: WallpaperPalette) {
+	const { dark, light } = options.theme
+	beginCssBatch()
+	try {
+		dark.bg.set(colors.dark.bg)
+		dark.fg.set(colors.dark.fg)
+		dark.widget.set(colors.dark.widget)
+		dark.border.set(colors.dark.border)
+		dark.primary.bg.set(colors.dark.primaryBg)
+		dark.primary.fg.set(colors.dark.primaryFg)
+		dark.error.bg.set(colors.dark.errorBg)
+		light.bg.set(colors.light.bg)
+		light.fg.set(colors.light.fg)
+		light.widget.set(colors.light.widget)
+		light.border.set(colors.light.border)
+		light.primary.bg.set(colors.light.primaryBg)
+		light.primary.fg.set(colors.light.primaryFg)
+		light.error.bg.set(colors.light.errorBg)
+	} finally {
+		endCssBatch()
+	}
+}
+
+const updateWallpaperTheme = debounce(WALLPAPER_THEME_DELAY_MS, () => {
+	if (!options.autotheme.peek()) return
+	const path = wallpaperService.wallpaper
+	if (!getFileSize(path)) return
+	const revision = wallpaperService.revision
+	if (revision === lastWallpaperRevision) return
+
+	const result = attempt(() => buildWallpaperPalette(sampleWallpaperPixels(path)))
+	if (!result.ok) {
+		console.error("wallpaper.theme: Failed to sample wallpaper", result.err)
+		return
+	}
+	if (!result.value) {
+		console.error("wallpaper.theme: Wallpaper contained no usable pixels")
+		return
+	}
+
+	applyWallpaperPalette(result.value)
+	lastWallpaperRevision = revision
+})
+
+function startWallpaperTheme() {
+	wallpaperService.connect("notify::wallpaper", () => updateWallpaperTheme.call())
+	options.autotheme.subscribe(() => {
+		if (options.autotheme.peek()) {
+			lastWallpaperRevision = -1
+			updateWallpaperTheme.call()
+		} else {
+			updateWallpaperTheme.cancel()
+		}
+	})
+	updateWallpaperTheme.call()
 }
 
 export default async function startShell() {
