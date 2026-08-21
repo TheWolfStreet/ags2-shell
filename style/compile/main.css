@@ -1,4 +1,4 @@
-button, .flat-button, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window#bar button, window#bar popover contents modelbutton,
+button, .flat-button, window.settings-dialog box.header > button.reset, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window.desktop-launcher-creator .header button.back, window#bar button, window#bar popover contents modelbutton,
 window#bar popover contents button.model-item, window#bar box.tasks overlay, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#launcher box.launcher box.quicklaunch button, window#datemenu box.datemenu box.calendar calendar button, popover.menu > contents modelbutton {
   all: unset;
   transition: var(--transition);
@@ -9,34 +9,34 @@ window#bar popover contents button.model-item, window#bar box.tasks overlay, win
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow);
   font-weight: bold;
 }
-button:hover:not(.active), .flat-button:hover:not(.active), window.settings-dialog box.group .header button.reset:hover:not(.active), window.settings-dialog box.row button.reset:hover:not(.active), window#desktop-context-menu .contents button:hover:not(.active), window#bar button:hover:not(.active), window#bar popover contents modelbutton:hover:not(.active), window#bar box.tasks overlay:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.volume button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.control-unit button:hover:not(.active), window#quicksettings .quicksettings box.menu button:hover:not(.active), window#quicksettings .quicksettings box.media box.player button:hover:not(.active), window#launcher box.launcher box.quicklaunch button:hover:not(.active), window#datemenu box.datemenu box.calendar calendar button:hover:not(.active), popover.menu > contents modelbutton:hover:not(.active) {
+button:hover:not(.active), .flat-button:hover:not(.active), window.settings-dialog box.header > button.reset:hover:not(.active), window.settings-dialog box.group .header button.reset:hover:not(.active), window.settings-dialog box.row button.reset:hover:not(.active), window#desktop-context-menu .contents button:hover:not(.active), window.desktop-launcher-creator .header button.back:hover:not(.active), window#bar button:hover:not(.active), window#bar popover contents modelbutton:hover:not(.active), window#bar box.tasks overlay:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.volume button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.control-unit button:hover:not(.active), window#quicksettings .quicksettings box.menu button:hover:not(.active), window#quicksettings .quicksettings box.media box.player button:hover:not(.active), window#launcher box.launcher box.quicklaunch button:hover:not(.active), window#datemenu box.datemenu box.calendar calendar button:hover:not(.active), popover.menu > contents modelbutton:hover:not(.active) {
   background-color: var(--hover-bg);
   color: var(--hover-fg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
 }
-button:focus-visible, .flat-button:focus-visible, window.settings-dialog box.group .header button.reset:focus-visible, window.settings-dialog box.row button.reset:focus-visible, window#desktop-context-menu .contents button:focus-visible, window#bar button:focus-visible, window#bar popover contents modelbutton:focus-visible,
+button:focus-visible, .flat-button:focus-visible, window.settings-dialog box.header > button.reset:focus-visible, window.settings-dialog box.group .header button.reset:focus-visible, window.settings-dialog box.row button.reset:focus-visible, window#desktop-context-menu .contents button:focus-visible, window.desktop-launcher-creator .header button.back:focus-visible, window#bar button:focus-visible, window#bar popover contents modelbutton:focus-visible,
 window#bar popover contents button.model-item:focus-visible, window#bar box.tasks overlay:focus-visible, window#quicksettings .quicksettings box.sliders-box box.volume button:focus-visible, window#quicksettings .quicksettings box.sliders-box box.control-unit button:focus-visible, window#quicksettings .quicksettings box.menu button:focus-visible, window#quicksettings .quicksettings box.media box.player button:focus-visible, window#launcher box.launcher box.quicklaunch button:focus-visible, window#datemenu box.datemenu box.calendar calendar button:focus-visible, popover.menu > contents modelbutton:focus-visible {
   outline: calc(var(--border-width) / 2) solid var(--primary-bg);
   outline-offset: -1px;
 }
-button:active, .flat-button:active, window.settings-dialog box.group .header button.reset:active, window.settings-dialog box.row button.reset:active, window#desktop-context-menu .contents button:active, window#bar button:active, window#bar popover contents modelbutton:active,
-window#bar popover contents button.model-item:active, window#bar box.tasks overlay:active, window#quicksettings .quicksettings box.sliders-box box.volume button:active, window#quicksettings .quicksettings box.sliders-box box.control-unit button:active, window#quicksettings .quicksettings box.menu button:active, window#quicksettings .quicksettings box.media box.player button:active, window#launcher box.launcher box.quicklaunch button:active, window#datemenu box.datemenu box.calendar calendar button:active, popover.menu > contents modelbutton:active, button.on, .on.flat-button, window.settings-dialog box.group .header button.on.reset, window.settings-dialog box.row button.on.reset, window#desktop-context-menu .contents button.on, window#bar button.on, window#bar popover contents modelbutton.on,
-window#bar popover contents button.on.model-item, window#bar box.tasks overlay.on, window#quicksettings .quicksettings box.sliders-box box.volume button.on, window#quicksettings .quicksettings box.sliders-box box.control-unit button.on, window#quicksettings .quicksettings box.menu button.on, window#quicksettings .quicksettings box.media box.player button.on, window#launcher box.launcher box.quicklaunch button.on, window#datemenu box.datemenu box.calendar calendar button.on, popover.menu > contents modelbutton.on, button.active, .active.flat-button, window.settings-dialog box.group .header button.active.reset, window.settings-dialog box.row button.active.reset, window#desktop-context-menu .contents button.active, window#bar button.active, window#bar popover contents modelbutton.active,
-window#bar popover contents button.active.model-item, window#bar box.tasks overlay.active, window#quicksettings .quicksettings box.sliders-box box.volume button.active, window#quicksettings .quicksettings box.sliders-box box.control-unit button.active, window#quicksettings .quicksettings box.menu button.active, window#quicksettings .quicksettings box.media box.player button.active, window#launcher box.launcher box.quicklaunch button.active, window#datemenu box.datemenu box.calendar calendar button.active, popover.menu > contents modelbutton.active, button:checked, .flat-button:checked, window.settings-dialog box.group .header button.reset:checked, window.settings-dialog box.row button.reset:checked, window#desktop-context-menu .contents button:checked, window#bar button:checked, window#bar popover contents modelbutton:checked,
+button:active, .flat-button:active, window.settings-dialog box.header > button.reset:active, window.settings-dialog box.group .header button.reset:active, window.settings-dialog box.row button.reset:active, window#desktop-context-menu .contents button:active, window.desktop-launcher-creator .header button.back:active, window#bar button:active, window#bar popover contents modelbutton:active,
+window#bar popover contents button.model-item:active, window#bar box.tasks overlay:active, window#quicksettings .quicksettings box.sliders-box box.volume button:active, window#quicksettings .quicksettings box.sliders-box box.control-unit button:active, window#quicksettings .quicksettings box.menu button:active, window#quicksettings .quicksettings box.media box.player button:active, window#launcher box.launcher box.quicklaunch button:active, window#datemenu box.datemenu box.calendar calendar button:active, popover.menu > contents modelbutton:active, button.on, .on.flat-button, window.settings-dialog box.header > button.on.reset, window.settings-dialog box.group .header button.on.reset, window.settings-dialog box.row button.on.reset, window#desktop-context-menu .contents button.on, window.desktop-launcher-creator .header button.on.back, window#bar button.on, window#bar popover contents modelbutton.on,
+window#bar popover contents button.on.model-item, window#bar box.tasks overlay.on, window#quicksettings .quicksettings box.sliders-box box.volume button.on, window#quicksettings .quicksettings box.sliders-box box.control-unit button.on, window#quicksettings .quicksettings box.menu button.on, window#quicksettings .quicksettings box.media box.player button.on, window#launcher box.launcher box.quicklaunch button.on, window#datemenu box.datemenu box.calendar calendar button.on, popover.menu > contents modelbutton.on, button.active, .active.flat-button, window.settings-dialog box.header > button.active.reset, window.settings-dialog box.group .header button.active.reset, window.settings-dialog box.row button.active.reset, window#desktop-context-menu .contents button.active, window.desktop-launcher-creator .header button.active.back, window#bar button.active, window#bar popover contents modelbutton.active,
+window#bar popover contents button.active.model-item, window#bar box.tasks overlay.active, window#quicksettings .quicksettings box.sliders-box box.volume button.active, window#quicksettings .quicksettings box.sliders-box box.control-unit button.active, window#quicksettings .quicksettings box.menu button.active, window#quicksettings .quicksettings box.media box.player button.active, window#launcher box.launcher box.quicklaunch button.active, window#datemenu box.datemenu box.calendar calendar button.active, popover.menu > contents modelbutton.active, button:checked, .flat-button:checked, window.settings-dialog box.header > button.reset:checked, window.settings-dialog box.group .header button.reset:checked, window.settings-dialog box.row button.reset:checked, window#desktop-context-menu .contents button:checked, window.desktop-launcher-creator .header button.back:checked, window#bar button:checked, window#bar popover contents modelbutton:checked,
 window#bar popover contents button.model-item:checked, window#bar box.tasks overlay:checked, window#quicksettings .quicksettings box.sliders-box box.volume button:checked, window#quicksettings .quicksettings box.sliders-box box.control-unit button:checked, window#quicksettings .quicksettings box.menu button:checked, window#quicksettings .quicksettings box.media box.player button:checked, window#launcher box.launcher box.quicklaunch button:checked, window#datemenu box.datemenu box.calendar calendar button:checked, popover.menu > contents modelbutton:checked {
   background-image: var(--active-gradient);
   background-color: var(--primary-bg);
   color: var(--primary-fg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
 }
-button:disabled, .flat-button:disabled, window.settings-dialog box.group .header button.reset:disabled, window.settings-dialog box.row button.reset:disabled, window#desktop-context-menu .contents button:disabled, window#bar button:disabled, window#bar popover contents modelbutton:disabled,
+button:disabled, .flat-button:disabled, window.settings-dialog box.header > button.reset:disabled, window.settings-dialog box.group .header button.reset:disabled, window.settings-dialog box.row button.reset:disabled, window#desktop-context-menu .contents button:disabled, window.desktop-launcher-creator .header button.back:disabled, window#bar button:disabled, window#bar popover contents modelbutton:disabled,
 window#bar popover contents button.model-item:disabled, window#bar box.tasks overlay:disabled, window#quicksettings .quicksettings box.sliders-box box.volume button:disabled, window#quicksettings .quicksettings box.sliders-box box.control-unit button:disabled, window#quicksettings .quicksettings box.menu button:disabled, window#quicksettings .quicksettings box.media box.player button:disabled, window#launcher box.launcher box.quicklaunch button:disabled, window#datemenu box.datemenu box.calendar calendar button:disabled, popover.menu > contents modelbutton:disabled {
   box-shadow: none;
   background-color: transparent;
   color: color-mix(in srgb, var(--fg) 30%, transparent);
 }
 
-.flat-button, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window#bar button, window#bar popover contents modelbutton,
+.flat-button, window.settings-dialog box.header > button.reset, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window.desktop-launcher-creator .header button.back, window#bar button, window#bar popover contents modelbutton,
 window#bar popover contents button.model-item, window#bar box.tasks overlay, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#launcher box.launcher box.quicklaunch button, window#datemenu box.datemenu box.calendar calendar button, popover.menu > contents modelbutton {
   background-color: transparent;
   box-shadow: none;
@@ -45,6 +45,7 @@ window#bar popover contents button.model-item, window#bar box.tasks overlay, win
 * {
   --hover-fg: color-mix(in srgb, var(--fg), white 8%);
   --border: var(--border-width) solid var(--border-color);
+  --surface-edge-color: color-mix(in srgb, var(--fg) 14%, transparent);
   font-size: var(--font-size);
   font-family: var(--font-name);
 }
@@ -56,6 +57,10 @@ image {
 window {
   background-color: var(--bg);
   color: var(--fg);
+}
+
+window.popup-window {
+  background-color: transparent;
 }
 
 window.dark {
@@ -150,7 +155,7 @@ popover.menu > contents separator {
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
 }
 
-.floating, window#verification box.verification, window#powermenu box.powermenu, window#state-display box.state-display, window#quicksettings .quicksettings, window#overview box.overview, window.notifications box.notification, window#launcher box.launcher, window#datemenu box.datemenu, window#batterystate box.batterystate {
+.floating, window#verification box.verification, window#powermenu box.powermenu, window#state-display box.state-display, window#desktop-context-menu .contents, window#quicksettings .quicksettings, window#overview box.overview, window.notifications box.notification, window#launcher box.launcher, window#datemenu box.datemenu {
   box-shadow: 0 0 5px 0 var(--shadow-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
   margin: max(var(--spacing), 8px);
   border: var(--border-width) solid var(--popover-border-color);
@@ -289,12 +294,13 @@ entry {
   color: var(--fg);
   background-color: var(--widget-bg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
-  padding: var(--padding);
+  min-height: 0;
+  padding: calc(var(--padding) * 0.75) var(--padding);
 }
 entry > text {
   all: unset;
   color: var(--fg);
-  min-height: 1em;
+  min-height: 0;
 }
 entry:focus-visible {
   outline: calc(var(--border-width) / 2) solid var(--primary-bg);
@@ -309,7 +315,7 @@ box.enum-setter, spinbutton {
 box.enum-setter button, spinbutton button {
   border-radius: 0;
   box-shadow: none;
-  padding: var(--padding);
+  padding: calc(var(--padding) * 0.75) var(--padding);
   background-color: transparent;
   min-height: 1em;
   -gtk-icon-size: 1em;
@@ -338,17 +344,12 @@ box.enum-setter button:active, spinbutton button:active {
 }
 
 spinbutton {
-  all: unset;
   color: var(--fg);
   min-height: 0;
-  border-radius: var(--radius);
-  background-color: var(--widget-bg);
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
 }
 spinbutton button {
   color: var(--fg);
   min-width: 0;
-  min-height: 1em;
 }
 spinbutton:focus-within {
   outline: none;
@@ -361,21 +362,24 @@ spinbutton text {
   all: unset;
   color: var(--fg);
   min-height: 1em;
-  padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
+  padding: calc(var(--padding) * 0.75) var(--padding);
   border-radius: var(--radius) 0 0 var(--radius);
 }
 spinbutton text:focus {
   all: unset;
   color: var(--fg);
-  padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
+  padding: calc(var(--padding) * 0.75) var(--padding);
   border-radius: var(--radius) 0 0 var(--radius);
 }
 
-button.color-setter {
+button.setting-setter,
+button.color-setter,
+fontbutton.setting-setter > button.font {
   min-width: 0;
   min-height: 0;
-  padding: var(--padding);
+  padding: calc(var(--padding) * 0.75) var(--padding);
 }
+
 button.color-setter > box.color-swatch {
   min-width: calc(32px * var(--scale, 1));
   min-height: calc(16px * var(--scale, 1));
@@ -385,10 +389,17 @@ button.color-setter > box.color-swatch {
 
 box.enum-setter label {
   min-height: 1em;
-  padding: calc(var(--padding) / 2) calc(var(--padding) / 2) calc(var(--padding) / 2) var(--padding);
+  padding: calc(var(--padding) * 0.75) var(--padding);
   border-radius: var(--radius) 0 0 var(--radius);
 }
 
+progressbar {
+  all: unset;
+}
+progressbar trough,
+progressbar progress {
+  all: unset;
+}
 progressbar trough {
   border-radius: var(--radius);
   background-color: var(--widget-bg);
@@ -397,7 +408,6 @@ progressbar trough {
   border: var(--border);
   box-shadow: var(--neu-trough-inset);
 }
-progressbar trough highlight,
 progressbar trough progress {
   transition: none;
   border-radius: max(var(--radius) - var(--border-width), 0px);
@@ -406,7 +416,7 @@ progressbar trough progress {
   min-width: 0.6em;
   box-shadow: var(--neu-progress-highlight), var(--neu-progress-shadow);
 }
-progressbar trough.muted trough progress {
+progressbar.muted trough progress {
   background-image: none;
   background-color: color-mix(in srgb, var(--fg) 80%, transparent);
 }
@@ -495,32 +505,27 @@ window#bar box.battery.vertical > *:first-child {
 window#bar box.battery.vertical > *:last-child {
   margin-bottom: 0;
 }
-
-window#batterystate {
-  background-color: transparent;
-}
-window#batterystate box.batterystate.horizontal > * {
+window#bar box.batterystate.horizontal > * {
   margin: 0 calc(var(--spacing) * 0.5 / 2);
 }
-window#batterystate box.batterystate.horizontal > *:first-child {
+window#bar box.batterystate.horizontal > *:first-child {
   margin-left: 0;
 }
-window#batterystate box.batterystate.horizontal > *:last-child {
+window#bar box.batterystate.horizontal > *:last-child {
   margin-right: 0;
 }
-window#batterystate box.batterystate.vertical > * {
+window#bar box.batterystate.vertical > * {
   margin: calc(var(--spacing) * 0.5 / 2) 0;
 }
-window#batterystate box.batterystate.vertical > *:first-child {
+window#bar box.batterystate.vertical > *:first-child {
   margin-top: 0;
 }
-window#batterystate box.batterystate.vertical > *:last-child {
+window#bar box.batterystate.vertical > *:last-child {
   margin-bottom: 0;
 }
-window#batterystate box.batterystate label {
+window#bar box.batterystate label {
   font-weight: bold;
 }
-
 window#bar box.colorpicker.horizontal > * {
   margin: 0 calc(var(--spacing) * 0.5 / 2);
 }
@@ -576,9 +581,6 @@ window#bar button.media box.media-content revealer label {
   margin-left: calc(var(--spacing) / 2);
 }
 
-window#datemenu {
-  background-color: transparent;
-}
 window#datemenu box.datemenu box.notifications box.notifications-header {
   margin-bottom: calc(var(--padding) * 1.5);
   margin-right: calc(var(--padding) * 1.5);
@@ -663,8 +665,16 @@ window#datemenu box.datemenu box.calendar calendar label.other-month {
   color: color-mix(in srgb, var(--fg) 10%, transparent);
 }
 
-window#launcher {
-  background-color: transparent;
+window#launcher box.launcher * {
+  --padding: inherit;
+  --spacing: inherit;
+  --radius: inherit;
+  --border-width: inherit;
+  --font-size: inherit;
+  --icon-size: inherit;
+  --popover-padding: inherit;
+  --popover-radius: inherit;
+  --scale: inherit;
 }
 window#launcher box.launcher box.quicklaunch.horizontal > * {
   margin: 0 calc(var(--spacing) * 1 / 2);
@@ -701,13 +711,6 @@ window#launcher box.launcher box.quicklaunch button:hover image, window#launcher
 }
 window#launcher box.launcher entry {
   margin: var(--spacing);
-  min-height: 0;
-  padding: calc(var(--padding) * 0.75) var(--padding);
-}
-window#launcher box.launcher entry > text {
-  all: unset;
-  color: var(--fg);
-  min-height: 0;
 }
 window#launcher box.launcher entry > text > placeholder {
   color: color-mix(in srgb, var(--fg) 60%, transparent);
@@ -881,9 +884,6 @@ window.notifications box.notification box.description {
   min-width: calc(350px * var(--scale, 1));
 }
 
-window#overview {
-  background-color: transparent;
-}
 window#overview box.overview.horizontal > * {
   margin: 0 calc(var(--spacing) * 1 / 2);
 }
@@ -954,9 +954,35 @@ window#wifi-auth .entry-row {
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
   padding: var(--padding);
 }
+window#wifi-auth .entry-row entry.shake > text {
+  animation: wifi-auth-shake 450ms ease-in-out;
+}
+window#wifi-auth .auth-status {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+window#wifi-auth .auth-status.invalid {
+  color: var(--error-bg);
+}
 
-window#quicksettings {
-  background-color: transparent;
+@keyframes wifi-auth-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-12px);
+  }
+  30% {
+    transform: translateX(10px);
+  }
+  45% {
+    transform: translateX(-8px);
+  }
+  60% {
+    transform: translateX(6px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
 }
 window#quicksettings .quicksettings.horizontal > * {
   margin: 0 calc(var(--spacing) * 1 / 2);
@@ -981,8 +1007,8 @@ window#quicksettings .quicksettings {
 }
 window#quicksettings .quicksettings picture.avatar {
   border-radius: calc(var(--radius) * 3);
-  min-width: calc(65px * var(--scale, 1));
-  min-height: calc(65px * var(--scale, 1));
+  min-width: calc(56px * var(--scale, 1));
+  min-height: calc(56px * var(--scale, 1));
   background-clip: padding-box;
 }
 window#quicksettings .quicksettings label.username {
@@ -1188,6 +1214,17 @@ window#quicksettings .quicksettings box.menu box.profile-item.vertical > *:last-
 window#quicksettings .quicksettings box.menu box.wifi-item.vertical > *:last-child {
   margin-bottom: 0;
 }
+window#quicksettings .quicksettings box.menu label.device-detail {
+  padding: 0 calc(var(--spacing) * 0.35);
+  border-radius: calc(var(--radius) / 2);
+  background-color: color-mix(in srgb, var(--fg) 10%, transparent);
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  font-size: 0.75em;
+  font-weight: bold;
+}
+window#quicksettings .quicksettings box.menu label.device-detail.security-warning {
+  color: var(--error-bg);
+}
 window#quicksettings .quicksettings box.simple-toggle, window#quicksettings .quicksettings box.toggle-button {
   background-color: var(--widget-bg);
   border: var(--border-width) solid var(--border-color);
@@ -1222,6 +1259,22 @@ window#quicksettings .quicksettings box.simple-toggle button:focus-visible, wind
   outline: calc(var(--border-width) / 2) solid var(--primary-bg);
   outline-offset: -1px;
 }
+window#quicksettings .quicksettings box.simple-toggle > button, window#quicksettings .quicksettings box.toggle-button > button {
+  all: unset;
+  font-weight: bold;
+  transition: var(--transition);
+  color: var(--fg);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  padding: var(--padding);
+}
+window#quicksettings .quicksettings box.simple-toggle > button:active, window#quicksettings .quicksettings box.toggle-button > button:active {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+  background-image: var(--active-gradient);
+  background-color: var(--primary-bg);
+  color: var(--primary-fg);
+}
 window#quicksettings .quicksettings box.active.simple-toggle, window#quicksettings .quicksettings box.active.toggle-button {
   background-color: var(--primary-bg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
@@ -1231,48 +1284,18 @@ window#quicksettings .quicksettings box.active.simple-toggle image,
 window#quicksettings .quicksettings box.active.toggle-button image {
   color: var(--primary-fg);
 }
-window#quicksettings .quicksettings box.toggle-button button {
-  all: unset;
-  font-weight: bold;
-  transition: var(--transition);
-  color: var(--fg);
-  background-color: transparent;
-  background-image: none;
-  box-shadow: none;
-  padding: var(--padding);
-}
-window#quicksettings .quicksettings box.toggle-button button:first-child {
+window#quicksettings .quicksettings box.toggle-button > button:first-child {
   border-radius: var(--radius) 0 0 var(--radius);
   border-right: var(--border-width) solid var(--border-color);
 }
-window#quicksettings .quicksettings box.toggle-button button:last-child {
+window#quicksettings .quicksettings box.toggle-button > button:last-child {
   border-radius: 0 var(--radius) var(--radius) 0;
 }
-window#quicksettings .quicksettings box.toggle-button button:active {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-  background-image: var(--active-gradient);
-  background-color: var(--primary-bg);
-  color: var(--primary-fg);
-}
-window#quicksettings .quicksettings box.toggle-button button.arrow {
+window#quicksettings .quicksettings box.toggle-button > button.arrow {
   padding: calc(var(--padding) / 2);
 }
-window#quicksettings .quicksettings box.simple-toggle button {
-  all: unset;
-  font-weight: bold;
-  transition: var(--transition);
-  color: var(--fg);
-  background-color: transparent;
-  background-image: none;
-  box-shadow: none;
-  padding: var(--padding);
+window#quicksettings .quicksettings box.simple-toggle > button {
   border-radius: var(--radius);
-}
-window#quicksettings .quicksettings box.simple-toggle button:active {
-  box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-  background-image: var(--active-gradient);
-  background-color: var(--primary-bg);
-  color: var(--primary-fg);
 }
 window#quicksettings .quicksettings box.media.horizontal > * {
   margin: 0 calc(var(--spacing) * 1 / 2);
@@ -1443,24 +1466,6 @@ window#bar popover contents .tray-menu separator {
   min-height: 1px;
   background-color: color-mix(in srgb, var(--fg) 20%, transparent);
 }
-window#bar box.launcher.horizontal > * {
-  margin: 0 calc(var(--spacing) * 1 / 2);
-}
-window#bar box.launcher.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#bar box.launcher.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#bar box.launcher.vertical > * {
-  margin: calc(var(--spacing) * 1 / 2) 0;
-}
-window#bar box.launcher.vertical > *:first-child {
-  margin-top: 0;
-}
-window#bar box.launcher.vertical > *:last-child {
-  margin-bottom: 0;
-}
 window#bar box.launcher .colored {
   color: color-mix(in srgb, var(--primary-bg) 80%, transparent);
 }
@@ -1470,24 +1475,6 @@ window#bar box.launcher button:hover .colored {
 window#bar box.launcher button:active .colored,
 window#bar box.launcher button.active .colored {
   color: var(--primary-fg);
-}
-window#bar button.workspaces box.horizontal > * {
-  margin: 0 calc(var(--spacing) * 1 / 2);
-}
-window#bar button.workspaces box.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#bar button.workspaces box.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#bar button.workspaces box.vertical > * {
-  margin: calc(var(--spacing) * 1 / 2) 0;
-}
-window#bar button.workspaces box.vertical > *:first-child {
-  margin-top: 0;
-}
-window#bar button.workspaces box.vertical > *:last-child {
-  margin-bottom: 0;
 }
 window#bar button.workspaces label {
   font-size: 0;
@@ -1517,24 +1504,6 @@ window#bar button.workspaces.active label.occupied, window#bar button.workspaces
 }
 window#bar button.workspaces.active label.active, window#bar button.workspaces:active label.active {
   background-color: var(--primary-fg);
-}
-window#bar box.tasks.horizontal > * {
-  margin: 0 calc(var(--spacing) * 1 / 2);
-}
-window#bar box.tasks.horizontal > *:first-child {
-  margin-left: 0;
-}
-window#bar box.tasks.horizontal > *:last-child {
-  margin-right: 0;
-}
-window#bar box.tasks.vertical > * {
-  margin: calc(var(--spacing) * 1 / 2) 0;
-}
-window#bar box.tasks.vertical > *:first-child {
-  margin-top: 0;
-}
-window#bar box.tasks.vertical > *:last-child {
-  margin-bottom: 0;
 }
 window#bar box.tasks overlay {
   padding: calc(var(--padding) / 2);
@@ -1658,7 +1627,7 @@ window#screen-corner-bottom:not(.hidden).bottom-center box.border {
 }
 window#screen-corner-top:not(.hidden) box.corner,
 window#screen-corner-bottom:not(.hidden) box.corner {
-  box-shadow: 0 0 0 var(--border-width) var(--border-color);
+  box-shadow: 0 0 0 var(--border-width) var(--surface-edge-color);
 }
 window#screen-corner-top:not(.hidden).corners box.border,
 window#screen-corner-bottom:not(.hidden).corners box.border {
@@ -1735,7 +1704,7 @@ window#desktop .desktop-container .desktop-icon.selected .desktop-icon-label {
   text-shadow: 0 1px 1px color-mix(in srgb, black 22%, transparent);
   box-shadow: var(--neu-button-active-highlight), var(--neu-button-active-shadow);
 }
-window#desktop .desktop-container .desktop-icon.selected .desktop-icon-label entry {
+window#desktop .desktop-container .desktop-icon.selected .desktop-icon-label .desktop-icon-rename {
   color: var(--primary-fg);
   text-shadow: none;
 }
@@ -1757,12 +1726,17 @@ window#desktop .desktop-container .desktop-icon .desktop-icon-inner .desktop-ico
   min-width: 0;
   min-height: 0;
 }
+window#desktop .desktop-container .desktop-icon .desktop-icon-inner .desktop-shortcut-emblem {
+  color: #ffffff;
+  margin: 0 0 calc(2px * var(--scale, 1)) calc(2px * var(--scale, 1));
+  -gtk-icon-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 1px rgba(0, 0, 0, 0.9);
+}
 window#desktop .desktop-container .desktop-icon .desktop-icon-inner .desktop-icon-preview {
   border-radius: calc(14px * var(--scale, 1));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 16%, transparent);
 }
 window#desktop .desktop-container .desktop-icon .desktop-icon-label {
-  font-size: 1.2em;
+  min-width: 0;
   color: #ffffff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 3px rgba(0, 0, 0, 0.5);
   font-weight: 500;
@@ -1771,8 +1745,10 @@ window#desktop .desktop-container .desktop-icon .desktop-icon-label {
   background: transparent;
   transition: background-color var(--transition), box-shadow var(--transition);
 }
-window#desktop .desktop-container .desktop-icon .desktop-icon-label entry {
+window#desktop .desktop-container .desktop-icon .desktop-icon-label .desktop-icon-rename {
   all: unset;
+  min-width: 0;
+  min-height: 0;
   background: transparent;
   color: #ffffff;
   padding: 0;
@@ -1793,10 +1769,6 @@ window#desktop-context-menu {
 }
 window#desktop-context-menu .contents {
   box-shadow: 0 0 5px 0 var(--shadow-color);
-  margin: max(var(--spacing), 8px);
-  border: var(--border-width) solid var(--popover-border-color);
-  background-color: var(--bg);
-  color: var(--fg);
   border-radius: calc(var(--popover-radius) / 2);
   padding: calc(var(--padding) / 2);
   min-width: calc(180px * var(--scale, 1));
@@ -1813,6 +1785,214 @@ window#desktop-context-menu .contents separator {
   margin: calc(var(--radius) / 2);
   min-height: 1px;
   background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+}
+
+window.desktop-launcher-creator {
+  background: var(--bg);
+  color: var(--fg);
+}
+window.desktop-launcher-creator .header {
+  padding: var(--padding);
+  border-bottom: 1px solid var(--border-color);
+}
+window.desktop-launcher-creator .header label.title {
+  font-weight: 700;
+}
+window.desktop-launcher-creator .header button.back,
+window.desktop-launcher-creator .header button.close {
+  padding: calc(var(--padding) / 2);
+}
+window.desktop-launcher-creator .launcher-form {
+  padding: calc(var(--padding) * 1.5);
+}
+window.desktop-launcher-creator .launcher-editor {
+  background-color: var(--widget-bg);
+  border: var(--border);
+  border-radius: var(--radius);
+}
+window.desktop-launcher-creator .editor-row {
+  padding: var(--padding);
+}
+window.desktop-launcher-creator .launcher-editor > separator {
+  min-height: var(--border-width);
+  background-color: var(--border-color);
+}
+window.desktop-launcher-creator .identity-row > *:not(:last-child),
+window.desktop-launcher-creator .application-picker > box > *:not(:last-child),
+window.desktop-launcher-creator .application-option > box > *:not(:last-child),
+window.desktop-launcher-creator .folder-picker > box > *:not(:last-child),
+window.desktop-launcher-creator .selector-actions button box > *:not(:last-child) {
+  margin-right: calc(var(--spacing) / 2);
+}
+window.desktop-launcher-creator button.icon-editor {
+  padding: calc(var(--padding) * 0.65);
+}
+window.desktop-launcher-creator button.icon-editor picture {
+  border-radius: calc(var(--radius) / 2);
+}
+window.desktop-launcher-creator .identity-inputs {
+  min-width: 0;
+}
+window.desktop-launcher-creator .identity-inputs > *:not(:last-child) {
+  margin-bottom: calc(var(--spacing) / 2);
+}
+window.desktop-launcher-creator .option-detail,
+window.desktop-launcher-creator .empty-state {
+  color: color-mix(in srgb, var(--fg) 62%, transparent);
+  font-size: 0.9em;
+}
+window.desktop-launcher-creator .option-copy {
+  min-width: 0;
+}
+window.desktop-launcher-creator .option-title {
+  font-weight: 650;
+}
+window.desktop-launcher-creator .option-detail {
+  font-weight: 400;
+}
+window.desktop-launcher-creator .folder-control > *:not(:last-child) {
+  margin-right: calc(var(--spacing) / 3);
+}
+window.desktop-launcher-creator button.application-picker,
+window.desktop-launcher-creator button.folder-picker,
+window.desktop-launcher-creator button.clear-folder {
+  padding: calc(var(--padding) * 0.6);
+}
+window.desktop-launcher-creator .command-row > label {
+  margin-right: var(--spacing);
+}
+window.desktop-launcher-creator .actions {
+  padding: var(--padding);
+  border-top: 1px solid var(--border-color);
+}
+window.desktop-launcher-creator .actions > button:not(:last-child) {
+  margin-right: var(--spacing);
+}
+window.desktop-launcher-creator .actions button {
+  padding: calc(var(--padding) * 0.8) var(--padding);
+}
+window.desktop-launcher-creator .actions button.suggested-action {
+  background: var(--active-gradient);
+  color: var(--primary-fg);
+}
+window.desktop-launcher-creator .actions button.suggested-action:disabled {
+  background: var(--widget-bg);
+  color: color-mix(in srgb, var(--fg) 45%, transparent);
+}
+window.desktop-launcher-creator .selector-page {
+  min-width: 0;
+}
+window.desktop-launcher-creator .selector-content {
+  padding: var(--padding);
+}
+window.desktop-launcher-creator .selector-content > *:not(:last-child) {
+  margin-bottom: var(--spacing);
+}
+window.desktop-launcher-creator entry.selector-search > image {
+  all: unset;
+  color: color-mix(in srgb, var(--fg) 60%, transparent);
+  -gtk-icon-size: var(--icon-size);
+  margin-right: calc(var(--spacing) / 2);
+}
+window.desktop-launcher-creator .selector-results-surface {
+  background-color: var(--widget-bg);
+  border: var(--border);
+  border-radius: var(--radius);
+}
+window.desktop-launcher-creator .application-list > child {
+  padding: 0;
+  background: transparent;
+}
+window.desktop-launcher-creator .application-list button.application-option {
+  all: unset;
+  color: var(--fg);
+  padding: var(--padding);
+  border-bottom: var(--border);
+  transition: var(--transition);
+}
+window.desktop-launcher-creator .application-list button.application-option:hover {
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.desktop-launcher-creator .application-list button.application-option:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+}
+window.desktop-launcher-creator .application-list button.application-option.first {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+window.desktop-launcher-creator .application-list button.application-option.last {
+  border-bottom: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+window.desktop-launcher-creator .application-list button.application-option.first.last {
+  border-radius: var(--radius);
+}
+window.desktop-launcher-creator .location-list button.location-option {
+  all: unset;
+  color: var(--fg);
+  padding: var(--padding);
+  transition: var(--transition);
+}
+window.desktop-launcher-creator .location-list button.location-option:not(:last-child) {
+  border-bottom: var(--border);
+}
+window.desktop-launcher-creator .location-list button.location-option:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+window.desktop-launcher-creator .location-list button.location-option:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+window.desktop-launcher-creator .location-list button.location-option:first-child:last-child {
+  border-radius: var(--radius);
+}
+window.desktop-launcher-creator .location-list button.location-option:hover {
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.desktop-launcher-creator .location-list button.location-option:focus-visible {
+  outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+  outline-offset: -1px;
+}
+window.desktop-launcher-creator .location-list button.location-option > box > *:not(:last-child) {
+  margin-right: calc(var(--spacing) / 2);
+}
+window.desktop-launcher-creator gridview.icon-grid {
+  padding: calc(var(--padding) / 2);
+}
+window.desktop-launcher-creator .icon-grid > child {
+  padding: calc(var(--spacing) / 4);
+  border-radius: calc(var(--radius) * 0.65);
+  transition: var(--transition);
+}
+window.desktop-launcher-creator .icon-grid > child:hover {
+  background-color: var(--hover-bg);
+  color: var(--hover-fg);
+}
+window.desktop-launcher-creator .icon-option {
+  padding: calc(var(--padding) * 0.75);
+  min-width: calc(74px * var(--scale, 1));
+}
+window.desktop-launcher-creator .icon-option > *:not(:last-child) {
+  margin-bottom: calc(var(--spacing) / 2);
+}
+window.desktop-launcher-creator .icon-option label {
+  font-size: 0.8em;
+}
+window.desktop-launcher-creator .selector-actions {
+  padding: var(--padding);
+  border-top: 1px solid var(--border-color);
+}
+window.desktop-launcher-creator .selector-actions > button:not(:last-child) {
+  margin-right: calc(var(--spacing) / 2);
+}
+window.desktop-launcher-creator .selector-actions button.suggested-action {
+  background: var(--active-gradient);
+  color: var(--primary-fg);
+}
+window.desktop-launcher-creator label.error {
+  color: var(--error-bg);
+  margin-top: var(--spacing);
 }
 
 window#dock,
@@ -1859,7 +2039,7 @@ window#dock-bottom .dock-container {
   --dock-image-radius: calc(var(--radius) * 0.6 * var(--dock-scale, 1));
   background-color: var(--bg);
   border-radius: var(--dock-radius);
-  border: var(--border-width) solid color-mix(in srgb, var(--fg) 14%, transparent);
+  border: var(--border-width) solid var(--surface-edge-color);
   box-shadow: 0 0 5px 0 var(--shadow-color), var(--neu-widget-highlight), var(--neu-widget-shadow);
   transition: var(--transition);
 }
@@ -2023,73 +2203,12 @@ window#dock-bottom .dock-container.neumorphic {
     transform: translateX(0);
   }
 }
-window#state-display {
-  background-color: transparent;
-}
-
 window#state-display box.state-display {
   padding: calc(var(--padding) * 2.25);
 }
 window#state-display box.state-display image {
   padding: var(--popover-padding);
   color: color-mix(in srgb, var(--fg) 90%, transparent);
-}
-window#state-display box.state-display progressbar.percentage.muted trough progress {
-  background-image: none;
-  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
-}
-
-.placeholder.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-.placeholder.horizontal > *:first-child {
-  margin-left: 0;
-}
-.placeholder.horizontal > *:last-child {
-  margin-right: 0;
-}
-.placeholder.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-.placeholder.vertical > *:first-child {
-  margin-top: 0;
-}
-.placeholder.vertical > *:last-child {
-  margin-bottom: 0;
-}
-.placeholder {
-  padding: calc(var(--padding) * 2);
-}
-.placeholder image {
-  color: color-mix(in srgb, var(--fg) 70%, transparent);
-  margin-bottom: 0.1em;
-}
-.placeholder label {
-  color: color-mix(in srgb, var(--fg) 70%, transparent);
-  font-size: 1.25em;
-}
-
-window.placeholder box.horizontal > * {
-  margin: 0 calc(var(--spacing) * 0.5 / 2);
-}
-window.placeholder box.horizontal > *:first-child {
-  margin-left: 0;
-}
-window.placeholder box.horizontal > *:last-child {
-  margin-right: 0;
-}
-window.placeholder box.vertical > * {
-  margin: calc(var(--spacing) * 0.5 / 2) 0;
-}
-window.placeholder box.vertical > *:first-child {
-  margin-top: 0;
-}
-window.placeholder box.vertical > *:last-child {
-  margin-bottom: 0;
-}
-window.placeholder label {
-  font-size: calc(72pt * var(--scale, 1));
-  font-weight: bold;
 }
 
 window#powermenu,
@@ -2248,7 +2367,7 @@ window.settings-dialog box.header box.pager button > box.vertical > *:first-chil
 window.settings-dialog box.header box.pager button > box.vertical > *:last-child {
   margin-bottom: 0;
 }
-window.settings-dialog box.header button.reset {
+window.settings-dialog box.header > button.reset {
   padding: calc(var(--padding) / 2);
 }
 window.settings-dialog box.header button.close {
@@ -2285,10 +2404,6 @@ window.settings-dialog box.row:first-child:last-child {
   border-radius: var(--radius);
   border: var(--border);
 }
-window.settings-dialog box.row label.id,
-window.settings-dialog box.row label.note {
-  color: color-mix(in srgb, var(--fg) 60%, transparent);
-}
 window.settings-dialog box.row button.reset {
   padding: calc(var(--padding) / 2);
   margin-left: var(--spacing);
@@ -2300,4 +2415,57 @@ window.settings-dialog box.row picture.preview {
   border-radius: var(--radius);
   min-height: 15em;
   min-width: 15em;
+}
+
+.placeholder.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+.placeholder.horizontal > *:first-child {
+  margin-left: 0;
+}
+.placeholder.horizontal > *:last-child {
+  margin-right: 0;
+}
+.placeholder.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+.placeholder.vertical > *:first-child {
+  margin-top: 0;
+}
+.placeholder.vertical > *:last-child {
+  margin-bottom: 0;
+}
+.placeholder {
+  padding: calc(var(--padding) * 2);
+}
+.placeholder image {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  margin-bottom: 0.1em;
+}
+.placeholder label {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  font-size: 1.25em;
+}
+
+window.placeholder box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window.placeholder box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.placeholder box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.placeholder box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window.placeholder box.vertical > *:first-child {
+  margin-top: 0;
+}
+window.placeholder box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.placeholder label {
+  font-size: calc(72pt * var(--scale, 1));
+  font-weight: bold;
 }

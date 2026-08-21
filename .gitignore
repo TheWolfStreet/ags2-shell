@@ -6,3 +6,4 @@ result
 .sass-cache/
 style/widgets.scss
 style/compile/.scss-hash
+style/compile/main.css

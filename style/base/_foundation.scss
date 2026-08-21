@@ -4,6 +4,7 @@
 * {
   --hover-fg: color-mix(in srgb, var(--fg), white 8%);
   --border: var(--border-width) solid var(--border-color);
+  --surface-edge-color: color-mix(in srgb, var(--fg) 14%, transparent);
 
   font-size: var(--font-size);
   font-family: var(--font-name);
@@ -16,6 +17,10 @@ image {
 window {
   background-color: var(--bg);
   color: var(--fg);
+}
+
+window.popup-window {
+  background-color: transparent;
 }
 
 window.dark {

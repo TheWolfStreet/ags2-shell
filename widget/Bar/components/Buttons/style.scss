@@ -1,7 +1,19 @@
-// Styles media, recording, task, tray, and color picker buttons in the bar.
+// Styles media, recording, task, tray, color picker, and battery buttons in the bar.
 @use '../../../../style/base' as *;
 
 window#bar {
+	box.battery {
+		@include spacing(0.5);
+	}
+
+	box.batterystate {
+		@include spacing(0.5);
+
+		label {
+			font-weight: bold;
+		}
+	}
+
   box.colorpicker {
     @include spacing(0.5);
     button {

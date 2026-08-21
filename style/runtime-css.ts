@@ -1,17 +1,13 @@
 // Converts saved appearance settings into CSS variables and widget styles.
 import Pango from "gi://Pango"
 
-import { Opt } from "$lib/option"
-import options from "options"
+import { readValue } from "$lib/ui"
+import options, { Opt } from "$shell/options"
 
 const { FontDescription, SCALE } = Pango
 
-function unwrapOption<T>(option: Opt<T> | T): T {
-	return option instanceof Opt ? option.peek() : option
-}
-
 function pickThemeValue<T>(isDarkMode: boolean, darkValue: Opt<T> | T, lightValue: Opt<T> | T): T {
-	return unwrapOption(isDarkMode ? darkValue : lightValue)
+	return readValue(isDarkMode ? darkValue : lightValue)
 }
 
 function calculateNeumorphicEffects(enabled: boolean, isDarkMode: boolean, fgColor: string, scale: number) {

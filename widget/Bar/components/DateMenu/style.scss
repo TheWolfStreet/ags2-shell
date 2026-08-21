@@ -2,7 +2,6 @@
 @use '../../../../style/base' as *;
 
 window#datemenu {
-  background-color: transparent;
   box.datemenu {
     @extend .floating;
 

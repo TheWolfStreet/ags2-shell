@@ -2,7 +2,6 @@
 @use '../../../../style/base' as *;
 
 window#overview {
-  background-color: transparent;
   box.overview {
     @extend .floating;
     @include spacing;

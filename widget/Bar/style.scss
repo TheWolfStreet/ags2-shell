@@ -53,8 +53,6 @@ window#bar {
   }
 
   box.launcher {
-    @include spacing;
-
     .colored {
       color: color-mix(in srgb, var(--primary-bg) 80%, transparent);
     }
@@ -70,10 +68,6 @@ window#bar {
   }
 
   button.workspaces {
-    box {
-      @include spacing;
-    }
-
     label {
       font-size: 0;
       min-width: calc(5pt * var(--scale, 1));
@@ -112,8 +106,6 @@ window#bar {
   }
 
   box.tasks {
-    @include spacing;
-
     overlay {
       @extend .flat-button;
       padding: calc(var(--padding) / 2);
@@ -208,7 +200,7 @@ window#screen-corner-bottom {
     }
 
     box.corner {
-      box-shadow: 0 0 0 var(--border-width) var(--border-color);
+      box-shadow: 0 0 0 var(--border-width) var(--surface-edge-color);
     }
 
     &.corners box.border {

@@ -45,7 +45,7 @@ window#dock-bottom .dock-container {
 
   background-color: var(--bg);
   border-radius: var(--dock-radius);
-  border: var(--border-width) solid color-mix(in srgb, var(--fg) 14%, transparent);
+  border: var(--border-width) solid var(--surface-edge-color);
   box-shadow:
     0 0 5px 0 var(--shadow-color),
     var(--neu-widget-highlight),

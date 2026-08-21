@@ -1,327 +1,357 @@
 // Styles Quick Settings passwords, controls, device lists, toggles, and media players.
-@use '../../../../style/base' as *;
+@use "../../../../style/base" as *;
 
 // Keep network authentication visually aligned with shell inputs.
 window#wifi-auth {
-  box {
-    @include spacing;
-  }
-  padding: var(--padding);
-  .header {
-    font-weight: bold;
-  }
-  .entry-row {
-    button {
-      all: unset;
-    }
-    entry {
-      all: unset;
-      font-weight: normal;
-    }
+	box {
+		@include spacing;
+	}
+	padding: var(--padding);
+	.header {
+		font-weight: bold;
+	}
+	.entry-row {
+		button {
+			all: unset;
+		}
+		entry {
+			all: unset;
+			font-weight: normal;
+		}
 
-    transition: var(--transition);
-    border-radius: var(--radius);
-    color: var(--fg);
-    background-color: var(--widget-bg);
-    box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-    padding: var(--padding);
-  }
+		transition: var(--transition);
+		border-radius: var(--radius);
+		color: var(--fg);
+		background-color: var(--widget-bg);
+		box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+		padding: var(--padding);
+	}
+
+	.entry-row entry.shake > text {
+		animation: wifi-auth-shake 450ms ease-in-out;
+	}
+
+	.auth-status {
+		color: color-mix(in srgb, var(--fg) 70%, transparent);
+
+		&.invalid {
+			color: var(--error-bg);
+		}
+	}
+}
+
+@keyframes wifi-auth-shake {
+	0%,
+	100% {
+		transform: translateX(0);
+	}
+	15% {
+		transform: translateX(-12px);
+	}
+	30% {
+		transform: translateX(10px);
+	}
+	45% {
+		transform: translateX(-8px);
+	}
+	60% {
+		transform: translateX(6px);
+	}
+	75% {
+		transform: translateX(-3px);
+	}
 }
 
 window#quicksettings {
-  background-color: transparent;
-  .quicksettings {
-    @extend .floating;
-    @include spacing;
-    padding: calc(var(--popover-padding) * 1.4);
+	.quicksettings {
+		@extend .floating;
+		@include spacing;
+		padding: calc(var(--popover-padding) * 1.4);
 
-    picture.avatar {
-      @extend .widget;
-      border-radius: calc(var(--radius) * 3);
-      min-width: calc(65px * var(--scale, 1));
-      min-height: calc(65px * var(--scale, 1));
-      background-clip: padding-box;
-    }
+		picture.avatar {
+			@extend .widget;
+			border-radius: calc(var(--radius) * 3);
+			min-width: calc(56px * var(--scale, 1));
+			min-height: calc(56px * var(--scale, 1));
+			background-clip: padding-box;
+		}
 
-    label.username {
-      font-size: 1.25em;
-      margin-left: calc(var(--spacing) / 2);
-      font-weight: bold;
-    }
+		label.username {
+			font-size: 1.25em;
+			margin-left: calc(var(--spacing) / 2);
+			font-weight: bold;
+		}
 
-    box.header {
-      @include spacing(0.5);
-      color: color-mix(in srgb, var(--fg) 85%, transparent);
-    }
+		box.header {
+			@include spacing(0.5);
+			color: color-mix(in srgb, var(--fg) 85%, transparent);
+		}
 
-    box.sliders-box {
-      @extend .widget;
-      padding: var(--padding);
+		box.sliders-box {
+			@extend .widget;
+			padding: var(--padding);
 
-      box.volume button {
-        @extend .flat-button;
-        padding: calc(var(--padding) / 2);
+			box.volume button {
+				@extend .flat-button;
+				padding: calc(var(--padding) / 2);
 
-        &.arrow:last-child {
-          margin-left: calc(var(--spacing));
-        }
-      }
+				&.arrow:last-child {
+					margin-left: calc(var(--spacing));
+				}
+			}
 
-      box.control-unit {
-        padding: calc(var(--padding) / 2);
+			box.control-unit {
+				padding: calc(var(--padding) / 2);
 
-        button {
-          @extend .flat-button;
-          padding: calc(var(--padding) / 2);
-        }
+				button {
+					@extend .flat-button;
+					padding: calc(var(--padding) / 2);
+				}
 
-        scale {
-          margin: 0 calc(var(--spacing) / 2);
+				scale {
+					margin: 0 calc(var(--spacing) / 2);
 
-          &.muted highlight {
-            background-image: none;
-            background-color: color-mix(in srgb, var(--fg) 80%, transparent);
-          }
-        }
-      }
+					&.muted highlight {
+						background-image: none;
+						background-color: color-mix(in srgb, var(--fg) 80%, transparent);
+					}
+				}
+			}
 
-      box.menu {
-        margin: calc(var(--spacing) / 2) 0;
+			box.menu {
+				margin: calc(var(--spacing) / 2) 0;
 
-        &.device-selector box.sink-item,
-        &.app-mixer box.mixer-item {
-          @include spacing(0.5);
-        }
+				&.device-selector box.sink-item,
+				&.app-mixer box.mixer-item {
+					@include spacing(0.5);
+				}
 
-        &.app-mixer box.mixer-item {
-          padding: calc(var(--spacing) / 2);
+				&.app-mixer box.mixer-item {
+					padding: calc(var(--spacing) / 2);
 
-          scale trough highlight,
-          scale trough progress {
-            background-color: var(--primary-bg);
-          }
-        }
-      }
-    }
+					scale trough highlight,
+					scale trough progress {
+						background-color: var(--primary-bg);
+					}
+				}
+			}
+		}
 
-    box.row {
-      @include spacing;
-    }
+		box.row {
+			@include spacing;
+		}
 
-    box.menu {
-      @extend .widget;
-      padding: var(--padding);
-      margin-top: var(--spacing);
+		box.menu {
+			@extend .widget;
+			padding: var(--padding);
+			margin-top: var(--spacing);
 
-      box.vertical {
-        @include spacing(0.5);
-      }
+			box.vertical {
+				@include spacing(0.5);
+			}
 
-      box.title-box {
-        @include spacing(0.5);
-        margin-left: calc(var(--padding) * 0.7);
-        margin-right: calc(var(--padding) * 0.7);
-      }
+			box.title-box {
+				@include spacing(0.5);
+				margin-left: calc(var(--padding) * 0.7);
+				margin-right: calc(var(--padding) * 0.7);
+			}
 
-      icon.icon {
-        margin-left: calc(var(--spacing) * 0.2);
-      }
+			icon.icon {
+				margin-left: calc(var(--spacing) * 0.2);
+			}
 
-      label.title {
-        font-weight: bold;
-      }
+			label.title {
+				font-weight: bold;
+			}
 
-      separator {
-        margin: calc(var(--radius) / 2);
-        background-color: var(--border-color);
-      }
+			separator {
+				margin: calc(var(--radius) / 2);
+				background-color: var(--border-color);
+			}
 
-      button {
-        @extend .flat-button;
-        padding: calc(var(--padding) * 0.7);
-        font-weight: normal;
+			button {
+				@extend .flat-button;
+				padding: calc(var(--padding) * 0.7);
+				font-weight: normal;
 
-        box.settings {
-          font-weight: bold;
-        }
+				box.settings {
+					font-weight: bold;
+				}
 
-        icon:first-child {
-          margin-right: calc(var(--spacing) / 2);
-        }
-      }
+				icon:first-child {
+					margin-right: calc(var(--spacing) / 2);
+				}
+			}
 
-      scrolledwindow {
-        min-height: calc(200px * var(--scale, 1));
-      }
+			scrolledwindow {
+				min-height: calc(200px * var(--scale, 1));
+			}
 
-      box.settings,
-      box.bluetooth-item,
-      box.mirror-item,
-      box.profile-item,
-      box.wifi-item {
-        @include spacing(0.5);
-      }
-    }
+			box.settings,
+			box.bluetooth-item,
+			box.mirror-item,
+			box.profile-item,
+			box.wifi-item {
+				@include spacing(0.5);
+			}
 
-    %toggle {
-      background-color: var(--widget-bg);
-      border: var(--border-width) solid var(--border-color);
-      box-shadow:
-        var(--neu-button-highlight),
-        var(--neu-button-shadow);
-      border-radius: var(--radius);
-      transition: var(--transition);
+			label.device-detail {
+				padding: 0 calc(var(--spacing) * 0.35);
+				border-radius: calc(var(--radius) / 2);
+				background-color: color-mix(in srgb, var(--fg) 10%, transparent);
+				color: color-mix(in srgb, var(--fg) 70%, transparent);
+				font-size: 0.75em;
+				font-weight: bold;
 
-      &:hover {
-        background-color: var(--hover-bg);
-        color: var(--hover-fg);
-        box-shadow:
-          var(--neu-button-hover-highlight),
-          var(--neu-button-hover-shadow);
-      }
+				&.security-warning {
+					color: var(--error-bg);
+				}
+			}
+		}
 
-      box.horizontal {
-        @include spacing(0.5);
-      }
+		%toggle {
+			background-color: var(--widget-bg);
+			border: var(--border-width) solid var(--border-color);
+			box-shadow: var(--neu-button-highlight), var(--neu-button-shadow);
+			border-radius: var(--radius);
+			transition: var(--transition);
 
-      button:focus-visible {
-        outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-        outline-offset: -1px;
-      }
+			&:hover {
+				background-color: var(--hover-bg);
+				color: var(--hover-fg);
+				box-shadow:
+					var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
+			}
 
-      &.active {
-        background-color: var(--primary-bg);
-        box-shadow:
-          inset 0 0 0 var(--border-width) var(--border-color),
-          var(--neu-button-active-highlight),
-          var(--neu-button-active-shadow);
+			box.horizontal {
+				@include spacing(0.5);
+			}
 
-        label,
-        image {
-          color: var(--primary-fg);
-        }
-      }
-    }
+			button:focus-visible {
+				outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+				outline-offset: -1px;
+			}
 
-    box.toggle-button {
-      @extend %toggle;
+			> button {
+				all: unset;
+				font-weight: bold;
+				transition: var(--transition);
+				color: var(--fg);
+				background-color: transparent;
+				background-image: none;
+				box-shadow: none;
+				padding: var(--padding);
 
-      button {
-        all: unset;
-        font-weight: bold;
-        transition: var(--transition);
-        color: var(--fg);
-        background-color: transparent;
-        background-image: none;
-        box-shadow: none;
-        padding: var(--padding);
+				&:active {
+					box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+					background-image: var(--active-gradient);
+					background-color: var(--primary-bg);
+					color: var(--primary-fg);
+				}
+			}
 
-        &:first-child {
-          border-radius: var(--radius) 0 0 var(--radius);
-          border-right: var(--border-width) solid var(--border-color);
-        }
+			&.active {
+				background-color: var(--primary-bg);
+				box-shadow:
+					inset 0 0 0 var(--border-width) var(--border-color),
+					var(--neu-button-active-highlight),
+					var(--neu-button-active-shadow);
 
-        &:last-child {
-          border-radius: 0 var(--radius) var(--radius) 0;
-        }
+				label,
+				image {
+					color: var(--primary-fg);
+				}
+			}
+		}
 
-        &:active {
-          box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-          background-image: var(--active-gradient);
-          background-color: var(--primary-bg);
-          color: var(--primary-fg);
-        }
-      }
+		box.toggle-button {
+			@extend %toggle;
 
-      button.arrow {
-        padding: calc(var(--padding) / 2);
-      }
-    }
+			> button {
+				&:first-child {
+					border-radius: var(--radius) 0 0 var(--radius);
+					border-right: var(--border-width) solid var(--border-color);
+				}
 
-    box.simple-toggle {
-      @extend %toggle;
+				&:last-child {
+					border-radius: 0 var(--radius) var(--radius) 0;
+				}
+			}
 
-      button {
-        all: unset;
-        font-weight: bold;
-        transition: var(--transition);
-        color: var(--fg);
-        background-color: transparent;
-        background-image: none;
-        box-shadow: none;
-        padding: var(--padding);
-        border-radius: var(--radius);
+			> button.arrow {
+				padding: calc(var(--padding) / 2);
+			}
+		}
 
-        &:active {
-          box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
-          background-image: var(--active-gradient);
-          background-color: var(--primary-bg);
-          color: var(--primary-fg);
-        }
-      }
-    }
+		box.simple-toggle {
+			@extend %toggle;
 
-    box.media {
-      @include spacing;
+			> button {
+				border-radius: var(--radius);
+			}
+		}
 
-      box.player {
-        @extend .widget;
-        padding: var(--padding);
+		box.media {
+			@include spacing;
 
-        picture.cover-art {
-          box-shadow: 2px 2px 2px 0 var(--shadow-color);
-          border-radius: calc(var(--radius) * 0.8);
-          margin-right: var(--padding);
-        }
+			box.player {
+				@extend .widget;
+				padding: var(--padding);
 
-        > box.vertical {
-          @include spacing(0);
-        }
+				picture.cover-art {
+					box-shadow: 2px 2px 2px 0 var(--shadow-color);
+					border-radius: calc(var(--radius) * 0.8);
+					margin-right: var(--padding);
+				}
 
-        box.title {
-          @include spacing(0.5);
-          font-weight: bold;
-        }
+				> box.vertical {
+					@include spacing(0);
+				}
 
-        label.artist {
-          color: color-mix(in srgb, var(--fg) 80%, transparent);
-          font-size: 0.9em;
-        }
+				box.title {
+					@include spacing(0.5);
+					font-weight: bold;
+				}
 
-        button {
-          @extend .flat-button;
-          padding: calc(var(--padding) / 2);
+				label.artist {
+					color: color-mix(in srgb, var(--fg) 80%, transparent);
+					font-size: 0.9em;
+				}
 
-          &.play-pause {
-            margin: 0 calc(var(--spacing) / 2);
-          }
-        }
+				button {
+					@extend .flat-button;
+					padding: calc(var(--padding) / 2);
 
-        scale {
-          margin: 0 calc(var(--spacing) / 2);
-          trough {
-            border: none;
-            min-height: calc(6px * var(--scale, 1));
-            margin-top: var(--spacing);
-            margin-bottom: var(--spacing);
+					&.play-pause {
+						margin: 0 calc(var(--spacing) / 2);
+					}
+				}
 
-            highlight,
-            progress {
-              min-height: calc(6px * var(--scale, 1));
-            }
-          }
+				scale {
+					margin: 0 calc(var(--spacing) / 2);
+					trough {
+						border: none;
+						min-height: calc(6px * var(--scale, 1));
+						margin-top: var(--spacing);
+						margin-bottom: var(--spacing);
 
-          slider {
-            min-height: calc(6px * var(--scale, 1));
-            min-width: calc(6px * var(--scale, 1));
-            margin: 0;
-          }
-        }
+						highlight,
+						progress {
+							min-height: calc(6px * var(--scale, 1));
+						}
+					}
 
-        box.horizontal {
-          @include spacing(0.5);
-        }
-      }
-    }
-  }
+					slider {
+						min-height: calc(6px * var(--scale, 1));
+						min-width: calc(6px * var(--scale, 1));
+						margin: 0;
+					}
+				}
+
+				box.horizontal {
+					@include spacing(0.5);
+				}
+			}
+		}
+	}
 }

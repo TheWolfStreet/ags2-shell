@@ -41,7 +41,8 @@ window.settings-dialog {
       }
     }
 
-    button.reset {
+    > button.reset {
+      @extend .flat-button;
       padding: calc(var(--padding) / 2);
     }
 
@@ -91,11 +92,6 @@ window.settings-dialog {
     &:first-child:last-child {
       border-radius: var(--radius);
       border: var(--border);
-    }
-
-    label.id,
-    label.note {
-      color: color-mix(in srgb, var(--fg) 60%, transparent);
     }
 
     button.reset {

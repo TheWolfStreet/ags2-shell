@@ -1,148 +1,441 @@
 // Styles desktop icons, selection, dragging, renaming, and the right-click menu.
-@use '../../style/base' as *;
+@use "../../style/base" as *;
 
 window#desktop {
-  .desktop-container {
-    padding: 0;
+	.desktop-container {
+		padding: 0;
 
-    &:drop(active) {
-      background: transparent;
-      box-shadow: none;
-      border: none;
-      outline: none;
-    }
+		&:drop(active) {
+			background: transparent;
+			box-shadow: none;
+			border: none;
+			outline: none;
+		}
 
-    &:drop(active) .desktop-icon:hover {
-      background: transparent;
-      box-shadow: none;
-    }
+		&:drop(active) .desktop-icon:hover {
+			background: transparent;
+			box-shadow: none;
+		}
 
-    .desktop-icon:drop(active) {
-      background: transparent;
-      box-shadow: none;
-      border: none;
-      outline: none;
-    }
+		.desktop-icon:drop(active) {
+			background: transparent;
+			box-shadow: none;
+			border: none;
+			outline: none;
+		}
 
-    .desktop-icon {
-      padding: 0;
-      margin: calc(3px * var(--scale, 1));
-      border: 1px solid transparent;
-      min-width: 0;
-      min-height: 0;
-      border-radius: calc(var(--radius) * 0.8);
-      transition: background-color var(--transition), box-shadow var(--transition), opacity var(--transition);
+		.desktop-icon {
+			padding: 0;
+			margin: calc(3px * var(--scale, 1));
+			border: 1px solid transparent;
+			min-width: 0;
+			min-height: 0;
+			border-radius: calc(var(--radius) * 0.8);
+			transition:
+				background-color var(--transition),
+				box-shadow var(--transition),
+				opacity var(--transition);
 
-      &:hover {
-        background: var(--hover-bg);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
-      }
+			&:hover {
+				background: var(--hover-bg);
+				box-shadow: inset 0 0 0 1px
+					color-mix(in srgb, var(--fg) 15%, transparent);
+			}
 
-      &.selected {
-        background: color-mix(in srgb, var(--fg) 10%, transparent);
-        box-shadow: none;
+			&.selected {
+				background: color-mix(in srgb, var(--fg) 10%, transparent);
+				box-shadow: none;
 
-        .desktop-icon-label {
-          background: linear-gradient(to bottom, color-mix(in srgb, var(--primary-bg) 82%, white), var(--primary-bg));
-          color: var(--primary-fg);
-          text-shadow: 0 1px 1px color-mix(in srgb, black 22%, transparent);
-          box-shadow: var(--neu-button-active-highlight), var(--neu-button-active-shadow);
+				.desktop-icon-label {
+					background: linear-gradient(
+						to bottom,
+						color-mix(in srgb, var(--primary-bg) 82%, white),
+						var(--primary-bg)
+					);
+					color: var(--primary-fg);
+					text-shadow: 0 1px 1px color-mix(in srgb, black 22%, transparent);
+					box-shadow:
+						var(--neu-button-active-highlight), var(--neu-button-active-shadow);
 
-          entry {
-            color: var(--primary-fg);
-            text-shadow: none;
-          }
-        }
-      }
+					.desktop-icon-rename {
+						color: var(--primary-fg);
+						text-shadow: none;
+					}
+				}
+			}
 
-      &.dragging {
-        opacity: 0.7;
-      }
+			&.dragging {
+				opacity: 0.7;
+			}
 
-      &.drag-pack {
-        background: color-mix(in srgb, var(--primary-bg) 24%, transparent);
-        box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary-bg) 85%, transparent);
-      }
+			&.drag-pack {
+				background: color-mix(in srgb, var(--primary-bg) 24%, transparent);
+				box-shadow: inset 0 0 0 2px
+					color-mix(in srgb, var(--primary-bg) 85%, transparent);
+			}
 
-      .desktop-icon-inner {
-        padding: calc(6px * var(--scale, 1));
-        border-radius: inherit;
+			.desktop-icon-inner {
+				padding: calc(6px * var(--scale, 1));
+				border-radius: inherit;
 
-        image {
-          margin: 0;
-        }
+				image {
+					margin: 0;
+				}
 
-        .desktop-icon-visual {
-          min-width: 0;
-          min-height: 0;
-        }
+				.desktop-icon-visual {
+					min-width: 0;
+					min-height: 0;
+				}
 
-        .desktop-icon-preview {
-          border-radius: calc(14px * var(--scale, 1));
-          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 16%, transparent);
-        }
-      }
+				.desktop-shortcut-emblem {
+					color: #ffffff;
+					margin: 0 0 calc(2px * var(--scale, 1)) calc(2px * var(--scale, 1));
+					-gtk-icon-shadow:
+						0 1px 2px rgba(0, 0, 0, 0.95),
+						0 0 1px rgba(0, 0, 0, 0.9);
+				}
 
-      .desktop-icon-label {
-        font-size: 1.2em;
-        color: #ffffff;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 3px rgba(0, 0, 0, 0.5);
-        font-weight: 500;
-        padding: calc(1px * var(--scale, 1)) calc(6px * var(--scale, 1));
-        border-radius: calc(9px * var(--scale, 1));
-        background: transparent;
-        transition: background-color var(--transition), box-shadow var(--transition);
+				.desktop-icon-preview {
+					border-radius: calc(14px * var(--scale, 1));
+					box-shadow: inset 0 0 0 1px
+						color-mix(in srgb, var(--fg) 16%, transparent);
+				}
+			}
 
-        entry {
-          all: unset;
-          background: transparent;
-          color: #ffffff;
-          padding: 0;
-          border-radius: 0;
-          box-shadow: none;
-          outline: none;
-        }
-      }
-    }
-  }
+			.desktop-icon-label {
+				min-width: 0;
+				color: #ffffff;
+				text-shadow:
+					0 1px 3px rgba(0, 0, 0, 0.7),
+					0 0 3px rgba(0, 0, 0, 0.5);
+				font-weight: 500;
+				padding: calc(1px * var(--scale, 1)) calc(6px * var(--scale, 1));
+				border-radius: calc(9px * var(--scale, 1));
+				background: transparent;
+				transition:
+					background-color var(--transition),
+					box-shadow var(--transition);
 
-  .selection-rectangle {
-    background: color-mix(in srgb, var(--primary-bg) 20%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary-bg) 60%, transparent);
-    border-radius: calc(var(--radius) * 0.5);
-  }
+				.desktop-icon-rename {
+					all: unset;
+					min-width: 0;
+					min-height: 0;
+					background: transparent;
+					color: #ffffff;
+					padding: 0;
+					border-radius: 0;
+					box-shadow: none;
+					outline: none;
+				}
+			}
+		}
+	}
+
+	.selection-rectangle {
+		background: color-mix(in srgb, var(--primary-bg) 20%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary-bg) 60%, transparent);
+		border-radius: calc(var(--radius) * 0.5);
+	}
 }
 
 window#desktop-context-menu {
-  background-color: transparent;
-  box-shadow: none;
-  border: none;
+	background-color: transparent;
+	box-shadow: none;
+	border: none;
 
-  .contents {
-    box-shadow: 0 0 5px 0 var(--shadow-color);
-    margin: max(var(--spacing), 8px);
-    border: var(--border-width) solid var(--popover-border-color);
-    background-color: var(--bg);
-    color: var(--fg);
-    border-radius: calc(var(--popover-radius) / 2);
-    padding: calc(var(--padding) / 2);
-    min-width: calc(180px * var(--scale, 1));
+	.contents {
+		@extend .floating;
+		box-shadow: 0 0 5px 0 var(--shadow-color);
+		border-radius: calc(var(--popover-radius) / 2);
+		padding: calc(var(--padding) / 2);
+		min-width: calc(180px * var(--scale, 1));
 
-    button {
-      @extend .flat-button;
-      padding: calc(var(--padding) * 0.8);
-    }
+		button {
+			@extend .flat-button;
+			padding: calc(var(--padding) * 0.8);
+		}
 
-    label.shortcut {
-      color: color-mix(in srgb, var(--fg) 60%, transparent);
-      font-size: 0.9em;
-      margin-left: calc(var(--spacing) / 2);
-    }
+		label.shortcut {
+			color: color-mix(in srgb, var(--fg) 60%, transparent);
+			font-size: 0.9em;
+			margin-left: calc(var(--spacing) / 2);
+		}
 
-    separator {
-      margin: calc(var(--radius) / 2);
-      min-height: 1px;
-      background-color: color-mix(in srgb, var(--fg) 20%, transparent);
-    }
-  }
+		separator {
+			margin: calc(var(--radius) / 2);
+			min-height: 1px;
+			background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+		}
+	}
+}
+
+// Styles the desktop launcher creator.
+window.desktop-launcher-creator {
+	background: var(--bg);
+	color: var(--fg);
+
+	.header {
+		padding: var(--padding);
+		border-bottom: 1px solid var(--border-color);
+
+		label.title {
+			font-weight: 700;
+		}
+
+		button.back {
+			@extend .flat-button;
+		}
+
+		button.back,
+		button.close {
+			padding: calc(var(--padding) / 2);
+		}
+	}
+
+	.launcher-form {
+		padding: calc(var(--padding) * 1.5);
+	}
+
+	.launcher-editor {
+		background-color: var(--widget-bg);
+		border: var(--border);
+		border-radius: var(--radius);
+	}
+
+	.editor-row {
+		padding: var(--padding);
+	}
+
+	.launcher-editor > separator {
+		min-height: var(--border-width);
+		background-color: var(--border-color);
+	}
+
+	.identity-row > *:not(:last-child),
+	.application-picker > box > *:not(:last-child),
+	.application-option > box > *:not(:last-child),
+	.folder-picker > box > *:not(:last-child),
+	.selector-actions button box > *:not(:last-child) {
+		margin-right: calc(var(--spacing) / 2);
+	}
+
+	button.icon-editor {
+		padding: calc(var(--padding) * 0.65);
+
+		picture {
+			border-radius: calc(var(--radius) / 2);
+		}
+	}
+
+	.identity-inputs {
+		min-width: 0;
+	}
+
+	.identity-inputs > *:not(:last-child) {
+		margin-bottom: calc(var(--spacing) / 2);
+	}
+
+	.option-detail,
+	.empty-state {
+		color: color-mix(in srgb, var(--fg) 62%, transparent);
+		font-size: 0.9em;
+	}
+
+	.option-copy {
+		min-width: 0;
+	}
+
+	.option-title {
+		font-weight: 650;
+	}
+
+	.option-detail {
+		font-weight: 400;
+	}
+
+	.folder-control > *:not(:last-child) {
+		margin-right: calc(var(--spacing) / 3);
+	}
+
+	button.application-picker,
+	button.folder-picker,
+	button.clear-folder {
+		padding: calc(var(--padding) * 0.6);
+	}
+
+	.command-row > label {
+		margin-right: var(--spacing);
+	}
+
+	.actions {
+		padding: var(--padding);
+		border-top: 1px solid var(--border-color);
+	}
+
+	.actions > button:not(:last-child) {
+		margin-right: var(--spacing);
+	}
+
+	.actions button {
+		padding: calc(var(--padding) * 0.8) var(--padding);
+	}
+
+	.actions button.suggested-action {
+		background: var(--active-gradient);
+		color: var(--primary-fg);
+
+		&:disabled {
+			background: var(--widget-bg);
+			color: color-mix(in srgb, var(--fg) 45%, transparent);
+		}
+	}
+
+	.selector-page {
+		min-width: 0;
+	}
+
+	.selector-content {
+		padding: var(--padding);
+	}
+
+	.selector-content > *:not(:last-child) {
+		margin-bottom: var(--spacing);
+	}
+
+	entry.selector-search {
+		> image {
+			all: unset;
+			color: color-mix(in srgb, var(--fg) 60%, transparent);
+			-gtk-icon-size: var(--icon-size);
+			margin-right: calc(var(--spacing) / 2);
+		}
+	}
+
+	.selector-results-surface {
+		background-color: var(--widget-bg);
+		border: var(--border);
+		border-radius: var(--radius);
+	}
+
+	.application-list {
+		> child {
+			padding: 0;
+			background: transparent;
+		}
+	}
+
+	.application-list button.application-option {
+		all: unset;
+		color: var(--fg);
+		padding: var(--padding);
+		border-bottom: var(--border);
+		transition: var(--transition);
+
+		&:hover {
+			background-color: var(--hover-bg);
+			color: var(--hover-fg);
+		}
+
+		&:focus-visible {
+			outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+			outline-offset: -1px;
+		}
+
+		&.first {
+			border-radius: var(--radius) var(--radius) 0 0;
+		}
+
+		&.last {
+			border-bottom: none;
+			border-radius: 0 0 var(--radius) var(--radius);
+		}
+
+		&.first.last {
+			border-radius: var(--radius);
+		}
+	}
+
+	.location-list button.location-option {
+		all: unset;
+		color: var(--fg);
+		padding: var(--padding);
+		transition: var(--transition);
+
+		&:not(:last-child) {
+			border-bottom: var(--border);
+		}
+
+		&:first-child {
+			border-radius: var(--radius) var(--radius) 0 0;
+		}
+
+		&:last-child {
+			border-radius: 0 0 var(--radius) var(--radius);
+		}
+
+		&:first-child:last-child {
+			border-radius: var(--radius);
+		}
+
+		&:hover {
+			background-color: var(--hover-bg);
+			color: var(--hover-fg);
+		}
+
+		&:focus-visible {
+			outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+			outline-offset: -1px;
+		}
+
+		> box > *:not(:last-child) {
+			margin-right: calc(var(--spacing) / 2);
+		}
+	}
+
+	gridview.icon-grid {
+		padding: calc(var(--padding) / 2);
+	}
+
+	.icon-grid > child {
+		padding: calc(var(--spacing) / 4);
+		border-radius: calc(var(--radius) * 0.65);
+		transition: var(--transition);
+
+		&:hover {
+			background-color: var(--hover-bg);
+			color: var(--hover-fg);
+		}
+	}
+
+	.icon-option {
+		padding: calc(var(--padding) * 0.75);
+		min-width: calc(74px * var(--scale, 1));
+	}
+
+	.icon-option > *:not(:last-child) {
+		margin-bottom: calc(var(--spacing) / 2);
+	}
+
+	.icon-option label {
+		font-size: 0.8em;
+	}
+
+	.selector-actions {
+		padding: var(--padding);
+		border-top: 1px solid var(--border-color);
+	}
+
+	.selector-actions > button:not(:last-child) {
+		margin-right: calc(var(--spacing) / 2);
+	}
+
+	.selector-actions button.suggested-action {
+		background: var(--active-gradient);
+		color: var(--primary-fg);
+	}
+
+	label.error {
+		color: var(--error-bg);
+		margin-top: var(--spacing);
+	}
 }

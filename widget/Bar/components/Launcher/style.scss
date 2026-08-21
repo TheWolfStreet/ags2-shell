@@ -2,9 +2,20 @@
 @use '../../../../style/base' as *;
 
 window#launcher {
-  background-color: transparent;
   box.launcher {
     @extend .floating;
+
+    * {
+      --padding: inherit;
+      --spacing: inherit;
+      --radius: inherit;
+      --border-width: inherit;
+      --font-size: inherit;
+      --icon-size: inherit;
+      --popover-padding: inherit;
+      --popover-radius: inherit;
+      --scale: inherit;
+    }
 
     box.quicklaunch {
       @include spacing;
@@ -31,14 +42,8 @@ window#launcher {
 
     entry {
       margin: var(--spacing);
-      min-height: 0;
-      padding: calc(var(--padding) * 0.75) var(--padding);
 
       > text {
-        all: unset;
-        color: var(--fg);
-        min-height: 0;
-
         > placeholder {
           color: color-mix(in srgb, var(--fg) 60%, transparent);
           opacity: 1;
