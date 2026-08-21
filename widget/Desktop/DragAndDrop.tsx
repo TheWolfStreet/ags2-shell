@@ -7,12 +7,19 @@ import { Gdk, Gtk } from "ags/gtk4"
 import Gio from "gi://Gio"
 import Graphene from "gi://Graphene"
 
-import { desktopController } from "../DesktopController"
-import { hyprland } from "$service/astal"
 import { attempt } from "$lib/result"
 import { hiddenDragIcon } from "$lib/textures"
-import { buildFileContentProvider } from "../FileOperations"
-import { desktopInteraction, type DesktopGridModel } from "../model/DesktopState"
+import { hyprland } from "$service/astal"
+import options from "$shell/options"
+import { buildFileContentProvider } from "./FileOperations"
+import {
+	desktopInteraction,
+	importFilesToDesktop,
+	monitorOfDesktopPath,
+	moveDesktopFiles,
+	type DesktopGridData,
+} from "./Desktop"
+import { nearestSlotIndexForPoint } from "./GridGeometry"
 
 const { DragAction, ModifierType } = Gdk
 
@@ -44,54 +51,87 @@ type Hover = {
 const EMPTY_DRAG: DragState = { paths: [], anchor: null, source: null }
 const [activeDrag, setActiveDrag] = createState<DragState>(EMPTY_DRAG)
 const [dragPreview, setDragPreview] = createState<DragPreview | null>(null)
-const targets = new Map<string, (paths: string[], anchor: string, x: number, y: number) => void>()
-const dragSession: { handled: boolean, hover: Hover | null } = { handled: false, hover: null }
+const targets = new Map<
+	string,
+	(
+		paths: string[],
+		anchor: string,
+		x: number,
+		y: number,
+		rootCoordinates?: boolean,
+	) => void
+>()
+const dragSession: { handled: boolean; hover: Hover | null } = {
+	handled: false,
+	hover: null,
+}
 
 function decodePath(raw: string) {
 	const value = raw.trim()
-	if (!value || value.startsWith("#"))
-		return null
-	if (value.startsWith("file://"))
-		return Gio.File.new_for_uri(value).get_path()
+	if (!value || value.startsWith("#")) return null
+	if (value.startsWith("file://")) return Gio.File.new_for_uri(value).get_path()
 	return value
 }
 
 function parsePayload(value: unknown): DropPayload | null {
 	if (typeof value === "string") {
-		const lines = value.split(/\r?\n/g).map(line => line.trim()).filter(Boolean)
-		if (lines.length === 0)
-			return null
+		const lines = value
+			.split(/\r?\n/g)
+			.map((line) => line.trim())
+			.filter(Boolean)
+		if (lines.length === 0) return null
 
 		let operation: "copy" | "move" = "move"
 		let firstPath = 0
 		const first = lines[0].toLowerCase()
 		if (first === "copy" || first === "cut" || first === "move") {
-			if (first === "copy")
-				operation = "copy"
+			if (first === "copy") operation = "copy"
 			firstPath = 1
 		}
 
-		const paths = Array.from(new Set(
-			lines.slice(firstPath).map(decodePath).filter((path): path is string => !!path),
-		))
+		const paths = Array.from(
+			new Set(
+				lines
+					.slice(firstPath)
+					.map(decodePath)
+					.filter((path): path is string => !!path),
+			),
+		)
 		return paths.length > 0 ? { paths, operation } : null
 	}
 
-	if (!(value instanceof Gdk.FileList))
-		return null
+	if (!(value instanceof Gdk.FileList)) return null
 
-	const paths = Array.from(new Set(value.get_files()
-		.map(file => file.get_path())
-		.filter((path): path is string => typeof path === "string" && path.length > 0)))
+	const paths = Array.from(
+		new Set(
+			value
+				.get_files()
+				.map((file) => file.get_path())
+				.filter(
+					(path): path is string => typeof path === "string" && path.length > 0,
+				),
+		),
+	)
 	return paths.length > 0 ? { paths, operation: "move" } : null
 }
 
-function createPreview(widgets: Map<string, Gtk.Widget>, paths: string[], anchor: string, cursorX: number, cursorY: number) {
+function createPreview(
+	widgets: Map<string, Gtk.Widget>,
+	paths: string[],
+	anchor: string,
+	cursorX: number,
+	cursorY: number,
+) {
 	const anchorWidget = widgets.get(anchor)
-	if (!anchorWidget)
-		return null
+	if (!anchorWidget) return null
 
-	const previewItems: Array<{ paintable: Gdk.Paintable, x: number, y: number, width: number, height: number }> = []
+	const previewItems: Array<{
+		paintable: Gdk.Paintable
+		x: number
+		y: number
+		width: number
+		height: number
+	}> = []
 	let minX = 0
 	let minY = 0
 	let maxX = 0
@@ -99,18 +139,22 @@ function createPreview(widgets: Map<string, Gtk.Widget>, paths: string[], anchor
 
 	for (const path of paths) {
 		const widget = widgets.get(path)
-		if (!widget)
-			continue
+		if (!widget) continue
 		const [ok, x, y] = widget.translate_coordinates(anchorWidget, 0, 0)
-		if (!ok)
-			continue
+		if (!ok) continue
 
 		const live = Gtk.WidgetPaintable.new(widget)
 		const paintable = live.get_current_image() ?? live
 		const intrinsicWidth = paintable.get_intrinsic_width?.() ?? -1
 		const intrinsicHeight = paintable.get_intrinsic_height?.() ?? -1
-		const width = Math.max(1, intrinsicWidth > 0 ? intrinsicWidth : widget.get_width())
-		const height = Math.max(1, intrinsicHeight > 0 ? intrinsicHeight : widget.get_height())
+		const width = Math.max(
+			1,
+			intrinsicWidth > 0 ? intrinsicWidth : widget.get_width(),
+		)
+		const height = Math.max(
+			1,
+			intrinsicHeight > 0 ? intrinsicHeight : widget.get_height(),
+		)
 		previewItems.push({ paintable, x, y, width, height })
 		minX = Math.min(minX, x)
 		minY = Math.min(minY, y)
@@ -118,8 +162,7 @@ function createPreview(widgets: Map<string, Gtk.Widget>, paths: string[], anchor
 		maxY = Math.max(maxY, y + height)
 	}
 
-	if (previewItems.length === 0)
-		return null
+	if (previewItems.length === 0) return null
 
 	const width = Math.max(1, maxX - minX)
 	const height = Math.max(1, maxY - minY)
@@ -127,24 +170,32 @@ function createPreview(widgets: Map<string, Gtk.Widget>, paths: string[], anchor
 	snapshot.push_opacity(0.9)
 	for (const item of previewItems) {
 		snapshot.save()
-		snapshot.translate(new Graphene.Point({ x: item.x - minX, y: item.y - minY }))
+		snapshot.translate(
+			new Graphene.Point({ x: item.x - minX, y: item.y - minY }),
+		)
 		item.paintable.snapshot(snapshot, item.width, item.height)
 		snapshot.restore()
 	}
 	snapshot.pop()
 
 	const paintable = snapshot.to_paintable(new Graphene.Size({ width, height }))
-	if (!paintable)
-		return null
-	return { paintable, hotspotX: -minX + cursorX, hotspotY: -minY + cursorY, width, height }
+	if (!paintable) return null
+	return {
+		paintable,
+		hotspotX: -minX + cursorX,
+		hotspotY: -minY + cursorY,
+		width,
+		height,
+	}
 }
 
-function preferredOperation(target: Gtk.DropTarget, operation: "copy" | "move") {
-	if (operation === "copy")
-		return "copy"
+function preferredOperation(
+	target: Gtk.DropTarget,
+	operation: "copy" | "move",
+) {
+	if (operation === "copy") return "copy"
 	const state = target.get_current_event_state()
-	if ((state & ModifierType.CONTROL_MASK) !== 0)
-		return "copy"
+	if ((state & ModifierType.CONTROL_MASK) !== 0) return "copy"
 	const actions = target.get_current_drop()?.get_actions() ?? 0
 	if ((actions & DragAction.MOVE) === 0 && (actions & DragAction.COPY) !== 0)
 		return "copy"
@@ -152,46 +203,54 @@ function preferredOperation(target: Gtk.DropTarget, operation: "copy" | "move") 
 }
 
 function dropAction(target: Gtk.DropTarget) {
-	if (activeDrag.peek().paths.length > 0)
-		return DragAction.MOVE
+	if (activeDrag.peek().paths.length > 0) return DragAction.MOVE
 	const actions = target.get_current_drop()?.get_actions() ?? 0
-	if ((actions & DragAction.COPY) !== 0)
-		return DragAction.COPY
-	if ((actions & DragAction.MOVE) !== 0)
-		return DragAction.MOVE
+	if ((actions & DragAction.COPY) !== 0) return DragAction.COPY
+	if ((actions & DragAction.MOVE) !== 0) return DragAction.MOVE
 	return 0
 }
 
 function attemptCursorDrop(snapshot: DragState) {
-	if (snapshot.paths.length === 0 || !snapshot.source)
-		return
+	if (snapshot.paths.length === 0 || !snapshot.source) return
 	// GTK can finish a cross-monitor drag without delivering the target drop, so resolve it from the cursor.
 	const result = attempt(() => {
 		const cursor: unknown = JSON.parse(hyprland.message("j/cursorpos"))
-		if (!cursor || typeof cursor !== "object")
-			return
+		if (!cursor || typeof cursor !== "object") return
 		const x = Reflect.get(cursor, "x")
 		const y = Reflect.get(cursor, "y")
-		if (typeof x !== "number" || typeof y !== "number")
-			return
+		if (typeof x !== "number" || typeof y !== "number") return
 
 		for (const monitor of hyprland.monitors ?? []) {
-			if (x < monitor.x || x >= monitor.x + monitor.width || y < monitor.y || y >= monitor.y + monitor.height)
+			if (
+				x < monitor.x ||
+				x >= monitor.x + monitor.width ||
+				y < monitor.y ||
+				y >= monitor.y + monitor.height
+			)
 				continue
 			const target = `monitor:${monitor.name.toLowerCase()}`
 			if (target !== snapshot.source)
-				targets.get(target)?.(snapshot.paths, snapshot.anchor ?? snapshot.paths[0], x - monitor.x, y - monitor.y)
+				targets.get(target)?.(
+					snapshot.paths,
+					snapshot.anchor ?? snapshot.paths[0],
+					x - monitor.x,
+					y - monitor.y,
+					true,
+				)
 			return
 		}
 	})
 	if (!result.ok)
-		console.debug("desktop.cursorDrop: Could not resolve the cursor position", result.err)
+		console.debug(
+			"desktop.cursorDrop: Could not resolve the cursor position",
+			result.err,
+		)
 }
 
 export type DesktopDragController = {
 	state: Accessor<DragState>
 	preview: Accessor<DragPreview | null>
-	position: Accessor<{ x: number, y: number }>
+	position: Accessor<{ x: number; y: number }>
 	hovered: Accessor<boolean>
 	attachSource(widget: Gtk.Widget, path: string, onBegin: () => void): void
 	attachTarget(widget: Gtk.Fixed): void
@@ -199,27 +258,41 @@ export type DesktopDragController = {
 	leave(): void
 }
 
-export function createDesktopDragController(grid: DesktopGridModel): DesktopDragController {
+export function createDesktopDragController(
+	grid: Accessor<DesktopGridData>,
+): DesktopDragController {
 	const [position, setPosition] = createState({ x: 0, y: 0 })
 	const [hovered, setHovered] = createState(false)
 	const widgets = new Map<string, Gtk.Widget>()
+	let targetWidget: Gtk.Fixed | null = null
+
+	function slotAt(x: number, y: number): number {
+		const metrics = grid.peek().metrics
+		return metrics ? nearestSlotIndexForPoint(x, y, metrics) : 0
+	}
 
 	function move(paths: string[], anchor: string, slot: number) {
-		grid.move(paths, anchor, slot)
+		moveDesktopFiles(grid.peek().id, paths, slot, anchor)
 		desktopInteraction.select(paths)
 	}
 
 	function finish(snapshot: DragState, deleteData: boolean) {
 		const hover = dragSession.hover
-		const canFinishOnHoveredMonitor = deleteData
-			&& !dragSession.handled
-			&& snapshot.paths.length > 0
-			&& !!snapshot.source
-			&& !!hover
-			&& hover.monitorId !== snapshot.source
+		const canFinishOnHoveredMonitor =
+			deleteData &&
+			!dragSession.handled &&
+			snapshot.paths.length > 0 &&
+			!!snapshot.source &&
+			!!hover &&
+			hover.monitorId !== snapshot.source
 		if (canFinishOnHoveredMonitor) {
 			dragSession.handled = true
-			targets.get(hover.monitorId)?.(snapshot.paths, snapshot.anchor ?? snapshot.paths[0], hover.x, hover.y)
+			targets.get(hover.monitorId)?.(
+				snapshot.paths,
+				snapshot.anchor ?? snapshot.paths[0],
+				hover.x,
+				hover.y,
+			)
 		} else if (!dragSession.handled) {
 			attemptCursorDrop(snapshot)
 		}
@@ -245,27 +318,36 @@ export function createDesktopDragController(grid: DesktopGridModel): DesktopDrag
 			dragSession.handled = false
 			dragSession.hover = null
 			desktopInteraction.select(paths)
-			setActiveDrag({ paths, anchor: path, source: grid.id.peek() })
+			setActiveDrag({ paths, anchor: path, source: grid.peek().id })
 			return buildFileContentProvider(paths, "cut")
 		})
 		source.connect("drag-cancel", () => true)
-		source.connect("drag-end", (_source, _drag, deleteData) => finish(activeDrag.peek(), deleteData))
+		source.connect("drag-end", (_source, _drag, deleteData) =>
+			finish(activeDrag.peek(), deleteData),
+		)
 		widget.add_controller(source)
 		onCleanup(() => {
-			if (widgets.get(path) === widget)
-				widgets.delete(path)
+			if (widgets.get(path) === widget) widgets.delete(path)
 		})
 	}
 
 	function attachTarget(widget: Gtk.Fixed) {
+		targetWidget = widget
+		onCleanup(() => {
+			if (targetWidget === widget) targetWidget = null
+		})
 		widget.add_controller(new Gtk.DropControllerMotion())
-		const target = Gtk.DropTarget.new(GObject.TYPE_STRING, DragAction.MOVE | DragAction.COPY)
+		const target = Gtk.DropTarget.new(
+			GObject.TYPE_STRING,
+			DragAction.MOVE | DragAction.COPY,
+		)
 		target.set_gtypes([GObject.TYPE_STRING, Gdk.FileList.$gtype])
 
 		const hover = (controller: Gtk.DropTarget, x: number, y: number) => {
 			const state = activeDrag.peek()
-			if (state.paths.length > 0 && state.source && state.source !== grid.id.peek())
-				dragSession.hover = { monitorId: grid.id.peek(), x, y }
+			const monitorId = grid.peek().id
+			if (state.paths.length > 0 && state.source && state.source !== monitorId)
+				dragSession.hover = { monitorId, x, y }
 			return dropAction(controller)
 		}
 
@@ -277,19 +359,24 @@ export function createDesktopDragController(grid: DesktopGridModel): DesktopDrag
 		})
 		target.connect("drop", (controller, value: unknown, x, y) => {
 			const payload = parsePayload(value)
-			if (!payload || payload.paths.length === 0)
-				return false
+			if (!payload || payload.paths.length === 0) return false
 
 			const state = activeDrag.peek()
 			const paths = state.paths.length > 0 ? state.paths : payload.paths
 			const activePaths = new Set(state.paths)
-			const internal = payload.paths.every(path => activePaths.has(path) && !!desktopController.monitorOf(path))
+			const internal = payload.paths.every(
+				(path) => activePaths.has(path) && !!monitorOfDesktopPath(path),
+			)
 			if (internal) {
 				dragSession.handled = true
 				setDragPreview(null)
-				move(paths, state.anchor ?? payload.paths[0], grid.slotAt(x, y))
+				move(paths, state.anchor ?? payload.paths[0], slotAt(x, y))
 			} else {
-				grid.import(payload.paths, preferredOperation(controller, payload.operation))
+				void importFilesToDesktop(
+					payload.paths,
+					grid.peek().id,
+					preferredOperation(controller, payload.operation),
+				)
 			}
 			return true
 		})
@@ -297,17 +384,33 @@ export function createDesktopDragController(grid: DesktopGridModel): DesktopDrag
 	}
 
 	function registerTarget() {
-		const id = grid.id.peek()
-		targets.set(id, (paths, anchor, x, y) => {
+		const monitorId = grid.peek().id
+		targets.set(monitorId, (paths, anchor, x, y, rootCoordinates) => {
+			if (rootCoordinates && targetWidget) {
+				const root = targetWidget.get_root()
+				if (root instanceof Gtk.Widget) {
+					const [translated, contentX, contentY] = root.translate_coordinates(
+						targetWidget,
+						x,
+						y,
+					)
+					if (translated) {
+						x = contentX
+						y = contentY
+					}
+				}
+			}
 			dragSession.handled = true
 			setDragPreview(null)
-			move(paths, anchor, grid.slotAt(x, y))
+			move(paths, anchor, slotAt(x, y))
 		})
-		return id
+		return monitorId
 	}
 
 	let registered = registerTarget()
-	const unsubscribe = grid.id.subscribe(() => {
+	const unsubscribe = grid.subscribe(() => {
+		const monitorId = grid.peek().id
+		if (monitorId === registered) return
 		targets.delete(registered)
 		registered = registerTarget()
 	})
@@ -328,6 +431,8 @@ export function createDesktopDragController(grid: DesktopGridModel): DesktopDrag
 			setHovered(true)
 		},
 		leave() {
+			if (dragSession.hover?.monitorId === grid.peek().id)
+				dragSession.hover = null
 			setHovered(false)
 		},
 	}
@@ -340,11 +445,11 @@ export function DragLayer({ drag }: { drag: DesktopDragController }) {
 			canTarget={false}
 			hexpand
 			vexpand
-			$={fixed => {
+			$={(fixed) => {
 				fixed.put(picture, 0, 0)
 				const place = () => {
 					const ghost = drag.preview.peek()
-					if (!desktopInteraction.enabled() || !ghost || !drag.hovered.peek()) {
+					if (!options.desktop.enabled() || !ghost || !drag.hovered.peek()) {
 						picture.visible = false
 						return
 					}
@@ -352,12 +457,20 @@ export function DragLayer({ drag }: { drag: DesktopDragController }) {
 					picture.paintable = ghost.paintable
 					picture.widthRequest = ghost.width
 					picture.heightRequest = ghost.height
-					fixed.move(picture, Math.round(point.x - ghost.hotspotX), Math.round(point.y - ghost.hotspotY))
+					fixed.move(
+						picture,
+						Math.round(point.x - ghost.hotspotX),
+						Math.round(point.y - ghost.hotspotY),
+					)
 					picture.visible = true
 				}
 				place()
-				const unsubscribers = [drag.position.subscribe(place), drag.hovered.subscribe(place), drag.preview.subscribe(place)]
-				onCleanup(() => unsubscribers.forEach(unsubscribe => unsubscribe()))
+				const unsubscribers = [
+					drag.position.subscribe(place),
+					drag.hovered.subscribe(place),
+					drag.preview.subscribe(place),
+				]
+				onCleanup(() => unsubscribers.forEach((unsubscribe) => unsubscribe()))
 			}}
 		/>
 	)

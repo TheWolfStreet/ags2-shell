@@ -1,41 +1,33 @@
 // Copies, moves, renames, removes, imports, and opens desktop files.
 
 import { execAsync } from "ags/process"
-import { Gdk } from "ags/gtk4"
-import { timeout, Timer } from "ags/time"
+import { Gdk, Gtk } from "ags/gtk4"
 
 import Gio from "gi://Gio"
+import GioUnix from "gi://GioUnix"
+import GLib from "gi://GLib"
+import Xdp from "gi://Xdp"
+// XdpGtk4 is not emitted by the project's GIR type generator.
+// @ts-expect-error missing generated declaration
+import XdpGtk4 from "gi://XdpGtk4"
 
 import env from "$lib/env"
 import { attempt, attemptAsync, err, ok, type Result } from "$lib/result"
 
 export type DesktopFile = {
 	name: string
+	displayName?: string
 	path: string
 	contentType: string
 	size?: number
 	modified?: Date
 	icon: string
+	iconFile?: string
 }
 
-const DESKTOP_PATH = `${env.paths.home}/Desktop`
-const REFRESH_DELAY_MS = 100
+export const DESKTOP_PATH = `${env.paths.home}/Desktop`
 
-let refreshTimer: Timer | null = null
-
-function scheduleDesktopRefresh(refresh: () => void) {
-	if (refreshTimer)
-		refreshTimer.cancel()
-
-	refreshTimer = timeout(REFRESH_DELAY_MS, () => {
-		refreshTimer = null
-		refresh()
-	})
-}
-
-export function getDesktopPath() {
-	return DESKTOP_PATH
-}
+let portal: Xdp.Portal | null = null
 
 function uniqueDesktopTargetPath(baseName: string) {
 	const lastDot = baseName.lastIndexOf(".")
@@ -52,86 +44,89 @@ function uniqueDesktopTargetPath(baseName: string) {
 	return candidate
 }
 
-async function copyRecursively(sourcePath: string, targetPath: string): Promise<boolean> {
+async function copyRecursively(
+	sourcePath: string,
+	targetPath: string,
+): Promise<boolean> {
 	return execAsync(["gio", "copy", "--recursive", sourcePath, targetPath])
 		.then(() => true)
 		.catch(() => false)
 }
 
+type DesktopTransferResult = {
+	createdPaths: string[]
+	failures: Array<{ path: string; error: unknown }>
+}
+
 export async function importDesktopFiles(
 	filePaths: string[],
 	preferredOperation: "copy" | "move",
-	refresh: () => void,
-): Promise<Result<void>> {
-	if (filePaths.length === 0)
-		return ok(undefined)
-
-	const failures: Array<{ path: string, error: unknown }> = []
+): Promise<DesktopTransferResult> {
+	const createdPaths: string[] = []
+	const failures: DesktopTransferResult["failures"] = []
 
 	for (const sourcePath of filePaths) {
 		try {
 			const sourceFile = Gio.File.new_for_path(sourcePath)
-			if (!sourceFile.query_exists(null))
-				continue
+			if (!sourceFile.query_exists(null)) continue
 
 			const fileName = sourceFile.get_basename()
-			if (!fileName)
-				continue
+			if (!fileName) continue
 
 			const currentDesktopPath = `${DESKTOP_PATH}/${fileName}`
-			if (sourcePath === currentDesktopPath)
-				continue
+			if (sourcePath === currentDesktopPath) continue
 
 			const targetPath = uniqueDesktopTargetPath(fileName)
 			if (preferredOperation === "move") {
 				const moved = await execAsync(["gio", "move", sourcePath, targetPath])
 					.then(() => true)
 					.catch(() => false)
-				if (moved)
+				if (moved) {
+					createdPaths.push(targetPath)
 					continue
+				}
 
 				const copied = await copyRecursively(sourcePath, targetPath)
-				if (copied)
+				if (copied) {
+					createdPaths.push(targetPath)
 					continue
+				}
 			} else {
 				const copied = await copyRecursively(sourcePath, targetPath)
-				if (copied)
+				if (copied) {
+					createdPaths.push(targetPath)
 					continue
+				}
 			}
 
 			const targetFile = Gio.File.new_for_path(targetPath)
-			if (preferredOperation === "move") {
+			if (preferredOperation === "move")
 				sourceFile.move(targetFile, Gio.FileCopyFlags.NONE, null, null)
-			} else {
-				sourceFile.copy(targetFile, Gio.FileCopyFlags.NONE, null, null)
-			}
+			else sourceFile.copy(targetFile, Gio.FileCopyFlags.NONE, null, null)
+			createdPaths.push(targetPath)
 		} catch (error) {
 			failures.push({ path: sourcePath, error })
 		}
 	}
 
-	scheduleDesktopRefresh(refresh)
-
-	if (failures.length > 0) {
-		return err(new Error(`Failed to import ${failures.length} item(s) onto desktop`, { cause: failures }))
-	}
-	return ok(undefined)
+	return { createdPaths, failures }
 }
 
-export async function pasteFilesToDesktop(paths: string[], operation: "copy" | "cut", refresh: () => void): Promise<Result<void>> {
-	if (paths.length === 0)
-		return err(new Error("No files available in clipboard payload"))
+export async function pasteFilesToDesktop(
+	paths: string[],
+	operation: "copy" | "cut",
+): Promise<DesktopTransferResult> {
+	const createdPaths: string[] = []
+	const failures: DesktopTransferResult["failures"] = []
 
-	const result = await attemptAsync(async () => {
-		for (const sourcePath of paths) {
+	for (const sourcePath of paths) {
+		try {
 			const sourceFile = Gio.File.new_for_path(sourcePath)
 			const fileName = sourceFile.get_basename()
-			if (!fileName)
-				continue
+			if (!fileName) continue
 
 			const initialTargetPath = `${DESKTOP_PATH}/${fileName}`
-			if (operation === "cut" && sourcePath === initialTargetPath)
-				continue
+			if (operation === "cut" && sourcePath === initialTargetPath) continue
 
 			const targetPath = uniqueDesktopTargetPath(fileName)
 			const targetFile = Gio.File.new_for_path(targetPath)
@@ -157,72 +152,76 @@ export async function pasteFilesToDesktop(paths: string[], operation: "copy" | "
 			} else {
 				sourceFile.move(targetFile, Gio.FileCopyFlags.NONE, null, null)
 			}
+			createdPaths.push(targetPath)
+		} catch (error) {
+			failures.push({ path: sourcePath, error })
 		}
+	}
 
-		scheduleDesktopRefresh(refresh)
-	})
-	return result.ok
-		? result
-		: err(new Error("Failed to paste files onto desktop", { cause: result.err }))
+	return { createdPaths, failures }
 }
 
 function mutateDesktopFiles(
 	paths: string[],
-	refresh: () => void,
 	mutate: (file: Gio.File) => boolean,
 	failureMessage: string,
 ): Result<void> {
-	const failures: Array<{ path: string, error: unknown }> = []
+	const failures: Array<{ path: string; error: unknown }> = []
 	for (const path of paths) {
 		const file = Gio.File.new_for_path(path)
-		if (!file.query_exists(null))
-			continue
+		if (!file.query_exists(null)) continue
 
 		const result = attempt(() => mutate(file))
-		if (!result.ok)
-			failures.push({ path, error: result.err })
+		if (!result.ok) failures.push({ path, error: result.err })
 		else if (!result.value)
 			failures.push({ path, error: "operation returned false" })
 	}
 
-	scheduleDesktopRefresh(refresh)
 	if (failures.length > 0)
-		return err(new Error(`${failureMessage} ${failures.length} item(s)`, { cause: failures }))
+		return err(
+			new Error(`${failureMessage} ${failures.length} item(s)`, {
+				cause: failures,
+			}),
+		)
 	return ok(undefined)
 }
 
-export function trashFiles(filePaths: string[], refresh: () => void) {
-	return mutateDesktopFiles(filePaths, refresh, file => file.trash(null), "Failed to trash")
+export function trashFiles(filePaths: string[]) {
+	return mutateDesktopFiles(
+		filePaths,
+		(file) => file.trash(null),
+		"Failed to trash",
+	)
 }
 
-export function permanentlyDeleteFiles(filePaths: string[], refresh: () => void) {
-	return mutateDesktopFiles(filePaths, refresh, file => {
-		file.delete(null)
-		return true
-	}, "Failed to delete")
+export function permanentlyDeleteFiles(filePaths: string[]) {
+	return mutateDesktopFiles(
+		filePaths,
+		(file) => {
+			file.delete(null)
+			return true
+		},
+		"Failed to delete",
+	)
 }
 
-export function renameFile(oldPath: string, newName: string, refresh: () => void): Result<string> {
+export function renameFile(oldPath: string, newName: string): Result<string> {
 	const result = attempt(() => {
 		const file = Gio.File.new_for_path(oldPath)
 		const parent = file.get_parent()
-		if (!parent)
-			throw new Error("Cannot rename file without parent directory")
+		if (!parent) throw new Error("Cannot rename file without parent directory")
 
 		const parentPath = parent.get_path()
-		if (!parentPath)
-			throw new Error("Cannot resolve parent path for rename")
+		if (!parentPath) throw new Error("Cannot resolve parent path for rename")
 
 		const newPath = `${parentPath}/${newName}`
-		if (newPath === oldPath)
-			return oldPath
+		if (newPath === oldPath) return oldPath
 
 		const newFile = Gio.File.new_for_path(newPath)
 		if (newFile.query_exists(null))
 			throw new Error(`Target already exists: ${newPath}`)
 
 		file.move(newFile, Gio.FileCopyFlags.NONE, null, null)
-		scheduleDesktopRefresh(refresh)
 		return newPath
 	})
 
@@ -236,7 +235,9 @@ export function createDesktopFolder(): Result<string> {
 		let folderName = "New Folder"
 		let counter = 1
 
-		while (Gio.File.new_for_path(`${DESKTOP_PATH}/${folderName}`).query_exists(null)) {
+		while (
+			Gio.File.new_for_path(`${DESKTOP_PATH}/${folderName}`).query_exists(null)
+		) {
 			folderName = `New Folder ${counter++}`
 		}
 
@@ -248,62 +249,178 @@ export function createDesktopFolder(): Result<string> {
 	})
 
 	if (!result.ok)
-		return err(new Error("Failed to create desktop folder", { cause: result.err }))
+		return err(
+			new Error("Failed to create desktop folder", { cause: result.err }),
+		)
+	return result
+}
+
+export function createDesktopTextFile(): Result<string> {
+	const result = attempt(() => {
+		const path = uniqueDesktopTargetPath("New Text File.txt")
+		const stream = Gio.File.new_for_path(path).create(
+			Gio.FileCreateFlags.NONE,
+			null,
+		)
+		stream.close(null)
+		return path
+	})
+
+	if (!result.ok)
+		return err(
+			new Error("Failed to create desktop text file", { cause: result.err }),
+		)
+	return result
+}
+
+export type DesktopLauncherSpec = {
+	name: string
+	comment?: string
+	command: string
+	icon?: string
+	workingDirectory?: string
+	terminal?: boolean
+}
+
+function desktopLauncherFileName(name: string) {
+	const stem = name
+		.trim()
+		.replace(/\.desktop$/i, "")
+		.replace(/[^A-Za-z0-9._-]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+	return `${stem || "launcher"}.desktop`
+}
+
+export function createDesktopLauncher(
+	spec: DesktopLauncherSpec,
+): Result<string> {
+	const result = attempt(() => {
+		const name = spec.name.trim()
+		const command = spec.command.trim()
+		if (!name) throw new Error("Launcher name is required")
+		if (!command) throw new Error("Launcher command is required")
+
+		const path = uniqueDesktopTargetPath(desktopLauncherFileName(name))
+		const keyFile = new GLib.KeyFile()
+		keyFile.set_string("Desktop Entry", "Type", "Application")
+		keyFile.set_string("Desktop Entry", "Name", name)
+		keyFile.set_string("Desktop Entry", "Exec", command)
+		keyFile.set_boolean("Desktop Entry", "Terminal", !!spec.terminal)
+		keyFile.set_boolean("Desktop Entry", "StartupNotify", true)
+		if (spec.comment?.trim())
+			keyFile.set_string("Desktop Entry", "Comment", spec.comment.trim())
+		if (spec.icon?.trim())
+			keyFile.set_string("Desktop Entry", "Icon", spec.icon.trim())
+		if (spec.workingDirectory?.trim())
+			keyFile.set_string("Desktop Entry", "Path", spec.workingDirectory.trim())
+
+		const [contents] = keyFile.to_data()
+		if (!GLib.file_set_contents(path, contents))
+			throw new Error("Could not write launcher")
+
+		const file = Gio.File.new_for_path(path)
+		try {
+			file.set_attribute_uint32(
+				"unix::mode",
+				0o755,
+				Gio.FileQueryInfoFlags.NONE,
+				null,
+			)
+			file.set_attribute_string(
+				"metadata::trusted",
+				"true",
+				Gio.FileQueryInfoFlags.NONE,
+				null,
+			)
+		} catch (error) {
+			const cleanup = attempt(() => file.delete(null))
+			if (!cleanup.ok)
+				console.error(
+					`desktop.createLauncher: Failed to remove incomplete launcher ${path}`,
+					cleanup.err,
+				)
+			throw error
+		}
+		return path
+	})
+
+	if (!result.ok)
+		return err(
+			new Error("Failed to create desktop launcher", { cause: result.err }),
+		)
 	return result
 }
 
 function tryGetFileContentType(path: string) {
 	const result = attempt(() => {
 		const file = Gio.File.new_for_path(path)
-		const info = file.query_info("standard::content-type", Gio.FileQueryInfoFlags.NONE, null)
+		const info = file.query_info(
+			"standard::content-type",
+			Gio.FileQueryInfoFlags.NONE,
+			null,
+		)
 		return info.get_content_type()
 	})
 	return result.ok ? result.value : null
 }
 
-function tryGetContentTypeIconName(contentType: string) {
-	const result = attempt(() => {
-		const icon = Gio.content_type_get_icon(contentType)
-		const getNames = Reflect.get(icon, "get_names")
-		if (typeof getNames !== "function")
-			return null
+function firstIconName(icon: Gio.Icon | null) {
+	if (!icon) return null
+	const getNames = Reflect.get(icon, "get_names")
+	if (typeof getNames !== "function") return null
+	const names = getNames.call(icon)
+	return Array.isArray(names) && typeof names[0] === "string" ? names[0] : null
+}
 
-		const names = getNames.call(icon)
-		if (!Array.isArray(names) || typeof names[0] !== "string")
-			return null
-		return names[0]
-	})
+function tryGetContentTypeIconName(contentType: string) {
+	const result = attempt(() =>
+		firstIconName(Gio.content_type_get_icon(contentType)),
+	)
 	return result.ok ? result.value : null
 }
 
 function getFileType(path: string, isDir: boolean): string {
-	if (isDir)
-		return "inode/directory"
+	if (isDir) return "inode/directory"
 
 	const contentType = tryGetFileContentType(path)
-	if (contentType)
-		return contentType
+	if (contentType) return contentType
 
 	return Gio.content_type_guess(path, null)[0] || "application/octet-stream"
 }
 
 function iconNameFromFileInfo(info: Gio.FileInfo): string {
-	const icon = info.get_icon()
-	const getNames = icon ? Reflect.get(icon, "get_names") : null
-	if (typeof getNames === "function") {
-		const names = getNames.call(icon)
-		if (Array.isArray(names) && typeof names[0] === "string")
-			return names[0]
-	}
+	const iconName = firstIconName(info.get_icon())
+	if (iconName) return iconName
 
 	const contentType = info.get_content_type()
-	return contentType ? (tryGetContentTypeIconName(contentType) ?? "text-x-generic") : "text-x-generic"
+	return contentType
+		? (tryGetContentTypeIconName(contentType) ?? "text-x-generic")
+		: "text-x-generic"
+}
+
+function desktopLauncherMetadata(path: string) {
+	if (!path.toLowerCase().endsWith(".desktop")) return null
+	const result = attempt(() => {
+		const launcher = GioUnix.DesktopAppInfo.new_from_filename(path)
+		if (!launcher) return null
+		const iconName = firstIconName(launcher.get_icon())
+		const iconValue = launcher.get_string("Icon") ?? ""
+		return {
+			displayName: launcher.get_display_name() || launcher.get_name(),
+			icon: iconName
+				? iconName
+				: iconValue && !GLib.path_is_absolute(iconValue)
+					? iconValue
+					: null,
+			iconFile: GLib.path_is_absolute(iconValue) ? iconValue : null,
+		}
+	})
+	return result.ok ? result.value : null
 }
 
 export function loadDesktopFiles(): Result<DesktopFile[]> {
 	const desktopDir = Gio.File.new_for_path(DESKTOP_PATH)
-	if (!desktopDir.query_exists(null))
-		return ok([])
+	if (!desktopDir.query_exists(null)) return ok([])
 
 	const result = attempt(() => {
 		const fileEnum = desktopDir.enumerate_children(
@@ -317,20 +434,25 @@ export function loadDesktopFiles(): Result<DesktopFile[]> {
 
 		while ((fileInfo = fileEnum.next_file(null)) !== null) {
 			const fileName = fileInfo.get_name()
-			if (fileName.startsWith("."))
-				continue
+			if (fileName.startsWith(".")) continue
 
 			const isDirectory = fileInfo.get_file_type() === Gio.FileType.DIRECTORY
 			const filePath = `${DESKTOP_PATH}/${fileName}`
-			const fileType = fileInfo.get_content_type() || getFileType(filePath, isDirectory)
+			const fileType =
+				fileInfo.get_content_type() || getFileType(filePath, isDirectory)
+			const launcher = desktopLauncherMetadata(filePath)
 
 			foundFiles.push({
 				name: fileName,
+				displayName: launcher?.displayName,
 				path: filePath,
 				contentType: fileType,
 				size: isDirectory ? undefined : fileInfo.get_size(),
-				modified: new Date((fileInfo.get_modification_date_time()?.to_unix() || 0) * 1000),
-				icon: iconNameFromFileInfo(fileInfo),
+				modified: new Date(
+					(fileInfo.get_modification_date_time()?.to_unix() || 0) * 1000,
+				),
+				icon: launcher?.icon ?? iconNameFromFileInfo(fileInfo),
+				iconFile: launcher?.iconFile ?? undefined,
 			})
 		}
 
@@ -340,7 +462,9 @@ export function loadDesktopFiles(): Result<DesktopFile[]> {
 	})
 
 	if (!result.ok)
-		return err(new Error("Failed to scan desktop directory", { cause: result.err }))
+		return err(
+			new Error("Failed to scan desktop directory", { cause: result.err }),
+		)
 	return result
 }
 
@@ -354,12 +478,79 @@ function compareDesktopFiles(left: DesktopFile, right: DesktopFile): number {
 
 export function openPath(filePath: string): Result<void> {
 	const result = attempt(() => {
+		if (filePath.toLowerCase().endsWith(".desktop")) {
+			const info = Gio.File.new_for_path(filePath).query_info(
+				"access::can-execute,metadata::trusted",
+				Gio.FileQueryInfoFlags.NONE,
+				null,
+			)
+			const trusted = info.get_attribute_string("metadata::trusted") === "true"
+			if (!trusted || !info.get_attribute_boolean("access::can-execute"))
+				throw new Error("Refusing to launch an untrusted desktop entry")
+
+			const launcher = GioUnix.DesktopAppInfo.new_from_filename(filePath)
+			if (launcher) {
+				launcher.launch([], null)
+				return
+			}
+		}
+
 		const fileObj = Gio.File.new_for_path(filePath)
 		Gio.app_info_launch_default_for_uri(fileObj.get_uri(), null)
 	})
 	if (!result.ok)
 		return err(new Error(`Failed to open ${filePath}`, { cause: result.err }))
 	return result
+}
+
+export async function openPathWithChooser(
+	filePath: string,
+	window: Gtk.Window,
+): Promise<Result<void>> {
+	return new Promise((resolve) => {
+		const started = attempt(() => {
+			portal ??= Xdp.Portal.initable_new()
+			const parent = XdpGtk4.parent_new_gtk(window)
+			portal.open_uri(
+				parent,
+				Gio.File.new_for_path(filePath).get_uri(),
+				Xdp.OpenUriFlags.ASK,
+				null,
+				(_source: unknown, result: Gio.AsyncResult) => {
+					void parent
+					const opened = attempt(() => portal!.open_uri_finish(result))
+					if (opened.ok) {
+						resolve(ok(undefined))
+						return
+					}
+
+					const error = opened.err
+					const cancelled =
+						error instanceof GLib.Error &&
+						error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED)
+					resolve(
+						cancelled
+							? ok(undefined)
+							: err(
+									new Error(
+										`Failed to open ${filePath} with application chooser`,
+										{ cause: error },
+									),
+								),
+					)
+				},
+			)
+		})
+
+		if (!started.ok)
+			resolve(
+				err(
+					new Error(`Failed to open application chooser for ${filePath}`, {
+						cause: started.err,
+					}),
+				),
+			)
+	})
 }
 
 export type ClipboardFilePayload = {
@@ -373,9 +564,12 @@ function stringToBytes(value: string) {
 	return new TextEncoder().encode(value)
 }
 
-function serializeClipboardFilePayload(paths: string[], operation: ClipboardOperation) {
-	const files = paths.map(path => Gio.File.new_for_path(path))
-	const uris = files.map(file => file.get_uri())
+function serializeClipboardFilePayload(
+	paths: string[],
+	operation: ClipboardOperation,
+) {
+	const files = paths.map((path) => Gio.File.new_for_path(path))
+	const uris = files.map((file) => file.get_uri())
 	return {
 		files,
 		uriList: `${uris.join("\r\n")}\r\n`,
@@ -383,41 +577,71 @@ function serializeClipboardFilePayload(paths: string[], operation: ClipboardOper
 	}
 }
 
-export function buildFileContentProvider(paths: string[], operation: ClipboardOperation) {
+export function buildFileContentProvider(
+	paths: string[],
+	operation: ClipboardOperation,
+) {
 	const payload = serializeClipboardFilePayload(paths, operation)
 	return Gdk.ContentProvider.new_union([
-		Gdk.ContentProvider.new_for_value(Gdk.FileList.new_from_array(payload.files)),
-		Gdk.ContentProvider.new_for_bytes("text/uri-list", stringToBytes(payload.uriList)),
-		Gdk.ContentProvider.new_for_bytes("x-special/gnome-copied-files", stringToBytes(payload.gnomePayload)),
+		Gdk.ContentProvider.new_for_value(
+			Gdk.FileList.new_from_array(payload.files),
+		),
+		Gdk.ContentProvider.new_for_bytes(
+			"text/uri-list",
+			stringToBytes(payload.uriList),
+		),
+		Gdk.ContentProvider.new_for_bytes(
+			"x-special/gnome-copied-files",
+			stringToBytes(payload.gnomePayload),
+		),
 	])
 }
 
-export async function writeClipboardFilePayload(operation: ClipboardOperation, paths: string[]): Promise<Result<void>> {
-	if (paths.length === 0)
-		return ok(undefined)
+export async function writeClipboardFilePayload(
+	operation: ClipboardOperation,
+	paths: string[],
+): Promise<Result<void>> {
+	if (paths.length === 0) return ok(undefined)
 
 	const display = Gdk.Display.get_default()
 	if (display) {
-		const result = attempt(() => display.get_clipboard().set_content(buildFileContentProvider(paths, operation)))
+		const result = attempt(() =>
+			display
+				.get_clipboard()
+				.set_content(buildFileContentProvider(paths, operation)),
+		)
 		if (!result.ok)
-			return err(new Error("Failed to write desktop clipboard payload", { cause: result.err }))
+			return err(
+				new Error("Failed to write desktop clipboard payload", {
+					cause: result.err,
+				}),
+			)
 		if (!result.value)
 			return err(new Error("Failed to write desktop clipboard payload"))
 		return ok(undefined)
 	}
 
 	const payload = serializeClipboardFilePayload(paths, operation)
-	const primary = await attemptAsync(async () => execAsync(["wl-copy", "-t", "x-special/gnome-copied-files", payload.gnomePayload]))
-	if (primary.ok)
-		return ok(undefined)
+	const primary = await attemptAsync(async () =>
+		execAsync([
+			"wl-copy",
+			"-t",
+			"x-special/gnome-copied-files",
+			payload.gnomePayload,
+		]),
+	)
+	if (primary.ok) return ok(undefined)
 
-	const fallback = await attemptAsync(async () => execAsync(["wl-copy", "-t", "text/uri-list", payload.uriList]))
-	if (fallback.ok)
-		return ok(undefined)
+	const fallback = await attemptAsync(async () =>
+		execAsync(["wl-copy", "-t", "text/uri-list", payload.uriList]),
+	)
+	if (fallback.ok) return ok(undefined)
 
-	return err(new Error("Failed to write desktop clipboard payload", {
-		cause: { primaryError: primary.err, fallbackError: fallback.err },
-	}))
+	return err(
+		new Error("Failed to write desktop clipboard payload", {
+			cause: { primaryError: primary.err, fallbackError: fallback.err },
+		}),
+	)
 }
 
 export async function clearClipboardFilePayload(): Promise<Result<void>> {
@@ -425,16 +649,26 @@ export async function clearClipboardFilePayload(): Promise<Result<void>> {
 	if (display) {
 		const result = attempt(() => display.get_clipboard().set_content(null))
 		if (!result.ok)
-			return err(new Error("Failed to clear desktop clipboard payload", { cause: result.err }))
+			return err(
+				new Error("Failed to clear desktop clipboard payload", {
+					cause: result.err,
+				}),
+			)
 		return result.value
 			? ok(undefined)
 			: err(new Error("Failed to clear desktop clipboard payload"))
 	}
 
-	const result = await attemptAsync(async () => execAsync(["wl-copy", "--clear"]))
+	const result = await attemptAsync(async () =>
+		execAsync(["wl-copy", "--clear"]),
+	)
 	return result.ok
 		? ok(undefined)
-		: err(new Error("Failed to clear desktop clipboard payload", { cause: result.err }))
+		: err(
+				new Error("Failed to clear desktop clipboard payload", {
+					cause: result.err,
+				}),
+			)
 }
 
 async function readClipboardMime(mimeType: string) {
@@ -443,33 +677,34 @@ async function readClipboardMime(mimeType: string) {
 
 function pathsFromUris(uris: string[]) {
 	return uris
-		.map(uri => Gio.File.new_for_uri(uri).get_path())
+		.map((uri) => Gio.File.new_for_uri(uri).get_path())
 		.filter((path): path is string => !!path)
 }
 
 export async function readClipboardFilePayload(): Promise<ClipboardFilePayload | null> {
 	const copiedFiles = await readClipboardMime("x-special/gnome-copied-files")
 	if (copiedFiles) {
-		const lines = copiedFiles.split("\n").map(line => line.trim()).filter(Boolean)
+		const lines = copiedFiles
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean)
 		const files = pathsFromUris(lines.slice(1))
 		if (files.length > 0) {
 			let operation: ClipboardOperation = "copy"
-			if (lines[0] === "cut")
-				operation = "cut"
+			if (lines[0] === "cut") operation = "cut"
 			return { operation, files }
 		}
 	}
 
 	const uriList = await readClipboardMime("text/uri-list")
-	if (!uriList)
-		return null
+	if (!uriList) return null
 
-	const files = pathsFromUris(uriList
-		.split("\n")
-		.map(line => line.trim())
-		.filter(line => line && !line.startsWith("#")),
+	const files = pathsFromUris(
+		uriList
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line && !line.startsWith("#")),
 	)
-	if (files.length === 0)
-		return null
+	if (files.length === 0) return null
 	return { operation: "copy", files }
 }
