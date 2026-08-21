@@ -11,8 +11,8 @@ A GTK4 desktop shell for Hyprland, built with AGS v3 and Astal. It provides a ba
 
 ## Features
 
-- Application launcher, favorites, dock, taskbar, and workspace overview
-- Desktop icons with drag-and-drop, clipboard, rename, trash, and file operations
+- Application launcher, favorites, taskbar, workspace overview, and a left or bottom dock with static and autohide modes
+- Scrollable per-monitor desktop icons with cross-monitor drag-and-drop, clipboard, rename, launcher creation, trash, and file operations
 - Notification daemon and StatusNotifier system tray
 - Network, Bluetooth, audio, battery, brightness, and power-profile controls
 - MPRIS media controls, volume and brightness OSDs, and color picker
@@ -25,26 +25,28 @@ A GTK4 desktop shell for Hyprland, built with AGS v3 and Astal. It provides a ba
 ### Core
 
 - AGS v3, Astal, GTK4, and GTK4 Layer Shell
-- A running Hyprland session with working IPC and systemd user-session integration
+- A running Hyprland session with working IPC and a correctly exported graphical-session environment
 - A user D-Bus session and writable dconf/GSettings state
-- No competing notification daemon; ags2-shell owns `org.freedesktop.Notifications`
+- No competing notification daemon; ags2-shell needs to own `org.freedesktop.Notifications` and warns when another process owns it
 
 The Nix package currently exports `x86_64-linux` and supplies its core libraries and runtime commands. Native installations must provide those dependencies through the host distribution. Keep the AGS CLI installed for window toggles and request commands; `hyprctl` is supplied by Hyprland.
 
 ### Feature Services
 
-| Feature | Host requirement |
-| --- | --- |
-| Network controls | NetworkManager |
-| Audio controls and OSD | PipeWire with WirePlumber |
-| Bluetooth | BlueZ service and supported hardware |
-| Battery status | UPower |
-| Power profiles | power-profiles-daemon, or supported ASUS services |
-| Internal brightness | An accessible backlight device and permission to use `brightnessctl` |
-| External brightness | DDC/CI support and permission to use `ddcutil` |
-| Media controls | Players exposing MPRIS on the user bus |
-| ASUS controls | `asusctl`; optionally `supergfxctl` and `rog-control-center` |
-| tmux accent sync | `tmux`; detected automatically and otherwise ignored |
+| Feature                    | Host requirement                                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Network controls           | NetworkManager                                                                                                                  |
+| Audio controls and OSD     | PipeWire with WirePlumber                                                                                                       |
+| Bluetooth                  | BlueZ service and supported hardware                                                                                            |
+| Battery status             | UPower                                                                                                                          |
+| Power profiles             | power-profiles-daemon, or supported ASUS services                                                                               |
+| Default power-menu actions | systemd's `systemctl` and `shutdown`; logout uses `hyprctl`                                                                     |
+| Internal brightness        | An accessible backlight device and permission to use `brightnessctl`                                                            |
+| External brightness        | DDC/CI support and permission to use `ddcutil`                                                                                  |
+| Media controls             | Players exposing MPRIS on the user bus                                                                                          |
+| ASUS controls              | `asusctl`; optionally `supergfxctl` and `rog-control-center`                                                                    |
+| GNOME settings shortcuts   | `gnome-control-center`; its Bluetooth panel may also require an `org.gnome.SettingsDaemon.Rfkill` provider such as `gsd-rfkill` |
+| tmux accent sync           | `tmux`; detected automatically and otherwise ignored                                                                            |
 
 Unavailable optional services disable only their corresponding controls.
 
@@ -64,16 +66,6 @@ Using the same `nixpkgs` and `ags` inputs keeps the shell and AGS control client
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    apple-fonts = {
-      url = "github:Lyndeno/apple-fonts.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    mactahoe-icon-theme = {
-      url = "github:TheWolfStreet/MacTahoe-icon-theme.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     ags = {
       url = "github:Aylur/ags";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -87,8 +79,6 @@ Using the same `nixpkgs` and `ags` inputs keeps the shell and AGS control client
   };
 }
 ```
-
-The font and icon-theme inputs are used by the recommended appearance configuration below. They can be omitted if you use different themes.
 
 ### 2. Install And Start The Shell
 
@@ -148,7 +138,7 @@ wayland.windowManager.hyprland.settings = {
     "CTRL ALT, Delete,   exec, systemctl --user restart ags.service"
     "SUPER, R,           ${toggle} launcher"
     "SUPER, Tab,         ${toggle} overview"
-    "SUPER SHIFT, R,     ${toggle} settings-dialog"
+    "SUPER SHIFT, R,     ${toggle} quicksettings"
     ",XF86PowerOff,      ${request} shutdown"
     "SUPER, Print,       ${request} record-area"
     "SUPER SHIFT, Print, ${request} record"
@@ -165,15 +155,33 @@ wayland.windowManager.hyprland.settings = {
 };
 ```
 
-`record` and `screenshot` target the focused monitor. Their `-area` variants prompt for a region.
+`record` and `screenshot` target the focused monitor. Their `-area` variants prompt for a region. Repeating either recording request stops the active recording. Screenshots are saved as PNG files and copied to the clipboard; recordings are saved as MKV files. The example opens Quick Settings with `SUPER SHIFT R`; the Settings window itself is created on demand from the gear button in the Quick Settings header.
 
-The same controls can be called directly:
+### Control API
 
-```bash
-ags toggle --instance ags2-shell launcher
-ags request --instance ags2-shell launcher-search firefox
-ags request --instance ags2-shell screenshot-area
-```
+Use `ags toggle --instance ags2-shell <window>` for the windows created at startup:
+
+| Window          | Purpose                                      |
+| --------------- | -------------------------------------------- |
+| `launcher`      | Application search and favorites             |
+| `overview`      | Workspaces and clients                       |
+| `quicksettings` | Device controls and the Settings entry point |
+| `datemenu`      | Calendar and date menu                       |
+| `notifications` | Notification history                         |
+| `powermenu`     | Session and power actions                    |
+
+The Settings window is created by the gear button in Quick Settings. After that, its window name is `settings-dialog`.
+
+Use `ags request --instance ags2-shell <request>` for actions:
+
+| Request                   | Behavior                                                         |
+| ------------------------- | ---------------------------------------------------------------- |
+| `launcher-search <query>` | Open the launcher with a search query                            |
+| `shutdown`                | Open shutdown confirmation                                       |
+| `record`                  | Start or stop focused-monitor recording                          |
+| `record-area`             | Select an area and start recording, or stop the active recording |
+| `screenshot`              | Capture the focused monitor                                      |
+| `screenshot-area`         | Select and capture an area                                       |
 
 ## Other Linux Distributions
 
@@ -204,13 +212,15 @@ Install the host services from the Feature Services table as needed. For example
 
 ### Build And Install
 
-The native installer compiles the stylesheet, bundles the main and wallpaper entry points, and installs them under `~/.local` by default:
+The native installer compiles the stylesheet, bundles the main and wallpaper entry points, and installs them under `~/.local` by default. It checks for the build commands `ags`, `sass`, `install`, and `sed`; runtime libraries and commands must be installed separately as described above.
 
 ```bash
 git clone https://github.com/TheWolfStreet/ags2-shell
 cd ags2-shell
 ./scripts/install-native.sh
 ```
+
+Set `PREFIX`, `BINDIR`, `LIBEXECDIR`, or `DATADIR` to override individual installation locations.
 
 Ensure the selected `bin` directory is in `PATH`, then add the shell to Hyprland autostart:
 
@@ -220,175 +230,27 @@ exec-once = ags2-shell
 
 The control commands and Hyprland bindings documented above work unchanged because the native AGS installation provides the `ags` CLI.
 
-## Recommended Appearance
+## Appearance And Wallpapers
 
-The default shell font is SF Pro Display Nerd Font. The following Home Manager configuration installs the font, MacTahoe icons, Qogir cursor, and matching GTK theme used by the reference setup:
+The shell defaults to SF Pro Display Nerd Font and is styled independently through its generated CSS. Install that font or select another one in **Settings > Appearance**. Host GTK, icon, and cursor themes remain under the desktop configuration's control.
 
-```nix
-{
-  inputs,
-  pkgs,
-  ...
-}: let
-  system = pkgs.stdenv.hostPlatform.system;
-  font = {
-    name = "SF Pro Display Nerd Font";
-    size = 11;
-    package = inputs.apple-fonts.packages.${system}.sf-pro-nerd;
-  };
-  gtkTheme = {
-    name = "adw-gtk3-dark";
-    package = pkgs.adw-gtk3;
-  };
-  cursorTheme = {
-    name = "Qogir";
-    size = 24;
-    package = pkgs.qogir-icon-theme;
-  };
-  iconTheme = {
-    name = "MacTahoe";
-    package = inputs.mactahoe-icon-theme.packages.${system}.default;
-  };
-in {
-  home.packages = [
-    font.package
-    gtkTheme.package
-    cursorTheme.package
-    iconTheme.package
-  ];
+Changing the shell's light or dark scheme updates `org.gnome.desktop.interface color-scheme`, selects an installed matching icon-theme variant when one exists, and optionally synchronizes the accent color to tmux. Wallpaper color generation is available under **Settings > Appearance > Generate from Wallpaper**.
 
-  home.pointerCursor = cursorTheme // {
-    enable = true;
-    gtk.enable = true;
-  };
-
-  home.sessionVariables = {
-    XCURSOR_THEME = cursorTheme.name;
-    XCURSOR_SIZE = toString cursorTheme.size;
-  };
-
-  fonts.fontconfig.enable = true;
-
-  gtk = {
-    enable = true;
-    theme = gtkTheme;
-    inherit font cursorTheme iconTheme;
-  };
-
-  qt.platformTheme.name = "gtk3";
-}
-```
-
-ags2-shell controls its own widgets through generated CSS. It does not replace the host GTK or cursor theme. When the shell's light or dark scheme changes, it updates `org.gnome.desktop.interface color-scheme` and selects an installed light or dark icon-theme variant when available. Wallpaper color generation is optional and can be enabled from **Settings > Appearance > Generate from Wallpaper**.
-
-## Recommended Hyprlock
-
-Enable Hyprlock and its PAM service, then add the Home Manager configuration below. The example uses the recommended SF Pro font and the account image at `/var/lib/AccountsService/icons/$USER`.
-
-```nix
-# NixOS configuration
-security.pam.services.hyprlock = {};
-```
-
-```nix
-# Home Manager configuration
-programs.hyprlock = {
-  enable = true;
-  settings = {
-    background = {
-      path = "screenshot";
-      blur_passes = 5;
-      contrast = 0.8916;
-      brightness = 0.8172;
-      vibrancy = 0.1696;
-      vibrancy_darkness = 0.0;
-    };
-
-    general = {
-      no_fade_in = false;
-      grace = 0;
-      disable_loading_bar = false;
-    };
-
-    label = [
-      {
-        text = ''cmd[update:1000] echo -e "$(date +"%A, %B %d")"'';
-        color = "rgba(216, 222, 233, 0.70)";
-        font_size = 25;
-        font_family = "SF Pro Display Nerd Font Bold";
-        position = "0, 350";
-        halign = "center";
-        valign = "center";
-      }
-      {
-        text = ''cmd[update:1000] echo "<span>$(date +"%H:%M")</span>"'';
-        color = "rgba(216, 222, 233, 0.70)";
-        font_size = 120;
-        font_family = "SF Pro Display Nerd Font Bold";
-        position = "0, 250";
-        halign = "center";
-        valign = "center";
-      }
-      {
-        text = "$USER";
-        color = "rgba(216, 222, 233, 0.80)";
-        font_size = 20;
-        font_family = "SF Pro Display Nerd Font Bold";
-        position = "0, -82";
-        halign = "center";
-        valign = "center";
-      }
-    ];
-
-    image = {
-      path = "/var/lib/AccountsService/icons/$USER";
-      border_size = 2;
-      border_color = "rgba(255, 255, 255, .65)";
-      size = 180;
-      rounding = -1;
-      position = "0, 40";
-      halign = "center";
-      valign = "center";
-    };
-
-    input-field = {
-      size = "125, 50";
-      dots_center = true;
-      outline_thickness = 0;
-      outer_color = "rgba(0, 0, 0, 0)";
-      inner_color = "rgba(255, 255, 255, 0.1)";
-      check_color = "rgba(255, 255, 255, 0.1)";
-      fail_color = "rgba(255, 255, 255, 0.1)";
-      capslock_color = "rgba(255, 255, 255, 0.1)";
-      numlock_color = "rgba(255, 255, 255, 0.1)";
-      bothlock_color = "rgba(255, 255, 255, 0.1)";
-      font_color = "rgb(200, 200, 200)";
-      fade_on_empty = false;
-      font_family = "SF Pro Display Nerd Font Regular";
-      placeholder_text = "Password";
-      fail_text = "Incorrect";
-      hide_input = false;
-      position = "0, -140";
-      halign = "center";
-      valign = "center";
-    };
-  };
-};
-```
+The selected wallpaper is copied to `~/.config/background` and drawn by a supervised, separately bundled process with one surface per monitor. HEIC and WebP sources are converted to PNG with `heif-dec` and `dwebp`; other supported formats are copied directly.
 
 ## Configuration And State
 
 Use the Settings window to change shell options. Changes are saved automatically.
 
-| State | Location |
-| --- | --- |
-| Shell options | `$XDG_CACHE_HOME/ags2-shell/options.json` |
-| Desktop icon layout | `$XDG_CACHE_HOME/ags2-shell/desktop-layout.json` |
-| Color-picker history | `$XDG_CACHE_HOME/ags2-shell/colors.json` |
-| Thumbnail cache | `$XDG_CACHE_HOME/ags2-shell/previews/thumbnails/` |
-| Wallpaper | `~/.config/background` |
-| Screenshots | `~/Pictures/Screenshots/` |
-| Recordings | `~/Videos/Screencasting/` |
+| State                | Location                                          |
+| -------------------- | ------------------------------------------------- |
+| Shell options        | `$XDG_CACHE_HOME/ags2-shell/options.json`         |
+| Desktop icon layout  | `$XDG_CACHE_HOME/ags2-shell/desktop-layout.json`  |
+| Color-picker history | `$XDG_CACHE_HOME/ags2-shell/colors.json`          |
+| Thumbnail cache      | `$XDG_CACHE_HOME/ags2-shell/previews/thumbnails/` |
+| Wallpaper            | `~/.config/background`                            |
+| Screenshots          | `~/Pictures/Screenshots/`                         |
+| Recordings           | `~/Videos/Screencasting/`                         |
 
 There is currently no declarative Nix option interface for shell settings. Removing `options.json` restores defaults on the next start.
 
