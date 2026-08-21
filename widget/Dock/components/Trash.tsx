@@ -1,21 +1,21 @@
 // Watches the trash folder and opens it when the dock icon is clicked.
 
 import { createState } from "ags"
-import { timeout, Timer } from "ags/time"
 
 import AstalHyprland from "gi://AstalHyprland"
 import Gio from "gi://Gio"
 
 import env from "$lib/env"
+import { ensureDirectory } from "$lib/files"
 import { attempt } from "$lib/result"
-import { moveClientToWorkspaceSilent } from "widget/Windowing/WindowClients"
+import { debounce } from "$lib/time"
+import { getClientWorkspaceId, moveClientToWorkspaceSilent } from "$lib/windowing"
 
 const TRASH_DIR = env.paths.trash
 const REFRESH_DEBOUNCE_MS = 120
 
 let watcherUsers = 0
 let watcher: Gio.FileMonitor | null = null
-let refreshTimer: Timer | null = null
 const [_hasItems, setHasItems] = createState(false)
 export const hasItems = _hasItems
 
@@ -37,13 +37,7 @@ function refreshState() {
 	setHasItems(result.ok && result.value)
 }
 
-function scheduleRefresh() {
-	refreshTimer?.cancel()
-	refreshTimer = timeout(REFRESH_DEBOUNCE_MS, () => {
-		refreshTimer = null
-		refreshState()
-	})
-}
+const refresh = debounce(REFRESH_DEBOUNCE_MS, refreshState)
 
 export function acquireTrashWatcher() {
 	watcherUsers += 1
@@ -51,11 +45,10 @@ export function acquireTrashWatcher() {
 		refreshState()
 
 		const result = attempt(() => {
+			ensureDirectory(TRASH_DIR)
 			const dir = Gio.File.new_for_path(TRASH_DIR)
-			if (!dir.query_exists(null))
-				dir.make_directory_with_parents(null)
 			watcher = dir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null)
-			watcher.connect("changed", () => scheduleRefresh())
+			watcher.connect("changed", () => refresh.call())
 		})
 
 		if (!result.ok)
@@ -73,8 +66,7 @@ function releaseTrashWatcher() {
 	watcher?.cancel()
 	watcher = null
 
-	refreshTimer?.cancel()
-	refreshTimer = null
+	refresh.cancel()
 }
 
 export function openOrFocus(clients: AstalHyprland.Client[], activeWorkspaceId: number | null | undefined) {
@@ -85,7 +77,7 @@ export function openOrFocus(clients: AstalHyprland.Client[], activeWorkspaceId: 
 		)
 
 		if (existing && activeWorkspaceId != null) {
-			const currentId = existing.workspace?.id ?? existing.get_workspace?.()?.id
+			const currentId = getClientWorkspaceId(existing)
 			if (currentId !== activeWorkspaceId)
 				moveClientToWorkspaceSilent(activeWorkspaceId, existing)
 			existing.focus()
