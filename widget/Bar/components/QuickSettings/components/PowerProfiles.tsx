@@ -2,25 +2,32 @@
 
 import { Gtk } from "ags/gtk4"
 import { Accessor, Node, With, createBinding, createComputed } from "ags"
-import { ToggleButton, Menu, SettingsButton } from "widget/Bar/components/QuickSettings/components/MenuControls"
+
+import AstalPowerProfiles from "gi://AstalPowerProfiles"
+import {
+	ToggleButton,
+	Menu,
+	SettingsButton,
+} from "widget/Bar/components/QuickSettings/components/MenuControls"
 import { Placeholder } from "widget/shared/Placeholder"
 import icons from "$lib/icons"
-import { powerProfiles } from "$service/astal"
 import { attempt } from "$lib/result"
-import { launchApp } from "$service/apps"
+import { launchApp } from "$lib/apps"
 import { asusctl } from "$service/asusctl"
+
+const powerProfiles = AstalPowerProfiles.get_default()
 
 export namespace PowerProfiles {
 	export namespace State {
 		export function Power() {
 			return (
 				<With value={provider}>
-					{current => {
+					{(current) => {
 						if (!current) return <box visible={false} />
 						const active = current.active
 						const [, off] = current.toggleDefaults()
-						const icon = active.as(profile => current.icon(profile))
-						const visible = active.as(profile => profile !== off)
+						const icon = active.as((profile) => current.icon(profile))
+						const visible = active.as((profile) => profile !== off)
 						return <image iconName={icon} visible={visible} useFallback />
 					}}
 				</With>
@@ -29,7 +36,9 @@ export namespace PowerProfiles {
 
 		export function Asus() {
 			const mode = createBinding(asusctl, "mode")
-			const modeIcon = mode.as(m => getMappedIcon(icons.asusctl.mode as IconMap, m))
+			const modeIcon = mode.as((m) =>
+				getMappedIcon(icons.asusctl.mode as IconMap, m),
+			)
 			return (
 				<image
 					iconName={modeIcon}
@@ -43,7 +52,7 @@ export namespace PowerProfiles {
 	export function Toggle() {
 		return (
 			<With value={provider}>
-				{current => current ? makeToggle(current) : <MissingToggle />}
+				{(current) => (current ? makeToggle(current) : <MissingToggle />)}
 			</With>
 		)
 	}
@@ -51,7 +60,7 @@ export namespace PowerProfiles {
 	export function Selector() {
 		return (
 			<With value={provider}>
-				{current => current ? makeSelector(current) : <MissingSelector />}
+				{(current) => (current ? makeSelector(current) : <MissingSelector />)}
 			</With>
 		)
 	}
@@ -62,9 +71,9 @@ export namespace PowerProfiles {
 		active: Accessor<string>
 		select: (profile: string) => void
 		profiles: () => string[]
-		icon: (p: string) => string,
-		label: (p: string) => string,
-		extraSettings?: () => Node,
+		icon: (p: string) => string
+		label: (p: string) => string
+		extraSettings?: () => Node
 		toggleDefaults: () => [string, string]
 	}
 
@@ -72,21 +81,17 @@ export namespace PowerProfiles {
 		return map[key] || icons.missing
 	}
 
-	function isAsusProfile(value: string): value is "Performance" | "Balanced" | "Quiet" {
-		return value === "Performance" || value === "Balanced" || value === "Quiet"
-	}
-
 	const asusProvider: Provider = {
 		active: createBinding(asusctl, "profile"),
-		select: p => {
-			if (isAsusProfile(p)) {
-				asusctl.profile = p
-			}
+		select: (profile) => {
+			asusctl.profile = profile
 		},
 		profiles: () => asusctl.profiles,
-		icon: p => getMappedIcon(icons.asusctl.profile as IconMap, p),
+		icon: (p) => getMappedIcon(icons.asusctl.profile as IconMap, p),
 		label: (p) => p,
-		extraSettings: () => <SettingsButton callback={() => launchApp("rog-control-center")} />,
+		extraSettings: () => (
+			<SettingsButton callback={() => launchApp("rog-control-center")} />
+		),
 		toggleDefaults: () => ["Quiet", "Balanced"],
 	}
 
@@ -102,9 +107,9 @@ export namespace PowerProfiles {
 			if (!powerProfiles.get_version()) return undefined
 			return {
 				active: createBinding(powerProfiles, "activeProfile"),
-				profiles: () => powerProfiles.get_profiles().map(p => p.profile),
-				select: profile => powerProfiles.set_active_profile(profile),
-				icon: p => getMappedIcon(icons.powerprofile as IconMap, p),
+				profiles: () => powerProfiles.get_profiles().map((p) => p.profile),
+				select: (profile) => powerProfiles.set_active_profile(profile),
+				icon: (p) => getMappedIcon(icons.powerprofile as IconMap, p),
 				label: (p) => prettify(p),
 				toggleDefaults: () => {
 					const profiles = powerProfiles.get_profiles()
@@ -125,11 +130,11 @@ export namespace PowerProfiles {
 			<ToggleButton
 				arrow
 				name="profile-selector"
-				iconName={active.as(p => provider.icon(p))}
-				label={active.as(p => provider.label(p))}
+				iconName={active.as((p) => provider.icon(p))}
+				label={active.as((p) => provider.label(p))}
 				activate={() => provider.select(on)}
 				deactivate={() => provider.select(off)}
-				connection={active.as(p => p !== off)}
+				connection={active.as((p) => p !== off)}
 			/>
 		)
 	}
@@ -138,9 +143,13 @@ export namespace PowerProfiles {
 		const active = provider.active
 		const profiles = provider.profiles()
 		return (
-			<Menu name="profile-selector" iconName={active.as(p => provider.icon(p))} title="Profiles">
+			<Menu
+				name="profile-selector"
+				iconName={active.as((p) => provider.icon(p))}
+				title="Profiles"
+			>
 				<box orientation={VERTICAL} hexpand>
-					{profiles.map(p => (
+					{profiles.map((p) => (
 						<button onClicked={() => provider.select(p)}>
 							<box class="profile-item horizontal">
 								<image iconName={provider.icon(p)} />
@@ -172,15 +181,23 @@ export namespace PowerProfiles {
 
 	function MissingSelector() {
 		return (
-			<Menu name="missing-profile" iconName={icons.missing} title="Install asusctl or powerprofiles daemon">
-				<Placeholder iconName={icons.missing} label="No power profile provider found" />
+			<Menu
+				name="missing-profile"
+				iconName={icons.missing}
+				title="Install asusctl or powerprofiles daemon"
+			>
+				<Placeholder
+					iconName={icons.missing}
+					label="No power profile provider found"
+				/>
 			</Menu>
 		)
 	}
 
 	const asusAvailable = createBinding(asusctl, "available")
-	const provider = createComputed(() => asusAvailable() ? asusProvider : getPowerProvider())
-
+	const provider = createComputed(() =>
+		asusAvailable() ? asusProvider : getPowerProvider(),
+	)
 
 	const { VERTICAL } = Gtk.Orientation
 }

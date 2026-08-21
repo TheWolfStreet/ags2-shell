@@ -7,6 +7,7 @@ import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 
 import AstalMpris from "gi://AstalMpris"
+import AstalWp from "gi://AstalWp"
 
 import { Settings } from "widget/Settings"
 import { PanelButton } from "widget/Bar/components/PanelButton"
@@ -23,10 +24,14 @@ import env from "$lib/env"
 import icons, { getBrightnessIcon } from "$lib/icons"
 import { attemptAsync } from "$lib/result"
 import { textureFromFileSquareContain } from "$lib/textures"
+import { hyprland } from "$lib/hyprland"
+import { media } from "$lib/media"
+import { notificationDaemon } from "$lib/notifications"
 import { brightness } from "$service/brightness"
-import { audio, hyprland, media, notificationDaemon } from "$service/astal"
 
 import options from "$shell/options"
+
+const audio = AstalWp.get_default()
 
 export namespace QuickSettings {
 	export function Button() {
@@ -51,17 +56,12 @@ export namespace QuickSettings {
 		}
 
 		return (
-			<PanelButton
-				targetWindow="quicksettings"
-			>
+			<PanelButton targetWindow="quicksettings">
 				<Gtk.EventControllerScroll
 					flags={SCROLL_VERTICAL}
 					onScroll={handleScroll}
 				/>
-				<Gtk.GestureClick
-					button={0}
-					onPressed={handlePress}
-				/>
+				<Gtk.GestureClick button={0} onPressed={handlePress} />
 				<box class="horizontal">
 					<KeyboardLayout />
 					<PowerProfiles.State.Power />
@@ -80,10 +80,20 @@ export namespace QuickSettings {
 		Network.Wifi.Window()
 
 		const players = createBinding(media, "players")
-		const avatarSize = options.scale.as(scale => Math.round(56 * scale / 100))
-		const popupWidth = createComputed(() => Math.round(quicksettings.width() * options.scale() / 100))
+		const avatarSize = options.scale.as((scale) =>
+			Math.round((56 * scale) / 100),
+		)
+		const popupWidth = createComputed(() =>
+			Math.round((quicksettings.width() * options.scale()) / 100),
+		)
 
-		function ToggleRow({ toggles, menus = [] }: { toggles: JSX.Element[], menus?: JSX.Element[] }) {
+		function ToggleRow({
+			toggles,
+			menus = [],
+		}: {
+			toggles: JSX.Element[]
+			menus?: JSX.Element[]
+		}) {
 			return (
 				<box orientation={VERTICAL}>
 					<box class="row horizontal" homogeneous>
@@ -97,9 +107,12 @@ export namespace QuickSettings {
 		const Avatar = () => (
 			<Gtk.Picture
 				class="avatar"
-				$={self => {
+				$={(self) => {
 					const refresh = () => {
-						self.paintable = textureFromFileSquareContain(env.paths.avatar, avatarSize.peek()) as Gdk.Paintable
+						self.paintable = textureFromFileSquareContain(
+							env.paths.avatar,
+							avatarSize.peek(),
+						) as Gdk.Paintable
 					}
 					const monitor = monitorFile(env.paths.avatar, refresh)
 					const unsubscribe = avatarSize.subscribe(refresh)
@@ -118,7 +131,7 @@ export namespace QuickSettings {
 			/>
 		)
 
-		const Header = () =>
+		const Header = () => (
 			<box class="header horizontal">
 				<Avatar />
 				<box orientation={VERTICAL} valign={CENTER}>
@@ -128,11 +141,18 @@ export namespace QuickSettings {
 				</box>
 				<box hexpand />
 				<Settings.Button />
-			</box >
+			</box>
+		)
 
-		const monitorHeights = app.get_monitors().map(m => m.get_geometry().height)
-		const monitorHeight = monitorHeights.length ? Math.min(...monitorHeights) : 1080
-		const maxContentHeight = options.scale.as(scale => monitorHeight - Math.round(96 * scale / 100))
+		const monitorHeights = app
+			.get_monitors()
+			.map((m) => m.get_geometry().height)
+		const monitorHeight = monitorHeights.length
+			? Math.min(...monitorHeights)
+			: 1080
+		const maxContentHeight = options.scale.as(
+			(scale) => monitorHeight - Math.round((96 * scale) / 100),
+		)
 
 		return (
 			<PopupWindow
@@ -148,9 +168,11 @@ export namespace QuickSettings {
 					propagateNaturalWidth
 					maxContentHeight={maxContentHeight}
 				>
-					<box class="quicksettings vertical"
-						css={popupWidth.as(width => `min-width: ${width}px;`)}
-						orientation={VERTICAL}>
+					<box
+						class="quicksettings vertical"
+						css={popupWidth.as((width) => `min-width: ${width}px;`)}
+						orientation={VERTICAL}
+					>
 						<Header />
 						<box class="sliders-box vertical" orientation={VERTICAL}>
 							<ToggleRow
@@ -167,11 +189,14 @@ export namespace QuickSettings {
 						<ToggleRow toggles={[<DarkModeToggle />, <DoNotDisturbToggle />]} />
 						<ToggleRow
 							toggles={[<PowerProfiles.Toggle />, <DisplayMirroring.Toggle />]}
-							menus={[<PowerProfiles.Selector />, <DisplayMirroring.Selector />]}
+							menus={[
+								<PowerProfiles.Selector />,
+								<DisplayMirroring.Selector />,
+							]}
 						/>
 						<box
 							class="media vertical"
-							visible={players.as(list => list.length > 0)}
+							visible={players.as((list) => list.length > 0)}
 							orientation={VERTICAL}
 						>
 							<For each={players}>
@@ -199,28 +224,114 @@ const { scheme } = options.theme
 const layout = createPopupPosition(bar.position, quicksettings.position)
 
 const LAYOUT_CODES: Record<string, string> = {
-	"english": "en", "russian": "ru", "hebrew": "he", "arabic": "ar", "chinese": "zh",
-	"japanese": "ja", "korean": "ko", "french": "fr", "german": "de", "spanish": "es",
-	"italian": "it", "portuguese": "pt", "dutch": "nl", "polish": "pl", "turkish": "tr",
-	"greek": "el", "ukrainian": "uk", "czech": "cs", "slovak": "sk", "hungarian": "hu",
-	"romanian": "ro", "bulgarian": "bg", "croatian": "hr", "serbian": "sr", "slovene": "sl",
-	"latvian": "lv", "lithuanian": "lt", "estonian": "et", "finnish": "fi", "swedish": "sv",
-	"norwegian": "no", "danish": "da", "icelandic": "is", "thai": "th", "vietnamese": "vi",
-	"hindi": "hi", "bengali": "bn", "tamil": "ta", "telugu": "te", "urdu": "ur",
-	"persian": "fa", "farsi": "fa", "malayalam": "ml", "malagasy": "mg", "malay": "ms",
-	"swahili": "sw", "yoruba": "yo", "zulu": "zu", "amharic": "am", "mongolian": "mn",
-	"khmer": "km", "lao": "lo", "burmese": "my", "welsh": "cy", "irish": "ga",
-	"basque": "eu", "catalan": "ca", "galician": "gl", "albanian": "sq", "macedonian": "mk",
-	"bosnian": "bs", "montenegrin": "cnr", "belarusian": "be", "azerbaijani": "az",
-	"georgian": "ka", "armenian": "hy", "kazakh": "kk", "kyrgyz": "ky", "uzbek": "uz",
-	"tajik": "tg", "turkmen": "tk", "pashto": "ps", "dari": "prs", "kurdish": "ku",
-	"afrikaans": "af", "akan": "ak", "bambara": "bm", "berber": "ber", "chuvash": "cv",
-	"esperanto": "eo", "ewe": "ee", "faroese": "fo", "filipino": "fil", "friulian": "fur",
-	"fulah": "ff", "gagauz": "gag", "igbo": "ig", "ido": "io", "indonesian": "id",
-	"inuktitut": "iu", "javanese": "jv", "kannada": "kn", "kanuri": "kr", "kashmiri": "ks",
-	"kikuyu": "ki", "kinyarwanda": "rw", "komi": "kv", "maltese": "mt", "maori": "mi",
-	"marathi": "mr", "northern": "se", "yakut": "sah", "abkhazian": "ab", "asturian": "ast",
-	"avatime": "avt", "cherokee": "chr", "crimean": "crh", "dhivehi": "dv",
+	english: "en",
+	russian: "ru",
+	hebrew: "he",
+	arabic: "ar",
+	chinese: "zh",
+	japanese: "ja",
+	korean: "ko",
+	french: "fr",
+	german: "de",
+	spanish: "es",
+	italian: "it",
+	portuguese: "pt",
+	dutch: "nl",
+	polish: "pl",
+	turkish: "tr",
+	greek: "el",
+	ukrainian: "uk",
+	czech: "cs",
+	slovak: "sk",
+	hungarian: "hu",
+	romanian: "ro",
+	bulgarian: "bg",
+	croatian: "hr",
+	serbian: "sr",
+	slovene: "sl",
+	latvian: "lv",
+	lithuanian: "lt",
+	estonian: "et",
+	finnish: "fi",
+	swedish: "sv",
+	norwegian: "no",
+	danish: "da",
+	icelandic: "is",
+	thai: "th",
+	vietnamese: "vi",
+	hindi: "hi",
+	bengali: "bn",
+	tamil: "ta",
+	telugu: "te",
+	urdu: "ur",
+	persian: "fa",
+	farsi: "fa",
+	malayalam: "ml",
+	malagasy: "mg",
+	malay: "ms",
+	swahili: "sw",
+	yoruba: "yo",
+	zulu: "zu",
+	amharic: "am",
+	mongolian: "mn",
+	khmer: "km",
+	lao: "lo",
+	burmese: "my",
+	welsh: "cy",
+	irish: "ga",
+	basque: "eu",
+	catalan: "ca",
+	galician: "gl",
+	albanian: "sq",
+	macedonian: "mk",
+	bosnian: "bs",
+	montenegrin: "cnr",
+	belarusian: "be",
+	azerbaijani: "az",
+	georgian: "ka",
+	armenian: "hy",
+	kazakh: "kk",
+	kyrgyz: "ky",
+	uzbek: "uz",
+	tajik: "tg",
+	turkmen: "tk",
+	pashto: "ps",
+	dari: "prs",
+	kurdish: "ku",
+	afrikaans: "af",
+	akan: "ak",
+	bambara: "bm",
+	berber: "ber",
+	chuvash: "cv",
+	esperanto: "eo",
+	ewe: "ee",
+	faroese: "fo",
+	filipino: "fil",
+	friulian: "fur",
+	fulah: "ff",
+	gagauz: "gag",
+	igbo: "ig",
+	ido: "io",
+	indonesian: "id",
+	inuktitut: "iu",
+	javanese: "jv",
+	kannada: "kn",
+	kanuri: "kr",
+	kashmiri: "ks",
+	kikuyu: "ki",
+	kinyarwanda: "rw",
+	komi: "kv",
+	maltese: "mt",
+	maori: "mi",
+	marathi: "mr",
+	northern: "se",
+	yakut: "sah",
+	abkhazian: "ab",
+	asturian: "ast",
+	avatime: "avt",
+	cherokee: "chr",
+	crimean: "crh",
+	dhivehi: "dv",
 }
 
 async function queryKeyboardLayout(): Promise<string> {
@@ -228,11 +339,20 @@ async function queryKeyboardLayout(): Promise<string> {
 		const output = (await execAsync("hyprctl devices -j")).trim()
 		if (!output) return "err"
 
-		const data = JSON.parse(output) as { keyboards?: Array<{ active_keymap?: string, main?: boolean }> }
+		const data = JSON.parse(output) as {
+			keyboards?: Array<{ active_keymap?: string; main?: boolean }>
+		}
 		const keyboards = Array.isArray(data.keyboards) ? data.keyboards : []
 		for (const keyboard of keyboards) {
-			if (keyboard.main && typeof keyboard.active_keymap === "string" && keyboard.active_keymap.length > 0) {
-				const keymap = keyboard.active_keymap.trim().split(/[\s(]/)[0].toLowerCase()
+			if (
+				keyboard.main &&
+				typeof keyboard.active_keymap === "string" &&
+				keyboard.active_keymap.length > 0
+			) {
+				const keymap = keyboard.active_keymap
+					.trim()
+					.split(/[\s(]/)[0]
+					.toLowerCase()
 				return LAYOUT_CODES[keymap] || keymap
 			}
 		}
@@ -249,9 +369,10 @@ async function queryKeyboardLayout(): Promise<string> {
 function KeyboardLayout() {
 	const [layout, setLayout] = createState("")
 	let active = true
-	const update = () => void queryKeyboardLayout().then(value => {
-		if (active) setLayout(value)
-	})
+	const update = () =>
+		void queryKeyboardLayout().then((value) => {
+			if (active) setLayout(value)
+		})
 
 	update()
 	const connection = hyprland.connect("keyboard-layout", update)
@@ -278,13 +399,21 @@ function BrightnessSlider() {
 	const display = createBinding(brightness, "display")
 
 	return (
-		<box class="control-unit" visible={createBinding(brightness, "displayAvailable")}>
+		<box
+			class="control-unit"
+			visible={createBinding(brightness, "displayAvailable")}
+		>
 			<button
 				valign={CENTER}
 				onClicked={toggleBrightnessMute}
-				tooltipText={display.as(v => `Screen Brightness: ${Math.floor(v * 100)}% `)}
+				tooltipText={display.as(
+					(v) => `Screen Brightness: ${Math.floor(v * 100)}% `,
+				)}
 			>
-				<image iconName={display.as(value => getBrightnessIcon(value, "screen"))} useFallback />
+				<image
+					iconName={display.as((value) => getBrightnessIcon(value, "screen"))}
+					useFallback
+				/>
 			</button>
 			<slider
 				drawValue={false}
@@ -299,7 +428,7 @@ function BrightnessSlider() {
 }
 
 function DarkModeToggle() {
-	const isDark = scheme.as(s => s === "dark")
+	const isDark = scheme.as((s) => s === "dark")
 
 	const toggleThemeScheme = () => {
 		scheme.set(isDark.peek() ? "light" : "dark")
@@ -307,8 +436,8 @@ function DarkModeToggle() {
 
 	return (
 		<ToggleButton
-			iconName={isDark.as(dark => icons.color[dark ? "dark" : "light"])}
-			label={isDark.as(dark => dark ? "Dark" : "Light")}
+			iconName={isDark.as((dark) => icons.color[dark ? "dark" : "light"])}
+			label={isDark.as((dark) => (dark ? "Dark" : "Light"))}
 			toggle={toggleThemeScheme}
 			connection={isDark}
 		/>
@@ -320,9 +449,15 @@ const doNotDisturb = createBinding(notificationDaemon, "dontDisturb")
 function DoNotDisturbToggle() {
 	return (
 		<ToggleButton
-			iconName={doNotDisturb.as(v => v ? icons.notifications.silent : icons.notifications.noisy)}
-			label={doNotDisturb.as(v => v ? "Silent" : "Normal")}
-			toggle={() => notificationDaemon.set_dont_disturb(!notificationDaemon.get_dont_disturb())}
+			iconName={doNotDisturb.as((v) =>
+				v ? icons.notifications.silent : icons.notifications.noisy,
+			)}
+			label={doNotDisturb.as((v) => (v ? "Silent" : "Normal"))}
+			toggle={() =>
+				notificationDaemon.set_dont_disturb(
+					!notificationDaemon.get_dont_disturb(),
+				)
+			}
 			connection={doNotDisturb}
 		/>
 	)

@@ -7,7 +7,7 @@ import { Gtk } from "ags/gtk4"
 import { createPages } from "./components/Pages"
 
 import icons from "$lib/icons"
-import { hyprland } from "$service/astal"
+import { hyprland } from "$lib/hyprland"
 
 import options, { Opt } from "$shell/options"
 
@@ -24,7 +24,10 @@ export namespace Settings {
 					if (settings?.visible) {
 						const workspace = hyprland.focusedWorkspace?.id
 						if (workspace != null)
-							hyprland.dispatch("movetoworkspace", `${workspace},title:^(Settings)$`)
+							hyprland.dispatch(
+								"movetoworkspace",
+								`${workspace},title:^(Settings)$`,
+							)
 					} else {
 						settings?.show()
 					}
@@ -44,10 +47,12 @@ export namespace Settings {
 		let stack: Gtk.Stack | undefined
 		const [currentPage, setCurrentPage] = createState(pages[0].name)
 
-		const anyChanged = createComputed(() => allOpts.some(opt => opt() !== opt.getDefault()))
+		const anyChanged = createComputed(() =>
+			allOpts.some((opt) => opt() !== opt.getDefault()),
+		)
 
 		function resetAll() {
-			allOpts.forEach(opt => opt.reset())
+			allOpts.forEach((opt) => opt.reset())
 		}
 
 		function setup(self: Gtk.Stack) {
@@ -64,8 +69,12 @@ export namespace Settings {
 				name="settings-dialog"
 				class="settings-dialog"
 				application={app}
-				defaultHeight={options.scale.as(scale => Math.round(600 * scale / 100))}
-				defaultWidth={options.scale.as(scale => Math.round(500 * scale / 100))}
+				defaultHeight={options.scale.as((scale) =>
+					Math.round((600 * scale) / 100),
+				)}
+				defaultWidth={options.scale.as((scale) =>
+					Math.round((500 * scale) / 100),
+				)}
 				hideOnClose
 				iconName={icons.ui.settings}
 			>
@@ -85,7 +94,7 @@ export namespace Settings {
 						<box class="pager horizontal" $type="center">
 							{pages.map(({ name, iconName }) => (
 								<button
-									class={currentPage.as(v => v === name ? `active` : "")}
+									class={currentPage.as((v) => (v === name ? `active` : ""))}
 									valign={CENTER}
 									onClicked={() => {
 										setCurrentPage(name)
@@ -129,7 +138,7 @@ export namespace Settings {
 		if (existing) return existing
 
 		let window: Gtk.Window | null = null
-		root ??= createRoot(dispose => {
+		root ??= createRoot((dispose) => {
 			window = Settings.Window() as Gtk.Window
 			return dispose
 		})

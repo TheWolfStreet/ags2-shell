@@ -3,7 +3,7 @@
 import GObject, { getter, register, setter } from "ags/gobject"
 import { execAsync } from "ags/process"
 
-import { hyprland } from "$service/astal"
+import { hyprland } from "$lib/hyprland"
 import { hasProgram } from "$lib/programs"
 import { attempt, attemptAsync, err, ok, type Result } from "$lib/result"
 import options from "$shell/options"
@@ -38,8 +38,7 @@ function parseProfile(raw: string): Result<Asusctl.Profile> {
 
 function parseMode(raw: string): Result<Asusctl.Mode> {
 	const value = raw.trim()
-	if (value === "Hybrid" || value === "Integrated")
-		return ok(value)
+	if (value === "Hybrid" || value === "Integrated") return ok(value)
 
 	return err(new Error(`Unexpected mode value: ${value}`))
 }
@@ -50,8 +49,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseMonitorMode(mode: string): MonitorMode | null {
 	const match = mode.match(/^(\d+)x(\d+)\s*@\s*([0-9]+(?:\.[0-9]+)?)/)
-	if (!match)
-		return null
+	if (!match) return null
 
 	const refreshRate = Number.parseFloat(match[3])
 	return Number.isFinite(refreshRate) && refreshRate > 0
@@ -63,63 +61,78 @@ function isInternalPanel(name: string) {
 	return /^(?:eDP|LVDS)-/i.test(name)
 }
 
-function selectPanel(monitors: MonitorConfiguration[]): MonitorConfiguration | undefined {
-	return monitors.find(monitor => isInternalPanel(monitor.name))
+function selectPanel(
+	monitors: MonitorConfiguration[],
+): MonitorConfiguration | undefined {
+	return monitors.find((monitor) => isInternalPanel(monitor.name))
 }
 
 function parsePanelModes(modes: string[]): MonitorMode[] {
-	return modes.map(parseMonitorMode).filter((mode): mode is MonitorMode => mode !== null)
+	return modes
+		.map(parseMonitorMode)
+		.filter((mode): mode is MonitorMode => mode !== null)
 }
 
 function readPanelConfiguration(): MonitorConfiguration | undefined {
-	const result = attempt((): unknown => JSON.parse(hyprland.message("j/monitors all")))
-	if (!result.ok || !Array.isArray(result.value))
-		return undefined
+	const result = attempt((): unknown =>
+		JSON.parse(hyprland.message("j/monitors all")),
+	)
+	if (!result.ok || !Array.isArray(result.value)) return undefined
 
 	return selectPanel(result.value.filter(isMonitorConfiguration))
 }
 
-function getPanelModes(configuration = readPanelConfiguration()): MonitorMode[] {
+function getPanelModes(
+	configuration = readPanelConfiguration(),
+): MonitorMode[] {
 	if (!configuration) return []
 	const resolution = `${configuration.width}x${configuration.height}`
-	return parsePanelModes(configuration.availableModes ?? [])
-		.filter(mode => mode.resolution === resolution)
+	return parsePanelModes(configuration.availableModes ?? []).filter(
+		(mode) => mode.resolution === resolution,
+	)
 }
 
 function uniqueRefreshRates(modes: MonitorMode[]): number[] {
-	return [...new Set(modes.map(mode => Math.round(mode.refreshRate)))].sort((a, b) => a - b)
+	return [...new Set(modes.map((mode) => Math.round(mode.refreshRate)))].sort(
+		(a, b) => a - b,
+	)
 }
 
 function nearestValue(values: number[], preferred: number): number {
 	return values.reduce((nearest, value) =>
-		Math.abs(value - preferred) < Math.abs(nearest - preferred) ? value : nearest,
+		Math.abs(value - preferred) < Math.abs(nearest - preferred)
+			? value
+			: nearest,
 	)
 }
 
 function normalizeRefreshRate(value: number, available: number[]): number {
-	if (available.includes(value))
-		return value
+	if (available.includes(value)) return value
 	return nearestValue(available, value)
 }
 
 function resolveRefreshRate(modes: MonitorMode[], preferred: number): number {
-	const available = modes.map(mode => mode.refreshRate)
+	const available = modes.map((mode) => mode.refreshRate)
 	return nearestValue(available, preferred)
 }
 
 function isMonitorConfiguration(value: unknown): value is MonitorConfiguration {
-	if (!isRecord(value))
-		return false
+	if (!isRecord(value)) return false
 
-	return typeof value.name === "string"
-		&& typeof value.disabled === "boolean"
-		&& typeof value.width === "number"
-		&& value.width > 0
-		&& typeof value.height === "number"
-		&& value.height > 0
-		&& (value.availableModes === undefined
-			|| (Array.isArray(value.availableModes) && value.availableModes.every(mode => typeof mode === "string")))
+	return (
+		typeof value.name === "string" &&
+		typeof value.disabled === "boolean" &&
+		typeof value.width === "number" &&
+		value.width > 0 &&
+		typeof value.height === "number" &&
+		value.height > 0 &&
+		(value.availableModes === undefined ||
+			(Array.isArray(value.availableModes) &&
+				value.availableModes.every((mode) => typeof mode === "string")))
+	)
 }
+
+const PROFILE_VALUES: Asusctl.Profile[] = ["Performance", "Balanced", "Quiet"]
 
 namespace Asusctl {
 	export type Profile = "Performance" | "Balanced" | "Quiet"
@@ -129,11 +142,6 @@ namespace Asusctl {
 @register()
 class Asusctl extends GObject.Object {
 	declare static $gtype: GObject.GType<Asusctl>
-	static instance: Asusctl
-
-	static get_default() {
-		return this.instance ??= new Asusctl()
-	}
 
 	#profile: Asusctl.Profile
 	#mode: Asusctl.Mode
@@ -151,13 +159,10 @@ class Asusctl extends GObject.Object {
 		this.#monitorUpdateSequence = 0
 
 		if (this.#available)
-			void this.#initializeAvailability()
-	}
-
-	async #initializeAvailability() {
-		const result = await this.#initialize()
-		if (!result.ok)
-			this.#fail("initialize: Failed to initialize asusctl", result.err)
+			void this.#initialize().then((result) => {
+				if (!result.ok)
+					this.#fail("initialize: Failed to initialize asusctl", result.err)
+			})
 	}
 
 	#fail(context: string, error: unknown) {
@@ -168,12 +173,10 @@ class Asusctl extends GObject.Object {
 		}
 	}
 
-	@getter(Array)
 	get profiles(): Asusctl.Profile[] {
-		return ["Performance", "Balanced", "Quiet"]
+		return [...PROFILE_VALUES]
 	}
 
-	@getter(Array)
 	get refreshRates(): number[] {
 		return uniqueRefreshRates(getPanelModes())
 	}
@@ -184,9 +187,10 @@ class Asusctl extends GObject.Object {
 	}
 
 	@setter(String)
-	set profile(p: Asusctl.Profile) {
+	set profile(value: string) {
 		if (!this.#available) return
-		this.setProfile(p)
+		const profile = parseProfile(value)
+		if (profile.ok) void this.#setProfile(profile.value)
 	}
 
 	@getter(String)
@@ -199,14 +203,12 @@ class Asusctl extends GObject.Object {
 		return this.#available
 	}
 
-	readonly setProfile = async (p: Asusctl.Profile) => {
-		if (!this.#available) return
-
-		const result = await runCommand(["asusctl", "profile", "set", p])
+	async #setProfile(profile: Asusctl.Profile) {
+		const result = await runCommand(["asusctl", "profile", "set", profile])
 		if (!result.ok)
 			return this.#fail("setProfile: Failed to set profile", result.err)
 
-		this.#profile = p
+		this.#profile = profile
 		this.notify("profile")
 		void this.#updateMonitorConfiguration()
 	}
@@ -217,18 +219,23 @@ class Asusctl extends GObject.Object {
 		const output = await runCommand(["hyprctl", "monitors", "all", "-j"])
 		if (sequence !== this.#monitorUpdateSequence) return
 		if (!output.ok) {
-			console.error("asusctl.updateMonitorConfiguration: Failed to read monitors", output.err)
+			console.error(
+				"asusctl.updateMonitorConfiguration: Failed to read monitors",
+				output.err,
+			)
 			return
 		}
 
 		const parseResult = attempt((): unknown => JSON.parse(output.value))
 		if (!parseResult.ok) {
-			console.error("asusctl.updateMonitorConfiguration: Failed to parse monitors", parseResult.err)
+			console.error(
+				"asusctl.updateMonitorConfiguration: Failed to parse monitors",
+				parseResult.err,
+			)
 			return
 		}
 		const parsed = parseResult.value
-		if (!Array.isArray(parsed))
-			return
+		if (!Array.isArray(parsed)) return
 
 		const panel = selectPanel(parsed.filter(isMonitorConfiguration))
 		if (!panel) return
@@ -237,30 +244,35 @@ class Asusctl extends GObject.Object {
 		const panelModes = getPanelModes(panel)
 		const availableRefreshRates = uniqueRefreshRates(panelModes)
 		if (availableRefreshRates.length === 0) return
-		const acHz = normalizeRefreshRate(options.asus.ac_hz.peek(), availableRefreshRates)
-		const batHz = normalizeRefreshRate(options.asus.bat_hz.peek(), availableRefreshRates)
+		const acHz = normalizeRefreshRate(
+			options.asus.ac_hz.peek(),
+			availableRefreshRates,
+		)
+		const batHz = normalizeRefreshRate(
+			options.asus.bat_hz.peek(),
+			availableRefreshRates,
+		)
 
-		if (acHz !== options.asus.ac_hz.peek())
-			options.asus.ac_hz.set(acHz)
-		if (batHz !== options.asus.bat_hz.peek())
-			options.asus.bat_hz.set(batHz)
+		if (acHz !== options.asus.ac_hz.peek()) options.asus.ac_hz.set(acHz)
+		if (batHz !== options.asus.bat_hz.peek()) options.asus.bat_hz.set(batHz)
 		if (sequence !== this.#monitorUpdateSequence) return
 
 		const preferredRefreshRate = this.#profile === "Quiet" ? batHz : acHz
 		const refreshRate = resolveRefreshRate(panelModes, preferredRefreshRate)
 		const resolution = `${panel.width}x${panel.height}`
-		hyprland.message_async(`keyword monitor ${panel.name},${resolution}@${refreshRate},0x0,1`, null)
+		hyprland.message_async(
+			`keyword monitor ${panel.name},${resolution}@${refreshRate},0x0,1`,
+			null,
+		)
 	}
 
 	async #initialize(): Promise<Result<void>> {
 		const profileOutput = await runCommand(["asusctl", "profile", "get"])
-		if (!profileOutput.ok)
-			return profileOutput
+		if (!profileOutput.ok) return profileOutput
 
 		const match = profileOutput.value.match(/Active profile: (\w+)/)
 		const profile = parseProfile(match?.[1] ?? "")
-		if (!profile.ok)
-			return profile
+		if (!profile.ok) return profile
 
 		this.#profile = profile.value
 		this.notify("profile")
@@ -296,4 +308,4 @@ class Asusctl extends GObject.Object {
 	}
 }
 
-export const asusctl = Asusctl.get_default()
+export const asusctl = new Asusctl()

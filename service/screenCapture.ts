@@ -10,10 +10,14 @@ import GLib from "gi://GLib"
 import env from "$lib/env"
 import { attempt, attemptAsync } from "$lib/result"
 import { ensureDirectory } from "$lib/files"
-import { notify, notifyMissingPrograms } from "$service/notifications"
+import { notify, notifyMissingPrograms } from "$lib/notifications"
 import icons from "$lib/icons"
 
-const createCaptureTimestamp = () => GLib.DateTime.new_now_local().format("%Y-%m-%d_%H-%M-%S")
+const RECORDINGS_DIRECTORY = `${env.paths.home}/Videos/Screencasting/`
+const SCREENSHOTS_DIRECTORY = `${env.paths.home}/Pictures/Screenshots/`
+const createCaptureTimestamp = () =>
+	GLib.DateTime.new_now_local().format("%Y-%m-%d_%H-%M-%S")
+const openAction = (path: string) => `xdg-open ${GLib.shell_quote(path)}`
 
 type HyprlandMonitorJson = {
 	focused: boolean
@@ -27,53 +31,39 @@ type HyprlandMonitorJson = {
 function isHyprlandMonitorJson(value: unknown): value is HyprlandMonitorJson {
 	if (value === null || typeof value !== "object") return false
 	const monitor = value as Record<string, unknown>
-	return typeof monitor.focused === "boolean"
-		&& "x" in monitor
-		&& "y" in monitor
-		&& "width" in monitor
-		&& "height" in monitor
+	return (
+		typeof monitor.focused === "boolean" &&
+		"x" in monitor &&
+		"y" in monitor &&
+		"width" in monitor &&
+		"height" in monitor
+	)
 }
 
 @register()
 class ScreenCaptureService extends GObject.Object {
 	declare static $gtype: GObject.GType<ScreenCaptureService>
-	static instance: ScreenCaptureService
 
-	static get_default() {
-		return this.instance ??= new ScreenCaptureService()
-	}
-
-	#recordings: string
-	#screenshots: string
-	#interval: Timer | null
-	#recorder: Process | null
-	#recordingStartPending: boolean
-	#shuttingDown: boolean
-	#notifySavedOnExit: boolean
+	#interval: Timer | null = null
+	#recorder: Process | null = null
+	#recordingStartPending = false
+	#shuttingDown = false
+	#notifySavedOnExit = false
 	#shutdownSignalId: number
-	#recording: boolean
-	#timer: number
-	#recordingFile: string
-	#screenshotFile: string
+	#recording = false
+	#timer = 0
+	#recordingFile = ""
 
 	constructor() {
 		super()
 
-		this.#recordings = `${env.paths.home}/Videos/Screencasting/`
-		this.#screenshots = `${env.paths.home}/Pictures/Screenshots/`
-		this.#interval = null
-		this.#recorder = null
-		this.#recordingStartPending = false
-		this.#shuttingDown = false
-		this.#notifySavedOnExit = false
-		this.#recording = false
-		this.#timer = 0
-		this.#recordingFile = ""
-		this.#screenshotFile = ""
 		this.#shutdownSignalId = app.connect("shutdown", () => {
 			const result = attempt(() => this.#shutdown())
 			if (!result.ok)
-				console.error("screenCapture.shutdown: Failed to stop recorder", result.err)
+				console.error(
+					"screenCapture.shutdown: Failed to stop recorder",
+					result.err,
+				)
 		})
 	}
 
@@ -90,9 +80,14 @@ class ScreenCaptureService extends GObject.Object {
 	readonly #getFocusedMonitor = async () => {
 		if (!notifyMissingPrograms("hyprctl")) return null
 		const result = await attemptAsync(async () => {
-			const parsed: unknown = JSON.parse(await execAsync(["hyprctl", "monitors", "-j"]))
+			const parsed: unknown = JSON.parse(
+				await execAsync(["hyprctl", "monitors", "-j"]),
+			)
 			return Array.isArray(parsed)
-				? parsed.find((monitor): monitor is HyprlandMonitorJson => isHyprlandMonitorJson(monitor) && monitor.focused) ?? null
+				? (parsed.find(
+						(monitor): monitor is HyprlandMonitorJson =>
+							isHyprlandMonitorJson(monitor) && monitor.focused,
+					) ?? null)
 				: null
 		})
 		return result.ok ? result.value : null
@@ -117,65 +112,85 @@ class ScreenCaptureService extends GObject.Object {
 
 	readonly screenshot = async (select = false) => {
 		const result = await attemptAsync(async () => {
-			ensureDirectory(this.#screenshots)
-			this.#screenshotFile = `${this.#screenshots}${createCaptureTimestamp()}.png`
+			ensureDirectory(SCREENSHOTS_DIRECTORY)
+			const screenshotFile = `${SCREENSHOTS_DIRECTORY}${createCaptureTimestamp()}.png`
 
 			if (select) {
-				const area = await this.#prepareCapture(true, "grim")
+				const area = await this.#selectArea("grim")
 				if (!area) return
-				await execAsync(["grim", "-g", area, this.#screenshotFile])
+				await execAsync(["grim", "-g", area, screenshotFile])
 			} else {
 				if (!notifyMissingPrograms("grim")) return
 				const focusedOutput = await this.#getFocusedOutputName()
 				const args = ["grim"]
-				if (focusedOutput)
-					args.push("-o", focusedOutput)
-				args.push(this.#screenshotFile)
+				if (focusedOutput) args.push("-o", focusedOutput)
+				args.push(screenshotFile)
 				await execAsync(args)
 			}
 
-			void execAsync(["bash", "-c", `wl-copy --type image/png < "${this.#screenshotFile}"`])
-				.catch(error => console.error("screenCapture.screenshot: Failed to copy screenshot", error))
+			void execAsync([
+				"bash",
+				"-c",
+				`wl-copy --type image/png < ${GLib.shell_quote(screenshotFile)}`,
+			]).catch((error) =>
+				console.error(
+					"screenCapture.screenshot: Failed to copy screenshot",
+					error,
+				),
+			)
 
 			notify({
 				appIcon: icons.fallback.image,
 				appName: "Screenshot",
 				summary: "Screenshot taken",
-				body: this.#screenshotFile,
-				previewImage: this.#screenshotFile,
+				body: screenshotFile,
+				previewImage: screenshotFile,
 				actions: {
-					"Show in Files": `bash -c 'xdg-open "${this.#screenshots}"'`,
-					"View": `bash -c 'xdg-open "${this.#screenshotFile}"'`,
-					"Edit": `swappy -f "${this.#screenshotFile}"`,
+					"Show in Files": openAction(SCREENSHOTS_DIRECTORY),
+					View: openAction(screenshotFile),
+					Edit: `swappy -f ${GLib.shell_quote(screenshotFile)}`,
 				},
 			})
 		})
 		if (!result.ok)
-			console.error("screenCapture.screenshot: Failed to take screenshot", result.err)
+			console.error(
+				"screenCapture.screenshot: Failed to take screenshot",
+				result.err,
+			)
 	}
 
 	readonly startRecording = async (select: boolean = false) => {
-		if (this.#recorder || this.#recordingStartPending || this.#shuttingDown) return
+		if (this.#recorder || this.#recordingStartPending || this.#shuttingDown)
+			return
 		this.#recordingStartPending = true
 		const result = await attemptAsync(async () => {
-			ensureDirectory(this.#recordings)
-			this.#recordingFile = `${this.#recordings}${createCaptureTimestamp()}.mkv`
+			ensureDirectory(RECORDINGS_DIRECTORY)
+			this.#recordingFile = `${RECORDINGS_DIRECTORY}${createCaptureTimestamp()}.mkv`
 
-			const area = await this.#prepareCapture(select, "wf-recorder")
+			if (!notifyMissingPrograms("wf-recorder")) return
+			const area = select
+				? await this.#selectArea("wf-recorder")
+				: await this.#getFocusedScreenArea()
 			if (this.#shuttingDown || (select && !area)) return
 
 			const args = ["wf-recorder"]
-			if (area)
-				args.push("-g", area)
+			if (area) args.push("-g", area)
 			args.push("-f", this.#recordingFile, "--pixel-format", "yuv420p")
-			const process = subprocess(args, () => { }, error =>
-				console.error("screenCapture.recorder:", error),
+			const process = subprocess(
+				args,
+				() => {},
+				(error) => console.error("screenCapture.recorder:", error),
 			)
 			this.#recorder = process
 			process.connect("exit", (_process, code, signaled) => {
-				const exited = attempt(() => this.#onRecorderExit(process, code, signaled))
+				const exited = attempt(() =>
+					this.#onRecorderExit(process, code, signaled),
+				)
 				if (!exited.ok)
-					console.error("screenCapture.recorder: Failed to handle recorder exit", exited.err)
+					console.error(
+						"screenCapture.recorder: Failed to handle recorder exit",
+						exited.err,
+					)
 			})
 
 			this.#recording = true
@@ -184,40 +199,40 @@ class ScreenCaptureService extends GObject.Object {
 			this.#timer = 0
 			this.#interval?.cancel()
 			this.#interval = interval(1000, () => {
-				this.notify("timer")
 				this.#timer++
+				this.notify("timer")
 			})
 		})
 		this.#recordingStartPending = false
 		if (!result.ok)
-			console.error("screenCapture.startRecording: Failed to start recording", result.err)
+			console.error(
+				"screenCapture.startRecording: Failed to start recording",
+				result.err,
+			)
 	}
 
-	readonly stopRecording = async () => {
-		const result = await attemptAsync(async () => {
-			if (!this.#recording || !this.#recorder)
-				return
-
+	readonly stopRecording = () => {
+		const result = attempt(() => {
+			if (!this.#recording || !this.#recorder) return
 			this.#notifySavedOnExit = true
 			this.#recorder.signal(2)
 		})
 		if (!result.ok)
-			console.error("screenCapture.stopRecording: Failed to stop recording", result.err)
+			console.error(
+				"screenCapture.stopRecording: Failed to stop recording",
+				result.err,
+			)
 	}
 
-	readonly #prepareCapture = async (select: boolean, mainTool: string) => {
-		if (select) {
-			const slurpRunning = await execAsync(["pidof", "slurp"]).catch(() => "")
-			if (slurpRunning) return null
-			if (!notifyMissingPrograms(mainTool, "slurp")) return null
-			return await execAsync(["slurp"]).catch(error => {
+	async #selectArea(mainTool: string): Promise<string | null> {
+		const slurpRunning = await execAsync(["pidof", "slurp"]).catch(() => "")
+		if (slurpRunning || !notifyMissingPrograms(mainTool, "slurp")) return null
+		return (
+			(await execAsync(["slurp"]).catch((error) => {
 				console.debug("screenCapture.selection: Selection cancelled", error)
 				return ""
-			}) || null
-		}
-
-		if (!notifyMissingPrograms(mainTool)) return ""
-		return await this.#getFocusedScreenArea()
+			})) || null
+		)
 	}
 
 	#onRecorderExit(process: Process, code: number, signaled: boolean) {
@@ -238,12 +253,14 @@ class ScreenCaptureService extends GObject.Object {
 				summary: "Recording saved",
 				body: this.#recordingFile,
 				actions: {
-					"Show in Files": `bash -c 'xdg-open "${this.#recordings}"'`,
-					"View": `bash -c 'xdg-open "${this.#recordingFile}"'`,
+					"Show in Files": openAction(RECORDINGS_DIRECTORY),
+					View: openAction(this.#recordingFile),
 				},
 			})
 		} else if (code !== 0 || signaled) {
-			console.error(`screenCapture.recorder: Exited with ${signaled ? "signal" : "status"} ${code}`)
+			console.error(
+				`screenCapture.recorder: Exited with ${signaled ? "signal" : "status"} ${code}`,
+			)
 		}
 	}
 
@@ -258,7 +275,10 @@ class ScreenCaptureService extends GObject.Object {
 	vfunc_finalize() {
 		const result = attempt(() => this.#shutdown())
 		if (!result.ok)
-			console.error("screenCapture.finalize: Failed to stop recorder", result.err)
+			console.error(
+				"screenCapture.finalize: Failed to stop recorder",
+				result.err,
+			)
 		if (this.#shutdownSignalId) {
 			app.disconnect(this.#shutdownSignalId)
 			this.#shutdownSignalId = 0
@@ -267,4 +287,4 @@ class ScreenCaptureService extends GObject.Object {
 	}
 }
 
-export const screenCapture = ScreenCaptureService.get_default()
+export const screenCapture = new ScreenCaptureService()

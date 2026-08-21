@@ -1,6 +1,14 @@
 // Shows notification popups and history with timed animations.
 
-import { Accessor, createState, createBinding, createComputed, createRoot, For, onCleanup } from "ags"
+import {
+	Accessor,
+	createState,
+	createBinding,
+	createComputed,
+	createRoot,
+	For,
+	onCleanup,
+} from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
 import { createPoll, timeout, type Timer } from "ags/time"
@@ -13,8 +21,8 @@ import { PanelButton } from "../PanelButton"
 
 import icons, { substituteIconName } from "$lib/icons"
 import { classifyImageUri, createSquareTextureAccessor } from "$lib/textures"
+import { notificationDaemon } from "$lib/notifications"
 import { notificationManager } from "$service/notifications"
-import { notificationDaemon } from "$service/astal"
 import { createEntryLifecycle, type EntryIndex } from "./EntryLifecycle"
 
 import options from "$shell/options"
@@ -22,14 +30,23 @@ import options from "$shell/options"
 export namespace Notifications {
 	export function Button() {
 		return (
-			<PanelButton targetWindow="datemenu" class="messages" visible={notifications.as(v => v.length > 0)} tooltipText={notifications.as(v => `${v.length} pending notification${v.length === 1 ? "" : "s"}`)}>
+			<PanelButton
+				targetWindow="datemenu"
+				class="messages"
+				visible={notifications.as((v) => v.length > 0)}
+				tooltipText={notifications.as(
+					(v) => `${v.length} pending notification${v.length === 1 ? "" : "s"}`,
+				)}
+			>
 				<image iconName={icons.notifications.message} useFallback />
 			</PanelButton>
 		)
 	}
 
 	export function Window() {
-		const anchor = createComputed(() => anchorForPosition(options.notifications.position()))
+		const anchor = createComputed(() =>
+			anchorForPosition(options.notifications.position()),
+		)
 		return (
 			<window
 				visible
@@ -50,23 +67,36 @@ export namespace Notifications {
 	export function animateDismissAll() {
 		setDismissingAll(true)
 		dismissAllTimer?.cancel()
-		dismissAllTimer = timeout(options.transition.duration.peek() + maxStaggerDelay(), () => {
-			dismissAllTimer = null
-			setDismissingAll(false)
-			notificationManager.dismissAllImmediately()
-		})
+		dismissAllTimer = timeout(
+			options.transition.duration.peek() + maxStaggerDelay(),
+			() => {
+				dismissAllTimer = null
+				setDismissingAll(false)
+				notificationManager.dismissAllImmediately()
+			},
+		)
 	}
 
 	export function Stack({ class: className }: { class?: string }) {
 		return (
-			<box class={className || "notifications-stack"} orientation={VERTICAL} valign={START}>
-				<For each={notifications}>{(n, i) => <Notification entry={n} persistent index={i} />}</For>
+			<box
+				class={className || "notifications-stack"}
+				orientation={VERTICAL}
+				valign={START}
+			>
+				<For each={notifications}>
+					{(n, i) => <Notification entry={n} persistent index={i} />}
+				</For>
 			</box>
 		)
 	}
 
-	const previewSize = options.scale.as(scale => Math.round(75 * scale / 100))
-	const popupWidth = options.scale.as(scale => Math.round(350 * scale / 100))
+	const previewSize = options.scale.as((scale) =>
+		Math.round((75 * scale) / 100),
+	)
+	const popupWidth = options.scale.as((scale) =>
+		Math.round((350 * scale) / 100),
+	)
 
 	type NotificationProps = {
 		entry: AstalNotifd.Notification
@@ -75,7 +105,8 @@ export namespace Notifications {
 		index?: EntryIndex
 		onExit?: () => void
 		registerClose?: (close: () => void) => void
-		transitionType?: Accessor<Gtk.RevealerTransitionType> | Gtk.RevealerTransitionType
+		transitionType?:
+			Accessor<Gtk.RevealerTransitionType> | Gtk.RevealerTransitionType
 	}
 
 	type PopupEntry = {
@@ -100,13 +131,13 @@ export namespace Notifications {
 	}
 
 	type ActionsProps = {
-		actions: Array<{ label: string, id: string }>
+		actions: Array<{ label: string; id: string }>
 		showActions: Accessor<boolean>
 		onActionClick: (actionId: string) => void
 	}
 
 	const notifications = createBinding(notificationManager, "notifications")
-	const minuteTicker = createPoll(0, 60_000, tick => tick + 1)
+	const minuteTicker = createPoll(0, 60_000, (tick) => tick + 1)
 	const [dismissingAll, setDismissingAll] = createState(false)
 	let dismissAllTimer: Timer | null = null
 
@@ -148,27 +179,43 @@ export namespace Notifications {
 			apos: "'",
 			gt: ">",
 			lt: "<",
-			quot: "\"",
+			quot: '"',
 		}
 
-		return text.replace(/&(#(?:[xX][\da-fA-F]+|\d+)|amp|apos|gt|lt|quot);/g, (_entity, name: string) => {
-			if (!name.startsWith("#")) return named[name]
+		return text.replace(
+			/&(#(?:[xX][\da-fA-F]+|\d+)|amp|apos|gt|lt|quot);/g,
+			(_entity, name: string) => {
+				if (!name.startsWith("#")) return named[name]
 
-			const hexadecimal = name[1]?.toLowerCase() === "x"
-			const codePoint = Number.parseInt(name.slice(hexadecimal ? 2 : 1), hexadecimal ? 16 : 10)
-			const validControl = codePoint === 9 || codePoint === 10 || codePoint === 13
-			if (!Number.isInteger(codePoint) || codePoint > 0x10ffff || (codePoint < 0x20 && !validControl))
-				return "\uFFFD"
+				const hexadecimal = name[1]?.toLowerCase() === "x"
+				const codePoint = Number.parseInt(
+					name.slice(hexadecimal ? 2 : 1),
+					hexadecimal ? 16 : 10,
+				)
+				const validControl =
+					codePoint === 9 || codePoint === 10 || codePoint === 13
+				if (
+					!Number.isInteger(codePoint) ||
+					codePoint > 0x10ffff ||
+					(codePoint < 0x20 && !validControl)
+				)
+					return "\uFFFD"
 
-			return String.fromCodePoint(codePoint)
-		})
+				return String.fromCodePoint(codePoint)
+			},
+		)
 	}
 
 	function bodyText(body: string) {
-		return decodeMarkupEntities(body
-			.replace(/<img\b[^>]*>/gi, tag => tag.match(/\balt\s*=\s*(["'])(.*?)\1/i)?.[2] ?? "")
-			.replace(/<br\s*\/?>/gi, "\n")
-			.replace(/<[^>]*>/g, ""))
+		return decodeMarkupEntities(
+			body
+				.replace(
+					/<img\b[^>]*>/gi,
+					(tag) => tag.match(/\balt\s*=\s*(["'])(.*?)\1/i)?.[2] ?? "",
+				)
+				.replace(/<br\s*\/?>/gi, "\n")
+				.replace(/<[^>]*>/g, ""),
+		)
 	}
 
 	function timeAgo(time: number) {
@@ -182,15 +229,41 @@ export namespace Notifications {
 		return `${Math.floor(diff / 86400)}d ago`
 	}
 
-	function Header({ notification, appIcon, appName, showActions, onDismiss }: HeaderProps) {
+	function Header({
+		notification,
+		appIcon,
+		appName,
+		showActions,
+		onDismiss,
+	}: HeaderProps) {
 		return (
 			<box class="header">
 				<image class="app-icon" iconName={appIcon} useFallback />
-				<label class="app-name" halign={START} maxWidthChars={24} ellipsize={EllipsizeMode.END} label={appName} />
-				<label class="time" halign={END} hexpand label={minuteTicker(() => timeAgo(notification.time))} />
-				<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_RIGHT}>
+				<label
+					class="app-name"
+					halign={START}
+					maxWidthChars={24}
+					ellipsize={EllipsizeMode.END}
+					label={appName}
+				/>
+				<label
+					class="time"
+					halign={END}
+					hexpand
+					label={minuteTicker(() => timeAgo(notification.time))}
+				/>
+				<revealer
+					revealChild={showActions}
+					transitionDuration={options.transition.duration}
+					transitionType={SWING_RIGHT}
+				>
 					<button class="close-button" onClicked={onDismiss}>
-						<image iconName={icons.ui.close} halign={CENTER} valign={CENTER} useFallback />
+						<image
+							iconName={icons.ui.close}
+							halign={CENTER}
+							valign={CENTER}
+							useFallback
+						/>
 					</button>
 				</revealer>
 			</box>
@@ -199,13 +272,19 @@ export namespace Notifications {
 
 	function Content({ notification, imagePath }: ContentProps) {
 		const previewPaintable = imagePath
-			? createComputed(() => createSquareTextureAccessor(imagePath, previewSize())())
+			? createComputed(() =>
+					createSquareTextureAccessor(imagePath, previewSize())(),
+				)
 			: null
 
 		return (
 			<box class="content">
 				{previewPaintable && (
-					<box class="image-preview" widthRequest={previewSize} heightRequest={previewSize}>
+					<box
+						class="image-preview"
+						widthRequest={previewSize}
+						heightRequest={previewSize}
+					>
 						<Gtk.Picture
 							class="preview"
 							widthRequest={previewSize}
@@ -218,9 +297,23 @@ export namespace Notifications {
 					</box>
 				)}
 				<box orientation={VERTICAL}>
-					<label class="summary" wrap wrapMode={WORD} maxWidthChars={28} halign={START} label={notification.summary} />
+					<label
+						class="summary"
+						wrap
+						wrapMode={WORD}
+						maxWidthChars={28}
+						halign={START}
+						label={notification.summary}
+					/>
 					{notification.body && (
-						<label class="body" wrap wrapMode={WORD} maxWidthChars={28} halign={START} label={bodyText(notification.body)} />
+						<label
+							class="body"
+							wrap
+							wrapMode={WORD}
+							maxWidthChars={28}
+							halign={START}
+							label={bodyText(notification.body)}
+						/>
 					)}
 				</box>
 			</box>
@@ -228,11 +321,14 @@ export namespace Notifications {
 	}
 
 	function Actions({ actions, showActions, onActionClick }: ActionsProps) {
-		if (actions.length === 0)
-			return <box visible={false} />
+		if (actions.length === 0) return <box visible={false} />
 
 		return (
-			<revealer revealChild={showActions} transitionDuration={options.transition.duration} transitionType={SWING_DOWN}>
+			<revealer
+				revealChild={showActions}
+				transitionDuration={options.transition.duration}
+				transitionType={SWING_DOWN}
+			>
 				<box class="actions horizontal">
 					{actions.map(({ label, id }) => (
 						<button hexpand label={label} onClicked={() => onActionClick(id)} />
@@ -242,7 +338,15 @@ export namespace Notifications {
 		)
 	}
 
-	function Notification({ entry: notification, widthRequest, persistent, index, onExit, registerClose, transitionType = SLIDE_DOWN }: NotificationProps) {
+	function Notification({
+		entry: notification,
+		widthRequest,
+		persistent,
+		index,
+		onExit,
+		registerClose,
+		transitionType = SLIDE_DOWN,
+	}: NotificationProps) {
 		const [showActions, setShowActions] = createState(false)
 
 		const state = createEntryLifecycle({
@@ -262,16 +366,26 @@ export namespace Notifications {
 		})
 
 		const imageValue = notification.get_image()
-		const imagePath = imageValue && classifyImageUri(imageValue) !== "unknown" ? imageValue : null
+		const imagePath =
+			imageValue && classifyImageUri(imageValue) !== "unknown"
+				? imageValue
+				: null
 		const appIcon = substituteIconName(
-			notification.get_app_icon() || (imageValue && !imagePath ? imageValue : "") || notification.get_desktop_entry() || icons.fallback.notification,
+			notification.get_app_icon() ||
+				(imageValue && !imagePath ? imageValue : "") ||
+				notification.get_desktop_entry() ||
+				icons.fallback.notification,
 			icons.fallback.notification,
 		)
-		const appName = (notification.get_app_name() || notification.get_desktop_entry() || "Notification").toUpperCase()
+		const appName = (
+			notification.get_app_name() ||
+			notification.get_desktop_entry() ||
+			"Notification"
+		).toUpperCase()
 		const validActions = notification
 			.get_actions()
-			.filter(a => a.label?.trim())
-			.map(a => ({ label: a.label!, id: a.id }))
+			.filter((a) => a.label?.trim())
+			.map((a) => ({ label: a.label!, id: a.id }))
 
 		return (
 			<revealer
@@ -283,7 +397,11 @@ export namespace Notifications {
 					state.onHidden(!self.get_child_revealed() && !self.get_reveal_child())
 				}}
 			>
-				<box class={`notification ${urgency(notification)}`} orientation={VERTICAL} widthRequest={widthRequest}>
+				<box
+					class={`notification ${urgency(notification)}`}
+					orientation={VERTICAL}
+					widthRequest={widthRequest}
+				>
 					<Gtk.EventControllerMotion
 						onEnter={() => {
 							state.keepAlive()
@@ -300,7 +418,11 @@ export namespace Notifications {
 						onDismiss={state.dismiss}
 					/>
 					<Content notification={notification} imagePath={imagePath} />
-					<Actions actions={validActions} showActions={showActions} onActionClick={state.onActionClick} />
+					<Actions
+						actions={validActions}
+						showActions={showActions}
+						onActionClick={state.onActionClick}
+					/>
 				</box>
 			</revealer>
 		)
@@ -309,15 +431,18 @@ export namespace Notifications {
 	function PopupStack() {
 		const entries = new Map<number, PopupEntry>()
 		const pending = new Map<number, AstalNotifd.Notification>()
-		const container = <box class="notifications-stack" orientation={VERTICAL} valign={START} /> as Gtk.Box
-		const transitionType = options.notifications.position.as(position => position.startsWith("bottom") ? SLIDE_UP : SLIDE_DOWN)
+		const container = (
+			<box class="notifications-stack" orientation={VERTICAL} valign={START} />
+		) as Gtk.Box
+		const transitionType = options.notifications.position.as((position) =>
+			position.startsWith("bottom") ? SLIDE_UP : SLIDE_DOWN,
+		)
 
 		function remove(entry: PopupEntry) {
 			if (entries.get(entry.notification.id) !== entry) return
 			entries.delete(entry.notification.id)
 			entry.dispose?.()
-			if (entry.replacement && !entry.resolved)
-				mount(entry.replacement)
+			if (entry.replacement && !entry.resolved) mount(entry.replacement)
 			fillPending()
 		}
 
@@ -325,18 +450,20 @@ export namespace Notifications {
 			if (entries.size >= POPUP_LIMIT) return
 			const entry: PopupEntry = { notification, resolved: false }
 			entries.set(notification.id, entry)
-			entry.dispose = createRoot(dispose => {
-				const widget = <Notification
-					entry={notification}
-					persistent={false}
-					index={entries.size - 1}
-					transitionType={transitionType}
-					onExit={() => remove(entry)}
-					registerClose={close => {
-						entry.close = close
-						if (entry.resolved || entry.replacement) close()
-					}}
-				/> as Gtk.Widget
+			entry.dispose = createRoot((dispose) => {
+				const widget = (
+					<Notification
+						entry={notification}
+						persistent={false}
+						index={entries.size - 1}
+						transitionType={transitionType}
+						onExit={() => remove(entry)}
+						registerClose={(close) => {
+							entry.close = close
+							if (entry.resolved || entry.replacement) close()
+						}}
+					/>
+				) as Gtk.Widget
 				container.prepend(widget)
 				return () => {
 					container.remove(widget)
@@ -347,7 +474,10 @@ export namespace Notifications {
 
 		function fillPending() {
 			while (entries.size < POPUP_LIMIT && pending.size > 0) {
-				const next = pending.entries().next().value as [number, AstalNotifd.Notification]
+				const next = pending.entries().next().value as [
+					number,
+					AstalNotifd.Notification,
+				]
 				pending.delete(next[0])
 				mount(next[1])
 			}
@@ -375,21 +505,28 @@ export namespace Notifications {
 			for (const entry of entries.values()) entry.close?.()
 		}
 
-		const notifiedHandler = notificationDaemon.connect("notified", (_, id: number) => {
-			const notification = notificationDaemon.get_notification(id)
-			if (notification) enqueue(notification)
-		})
+		const notifiedHandler = notificationDaemon.connect(
+			"notified",
+			(_, id: number) => {
+				const notification = notificationDaemon.get_notification(id)
+				if (notification) enqueue(notification)
+			},
+		)
 
-		const resolvedHandler = notificationDaemon.connect("resolved", (_, id: number) => {
-			pending.delete(id)
-			const entry = entries.get(id)
-			if (!entry) return
-			entry.resolved = true
-			entry.close?.()
-		})
+		const resolvedHandler = notificationDaemon.connect(
+			"resolved",
+			(_, id: number) => {
+				pending.delete(id)
+				const entry = entries.get(id)
+				if (!entry) return
+				entry.resolved = true
+				entry.close?.()
+			},
+		)
 
 		for (const notification of notificationDaemon.get_notifications())
-			if (notification.time >= notificationManager.sessionStart) enqueue(notification)
+			if (notification.time >= notificationManager.sessionStart)
+				enqueue(notification)
 
 		onCleanup(() => {
 			notificationDaemon.disconnect(notifiedHandler)
@@ -402,11 +539,11 @@ export namespace Notifications {
 		return container
 	}
 
-
 	const { START, CENTER, END } = Gtk.Align
 	const { VERTICAL } = Gtk.Orientation
 	const { WORD } = Gtk.WrapMode
-	const { SLIDE_DOWN, SLIDE_UP, SWING_RIGHT, SWING_DOWN } = Gtk.RevealerTransitionType
+	const { SLIDE_DOWN, SLIDE_UP, SWING_RIGHT, SWING_DOWN } =
+		Gtk.RevealerTransitionType
 	const { EllipsizeMode } = Pango
 	const { NORMAL } = Astal.Exclusivity
 	const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor

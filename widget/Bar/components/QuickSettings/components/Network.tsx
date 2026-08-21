@@ -14,9 +14,10 @@ import { Placeholder } from "widget/shared/Placeholder"
 import { ToggleButton, Menu, SettingsButton } from "./MenuControls"
 
 import icons from "$lib/icons"
-import { network } from "$service/astal"
 
 import options from "$shell/options"
+
+const network = AstalNetwork.get_default()
 
 export namespace Network {
 	export namespace Wifi {

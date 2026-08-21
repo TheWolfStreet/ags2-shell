@@ -6,37 +6,16 @@ import { idle } from "ags/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
-import GioUnix from "gi://GioUnix"
-import GLib from "gi://GLib"
 
 import env from "$lib/env"
 import { fileExists } from "$lib/files"
 import { attempt } from "$lib/result"
-import { hyprland } from "$service/astal"
+import { hyprland } from "$lib/hyprland"
 import { debounce } from "$lib/time"
-
-export function launchApp(app: AstalApps.Application | string) {
-	if (typeof app !== "string") {
-		const entry = app.get_entry()
-		const desktopFile = entry ? GioUnix.DesktopAppInfo.new(entry)?.get_filename() : null
-		if (desktopFile)
-			hyprland.message_async(`dispatch exec gio launch ${GLib.shell_quote(desktopFile)}`, null)
-		else
-			app.launch()
-		return
-	}
-
-	hyprland.message_async(`dispatch exec '${app.trim()}'`, null)
-}
 
 @register()
 class ApplicationCatalog extends GObject.Object {
 	declare static $gtype: GObject.GType<ApplicationCatalog>
-	static instance: ApplicationCatalog
-
-	static get_default(): ApplicationCatalog {
-		return this.instance ??= new ApplicationCatalog()
-	}
 
 	#favorites: Array<AstalApps.Application>
 	#favoritesSnapshot: string
@@ -48,8 +27,8 @@ class ApplicationCatalog extends GObject.Object {
 	#reload = debounce(500, () => {
 		idle(() => {
 			this.#apps.reload()
+			this.#setFavorites(this.#favoritesSnapshot, true)
 			this.notify("list")
-			this.notify("favorites")
 		})
 	})
 
@@ -87,7 +66,10 @@ class ApplicationCatalog extends GObject.Object {
 				this.#monitors.push(monitor)
 			})
 			if (!result.ok)
-				console.error(`applications.watchDirectory: Failed to watch ${dir}`, result.err)
+				console.error(
+					`applications.watchDirectory: Failed to watch ${dir}`,
+					result.err,
+				)
 		}
 
 		const appDirs = [
@@ -104,7 +86,10 @@ class ApplicationCatalog extends GObject.Object {
 			watchDirectory(dir)
 		}
 
-		this.#hyprlandHandlerId = hyprland.connect("config-reloaded", scheduleReload)
+		this.#hyprlandHandlerId = hyprland.connect(
+			"config-reloaded",
+			scheduleReload,
+		)
 
 		this.#lastFavoritesRead = Date.now()
 		this.#refreshFavorites()
@@ -129,13 +114,20 @@ class ApplicationCatalog extends GObject.Object {
 		if (this.#favoritesRefreshing) return
 		this.#favoritesRefreshing = true
 		execAsync(["dconf", "read", "/org/gnome/shell/favorite-apps"])
-			.then(raw => this.#setFavorites(raw.trim()))
-			.catch(error => console.error("applications.refreshFavorites: Failed to read favorites", error))
-			.finally(() => { this.#favoritesRefreshing = false })
+			.then((raw) => this.#setFavorites(raw.trim()))
+			.catch((error) =>
+				console.error(
+					"applications.refreshFavorites: Failed to read favorites",
+					error,
+				),
+			)
+			.finally(() => {
+				this.#favoritesRefreshing = false
+			})
 	}
 
-	readonly #setFavorites = (raw: string) => {
-		if (raw === this.#favoritesSnapshot) return
+	readonly #setFavorites = (raw: string, remap = false) => {
+		if (!remap && raw === this.#favoritesSnapshot) return
 		this.#favoritesSnapshot = raw
 
 		const result = attempt(() => {
@@ -144,17 +136,25 @@ class ApplicationCatalog extends GObject.Object {
 				const name = entry.replace(/\.desktop$/, "")
 				const key = name.toLowerCase()
 				const results = this.#apps.exact_query(name)
-				const match = results.find(app =>
-					app.get_name().toLowerCase() === key
-					|| app.get_entry()?.replace(/\.desktop$/, "").toLowerCase() === key,
-				) ?? results[0]
+				const match =
+					results.find(
+						(app) =>
+							app.get_name().toLowerCase() === key ||
+							app
+								.get_entry()
+								?.replace(/\.desktop$/, "")
+								.toLowerCase() === key,
+					) ?? results[0]
 				if (match) apps.push(match)
 			}
 			return apps
 		})
 
 		if (!result.ok) {
-			console.error("applications.setFavorites: Failed to read favorite apps", result.err)
+			console.error(
+				"applications.setFavorites: Failed to read favorite apps",
+				result.err,
+			)
 			this.#favorites = []
 		} else {
 			this.#favorites = result.value
@@ -178,4 +178,4 @@ class ApplicationCatalog extends GObject.Object {
 	}
 }
 
-export const applications = ApplicationCatalog.get_default()
+export const applications = new ApplicationCatalog()

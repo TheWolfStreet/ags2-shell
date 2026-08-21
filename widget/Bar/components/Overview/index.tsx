@@ -11,7 +11,7 @@ import AstalHyprland from "gi://AstalHyprland"
 import { PopupWindow } from "widget/shared/PopupWindow"
 import { PanelButton } from "../PanelButton"
 
-import { hyprland } from "$service/astal"
+import { hyprland } from "$lib/hyprland"
 import {
 	createClientTitleAccessor,
 	filterValidWindowClients,
@@ -24,14 +24,20 @@ import options from "$shell/options"
 
 export namespace Overview {
 	export function Button() {
-		const workspaces = createComputed(() => workspaceIds(options.bar.workspaces.count()))
-		const clients = createBinding(hyprland, "clients").as(list => filterValidWindowClients(list ?? []))
-		const className = (ws: number) => createBinding(hyprland, "focusedWorkspace").as(fws => {
-			const classes: string[] = []
-			if (fws?.id === ws) classes.push("active")
-			if (clients().some(client => getClientWorkspaceId(client) === ws)) classes.push("occupied")
-			return classes.join(" ")
-		})
+		const workspaces = createComputed(() =>
+			workspaceIds(options.bar.workspaces.count()),
+		)
+		const clients = createBinding(hyprland, "clients").as((list) =>
+			filterValidWindowClients(list ?? []),
+		)
+		const className = (ws: number) =>
+			createBinding(hyprland, "focusedWorkspace").as((fws) => {
+				const classes: string[] = []
+				if (fws?.id === ws) classes.push("active")
+				if (clients().some((client) => getClientWorkspaceId(client) === ws))
+					classes.push("occupied")
+				return classes.join(" ")
+			})
 
 		return (
 			<PanelButton targetWindow="overview" class="workspaces">
@@ -39,7 +45,10 @@ export namespace Overview {
 					<For each={workspaces}>
 						{(ws) => {
 							return (
-								<label valign={CENTER} name={`${ws}`} label={`${ws}`}
+								<label
+									valign={CENTER}
+									name={`${ws}`}
+									label={`${ws}`}
 									class={className(ws)}
 								/>
 							)
@@ -53,12 +62,14 @@ export namespace Overview {
 	export function Window() {
 		const existing = app.get_window("overview")
 		if (existing) return existing
-		const workspaces = createComputed(() => workspaceIds(options.overview.workspaces()))
+		const workspaces = createComputed(() =>
+			workspaceIds(options.overview.workspaces()),
+		)
 
 		return (
 			<PopupWindow application={app} name="overview" layer={OVERLAY}>
 				<box class="overview horizontal">
-					<For each={workspaces}>{ws => <Workspace entry={ws} />}</For>
+					<For each={workspaces}>{(ws) => <Workspace entry={ws} />}</For>
 				</box>
 			</PopupWindow>
 		)
@@ -76,7 +87,10 @@ export namespace Overview {
 		return Math.max(1, value)
 	}
 
-	function sanitizeDimension(value: number | null | undefined, fallback: number) {
+	function sanitizeDimension(
+		value: number | null | undefined,
+		fallback: number,
+	) {
 		if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
 			return fallback
 		}
@@ -89,7 +103,7 @@ export namespace Overview {
 		if (safeValue <= 15) {
 			return safeValue / 100
 		}
-		return (safeValue / 100) * 9 / 100
+		return ((safeValue / 100) * 9) / 100
 	}
 
 	function scale(size: number) {
@@ -101,14 +115,16 @@ export namespace Overview {
 	}
 
 	function Client({ entry: client, update }: ClientProps) {
-		const className = focusedWindowClient.as(currentClient => {
+		const className = focusedWindowClient.as((currentClient) => {
 			const classes: string[] = ["client"]
 			if (currentClient?.address === client.address) classes.push("active")
 			return classes.join(" ")
 		})
 
 		const title = createClientTitleAccessor(client)
-		const contentProvider = Gdk.ContentProvider.new_for_value(client.get_address())
+		const contentProvider = Gdk.ContentProvider.new_for_value(
+			client.get_address(),
+		)
 		const clientWidth = createBinding(client, "width")
 		const clientHeight = createBinding(client, "height")
 
@@ -118,8 +134,7 @@ export namespace Overview {
 		let widget: Gtk.Widget | null = null
 		let updateScheduled = false
 		function runUpdate() {
-			if (!widget)
-				return
+			if (!widget) return
 
 			update(widget)
 		}
@@ -144,11 +159,11 @@ export namespace Overview {
 			onMount(() => {
 				runUpdate()
 
-				hyprConnections = HYPR_UPDATE_SIGNALS.map(signal =>
+				hyprConnections = HYPR_UPDATE_SIGNALS.map((signal) =>
 					hyprland.connect(signal, scheduleUpdate),
 				)
 
-				clientConnections = CLIENT_UPDATE_SIGNALS.map(signal =>
+				clientConnections = CLIENT_UPDATE_SIGNALS.map((signal) =>
 					client.connect(signal, scheduleUpdate),
 				)
 
@@ -156,8 +171,8 @@ export namespace Overview {
 			})
 
 			onCleanup(() => {
-				hyprConnections.forEach(conn => hyprland.disconnect(conn))
-				clientConnections.forEach(conn => client.disconnect(conn))
+				hyprConnections.forEach((conn) => hyprland.disconnect(conn))
+				clientConnections.forEach((conn) => client.disconnect(conn))
 				scaleSub?.()
 				widget = null
 				imageWidget = null
@@ -165,22 +180,29 @@ export namespace Overview {
 		}
 
 		return (
-			<button class={className} tooltipText={title}
+			<button
+				class={className}
+				tooltipText={title}
 				heightRequest={scaledHeight}
 				widthRequest={scaledWidth}
 				onClicked={() => client.focus()}
 				$={setupClientWidgetLifecycle}
 			>
 				<image
-					$={self => imageWidget = self}
-					vexpand hexpand
-					valign={CENTER} halign={CENTER}
-					iconName={client.get_class()} pixelSize={options.scale.as(scale => Math.round(16 * scale / 100))}
+					$={(self) => (imageWidget = self)}
+					vexpand
+					hexpand
+					valign={CENTER}
+					halign={CENTER}
+					iconName={client.get_class()}
+					pixelSize={options.scale.as((scale) =>
+						Math.round((16 * scale) / 100),
+					)}
 				/>
 				<Gtk.DragSource
 					actions={MOVE}
 					content={contentProvider}
-					onDragBegin={source => {
+					onDragBegin={(source) => {
 						if (imageWidget) {
 							const paintable = Gtk.WidgetPaintable.new(imageWidget)
 							source.set_icon(paintable, 8, 8)
@@ -192,24 +214,35 @@ export namespace Overview {
 	}
 
 	function Workspace({ entry: workspaceId }: { entry: number }) {
-		const className = createBinding(hyprland, "focusedWorkspace").as(fws => {
+		const className = createBinding(hyprland, "focusedWorkspace").as((fws) => {
 			const classes: string[] = ["workspace"]
 			if (fws?.id === workspaceId) classes.push("active")
 			return classes.join(" ")
 		})
 
-		const monitor = createBinding(hyprland, "monitors").as(monitors =>
-			(monitors ?? []).find(m => m?.id === 0) ?? (monitors ?? [])[0] ?? null,
+		const monitor = createBinding(hyprland, "monitors").as(
+			(monitors) =>
+				(monitors ?? []).find((m) => m?.id === 0) ??
+				(monitors ?? [])[0] ??
+				null,
 		)
 		const css = createComputed(() => {
 			const factor = scaleFactor(options.overview.scale())
-			const width = sanitizeDimension(monitor()?.get_width(), FALLBACK_MONITOR_WIDTH)
-			const height = sanitizeDimension(monitor()?.get_height(), FALLBACK_MONITOR_HEIGHT)
+			const width = sanitizeDimension(
+				monitor()?.get_width(),
+				FALLBACK_MONITOR_WIDTH,
+			)
+			const height = sanitizeDimension(
+				monitor()?.get_height(),
+				FALLBACK_MONITOR_HEIGHT,
+			)
 			return `min-width: ${factor * width}px; min-height: ${factor * height}px;`
 		})
 
-		const clients = createBinding(hyprland, "clients").as(list =>
-			filterValidWindowClients(list ?? []).filter(client => getClientWorkspaceId(client) === workspaceId),
+		const clients = createBinding(hyprland, "clients").as((list) =>
+			filterValidWindowClients(list ?? []).filter(
+				(client) => getClientWorkspaceId(client) === workspaceId,
+			),
 		)
 		let fixed: Gtk.Fixed
 
@@ -220,7 +253,9 @@ export namespace Overview {
 				tooltipText={`${workspaceId}`}
 				css={css}
 				valign={CENTER}
-				onClicked={() => hyprland.message_async(`dispatch workspace ${workspaceId}`, null)}
+				onClicked={() =>
+					hyprland.message_async(`dispatch workspace ${workspaceId}`, null)
+				}
 			>
 				<Gtk.DropTarget
 					actions={MOVE}
@@ -236,20 +271,23 @@ export namespace Overview {
 						return true
 					}}
 				/>
-				<Gtk.Fixed $={self => fixed = self}>
+				<Gtk.Fixed $={(self) => (fixed = self)}>
 					<For each={clients}>
-						{c => <Client entry={c} update={self => {
-							if (self.get_parent() === fixed) {
-								fixed.move(self, scale(c.get_x()), scale(c.get_y()))
-							}
-						}} />
-						}
+						{(c) => (
+							<Client
+								entry={c}
+								update={(self) => {
+									if (self.get_parent() === fixed) {
+										fixed.move(self, scale(c.get_x()), scale(c.get_y()))
+									}
+								}}
+							/>
+						)}
 					</For>
 				</Gtk.Fixed>
 			</button>
 		)
 	}
-
 
 	const { CENTER } = Gtk.Align
 	const { MOVE } = Gdk.DragAction

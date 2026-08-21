@@ -7,28 +7,36 @@ import { idle, interval, Timer } from "ags/time"
 
 import GdkPixbuf from "gi://GdkPixbuf"
 import GLib from "gi://GLib"
-import AstalHyprland from "gi://AstalHyprland"
 
 import { scheduleMonitorWindowRelease } from "$lib/windowing"
 import { attempt } from "$lib/result"
-import { wallpaperService } from "$service/wallpaper"
+import { hyprland } from "$lib/hyprland"
+import { wallpaperPath, wallpaperRevision } from "$lib/wallpaper"
 
 export namespace Wallpaper {
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 		let monitorName = gdkmonitor.get_connector() ?? ""
 		const initialGeometry = gdkmonitor.get_geometry()
-		const [size, setSize] = createState(readMonitorSize(monitorName) ?? {
-			width: initialGeometry.width,
-			height: initialGeometry.height,
-		})
+		const [size, setSize] = createState(
+			readMonitorSize(monitorName) ?? {
+				width: initialGeometry.width,
+				height: initialGeometry.height,
+			},
+		)
 		const syncSize = () => {
 			const next = readMonitorSize(monitorName)
 			const current = size.peek()
-			if (next && (next.width !== current.width || next.height !== current.height))
+			if (
+				next &&
+				(next.width !== current.width || next.height !== current.height)
+			)
 				setSize(next)
 		}
 		const sizeTimer = interval(100, syncSize)
-		const pictures: [Gtk.Picture, Gtk.Picture] = [new Gtk.Picture(), new Gtk.Picture()]
+		const pictures: [Gtk.Picture, Gtk.Picture] = [
+			new Gtk.Picture(),
+			new Gtk.Picture(),
+		]
 		for (const picture of pictures) {
 			picture.content_fit = Gtk.ContentFit.COVER
 			picture.can_shrink = true
@@ -45,8 +53,8 @@ export namespace Wallpaper {
 				anchor={TOP | BOTTOM | LEFT | RIGHT}
 				application={app}
 				gdkmonitor={gdkmonitor}
-				widthRequest={size.as(current => current.width)}
-				heightRequest={size.as(current => current.height)}
+				widthRequest={size.as((current) => current.width)}
+				heightRequest={size.as((current) => current.height)}
 				keymode={NONE}
 				focusable={false}
 				decorated={false}
@@ -54,9 +62,9 @@ export namespace Wallpaper {
 				visible
 			>
 				<Gtk.Stack
-					$={self => setupCrossfadeStack(self, pictures)}
-					widthRequest={size.as(current => current.width)}
-					heightRequest={size.as(current => current.height)}
+					$={(self) => setupCrossfadeStack(self, pictures)}
+					widthRequest={size.as((current) => current.width)}
+					heightRequest={size.as((current) => current.height)}
 					css="background: black; border: none; border-radius: 0; box-shadow: none; margin: 0; padding: 0;"
 					hexpand
 					vexpand
@@ -106,8 +114,10 @@ type MonitorSizeSnapshot = MonitorSize & {
 
 function readMonitorSize(monitorName: string): MonitorSize | null {
 	try {
-		const monitors = JSON.parse(AstalHyprland.get_default().message("j/monitors")) as MonitorSizeSnapshot[]
-		const monitor = monitors.find(monitor => monitor.name === monitorName)
+		const monitors = JSON.parse(
+			hyprland.message("j/monitors"),
+		) as MonitorSizeSnapshot[]
+		const monitor = monitors.find((monitor) => monitor.name === monitorName)
 		return monitor ? { width: monitor.width, height: monitor.height } : null
 	} catch {
 		return null
@@ -132,7 +142,11 @@ function scheduleGif(gif: ActiveGif) {
 	})
 }
 
-function playGif(key: string, animation: GdkPixbuf.PixbufAnimation, picture: Gtk.Picture): () => void {
+function playGif(
+	key: string,
+	animation: GdkPixbuf.PixbufAnimation,
+	picture: Gtk.Picture,
+): () => void {
 	let gif = activeGifs.get(key)
 	if (!gif) {
 		const iter = animation.get_iter(null)
@@ -159,42 +173,57 @@ function playGif(key: string, animation: GdkPixbuf.PixbufAnimation, picture: Gtk
 	}
 }
 
-function paint(path: string, revision: number, picture: Gtk.Picture): () => void {
+function paint(
+	path: string,
+	revision: number,
+	picture: Gtk.Picture,
+): () => void {
 	picture.set_paintable(null)
 	const animated = attempt(() => {
 		const animation = GdkPixbuf.PixbufAnimation.new_from_file(path)
-		if (!animation.is_static_image()) return playGif(`${path}:${revision}`, animation, picture)
-		picture.set_paintable(Gdk.Texture.new_for_pixbuf(animation.get_static_image()!))
-		return () => { }
+		if (!animation.is_static_image())
+			return playGif(`${path}:${revision}`, animation, picture)
+		picture.set_paintable(
+			Gdk.Texture.new_for_pixbuf(animation.get_static_image()!),
+		)
+		return () => {}
 	})
 	if (animated.ok) return animated.value
 
-	const fallback = attempt(() => picture.set_paintable(Gdk.Texture.new_from_filename(path)))
+	const fallback = attempt(() =>
+		picture.set_paintable(Gdk.Texture.new_from_filename(path)),
+	)
 	if (!fallback.ok)
-		console.error(`wallpaper.paint: Failed to render ${path}`, new Error("All wallpaper decoders failed", {
-			cause: { animated: animated.err, static: fallback.err },
-		}))
-	return () => { }
+		console.error(
+			`wallpaper.paint: Failed to render ${path}`,
+			new Error("All wallpaper decoders failed", {
+				cause: { animated: animated.err, static: fallback.err },
+			}),
+		)
+	return () => {}
 }
 
-function setupCrossfadeStack(stack: Gtk.Stack, pictures: [Gtk.Picture, Gtk.Picture]) {
+function setupCrossfadeStack(
+	stack: Gtk.Stack,
+	pictures: [Gtk.Picture, Gtk.Picture],
+) {
 	let slot: 0 | 1 = 1
-	let stopAnim = () => { }
+	let stopAnim = () => {}
 	let transitionTimer: Timer | null = null
 
 	stack.add_named(pictures[0], "a")
 	stack.add_named(pictures[1], "b")
 	stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
 
-	stopAnim = paint(wallpaperService.wallpaper, wallpaperService.revision, pictures[1])
+	stopAnim = paint(wallpaperPath, wallpaperRevision.peek(), pictures[1])
 	stack.set_transition_duration(0)
 	stack.set_visible_child_name("b")
 	stack.set_transition_duration(FADE_MS)
 
-	const handlerId = wallpaperService.connect("notify::wallpaper", () => {
+	const unsubscribe = wallpaperRevision.subscribe(() => {
 		const next: 0 | 1 = slot === 0 ? 1 : 0
 		stopAnim()
-		stopAnim = paint(wallpaperService.wallpaper, wallpaperService.revision, pictures[next])
+		stopAnim = paint(wallpaperPath, wallpaperRevision.peek(), pictures[next])
 		transitionTimer?.cancel()
 		transitionTimer = idle(() => {
 			transitionTimer = null
@@ -203,7 +232,7 @@ function setupCrossfadeStack(stack: Gtk.Stack, pictures: [Gtk.Picture, Gtk.Pictu
 		})
 	})
 	onCleanup(() => {
-		wallpaperService.disconnect(handlerId)
+		unsubscribe()
 		transitionTimer?.cancel()
 		stopAnim()
 	})

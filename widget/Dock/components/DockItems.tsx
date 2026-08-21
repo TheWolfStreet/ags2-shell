@@ -15,8 +15,9 @@ import {
 	focusedWindowClient,
 	focusClientAndToggleFullscreen,
 } from "$lib/windowing"
-import { applications, launchApp } from "$service/apps"
-import { hyprland } from "$service/astal"
+import { launchApp } from "$lib/apps"
+import { hyprland } from "$lib/hyprland"
+import { applications } from "$service/apps"
 import options from "$shell/options"
 import { ApplicationIcon } from "widget/shared/ApplicationIcon"
 

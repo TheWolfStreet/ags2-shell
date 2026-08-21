@@ -7,7 +7,7 @@ import { Astal, Gdk, Gtk } from "ags/gtk4"
 import AstalHyprland from "gi://AstalHyprland"
 
 import { scheduleMonitorWindowRelease } from "$lib/windowing"
-import { hyprland } from "$service/astal"
+import { hyprland } from "$lib/hyprland"
 import options from "$shell/options"
 
 import { attachDesktopKeyboard, DesktopGrid } from "./components/Grid"

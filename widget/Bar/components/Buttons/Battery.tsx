@@ -3,10 +3,13 @@
 import { createBinding, createComputed, onCleanup } from "ags"
 import { Gtk } from "ags/gtk4"
 
-import { battery } from "$service/astal"
+import AstalBattery from "gi://AstalBattery"
+
 import options from "$shell/options"
 import { createAnimatedPopover } from "widget/shared/AnimatedPopover"
 import { PanelButton } from "../PanelButton"
+
+const battery = AstalBattery.get_default()
 
 const percentage = createBinding(battery, "percentage")
 const isPresent = createBinding(battery, "isPresent")

@@ -7,14 +7,18 @@ import GdkPixbuf from "gi://GdkPixbuf"
 import GLib from "gi://GLib"
 
 import { beginCssBatch, endCssBatch, initCss } from "style"
-import { buildWallpaperPalette, type Rgb, type WallpaperPalette } from "$lib/colors"
+import {
+	buildWallpaperPalette,
+	type Rgb,
+	type WallpaperPalette,
+} from "$lib/colors"
 import env from "$lib/env"
 import { attempt } from "$lib/result"
 import { debounce } from "$lib/time"
 import { hasProgram } from "$lib/programs"
 import { getFileSize } from "$lib/textures"
-import { hyprland } from "$service/astal"
-import { wallpaperService } from "$service/wallpaper"
+import { hyprland } from "$lib/hyprland"
+import { wallpaperPath, wallpaperRevision } from "$lib/wallpaper"
 
 import options, { subscribeOptions } from "$shell/options"
 
@@ -39,16 +43,20 @@ function getBaseIconTheme(themeName: string): string {
 
 function iconThemeExists(themeName: string): boolean {
 	const cached = iconThemeAvailability.get(themeName)
-	if (cached !== undefined)
-		return cached
+	if (cached !== undefined) return cached
 
 	const iconDirs = [
 		GLib.build_filenamev([GLib.get_home_dir(), ".icons"]),
 		GLib.build_filenamev([GLib.get_user_data_dir(), "icons"]),
-		...GLib.get_system_data_dirs().map(dir => GLib.build_filenamev([dir, "icons"])),
+		...GLib.get_system_data_dirs().map((dir) =>
+			GLib.build_filenamev([dir, "icons"]),
+		),
 	]
-	const available = iconDirs.some(dir =>
-		GLib.file_test(GLib.build_filenamev([dir, themeName, "index.theme"]), GLib.FileTest.EXISTS),
+	const available = iconDirs.some((dir) =>
+		GLib.file_test(
+			GLib.build_filenamev([dir, themeName, "index.theme"]),
+			GLib.FileTest.EXISTS,
+		),
 	)
 
 	iconThemeAvailability.set(themeName, available)
@@ -79,16 +87,24 @@ function syncIconTheme() {
 }
 
 async function syncTmuxAccent() {
-	const hex = scheme.peek() === "dark" ? dark.primary.bg.peek() : light.primary.bg.peek()
+	const hex =
+		scheme.peek() === "dark" ? dark.primary.bg.peek() : light.primary.bg.peek()
 
-	await execAsync(["tmux", "set", "-g", "@main_accent", hex]).catch(() => { })
+	await execAsync(["tmux", "set", "-g", "@main_accent", hex]).catch(() => {})
 
-	const rawSessions = await execAsync(["tmux", "list-sessions", "-F", "#S"]).catch(() => "")
+	const rawSessions = await execAsync([
+		"tmux",
+		"list-sessions",
+		"-F",
+		"#S",
+	]).catch(() => "")
 	if (!rawSessions) return
 
 	const sessions = rawSessions.split("\n").filter(Boolean)
 	for (const session of sessions)
-		execAsync(["tmux", "set-option", "-t", session, "@main_accent", hex]).catch(() => { })
+		execAsync(["tmux", "set-option", "-t", session, "@main_accent", hex]).catch(
+			() => {},
+		)
 }
 
 const syncScheme = debounce(SCHEME_SYNC_DEBOUNCE_MS, () => {
@@ -125,7 +141,8 @@ function startHyprlandAppearanceSync() {
 		scheme.id,
 	]
 
-	const primary = () => scheme.peek() === "dark" ? darkActive.peek() : lightActive.peek()
+	const primary = () =>
+		scheme.peek() === "dark" ? darkActive.peek() : lightActive.peek()
 	const rgba = (color: string) => `rgba(${color}ff)`.replace("#", "")
 
 	const applyHyprlandAppearance = () => {
@@ -141,7 +158,7 @@ function startHyprlandAppearanceSync() {
 				`decoration:shadow:enabled ${shadows.peek() ? "yes" : "no"}`,
 				`decoration:blur:enabled ${blur.peek() ? "true" : "false"}`,
 			]
-			const batch = rules.map(rule => `keyword ${rule}`).join("; ")
+			const batch = rules.map((rule) => `keyword ${rule}`).join("; ")
 			hyprland.message(`[[BATCH]]/${batch}`)
 		})
 	}
@@ -159,7 +176,12 @@ let lastWallpaperRevision = -1
 function sampleWallpaperPixels(path: string): Rgb[] {
 	const animation = GdkPixbuf.PixbufAnimation.new_from_file(path)
 	const source = animation.get_static_image()
-	const pixbuf = source.scale_simple(SAMPLE_SIZE, SAMPLE_SIZE, GdkPixbuf.InterpType.BILINEAR) ?? source
+	const pixbuf =
+		source.scale_simple(
+			SAMPLE_SIZE,
+			SAMPLE_SIZE,
+			GdkPixbuf.InterpType.BILINEAR,
+		) ?? source
 	const pixels = pixbuf.get_pixels()
 	const width = pixbuf.get_width()
 	const height = pixbuf.get_height()
@@ -208,12 +230,14 @@ function applyWallpaperPalette(colors: WallpaperPalette) {
 
 const updateWallpaperTheme = debounce(WALLPAPER_THEME_DELAY_MS, () => {
 	if (!options.autotheme.peek()) return
-	const path = wallpaperService.wallpaper
+	const path = wallpaperPath
 	if (!getFileSize(path)) return
-	const revision = wallpaperService.revision
+	const revision = wallpaperRevision.peek()
 	if (revision === lastWallpaperRevision) return
 
-	const result = attempt(() => buildWallpaperPalette(sampleWallpaperPixels(path)))
+	const result = attempt(() =>
+		buildWallpaperPalette(sampleWallpaperPixels(path)),
+	)
 	if (!result.ok) {
 		console.error("wallpaper.theme: Failed to sample wallpaper", result.err)
 		return
@@ -228,7 +252,7 @@ const updateWallpaperTheme = debounce(WALLPAPER_THEME_DELAY_MS, () => {
 })
 
 function startWallpaperTheme() {
-	wallpaperService.connect("notify::wallpaper", () => updateWallpaperTheme.call())
+	wallpaperRevision.subscribe(() => updateWallpaperTheme.call())
 	options.autotheme.subscribe(() => {
 		if (options.autotheme.peek()) {
 			lastWallpaperRevision = -1

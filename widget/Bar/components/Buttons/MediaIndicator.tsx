@@ -1,13 +1,19 @@
 // Finds the preferred media player and briefly shows the current track title.
 
-import { createBinding, createComputed, createState, onCleanup, With } from "ags"
+import {
+	createBinding,
+	createComputed,
+	createState,
+	onCleanup,
+	With,
+} from "ags"
 import { Gtk } from "ags/gtk4"
 import { timeout, Timer } from "ags/time"
 
 import AstalMpris from "gi://AstalMpris"
 import Pango from "gi://Pango"
 
-import { media } from "$service/astal"
+import { media } from "$lib/media"
 import options from "$shell/options"
 import { PanelButton } from "../PanelButton"
 
@@ -16,30 +22,38 @@ export function MediaIndicator() {
 	const { reveal, bindTrackTitle, onEnter, onLeave } = createMediaReveal()
 
 	return (
-		<box visible={player.as(value => value != null)}>
+		<box visible={player.as((value) => value != null)}>
 			<With value={player}>
-				{currentPlayer => {
-					if (!currentPlayer)
-						return <box visible={false} />
+				{(currentPlayer) => {
+					if (!currentPlayer) return <box visible={false} />
 
 					return (
 						<PanelButton
 							visible
 							class="media"
 							onClicked={() => {
-								if (currentPlayer.get_playback_status() === AstalMpris.PlaybackStatus.PLAYING)
+								if (
+									currentPlayer.get_playback_status() ===
+									AstalMpris.PlaybackStatus.PLAYING
+								)
 									currentPlayer.pause()
-								else
-									currentPlayer.play()
+								else currentPlayer.play()
 							}}
 						>
 							<box class="media-content">
-								<Gtk.EventControllerMotion onLeave={onLeave} onEnter={onEnter} />
-								<image valign={Gtk.Align.CENTER} iconName={createPlayerIcon(currentPlayer)} useFallback />
+								<Gtk.EventControllerMotion
+									onLeave={onLeave}
+									onEnter={onEnter}
+								/>
+								<image
+									valign={Gtk.Align.CENTER}
+									iconName={createPlayerIcon(currentPlayer)}
+									useFallback
+								/>
 								<revealer
 									transitionType={Gtk.RevealerTransitionType.SLIDE_LEFT}
 									revealChild={reveal}
-									$={self => bindTrackTitle(self, currentPlayer)}
+									$={(self) => bindTrackTitle(self, currentPlayer)}
 								>
 									<label
 										valign={Gtk.Align.CENTER}
@@ -60,9 +74,12 @@ export function MediaIndicator() {
 
 function createPreferredPlayer() {
 	const players = createBinding(media, "players")
-	return createComputed(() => players().find(player => {
-		return player.get_bus_name().includes(options.bar.media.preferred())
-	}) || players()[0])
+	return createComputed(
+		() =>
+			players().find((player) => {
+				return player.get_bus_name().includes(options.bar.media.preferred())
+			}) || players()[0],
+	)
 }
 
 function createMediaReveal() {
@@ -117,5 +134,7 @@ function createPlayerLabel(player: AstalMpris.Player) {
 }
 
 function createPlayerIcon(player: AstalMpris.Player) {
-	return createBinding(player, "entry").as(entry => entry || "audio-x-generic-symbolic")
+	return createBinding(player, "entry").as(
+		(entry) => entry || "audio-x-generic-symbolic",
+	)
 }

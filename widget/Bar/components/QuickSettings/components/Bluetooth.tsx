@@ -14,11 +14,12 @@ import {
 import { Placeholder } from "widget/shared/Placeholder"
 
 import icons from "$lib/icons"
-import { bluetooth } from "$service/astal"
-import { notifyMissingPrograms } from "$service/notifications"
+import { notifyMissingPrograms } from "$lib/notifications"
 import { toggleClass } from "$lib/ui"
 
 import options from "$shell/options"
+
+const bluetooth = AstalBluetooth.get_default()
 
 export namespace Bluetooth {
 	export function Toggle() {

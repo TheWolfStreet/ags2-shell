@@ -9,7 +9,7 @@ import Graphene from "gi://Graphene"
 
 import { attempt } from "$lib/result"
 import { hiddenDragIcon } from "$lib/textures"
-import { hyprland } from "$service/astal"
+import { hyprland } from "$lib/hyprland"
 import options from "$shell/options"
 import { buildFileContentProvider } from "./FileOperations"
 import {
