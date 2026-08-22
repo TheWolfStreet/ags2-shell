@@ -3,6 +3,7 @@
 import app from "ags/gtk4/app"
 import { createBinding, createComputed, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
+import { idle } from "ags/time"
 
 import AstalHyprland from "gi://AstalHyprland"
 
@@ -135,9 +136,26 @@ export namespace Desktop {
 			hyprMonitors.subscribe(reportMonitors),
 		]
 		const drag = createDesktopDragController(grid)
+		// Hyprland can leave an ON_DEMAND layer surface focused when a client maps.
+		// Hand focus to clients opened beneath the pointer without disabling desktop keys.
+		const clientAdded = hyprland.connect("client-added", (_self, client) => {
+			idle(() => {
+				if (!window?.is_active) return
+				const cursor = hyprland.cursorPosition
+				if (
+					cursor.x >= client.x &&
+					cursor.x < client.x + client.width &&
+					cursor.y >= client.y &&
+					cursor.y < client.y + client.height
+				)
+					client.focus()
+			})
+		})
 		onCleanup(() => {
 			unsubscribers.forEach((unsubscribe) => unsubscribe())
+			hyprland.disconnect(clientAdded)
 			scheduleMonitorWindowRelease(window)
+			window = undefined
 		})
 
 		return (
