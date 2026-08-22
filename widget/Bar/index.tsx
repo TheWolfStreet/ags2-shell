@@ -1,7 +1,13 @@
 // Shows a bar on each monitor and moves hidden bars to newly connected monitors.
 
 import app from "ags/gtk4/app"
-import { Accessor, createBinding, createComputed, createState, onCleanup } from "ags"
+import {
+	Accessor,
+	createBinding,
+	createComputed,
+	createState,
+	onCleanup,
+} from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { idle } from "ags/time"
 
@@ -22,7 +28,11 @@ import { PowerMenu } from "widget/PowerMenu"
 import options from "$shell/options"
 import icons from "$lib/icons"
 import { formatClock } from "$lib/time"
-import { ignoreInput, scheduleMonitorWindowRelease, trackMonitorFullscreen } from "$lib/windowing"
+import {
+	ignoreInput,
+	scheduleMonitorWindowRelease,
+	trackMonitorFullscreen,
+} from "$lib/windowing"
 import { screenCapture } from "$service/screenCapture"
 
 const { CENTER } = Gtk.Align
@@ -56,20 +66,17 @@ function setupMarginTracking() {
 
 	const updateMargin = () => {
 		const height = Math.max(0, barWin?.get_allocated_height() ?? 0)
-		if (height <= 0)
-			return
+		if (height <= 0) return
 
 		const nextMargin = height % 2 === 1 ? height - 1 : height
-		if (nextMargin <= 0 || nextMargin === prevMargin)
-			return
+		if (nextMargin <= 0 || nextMargin === prevMargin) return
 
 		prevMargin = nextMargin
 		setMargin(nextMargin)
 	}
 
 	const settle = () => {
-		if (!barWin)
-			return
+		if (!barWin) return
 		let frames = 0
 		barWin.add_tick_callback(() => {
 			updateMargin()
@@ -89,7 +96,7 @@ function setupMarginTracking() {
 	}
 
 	const destroy = () => {
-		unsubscribe.forEach(u => u())
+		unsubscribe.forEach((u) => u())
 	}
 
 	return {
@@ -116,6 +123,7 @@ function Corner({
 				ignoreInput(self)
 			}}
 			name={name}
+			namespace="screen-corner"
 			class={className}
 			visible={visible}
 			keymode={NONE}
@@ -138,10 +146,18 @@ function Corner({
 
 function RecordingIndicator() {
 	return (
-		<PanelButton class="recorder" visible={createBinding(screenCapture, "recording")} onClicked={() => screenCapture.stopRecording()}>
+		<PanelButton
+			class="recorder"
+			visible={createBinding(screenCapture, "recording")}
+			onClicked={() => screenCapture.stopRecording()}
+		>
 			<box class="horizontal">
 				<image iconName={icons.recorder.recording} />
-				<label label={createBinding(screenCapture, "timer").as(value => formatClock(value) + " ")} />
+				<label
+					label={createBinding(screenCapture, "timer").as(
+						(value) => formatClock(value) + " ",
+					)}
+				/>
 			</box>
 		</PanelButton>
 	)
@@ -153,26 +169,24 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 	let bottomWin: Astal.Window | undefined
 
 	const fullscreen = trackMonitorFullscreen(gdkmonitor)
-	const visible = fullscreen.as(value => !value)
+	const visible = fullscreen.as((value) => !value)
 
-	const isTop = position.as(v => v === "top-center")
+	const isTop = position.as((v) => v === "top-center")
 	const hasCorner = createComputed(() => {
-		const radius = options.theme.roundness() * options.hyprland.gaps() * corners() * 0.01
+		const radius =
+			options.theme.roundness() * options.hyprland.gaps() * corners() * 0.01
 		return radius >= padding()
 	})
 	const showTop = createComputed(() => visible() && !transparent() && isTop())
-	const showBottom = createComputed(() => visible() && !transparent() && !isTop())
+	const showBottom = createComputed(
+		() => visible() && !transparent() && !isTop(),
+	)
 
-	const {
-		margin,
-		bindBarWindow,
-		marginTrackingCleanup,
-	} = setupMarginTracking()
+	const { margin, bindBarWindow, marginTrackingCleanup } = setupMarginTracking()
 
 	const repositionUnsub = position.subscribe(() => {
 		idle(() => {
-			if (!barWin)
-				return
+			if (!barWin) return
 
 			barWin.set_exclusivity(NORMAL)
 			barWin.set_exclusivity(EXCLUSIVE)
@@ -190,17 +204,17 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 	void (
 		<>
 			<window
-				$={self => {
+				$={(self) => {
 					barWin = self
 					bindBarWindow(self)
 				}}
 				name="bar"
 				visible={visible}
-				class={transparent.as(v => v ? "bar transparent" : "bar")}
+				class={transparent.as((v) => (v ? "bar transparent" : "bar"))}
 				gdkmonitor={gdkmonitor}
 				layer={TOP_LAYER}
 				exclusivity={EXCLUSIVE}
-				anchor={position.as(pos => {
+				anchor={position.as((pos) => {
 					return (pos === "bottom-center" ? BOTTOM : TOP) | LEFT | RIGHT
 				})}
 				application={app}
@@ -209,7 +223,7 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 					<box $type="start" class="horizontal" valign={CENTER}>
 						<Launcher.Button />
 						<Overview.Button />
-						<box visible={options.taskbar.location.as(v => v === "bar")}>
+						<box visible={options.taskbar.location.as((v) => v === "bar")}>
 							<WindowList />
 						</box>
 					</box>
@@ -234,12 +248,14 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 			<Corner
 				name="screen-corner-top"
 				gdkmonitor={gdkmonitor}
-				class={createComputed(() => `${hasCorner() ? "corners" : "flat"} top-center`)}
+				class={createComputed(
+					() => `${hasCorner() ? "corners" : "flat"} top-center`,
+				)}
 				visible={showTop}
 				marginProp="marginTop"
 				margin={margin}
 				anchor={TOP | LEFT | RIGHT}
-				$={self => {
+				$={(self) => {
 					topWin = self
 				}}
 			/>
@@ -247,12 +263,14 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 			<Corner
 				name="screen-corner-bottom"
 				gdkmonitor={gdkmonitor}
-				class={createComputed(() => `${hasCorner() ? "corners" : "flat"} bottom-center`)}
+				class={createComputed(
+					() => `${hasCorner() ? "corners" : "flat"} bottom-center`,
+				)}
 				visible={showBottom}
 				marginProp="marginBottom"
 				margin={margin}
 				anchor={BOTTOM | LEFT | RIGHT}
-				$={self => {
+				$={(self) => {
 					bottomWin = self
 				}}
 			/>
