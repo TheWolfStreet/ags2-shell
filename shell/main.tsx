@@ -23,6 +23,7 @@ import { Dock } from "widget/Dock"
 import { Desktop } from "widget/Desktop"
 
 import { basicMonitorKey } from "$lib/windowing"
+import { hyprland } from "$lib/hyprland"
 import { screenCapture } from "$service/screenCapture"
 
 const deferredRoots: Array<() => void> = []
@@ -117,15 +118,29 @@ app.start({
 		>()
 		let monitorWindowsStopped = false
 		const syncMonitorWindows = () => {
+			// GDK/Wayland can leave a stale Gdk.Monitor behind after a real
+			// disconnect (the compositor never tears down its wl_output), which
+			// would otherwise persist as a duplicate window; Hyprland's own
+			// IPC-driven monitor list is authoritative, so drop anything it
+			// doesn't currently know about.
+			const liveConnectors = new Set(
+				hyprland.monitors.map((monitor) => monitor.name),
+			)
 			const current = new Map(
-				app.get_monitors().map((monitor) => {
-					const geometry = monitor.get_geometry()
-					const key = basicMonitorKey(
-						monitor,
-						`mon-${geometry.x}x${geometry.y}`,
-					)
-					return [key, monitor] as const
-				}),
+				app
+					.get_monitors()
+					.filter((monitor) => {
+						const connector = monitor.get_connector()
+						return connector == null || liveConnectors.has(connector)
+					})
+					.map((monitor) => {
+						const geometry = monitor.get_geometry()
+						const key = basicMonitorKey(
+							monitor,
+							`mon-${geometry.x}x${geometry.y}`,
+						)
+						return [key, monitor] as const
+					}),
 			)
 
 			for (const [key, windows] of activeMonitorWindows) {
@@ -163,11 +178,21 @@ app.start({
 		}
 
 		const monitorHandler = app.connect("notify::monitors", syncMonitorWindows)
+		const hyprMonitorAddedHandler = hyprland.connect(
+			"monitor-added",
+			syncMonitorWindows,
+		)
+		const hyprMonitorRemovedHandler = hyprland.connect(
+			"monitor-removed",
+			syncMonitorWindows,
+		)
 		let monitorShutdownHandler = 0
 		const cleanupMonitorWindows = () => {
 			if (monitorWindowsStopped) return
 			monitorWindowsStopped = true
 			app.disconnect(monitorHandler)
+			hyprland.disconnect(hyprMonitorAddedHandler)
+			hyprland.disconnect(hyprMonitorRemovedHandler)
 			if (monitorShutdownHandler) app.disconnect(monitorShutdownHandler)
 			for (const windows of activeMonitorWindows.values())
 				windows.dispose.forEach((dispose) => dispose())
