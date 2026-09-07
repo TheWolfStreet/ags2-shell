@@ -72,6 +72,7 @@ function lookupTokens(value: string | null | undefined) {
 export function createDockItems(isDockLocation: Accessor<boolean>) {
 	const runningClients = createWindowClientList(options.bar.taskbar.exclusive)
 	const favoriteApps = createBinding(applications, "favorites")
+	const allApps = createBinding(applications, "list")
 
 	return createComputed((): DockItem[] => {
 		const running = isDockLocation() ? runningClients() : []
@@ -81,6 +82,17 @@ export function createDockItems(isDockLocation: Accessor<boolean>) {
 			const group = groups.get(appClass)
 			if (group) group.push(client)
 			else groups.set(appClass, [client])
+		}
+		const appForClass = (appClass: string) => {
+			const classTokens = new Set(lookupTokens(appClass))
+			return allApps().find((app) => {
+				const appTokens = [
+					...lookupTokens(app.get_name()),
+					...lookupTokens(app.get_executable()),
+					...lookupTokens(app.get_entry()),
+				]
+				return appTokens.some((token) => classTokens.has(token))
+			})
 		}
 
 		const items: DockItem[] = []
@@ -113,7 +125,12 @@ export function createDockItems(isDockLocation: Accessor<boolean>) {
 		}
 
 		for (const [appClass, clients] of groups)
-			items.push({ kind: "group", clients, appClass })
+			items.push({
+				kind: "group",
+				clients,
+				appClass,
+				icon: appForClass(appClass)?.get_icon_name() || undefined,
+			})
 
 		if (options.dock.trash()) {
 			if (items.length > 0) items.push({ kind: "separator" })
