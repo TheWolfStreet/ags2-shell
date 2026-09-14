@@ -50,8 +50,8 @@ export function Menu({ name, iconName, title, headerChild, children }: MenuProps
 				orientation={VERTICAL}
 			>
 				<box class="title-box horizontal">
-					<image class="icon" iconName={iconName} useFallback />
-					<label class="title" label={title} />
+					<image class="icon" iconName={iconName} valign={Gtk.Align.CENTER} useFallback />
+					<label class="title" label={title} valign={Gtk.Align.CENTER} yalign={0.5} />
 					{headerChild}
 				</box>
 				<Gtk.Separator />

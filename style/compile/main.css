@@ -1156,7 +1156,7 @@ window#quicksettings .quicksettings box.menu label.title {
   font-weight: bold;
 }
 window#quicksettings .quicksettings box.menu separator {
-  margin: calc(var(--radius) / 2);
+  margin: calc(var(--padding) / 2);
   background-color: var(--border-color);
 }
 window#quicksettings .quicksettings box.menu button {
