@@ -11,7 +11,7 @@ import Gio from "gi://Gio"
 import env from "$lib/env"
 import { ensureFile } from "$lib/files"
 import icons from "$lib/icons"
-import { attempt, attemptAsync } from "$lib/result"
+import { attempt, attemptAsync, logError, unwrapOr } from "$lib/result"
 import { debounce } from "$lib/time"
 import { notify, notifyMissingPrograms } from "$lib/notifications"
 import { PanelButton } from "../PanelButton"
@@ -43,11 +43,7 @@ function loadColorHistory() {
 		if (!Array.isArray(parsed)) return []
 		return parsed.filter((color) => typeof color === "string")
 	})
-	if (!result.ok) {
-		console.error("colorpicker.load: Failed to load saved colors", result.err)
-		return []
-	}
-	return result.value
+	return unwrapOr(result, [], "colorpicker.load: Failed to load saved colors")
 }
 
 ensureFile(COLOR_HISTORY_FILE)
@@ -61,8 +57,7 @@ const saveColors = debounce(1000, async () => {
 			JSON.stringify(colors.peek(), null, 0),
 		)
 	})
-	if (!result.ok)
-		console.error("colorpicker.save: Failed to save colors", result.err)
+	logError(result, "colorpicker.save: Failed to save colors")
 })
 
 async function pickColor(existing?: string) {
@@ -74,6 +69,7 @@ async function pickColor(existing?: string) {
 		const result = await attemptAsync(async () =>
 			execAsync(["hyprpicker", "-r"]),
 		)
+		// hyprpicker exits nonzero when the user cancels; not an error.
 		if (!result.ok) return
 		color = result.value.replace("[ERR] renderSurface: PBUFFER null", "").trim()
 		if (!color) return

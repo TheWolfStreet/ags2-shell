@@ -7,7 +7,7 @@ import { idle, Timer } from "ags/time"
 
 import Gio from "gi://Gio"
 
-import { attempt, attemptAsync } from "$lib/result"
+import { attempt, attemptAsync, logError } from "$lib/result"
 import { debounce } from "$lib/time"
 import { hyprland } from "$lib/hyprland"
 
@@ -32,13 +32,13 @@ async function discoverDdcDisplays(): Promise<number[]> {
 	const result = await attemptAsync(async () =>
 		execAsync(["ddcutil", "detect"]),
 	)
-	if (!result.ok) {
-		console.error(
+	if (
+		!logError(
+			result,
 			"brightness.ddc.detect: Failed to detect external displays",
-			result.err,
 		)
+	)
 		return []
-	}
 
 	const displays: number[] = []
 	for (const block of result.value
@@ -67,13 +67,13 @@ async function readDdcBrightness(display: number): Promise<number | null> {
 			String(display),
 		]),
 	)
-	if (!result.ok) {
-		console.error(
+	if (
+		!logError(
+			result,
 			`brightness.ddc.read: Failed to read display ${display}`,
-			result.err,
 		)
+	)
 		return null
-	}
 
 	const match =
 		result.value.match(/current value =\s*(\d+)/i) ||
@@ -101,11 +101,10 @@ async function setDdcBrightness(
 				"--noverify",
 			]),
 		)
-		if (!result.ok)
-			console.error(
-				`brightness.ddc.write: Failed to set display ${display} to ${target}%`,
-				result.err,
-			)
+		logError(
+			result,
+			`brightness.ddc.write: Failed to set display ${display} to ${target}%`,
+		)
 		writeSucceeded = writeSucceeded || result.ok
 	}
 	return writeSucceeded
@@ -160,11 +159,10 @@ class Brightness extends GObject.Object {
 			this.#watchDevices()
 			this.#watchHotplug()
 		})
-		if (!result.ok)
-			console.error(
-				"brightness.init: Failed to initialize brightness service",
-				result.err,
-			)
+		logError(
+			result,
+			"brightness.init: Failed to initialize brightness service",
+		)
 		if (this.#displayDevice) this.#initialized = true
 		this.#externalDiscoveryIdle = idle(() => {
 			this.#externalDiscoveryIdle = null
@@ -284,11 +282,10 @@ class Brightness extends GObject.Object {
 				hyprland.connect("monitor-removed", () => this.#refreshExternal.call()),
 			)
 		})
-		if (!result.ok)
-			console.error(
-				"brightness.watchHotplug: Failed to watch display hotplug",
-				result.err,
-			)
+		logError(
+			result,
+			"brightness.watchHotplug: Failed to watch display hotplug",
+		)
 	}
 
 	#updateDisplayAvailable() {
@@ -374,11 +371,10 @@ class Brightness extends GObject.Object {
 			const result = await attemptAsync(async () =>
 				execAsync(["brightnessctl", "set", `${target}%`, "-q"]),
 			)
-			if (!result.ok)
-				console.error(
-					"brightness.write: Failed to set internal display brightness",
-					result.err,
-				)
+			logError(
+				result,
+				"brightness.write: Failed to set internal display brightness",
+			)
 			writeSucceeded = result.ok
 		}
 

@@ -10,7 +10,7 @@ import GLib from "gi://GLib"
 
 import env from "$lib/env"
 import { hasProgram } from "$lib/programs"
-import { attempt, attemptAsync } from "$lib/result"
+import { attempt, attemptAsync, logError } from "$lib/result"
 import { debounce } from "$lib/time"
 
 export const wallpaperPath = `${env.paths.home}/.config/background`
@@ -93,8 +93,7 @@ export function clearWallpaper(): void {
 		)
 		refreshWallpaper.call()
 	})
-	if (!result.ok)
-		console.error("wallpaper.clear: Failed to clear wallpaper", result.err)
+	logError(result, "wallpaper.clear: Failed to clear wallpaper")
 }
 
 export async function setWallpaper(path: string): Promise<void> {
@@ -106,6 +105,5 @@ export async function setWallpaper(path: string): Promise<void> {
 		else await execAsync(["cp", path, wallpaperPath])
 		refreshWallpaper.call()
 	})
-	if (!result.ok)
-		console.error("wallpaper.set: Failed to set wallpaper", result.err)
+	logError(result, "wallpaper.set: Failed to set wallpaper")
 }

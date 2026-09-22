@@ -9,7 +9,7 @@ import Gio from "gi://Gio"
 import GdkPixbuf from "gi://GdkPixbuf"
 
 import env from "$lib/env"
-import { attempt } from "$lib/result"
+import { attempt, unwrapOr } from "$lib/result"
 
 const { Texture } = Gdk
 
@@ -178,11 +178,11 @@ export function textureFromFileSquareContain(filePath: string, size: number): Gd
 		return texture
 	})
 
-	if (!result.ok) {
-		console.error(`textures.textureFromFileSquareContain: Failed to load ${filePath}`, result.err)
-		return null
-	}
-	return result.value
+	return unwrapOr(
+		result,
+		null,
+		`textures.textureFromFileSquareContain: Failed to load ${filePath}`,
+	)
 }
 
 function pixbufSquareContain(source: GdkPixbuf.Pixbuf, size: number): GdkPixbuf.Pixbuf | null {
@@ -210,11 +210,11 @@ function pixbufSquareContain(source: GdkPixbuf.Pixbuf, size: number): GdkPixbuf.
 		return square
 	})
 
-	if (!result.ok) {
-		console.error("textures.pixbufSquareContain: Failed to build square texture", result.err)
-		return null
-	}
-	return result.value
+	return unwrapOr(
+		result,
+		null,
+		"textures.pixbufSquareContain: Failed to build square texture",
+	)
 }
 
 function pixbufFromBytes(bytes: GLib.Bytes): GdkPixbuf.Pixbuf | null {
@@ -234,11 +234,11 @@ function pixbufFromInlineImageData(uri: string): GdkPixbuf.Pixbuf | null {
 		const bytes = new GLib.Bytes(GLib.base64_decode(base64.replace(/\s/g, "")))
 		return pixbufFromBytes(bytes)
 	})
-	if (!result.ok) {
-		console.error("textures.inlineImage: Failed to decode base64 image", result.err)
-		return null
-	}
-	return result.value
+	return unwrapOr(
+		result,
+		null,
+		"textures.inlineImage: Failed to decode base64 image",
+	)
 }
 
 function loadHttpPixbufAsync(uri: string, onLoaded: (pixbuf: GdkPixbuf.Pixbuf | null) => void) {

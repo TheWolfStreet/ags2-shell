@@ -9,7 +9,7 @@ import Gio from "gi://Gio"
 
 import env from "$lib/env"
 import { fileExists } from "$lib/files"
-import { attempt } from "$lib/result"
+import { attempt, logError, unwrapOr } from "$lib/result"
 import { hyprland } from "$lib/hyprland"
 import { debounce } from "$lib/time"
 
@@ -65,11 +65,10 @@ class ApplicationCatalog extends GObject.Object {
 
 				this.#monitors.push(monitor)
 			})
-			if (!result.ok)
-				console.error(
-					`applications.watchDirectory: Failed to watch ${dir}`,
-					result.err,
-				)
+			logError(
+				result,
+				`applications.watchDirectory: Failed to watch ${dir}`,
+			)
 		}
 
 		const appDirs = [
@@ -150,15 +149,11 @@ class ApplicationCatalog extends GObject.Object {
 			return apps
 		})
 
-		if (!result.ok) {
-			console.error(
-				"applications.setFavorites: Failed to read favorite apps",
-				result.err,
-			)
-			this.#favorites = []
-		} else {
-			this.#favorites = result.value
-		}
+		this.#favorites = unwrapOr(
+			result,
+			[],
+			"applications.setFavorites: Failed to read favorite apps",
+		)
 
 		this.notify("favorites")
 	}

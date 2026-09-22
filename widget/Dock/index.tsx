@@ -9,7 +9,7 @@ import {
 	scheduleMonitorWindowRelease,
 	trackMonitorFullscreen,
 } from "$lib/windowing"
-import options from "$shell/options"
+import options, { surfaceScale, uiScale } from "$shell/options"
 import { PopupWindow, type Position } from "widget/shared/PopupWindow"
 
 import {
@@ -60,7 +60,6 @@ function trackMonitorGeometry(monitor: Gdk.Monitor) {
 export namespace Dock {
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 		const { mode, position, scale } = options.dock
-		const globalScale = options.scale
 		const dockSide = position.as(
 			(value) => (value === "center-left" ? "left" : "bottom") as DockSide,
 		)
@@ -76,14 +75,14 @@ export namespace Dock {
 		const windows: Gtk.Window[] = []
 
 		const dockScale = createComputed(() => {
-			const requestedScale = scale() / 100
+			const requestedScale = surfaceScale(scale)
 			const itemCount = dockItems().length
 			if (itemCount === 0) return requestedScale
 
 			const monitorGeometry = geometry()
 			const monitorLength =
 				dockSide() === "left" ? monitorGeometry.height : monitorGeometry.width
-			const globalScaleFactor = globalScale() / 100
+			const globalScaleFactor = uiScale()
 			const usableLength = monitorLength * 0.88 - 2
 			const totalSpacing = itemCount * 11 * globalScaleFactor
 			const totalIconSize = itemCount * 64 * globalScaleFactor
@@ -91,7 +90,7 @@ export namespace Dock {
 
 			return Math.max(0.3, Math.min(requestedScale, scaleThatFits))
 		})
-		const pixelScale = createComputed(() => dockScale() * (globalScale() / 100))
+		const pixelScale = createComputed(() => dockScale() * uiScale())
 		const hotzoneThickness = createComputed(() =>
 			Math.max(16, Math.round(22 * pixelScale())),
 		)

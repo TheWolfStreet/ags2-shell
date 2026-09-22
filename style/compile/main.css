@@ -1,4 +1,4 @@
-button, .flat-button, window.settings-dialog box.header > button.reset, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window.desktop-launcher-creator .header button.back, window#bar button, window#bar popover contents modelbutton,
+button, .flat-button, window.settings-dialog box.header > button.reset, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window.desktop-open-with .header button, window.desktop-open-with .open-with-body .app-list button.app-option, window.desktop-launcher-creator .header button.back, window#bar button, window#bar popover contents modelbutton,
 window#bar popover contents button.model-item, window#bar box.tasks overlay, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#launcher box.launcher box.quicklaunch button, window#datemenu box.datemenu box.calendar calendar button, popover.menu > contents modelbutton {
   all: unset;
   transition: var(--transition);
@@ -9,34 +9,34 @@ window#bar popover contents button.model-item, window#bar box.tasks overlay, win
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow);
   font-weight: bold;
 }
-button:hover:not(.active), .flat-button:hover:not(.active), window.settings-dialog box.header > button.reset:hover:not(.active), window.settings-dialog box.group .header button.reset:hover:not(.active), window.settings-dialog box.row button.reset:hover:not(.active), window#desktop-context-menu .contents button:hover:not(.active), window.desktop-launcher-creator .header button.back:hover:not(.active), window#bar button:hover:not(.active), window#bar popover contents modelbutton:hover:not(.active), window#bar box.tasks overlay:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.volume button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.control-unit button:hover:not(.active), window#quicksettings .quicksettings box.menu button:hover:not(.active), window#quicksettings .quicksettings box.media box.player button:hover:not(.active), window#launcher box.launcher box.quicklaunch button:hover:not(.active), window#datemenu box.datemenu box.calendar calendar button:hover:not(.active), popover.menu > contents modelbutton:hover:not(.active) {
+button:hover:not(.active), .flat-button:hover:not(.active), window.settings-dialog box.header > button.reset:hover:not(.active), window.settings-dialog box.group .header button.reset:hover:not(.active), window.settings-dialog box.row button.reset:hover:not(.active), window#desktop-context-menu .contents button:hover:not(.active), window.desktop-open-with .header button:hover:not(.active), window.desktop-open-with .open-with-body .app-list button.app-option:hover:not(.active), window.desktop-launcher-creator .header button.back:hover:not(.active), window#bar button:hover:not(.active), window#bar popover contents modelbutton:hover:not(.active), window#bar box.tasks overlay:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.volume button:hover:not(.active), window#quicksettings .quicksettings box.sliders-box box.control-unit button:hover:not(.active), window#quicksettings .quicksettings box.menu button:hover:not(.active), window#quicksettings .quicksettings box.media box.player button:hover:not(.active), window#launcher box.launcher box.quicklaunch button:hover:not(.active), window#datemenu box.datemenu box.calendar calendar button:hover:not(.active), popover.menu > contents modelbutton:hover:not(.active) {
   background-color: var(--hover-bg);
   color: var(--hover-fg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow);
 }
-button:focus-visible, .flat-button:focus-visible, window.settings-dialog box.header > button.reset:focus-visible, window.settings-dialog box.group .header button.reset:focus-visible, window.settings-dialog box.row button.reset:focus-visible, window#desktop-context-menu .contents button:focus-visible, window.desktop-launcher-creator .header button.back:focus-visible, window#bar button:focus-visible, window#bar popover contents modelbutton:focus-visible,
+button:focus-visible, .flat-button:focus-visible, window.settings-dialog box.header > button.reset:focus-visible, window.settings-dialog box.group .header button.reset:focus-visible, window.settings-dialog box.row button.reset:focus-visible, window#desktop-context-menu .contents button:focus-visible, window.desktop-open-with .header button:focus-visible, window.desktop-open-with .open-with-body .app-list button.app-option:focus-visible, window.desktop-launcher-creator .header button.back:focus-visible, window#bar button:focus-visible, window#bar popover contents modelbutton:focus-visible,
 window#bar popover contents button.model-item:focus-visible, window#bar box.tasks overlay:focus-visible, window#quicksettings .quicksettings box.sliders-box box.volume button:focus-visible, window#quicksettings .quicksettings box.sliders-box box.control-unit button:focus-visible, window#quicksettings .quicksettings box.menu button:focus-visible, window#quicksettings .quicksettings box.media box.player button:focus-visible, window#launcher box.launcher box.quicklaunch button:focus-visible, window#datemenu box.datemenu box.calendar calendar button:focus-visible, popover.menu > contents modelbutton:focus-visible {
   outline: calc(var(--border-width) / 2) solid var(--primary-bg);
   outline-offset: -1px;
 }
-button:active, .flat-button:active, window.settings-dialog box.header > button.reset:active, window.settings-dialog box.group .header button.reset:active, window.settings-dialog box.row button.reset:active, window#desktop-context-menu .contents button:active, window.desktop-launcher-creator .header button.back:active, window#bar button:active, window#bar popover contents modelbutton:active,
-window#bar popover contents button.model-item:active, window#bar box.tasks overlay:active, window#quicksettings .quicksettings box.sliders-box box.volume button:active, window#quicksettings .quicksettings box.sliders-box box.control-unit button:active, window#quicksettings .quicksettings box.menu button:active, window#quicksettings .quicksettings box.media box.player button:active, window#launcher box.launcher box.quicklaunch button:active, window#datemenu box.datemenu box.calendar calendar button:active, popover.menu > contents modelbutton:active, button.on, .on.flat-button, window.settings-dialog box.header > button.on.reset, window.settings-dialog box.group .header button.on.reset, window.settings-dialog box.row button.on.reset, window#desktop-context-menu .contents button.on, window.desktop-launcher-creator .header button.on.back, window#bar button.on, window#bar popover contents modelbutton.on,
-window#bar popover contents button.on.model-item, window#bar box.tasks overlay.on, window#quicksettings .quicksettings box.sliders-box box.volume button.on, window#quicksettings .quicksettings box.sliders-box box.control-unit button.on, window#quicksettings .quicksettings box.menu button.on, window#quicksettings .quicksettings box.media box.player button.on, window#launcher box.launcher box.quicklaunch button.on, window#datemenu box.datemenu box.calendar calendar button.on, popover.menu > contents modelbutton.on, button.active, .active.flat-button, window.settings-dialog box.header > button.active.reset, window.settings-dialog box.group .header button.active.reset, window.settings-dialog box.row button.active.reset, window#desktop-context-menu .contents button.active, window.desktop-launcher-creator .header button.active.back, window#bar button.active, window#bar popover contents modelbutton.active,
-window#bar popover contents button.active.model-item, window#bar box.tasks overlay.active, window#quicksettings .quicksettings box.sliders-box box.volume button.active, window#quicksettings .quicksettings box.sliders-box box.control-unit button.active, window#quicksettings .quicksettings box.menu button.active, window#quicksettings .quicksettings box.media box.player button.active, window#launcher box.launcher box.quicklaunch button.active, window#datemenu box.datemenu box.calendar calendar button.active, popover.menu > contents modelbutton.active, button:checked, .flat-button:checked, window.settings-dialog box.header > button.reset:checked, window.settings-dialog box.group .header button.reset:checked, window.settings-dialog box.row button.reset:checked, window#desktop-context-menu .contents button:checked, window.desktop-launcher-creator .header button.back:checked, window#bar button:checked, window#bar popover contents modelbutton:checked,
+button:active, .flat-button:active, window.settings-dialog box.header > button.reset:active, window.settings-dialog box.group .header button.reset:active, window.settings-dialog box.row button.reset:active, window#desktop-context-menu .contents button:active, window.desktop-open-with .header button:active, window.desktop-open-with .open-with-body .app-list button.app-option:active, window.desktop-launcher-creator .header button.back:active, window#bar button:active, window#bar popover contents modelbutton:active,
+window#bar popover contents button.model-item:active, window#bar box.tasks overlay:active, window#quicksettings .quicksettings box.sliders-box box.volume button:active, window#quicksettings .quicksettings box.sliders-box box.control-unit button:active, window#quicksettings .quicksettings box.menu button:active, window#quicksettings .quicksettings box.media box.player button:active, window#launcher box.launcher box.quicklaunch button:active, window#datemenu box.datemenu box.calendar calendar button:active, popover.menu > contents modelbutton:active, button.on, .on.flat-button, window.settings-dialog box.header > button.on.reset, window.settings-dialog box.group .header button.on.reset, window.settings-dialog box.row button.on.reset, window#desktop-context-menu .contents button.on, window.desktop-open-with .header button.on, window.desktop-open-with .open-with-body .app-list button.on.app-option, window.desktop-launcher-creator .header button.on.back, window#bar button.on, window#bar popover contents modelbutton.on,
+window#bar popover contents button.on.model-item, window#bar box.tasks overlay.on, window#quicksettings .quicksettings box.sliders-box box.volume button.on, window#quicksettings .quicksettings box.sliders-box box.control-unit button.on, window#quicksettings .quicksettings box.menu button.on, window#quicksettings .quicksettings box.media box.player button.on, window#launcher box.launcher box.quicklaunch button.on, window#datemenu box.datemenu box.calendar calendar button.on, popover.menu > contents modelbutton.on, button.active, .active.flat-button, window.settings-dialog box.header > button.active.reset, window.settings-dialog box.group .header button.active.reset, window.settings-dialog box.row button.active.reset, window#desktop-context-menu .contents button.active, window.desktop-open-with .header button.active, window.desktop-open-with .open-with-body .app-list button.active.app-option, window.desktop-launcher-creator .header button.active.back, window#bar button.active, window#bar popover contents modelbutton.active,
+window#bar popover contents button.active.model-item, window#bar box.tasks overlay.active, window#quicksettings .quicksettings box.sliders-box box.volume button.active, window#quicksettings .quicksettings box.sliders-box box.control-unit button.active, window#quicksettings .quicksettings box.menu button.active, window#quicksettings .quicksettings box.media box.player button.active, window#launcher box.launcher box.quicklaunch button.active, window#datemenu box.datemenu box.calendar calendar button.active, popover.menu > contents modelbutton.active, button:checked, .flat-button:checked, window.settings-dialog box.header > button.reset:checked, window.settings-dialog box.group .header button.reset:checked, window.settings-dialog box.row button.reset:checked, window#desktop-context-menu .contents button:checked, window.desktop-open-with .header button:checked, window.desktop-open-with .open-with-body .app-list button.app-option:checked, window.desktop-launcher-creator .header button.back:checked, window#bar button:checked, window#bar popover contents modelbutton:checked,
 window#bar popover contents button.model-item:checked, window#bar box.tasks overlay:checked, window#quicksettings .quicksettings box.sliders-box box.volume button:checked, window#quicksettings .quicksettings box.sliders-box box.control-unit button:checked, window#quicksettings .quicksettings box.menu button:checked, window#quicksettings .quicksettings box.media box.player button:checked, window#launcher box.launcher box.quicklaunch button:checked, window#datemenu box.datemenu box.calendar calendar button:checked, popover.menu > contents modelbutton:checked {
   background-image: var(--active-gradient);
   background-color: var(--primary-bg);
   color: var(--primary-fg);
   box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow);
 }
-button:disabled, .flat-button:disabled, window.settings-dialog box.header > button.reset:disabled, window.settings-dialog box.group .header button.reset:disabled, window.settings-dialog box.row button.reset:disabled, window#desktop-context-menu .contents button:disabled, window.desktop-launcher-creator .header button.back:disabled, window#bar button:disabled, window#bar popover contents modelbutton:disabled,
+button:disabled, .flat-button:disabled, window.settings-dialog box.header > button.reset:disabled, window.settings-dialog box.group .header button.reset:disabled, window.settings-dialog box.row button.reset:disabled, window#desktop-context-menu .contents button:disabled, window.desktop-open-with .header button:disabled, window.desktop-open-with .open-with-body .app-list button.app-option:disabled, window.desktop-launcher-creator .header button.back:disabled, window#bar button:disabled, window#bar popover contents modelbutton:disabled,
 window#bar popover contents button.model-item:disabled, window#bar box.tasks overlay:disabled, window#quicksettings .quicksettings box.sliders-box box.volume button:disabled, window#quicksettings .quicksettings box.sliders-box box.control-unit button:disabled, window#quicksettings .quicksettings box.menu button:disabled, window#quicksettings .quicksettings box.media box.player button:disabled, window#launcher box.launcher box.quicklaunch button:disabled, window#datemenu box.datemenu box.calendar calendar button:disabled, popover.menu > contents modelbutton:disabled {
   box-shadow: none;
   background-color: transparent;
   color: color-mix(in srgb, var(--fg) 30%, transparent);
 }
 
-.flat-button, window.settings-dialog box.header > button.reset, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window.desktop-launcher-creator .header button.back, window#bar button, window#bar popover contents modelbutton,
+.flat-button, window.settings-dialog box.header > button.reset, window.settings-dialog box.group .header button.reset, window.settings-dialog box.row button.reset, window#desktop-context-menu .contents button, window.desktop-open-with .header button, window.desktop-open-with .open-with-body .app-list button.app-option, window.desktop-launcher-creator .header button.back, window#bar button, window#bar popover contents modelbutton,
 window#bar popover contents button.model-item, window#bar box.tasks overlay, window#quicksettings .quicksettings box.sliders-box box.volume button, window#quicksettings .quicksettings box.sliders-box box.control-unit button, window#quicksettings .quicksettings box.menu button, window#quicksettings .quicksettings box.media box.player button, window#launcher box.launcher box.quicklaunch button, window#datemenu box.datemenu box.calendar calendar button, popover.menu > contents modelbutton {
   background-color: transparent;
   box-shadow: none;
@@ -1741,7 +1741,7 @@ window#desktop .desktop-container .desktop-icon .desktop-icon-label {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 3px rgba(0, 0, 0, 0.5);
   font-weight: 500;
   padding: calc(1px * var(--scale, 1)) calc(6px * var(--scale, 1));
-  border-radius: calc(9px * var(--scale, 1));
+  border-radius: calc(var(--radius) * 0.75);
   background: transparent;
   transition: background-color var(--transition), box-shadow var(--transition);
 }
@@ -1785,6 +1785,82 @@ window#desktop-context-menu .contents separator {
   margin: calc(var(--radius) / 2);
   min-height: 1px;
   background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+}
+
+window.desktop-open-with {
+  background: var(--bg);
+  color: var(--fg);
+}
+window.desktop-open-with .header {
+  padding: var(--padding);
+  border-bottom: 1px solid var(--border-color);
+}
+window.desktop-open-with .header label.title {
+  font-weight: 700;
+}
+window.desktop-open-with .header button {
+  padding: calc(var(--padding) / 2) var(--padding);
+}
+window.desktop-open-with .header button.suggested-action {
+  background: var(--active-gradient);
+  color: var(--primary-fg);
+}
+window.desktop-open-with .header button.suggested-action:disabled {
+  background: var(--widget-bg);
+  color: color-mix(in srgb, var(--fg) 45%, transparent);
+}
+window.desktop-open-with .open-with-body {
+  padding: var(--padding);
+}
+window.desktop-open-with .open-with-body > *:not(:last-child) {
+  margin-bottom: var(--spacing);
+}
+window.desktop-open-with .open-with-body entry.search > image {
+  all: unset;
+  color: color-mix(in srgb, var(--fg) 60%, transparent);
+  -gtk-icon-size: var(--icon-size);
+  margin-right: calc(var(--spacing) / 2);
+}
+window.desktop-open-with .open-with-body .app-list > *:not(:last-child) {
+  margin-bottom: calc(var(--spacing) / 4);
+}
+window.desktop-open-with .open-with-body .app-list label.section {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--fg) 75%, transparent);
+  margin: calc(var(--spacing) / 2) 0;
+}
+window.desktop-open-with .open-with-body .app-list button.app-option {
+  padding: calc(var(--padding) * 0.6);
+}
+window.desktop-open-with .open-with-body .app-list button.app-option box.horizontal > * {
+  margin: 0 calc(var(--spacing) * 0.5 / 2);
+}
+window.desktop-open-with .open-with-body .app-list button.app-option box.horizontal > *:first-child {
+  margin-left: 0;
+}
+window.desktop-open-with .open-with-body .app-list button.app-option box.horizontal > *:last-child {
+  margin-right: 0;
+}
+window.desktop-open-with .open-with-body .app-list button.app-option box.vertical > * {
+  margin: calc(var(--spacing) * 0.5 / 2) 0;
+}
+window.desktop-open-with .open-with-body .app-list button.app-option box.vertical > *:first-child {
+  margin-top: 0;
+}
+window.desktop-open-with .open-with-body .app-list button.app-option box.vertical > *:last-child {
+  margin-bottom: 0;
+}
+window.desktop-open-with .open-with-body .app-list button.app-option.selected {
+  background: color-mix(in srgb, var(--primary-bg) 30%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-bg) 65%, transparent);
+}
+window.desktop-open-with .open-with-body .always-row {
+  padding-top: var(--padding);
+  border-top: 1px solid var(--border-color);
+}
+window.desktop-open-with .open-with-body .always-row label.detail {
+  color: color-mix(in srgb, var(--fg) 62%, transparent);
+  font-size: 0.9em;
 }
 
 window.desktop-launcher-creator {

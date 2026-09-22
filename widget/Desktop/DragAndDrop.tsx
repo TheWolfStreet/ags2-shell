@@ -11,7 +11,7 @@ import { attempt } from "$lib/result"
 import { hiddenDragIcon } from "$lib/textures"
 import { hyprland } from "$lib/hyprland"
 import options from "$shell/options"
-import { buildFileContentProvider } from "./FileOperations"
+import { buildFileContentProvider, splitPayloadLines } from "./FileOperations"
 import {
 	desktopInteraction,
 	importFilesToDesktop,
@@ -75,10 +75,7 @@ function decodePath(raw: string) {
 
 function parsePayload(value: unknown): DropPayload | null {
 	if (typeof value === "string") {
-		const lines = value
-			.split(/\r?\n/g)
-			.map((line) => line.trim())
-			.filter(Boolean)
+		const lines = splitPayloadLines(value)
 		if (lines.length === 0) return null
 
 		let operation: "copy" | "move" = "move"
@@ -272,7 +269,7 @@ export function createDesktopDragController(
 	}
 
 	function move(paths: string[], anchor: string, slot: number) {
-		moveDesktopFiles(grid.peek().id, paths, slot, anchor)
+		moveDesktopFiles({ to: grid.peek().id, paths, slot, anchor })
 		desktopInteraction.select(paths)
 	}
 
@@ -371,11 +368,11 @@ export function createDesktopDragController(
 				setDragPreview(null)
 				move(paths, state.anchor ?? payload.paths[0], slotAt(x, y))
 			} else {
-				void importFilesToDesktop(
-					payload.paths,
-					grid.peek().id,
-					preferredOperation(controller, payload.operation),
-				)
+				void importFilesToDesktop({
+					paths: payload.paths,
+					to: grid.peek().id,
+					operation: preferredOperation(controller, payload.operation),
+				})
 			}
 			return true
 		})

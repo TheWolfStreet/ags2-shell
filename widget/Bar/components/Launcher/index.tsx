@@ -23,7 +23,7 @@ import { launchApp as launchApplication } from "$lib/apps"
 import { applications } from "$service/apps"
 import icons from "$lib/icons"
 
-import options, { Opt } from "$shell/options"
+import options, { Opt, surfaceScale, uiScale } from "$shell/options"
 
 export namespace Launcher {
 	export function setSearchQuery(query: string, ensureVisible = true) {
@@ -136,8 +136,7 @@ export namespace Launcher {
 
 		const launcherCss = createComputed(() => {
 			const componentScale = launcherScale()
-			const margin =
-				((options.launcher.margin() * options.scale()) / 100) * componentScale
+			const margin = options.launcher.margin() * uiScale() * componentScale
 			const positionMargin =
 				position() === "bottom-center"
 					? `margin-bottom: ${margin}pt;`
@@ -153,7 +152,7 @@ export namespace Launcher {
 				`--icon-size: calc(var(--ui-icon-size) * ${componentScale});`,
 				`--popover-padding: calc(var(--ui-popover-padding) * ${componentScale});`,
 				`--popover-radius: calc(var(--ui-popover-radius) * ${componentScale});`,
-				`--scale: ${Math.max(0.1, options.scale() / 100) * componentScale};`,
+				`--scale: ${uiScale() * componentScale};`,
 			].join("")
 		})
 
@@ -304,10 +303,10 @@ function rankApplications(
 
 const allApps = createBinding(applications, "list")
 const launcherScale = createComputed(() =>
-	Math.max(0.5, options.launcher.scale() / 100),
+	surfaceScale(options.launcher.scale, 0.5),
 )
 const iconSize = createComputed(() =>
-	Math.round(((64 * options.scale()) / 100) * launcherScale()),
+	Math.round(64 * uiScale() * launcherScale()),
 )
 const revealers = new Map<string, Gtk.Revealer>()
 const isOnBottom = createComputed(() => position() === "bottom-center")

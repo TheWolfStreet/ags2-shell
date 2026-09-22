@@ -9,7 +9,7 @@ import AstalHyprland from "gi://AstalHyprland"
 
 import { scheduleMonitorWindowRelease } from "$lib/windowing"
 import { hyprland } from "$lib/hyprland"
-import options from "$shell/options"
+import options, { surfaceScale, uiScale } from "$shell/options"
 
 import { attachDesktopKeyboard, DesktopGrid } from "./components/Grid"
 import { DesktopContextMenu } from "./components/ContextMenu"
@@ -59,10 +59,10 @@ function monitorKey(
 }
 
 function desktopPadding() {
-	const uiScale = Math.max(0.1, options.scale() / 100)
-	const padding = Math.max(0, Math.floor(options.theme.padding() * uiScale))
-	const font = Math.max(8, Math.floor(fontSize(options.font()) * uiScale))
-	const bar = Math.max(24, Math.round(font + padding * 1.6 + 10 * uiScale))
+	const factor = uiScale()
+	const padding = Math.max(0, Math.floor(options.theme.padding() * factor))
+	const font = Math.max(8, Math.floor(fontSize(options.font()) * factor))
+	const bar = Math.max(24, Math.round(font + padding * 1.6 + 10 * factor))
 	let top = 0
 	let bottom = 0
 	let left = 0
@@ -74,11 +74,11 @@ function desktopPadding() {
 		options.taskbar.location() === "dock" &&
 		options.dock.mode() === "static"
 	) {
-		const scale = Math.max(0.25, options.dock.scale() / 100) * uiScale
+		const scale = surfaceScale(options.dock.scale, 0.25) * factor
 		const dock = Math.max(
 			48,
 			Math.round((64 + 4 * 2 + 4 + 4 + 6 * 2 + 2 * 2) * scale) +
-				Math.max(0, Math.floor(options.theme.spacing() * uiScale)),
+				Math.max(0, Math.floor(options.theme.spacing() * factor)),
 		)
 		if (options.dock.position() === "center-left") left += dock
 		else if (options.dock.position() === "bottom-center") bottom += dock
@@ -108,9 +108,8 @@ export namespace Desktop {
 				monitorGeometry.width,
 				monitorGeometry.height,
 				desktopPadding(),
-				getDesktopIconMetrics(options.desktop.iconSize(), options.scale() / 100)
-					.cellPx,
-				options.scale() / 100,
+				getDesktopIconMetrics(options.desktop.iconSize(), uiScale()).cellPx,
+				uiScale(),
 			)
 		})
 		const grid = createComputed(() => getDesktopGrid(id()))

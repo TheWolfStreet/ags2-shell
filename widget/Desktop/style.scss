@@ -110,7 +110,7 @@ window#desktop {
 					0 0 3px rgba(0, 0, 0, 0.5);
 				font-weight: 500;
 				padding: calc(1px * var(--scale, 1)) calc(6px * var(--scale, 1));
-				border-radius: calc(9px * var(--scale, 1));
+				border-radius: calc(var(--radius) * 0.75);
 				background: transparent;
 				transition:
 					background-color var(--transition),
@@ -165,6 +165,90 @@ window#desktop-context-menu {
 			margin: calc(var(--radius) / 2);
 			min-height: 1px;
 			background-color: color-mix(in srgb, var(--fg) 20%, transparent);
+		}
+	}
+}
+
+// Styles the desktop "Open With" application picker.
+window.desktop-open-with {
+	background: var(--bg);
+	color: var(--fg);
+
+	.header {
+		padding: var(--padding);
+		border-bottom: 1px solid var(--border-color);
+
+		label.title {
+			font-weight: 700;
+		}
+
+		button {
+			@extend .flat-button;
+			padding: calc(var(--padding) / 2) var(--padding);
+		}
+
+		button.suggested-action {
+			background: var(--active-gradient);
+			color: var(--primary-fg);
+
+			&:disabled {
+				background: var(--widget-bg);
+				color: color-mix(in srgb, var(--fg) 45%, transparent);
+			}
+		}
+	}
+
+	.open-with-body {
+		padding: var(--padding);
+
+		> *:not(:last-child) {
+			margin-bottom: var(--spacing);
+		}
+
+		entry.search {
+			> image {
+				all: unset;
+				color: color-mix(in srgb, var(--fg) 60%, transparent);
+				-gtk-icon-size: var(--icon-size);
+				margin-right: calc(var(--spacing) / 2);
+			}
+		}
+
+		.app-list {
+			> *:not(:last-child) {
+				margin-bottom: calc(var(--spacing) / 4);
+			}
+
+			label.section {
+				font-weight: 700;
+				color: color-mix(in srgb, var(--fg) 75%, transparent);
+				margin: calc(var(--spacing) / 2) 0;
+			}
+
+			button.app-option {
+				@extend .flat-button;
+				padding: calc(var(--padding) * 0.6);
+
+				box {
+					@include spacing(0.5);
+				}
+
+				&.selected {
+					background: color-mix(in srgb, var(--primary-bg) 30%, transparent);
+					box-shadow: inset 0 0 0 1px
+						color-mix(in srgb, var(--primary-bg) 65%, transparent);
+				}
+			}
+		}
+
+		.always-row {
+			padding-top: var(--padding);
+			border-top: 1px solid var(--border-color);
+
+			label.detail {
+				color: color-mix(in srgb, var(--fg) 62%, transparent);
+				font-size: 0.9em;
+			}
 		}
 	}
 }

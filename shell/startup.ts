@@ -13,7 +13,7 @@ import {
 	type WallpaperPalette,
 } from "$lib/colors"
 import env from "$lib/env"
-import { attempt } from "$lib/result"
+import { attempt, logError } from "$lib/result"
 import { debounce } from "$lib/time"
 import { hasProgram } from "$lib/programs"
 import { getFileSize } from "$lib/textures"
@@ -90,20 +90,31 @@ async function syncTmuxAccent() {
 	const hex =
 		scheme.peek() === "dark" ? dark.primary.bg.peek() : light.primary.bg.peek()
 
-	await execAsync(["tmux", "set", "-g", "@main_accent", hex]).catch(() => {})
+	// Best effort: tmux may not be running. Debug, not error.
+	await execAsync(["tmux", "set", "-g", "@main_accent", hex]).catch((error) => {
+		console.debug("startup.tmux: tmux accent sync skipped", error)
+	})
 
 	const rawSessions = await execAsync([
 		"tmux",
 		"list-sessions",
 		"-F",
 		"#S",
-	]).catch(() => "")
+	]).catch((error) => {
+		console.debug("startup.tmux: no tmux sessions to sync", error)
+		return ""
+	})
 	if (!rawSessions) return
 
 	const sessions = rawSessions.split("\n").filter(Boolean)
 	for (const session of sessions)
 		execAsync(["tmux", "set-option", "-t", session, "@main_accent", hex]).catch(
-			() => {},
+			(error) => {
+				console.debug(
+					`startup.tmux: accent sync skipped for session ${session}`,
+					error,
+				)
+			},
 		)
 }
 
@@ -238,10 +249,7 @@ const updateWallpaperTheme = debounce(WALLPAPER_THEME_DELAY_MS, () => {
 	const result = attempt(() =>
 		buildWallpaperPalette(sampleWallpaperPixels(path)),
 	)
-	if (!result.ok) {
-		console.error("wallpaper.theme: Failed to sample wallpaper", result.err)
-		return
-	}
+	if (!logError(result, "wallpaper.theme: Failed to sample wallpaper")) return
 	if (!result.value) {
 		console.error("wallpaper.theme: Wallpaper contained no usable pixels")
 		return

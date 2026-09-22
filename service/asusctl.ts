@@ -5,7 +5,7 @@ import { execAsync } from "ags/process"
 
 import { hyprland } from "$lib/hyprland"
 import { hasProgram } from "$lib/programs"
-import { attempt, attemptAsync, err, ok, type Result } from "$lib/result"
+import { attempt, attemptAsync, err, ok, withContext, type Result } from "$lib/result"
 import options from "$shell/options"
 
 type MonitorConfiguration = {
@@ -23,9 +23,7 @@ type MonitorMode = {
 
 async function runCommand(args: string[]): Promise<Result<string>> {
 	const result = await attemptAsync(async () => execAsync(args))
-	return result.ok
-		? result
-		: err(new Error(`Command failed: ${args.join(" ")}`, { cause: result.err }))
+	return withContext(result, `Command failed: ${args.join(" ")}`)
 }
 
 function parseProfile(raw: string): Result<Asusctl.Profile> {

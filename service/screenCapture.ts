@@ -8,7 +8,7 @@ import app from "ags/gtk4/app"
 import GLib from "gi://GLib"
 
 import env from "$lib/env"
-import { attempt, attemptAsync } from "$lib/result"
+import { attempt, attemptAsync, logError } from "$lib/result"
 import { ensureDirectory } from "$lib/files"
 import { notify, notifyMissingPrograms } from "$lib/notifications"
 import icons from "$lib/icons"
@@ -59,11 +59,10 @@ class ScreenCaptureService extends GObject.Object {
 
 		this.#shutdownSignalId = app.connect("shutdown", () => {
 			const result = attempt(() => this.#shutdown())
-			if (!result.ok)
-				console.error(
-					"screenCapture.shutdown: Failed to stop recorder",
-					result.err,
-				)
+			logError(
+				result,
+				"screenCapture.shutdown: Failed to stop recorder",
+			)
 		})
 	}
 
@@ -153,11 +152,7 @@ class ScreenCaptureService extends GObject.Object {
 				},
 			})
 		})
-		if (!result.ok)
-			console.error(
-				"screenCapture.screenshot: Failed to take screenshot",
-				result.err,
-			)
+		logError(result, "screenCapture.screenshot: Failed to take screenshot")
 	}
 
 	readonly startRecording = async (select: boolean = false) => {
@@ -205,11 +200,10 @@ class ScreenCaptureService extends GObject.Object {
 			})
 		})
 		this.#recordingStartPending = false
-		if (!result.ok)
-			console.error(
-				"screenCapture.startRecording: Failed to start recording",
-				result.err,
-			)
+		logError(
+			result,
+			"screenCapture.startRecording: Failed to start recording",
+		)
 	}
 
 	readonly stopRecording = () => {
@@ -218,11 +212,7 @@ class ScreenCaptureService extends GObject.Object {
 			this.#notifySavedOnExit = true
 			this.#recorder.signal(2)
 		})
-		if (!result.ok)
-			console.error(
-				"screenCapture.stopRecording: Failed to stop recording",
-				result.err,
-			)
+		logError(result, "screenCapture.stopRecording: Failed to stop recording")
 	}
 
 	async #selectArea(mainTool: string): Promise<string | null> {
@@ -275,11 +265,7 @@ class ScreenCaptureService extends GObject.Object {
 
 	vfunc_finalize() {
 		const result = attempt(() => this.#shutdown())
-		if (!result.ok)
-			console.error(
-				"screenCapture.finalize: Failed to stop recorder",
-				result.err,
-			)
+		logError(result, "screenCapture.finalize: Failed to stop recorder")
 		if (this.#shutdownSignalId) {
 			app.disconnect(this.#shutdownSignalId)
 			this.#shutdownSignalId = 0

@@ -5,7 +5,7 @@ import { timeout, Timer } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 
-import { attempt } from "$lib/result"
+import { attempt, logError } from "$lib/result"
 import { readValue } from "$lib/ui"
 import { notificationManager } from "$service/notifications"
 import options from "$shell/options"
@@ -60,8 +60,7 @@ export function createEntryLifecycle({
 		pendingAction = undefined
 		if (action) {
 			const result = attempt(action)
-			if (!result.ok)
-				console.error("notifications.action: Failed to complete notification action", result.err)
+			logError(result, "notifications.action: Failed to complete notification action")
 		}
 		onExit?.()
 	}
@@ -83,8 +82,7 @@ export function createEntryLifecycle({
 	const onActionClick = (actionId: string) => {
 		if (persistent && notification.resident) {
 			const result = attempt(() => notification.invoke(actionId))
-			if (!result.ok)
-				console.error("notifications.action: Failed to invoke resident notification action", result.err)
+			logError(result, "notifications.action: Failed to invoke resident notification action")
 			return
 		}
 		beginClose(() => notification.invoke(actionId))

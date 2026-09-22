@@ -8,7 +8,7 @@ import app from "ags/gtk4/app"
 import icons from "$lib/icons"
 import env from "$lib/env"
 import { ensureFile } from "$lib/files"
-import { attempt, attemptAsync } from "$lib/result"
+import { attempt, attemptAsync, logError } from "$lib/result"
 import { debounce } from "$lib/time"
 
 namespace Store {
@@ -23,12 +23,10 @@ namespace Store {
 			const raw = readFile(path) || "{}"
 			return JSON.parse(raw) as Record<string, unknown>
 		})
-		if (!result.ok)
-			console.error(
-				"option.store.load: Failed to load options store",
-				result.err,
-			)
-		else if (!isStructured(result.value))
+		if (
+			logError(result, "option.store.load: Failed to load options store") &&
+			!isStructured(result.value)
+		)
 			console.error(
 				"option.store.load: Options store does not contain an object",
 			)
@@ -40,11 +38,7 @@ namespace Store {
 			ensureFile(path)
 			await writeFileAsync(path, JSON.stringify(cache, null, 2))
 		})
-		if (!result.ok)
-			console.error(
-				"option.store.save: Failed to save options store",
-				result.err,
-			)
+		logError(result, "option.store.save: Failed to save options store")
 	})
 
 	export function get(pathStr: string): unknown {
@@ -478,3 +472,13 @@ const options = mkOptions(
 )
 
 export default options
+
+// Global UI factor with the floor applied automatically.
+export function uiScale(): number {
+	return Math.max(0.1, options.scale() / 100)
+}
+
+// Surface factor (dock, launcher) with its own floor, still percent-based.
+export function surfaceScale(source: Accessor<number>, min = 0): number {
+	return Math.max(min, source() / 100)
+}

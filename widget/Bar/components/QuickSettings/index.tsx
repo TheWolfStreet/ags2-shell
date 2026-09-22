@@ -22,14 +22,14 @@ import { PowerProfiles } from "./components/PowerProfiles"
 
 import env from "$lib/env"
 import icons, { getBrightnessIcon } from "$lib/icons"
-import { attemptAsync } from "$lib/result"
+import { attemptAsync, unwrapOr } from "$lib/result"
 import { textureFromFileSquareContain } from "$lib/textures"
 import { hyprland } from "$lib/hyprland"
 import { media } from "$lib/media"
 import { notificationDaemon } from "$lib/notifications"
 import { brightness } from "$service/brightness"
 
-import options from "$shell/options"
+import options, { uiScale } from "$shell/options"
 
 const audio = AstalWp.get_default()
 
@@ -80,11 +80,9 @@ export namespace QuickSettings {
 		Network.Wifi.Window()
 
 		const players = createBinding(media, "players")
-		const avatarSize = options.scale.as((scale) =>
-			Math.round((56 * scale) / 100),
-		)
+		const avatarSize = options.scale.as(() => Math.round(56 * uiScale()))
 		const popupWidth = createComputed(() =>
-			Math.round((quicksettings.width() * options.scale()) / 100),
+			Math.round(quicksettings.width() * uiScale()),
 		)
 
 		function ToggleRow({
@@ -359,11 +357,7 @@ async function queryKeyboardLayout(): Promise<string> {
 		return "unk"
 	})
 
-	if (!result.ok) {
-		console.error("KeyboardLayout: " + result.err)
-		return "err"
-	}
-	return result.value
+	return unwrapOr(result, "err", "KeyboardLayout: failed to read layout")
 }
 
 function KeyboardLayout() {

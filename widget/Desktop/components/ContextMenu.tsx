@@ -10,17 +10,17 @@ import Graphene from "gi://Graphene"
 import { scheduleMonitorWindowRelease } from "$lib/windowing"
 import options from "$shell/options"
 import {
-	createDesktopFolderOn,
-	createDesktopTextFileOn,
+	copyDesktopFiles,
+	createDesktopEntry,
+	cutDesktopFiles,
+	desktopFileByPath,
 	desktopInteraction,
-	getDesktopGrid,
 	openDesktopFiles,
-	openDesktopFileWith,
 	pasteDesktopFiles,
 	removeDesktopFiles,
-	setDesktopClipboard,
 } from "../Desktop"
 import { DesktopLauncherCreator } from "./LauncherCreator"
+import { DesktopOpenWith } from "./OpenWith"
 
 const { TOP, LEFT } = Astal.WindowAnchor
 const { KEY_Escape, KEY_Shift_L, KEY_Shift_R } = Gdk
@@ -87,10 +87,6 @@ export const desktopContextMenu = {
 			idle(run)
 		})
 		desktopContextMenu.hide()
-	},
-	activeWindow() {
-		const activeMonitor = monitor.peek()
-		return activeMonitor ? (contextWindows.get(activeMonitor) ?? null) : null
 	},
 	enterDesktop() {
 		setDesktopPointerInside(true)
@@ -175,9 +171,7 @@ function MenuContent({
 	const openWithVisible = createComputed(() => {
 		const paths = desktopInteraction.selected()
 		if (paths.length !== 1) return false
-		const selected = getDesktopGrid(id()).files.find(
-			(file) => file.path === paths[0],
-		)
+		const selected = desktopFileByPath(paths[0])
 		return !!selected && selected.contentType !== "inode/directory"
 	})
 
@@ -194,8 +188,7 @@ function MenuContent({
 				visible={openWithVisible}
 				run={() => {
 					const path = desktopInteraction.selected.peek()[0]
-					const window = desktopContextMenu.activeWindow()
-					if (path && window) void openDesktopFileWith(path, window)
+					if (path) DesktopOpenWith.open(path)
 				}}
 			/>
 			<Action
@@ -211,17 +204,13 @@ function MenuContent({
 				label="Cut"
 				shortcut="Ctrl+X"
 				visible={hasSelection}
-				run={() =>
-					setDesktopClipboard("cut", desktopInteraction.selected.peek())
-				}
+				run={() => cutDesktopFiles(desktopInteraction.selected.peek())}
 			/>
 			<Action
 				label="Copy"
 				shortcut="Ctrl+C"
 				visible={hasSelection}
-				run={() =>
-					setDesktopClipboard("copy", desktopInteraction.selected.peek())
-				}
+				run={() => copyDesktopFiles(desktopInteraction.selected.peek())}
 			/>
 			<Action
 				label="Paste"
@@ -252,7 +241,7 @@ function MenuContent({
 				label="New Folder"
 				visible={backgroundMenu}
 				run={() => {
-					const path = createDesktopFolderOn(id.peek())
+					const path = createDesktopEntry(id.peek(), { kind: "folder" })
 					if (path)
 						desktopContextMenu.hideThen(() =>
 							desktopInteraction.rename.begin(path),
@@ -263,7 +252,7 @@ function MenuContent({
 				label="New Text File"
 				visible={backgroundMenu}
 				run={() => {
-					const path = createDesktopTextFileOn(id.peek())
+					const path = createDesktopEntry(id.peek(), { kind: "file" })
 					if (path)
 						desktopContextMenu.hideThen(() =>
 							desktopInteraction.rename.begin(path),

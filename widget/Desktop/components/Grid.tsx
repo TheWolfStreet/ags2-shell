@@ -9,12 +9,13 @@ import type { DesktopFile } from "../FileOperations"
 import { DragLayer, type DesktopDragController } from "../DragAndDrop"
 import {
 	cancelDesktopCut,
+	copyDesktopFiles,
+	cutDesktopFiles,
 	desktopClipboard,
 	desktopInteraction,
 	openDesktopFiles,
 	pasteDesktopFiles,
 	removeDesktopFiles,
-	setDesktopClipboard,
 	type DesktopGridData,
 } from "../Desktop"
 import {
@@ -23,7 +24,7 @@ import {
 	slotIndexToRect,
 	type SlotRect,
 } from "../GridGeometry"
-import options from "$shell/options"
+import options, { uiScale } from "$shell/options"
 import { desktopContextMenu } from "./ContextMenu"
 import { DesktopIcon } from "./Icon"
 
@@ -102,11 +103,11 @@ function keyPressed(monitorId: string, key: number, state: number): boolean {
 		return true
 	}
 	if (control && (key === KEY_c || key === KEY_C)) {
-		setDesktopClipboard("copy", paths)
+		copyDesktopFiles(paths)
 		return true
 	}
 	if (control && (key === KEY_x || key === KEY_X)) {
-		if (paths.length > 0) setDesktopClipboard("cut", paths)
+		if (paths.length > 0) cutDesktopFiles(paths)
 		else void cancelDesktopCut()
 		return true
 	}
@@ -341,7 +342,7 @@ export function DesktopGrid({
 		return new Set(clipboard.files)
 	})
 	const iconMetrics = createComputed(() =>
-		getDesktopIconMetrics(options.desktop.iconSize(), options.scale() / 100),
+		getDesktopIconMetrics(options.desktop.iconSize(), uiScale()),
 	)
 	const monitorId = grid.as((data) => data.id)
 	const contentHeight = createComputed(() => {

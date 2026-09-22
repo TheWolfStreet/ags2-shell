@@ -1,18 +1,14 @@
 // Copies, moves, renames, removes, imports, and opens desktop files.
 
 import { execAsync } from "ags/process"
-import { Gdk, Gtk } from "ags/gtk4"
+import { Gdk } from "ags/gtk4"
 
 import Gio from "gi://Gio"
 import GioUnix from "gi://GioUnix"
 import GLib from "gi://GLib"
-import Xdp from "gi://Xdp"
-// XdpGtk4 is not emitted by the project's GIR type generator.
-// @ts-expect-error missing generated declaration
-import XdpGtk4 from "gi://XdpGtk4"
 
 import env from "$lib/env"
-import { attempt, attemptAsync, err, ok, type Result } from "$lib/result"
+import { attempt, attemptAsync, err, ok, withContext, type Result } from "$lib/result"
 
 export type DesktopFile = {
 	name: string
@@ -26,8 +22,6 @@ export type DesktopFile = {
 }
 
 export const DESKTOP_PATH = `${env.paths.home}/Desktop`
-
-let portal: Xdp.Portal | null = null
 
 function uniqueDesktopTargetPath(baseName: string) {
 	const lastDot = baseName.lastIndexOf(".")
@@ -215,9 +209,7 @@ export function renameFile(oldPath: string, newName: string): Result<string> {
 		return newPath
 	})
 
-	if (!result.ok)
-		return err(new Error(`Failed to rename ${oldPath}`, { cause: result.err }))
-	return result
+	return withContext(result, `Failed to rename ${oldPath}`)
 }
 
 export function createDesktopFolder(): Result<string> {
@@ -238,11 +230,7 @@ export function createDesktopFolder(): Result<string> {
 		return newPath
 	})
 
-	if (!result.ok)
-		return err(
-			new Error("Failed to create desktop folder", { cause: result.err }),
-		)
-	return result
+	return withContext(result, "Failed to create desktop folder")
 }
 
 export function createDesktopTextFile(): Result<string> {
@@ -256,11 +244,7 @@ export function createDesktopTextFile(): Result<string> {
 		return path
 	})
 
-	if (!result.ok)
-		return err(
-			new Error("Failed to create desktop text file", { cause: result.err }),
-		)
-	return result
+	return withContext(result, "Failed to create desktop text file")
 }
 
 export type DesktopLauncherSpec = {
@@ -334,11 +318,7 @@ export function createDesktopLauncher(
 		return path
 	})
 
-	if (!result.ok)
-		return err(
-			new Error("Failed to create desktop launcher", { cause: result.err }),
-		)
-	return result
+	return withContext(result, "Failed to create desktop launcher")
 }
 
 function tryGetFileContentType(path: string) {
@@ -450,11 +430,7 @@ export function loadDesktopFiles(): Result<DesktopFile[]> {
 		return foundFiles.sort(compareDesktopFiles)
 	})
 
-	if (!result.ok)
-		return err(
-			new Error("Failed to scan desktop directory", { cause: result.err }),
-		)
-	return result
+	return withContext(result, "Failed to scan desktop directory")
 }
 
 function compareDesktopFiles(left: DesktopFile, right: DesktopFile): number {
@@ -487,60 +463,7 @@ export function openPath(filePath: string): Result<void> {
 		const fileObj = Gio.File.new_for_path(filePath)
 		Gio.app_info_launch_default_for_uri(fileObj.get_uri(), null)
 	})
-	if (!result.ok)
-		return err(new Error(`Failed to open ${filePath}`, { cause: result.err }))
-	return result
-}
-
-export async function openPathWithChooser(
-	filePath: string,
-	window: Gtk.Window,
-): Promise<Result<void>> {
-	return new Promise((resolve) => {
-		const started = attempt(() => {
-			portal ??= Xdp.Portal.initable_new()
-			const parent = XdpGtk4.parent_new_gtk(window)
-			portal.open_uri(
-				parent,
-				Gio.File.new_for_path(filePath).get_uri(),
-				Xdp.OpenUriFlags.ASK,
-				null,
-				(_source: unknown, result: Gio.AsyncResult) => {
-					void parent
-					const opened = attempt(() => portal!.open_uri_finish(result))
-					if (opened.ok) {
-						resolve(ok(undefined))
-						return
-					}
-
-					const error = opened.err
-					const cancelled =
-						error instanceof GLib.Error &&
-						error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED)
-					if (cancelled) {
-						resolve(ok(undefined))
-						return
-					}
-					resolve(
-						err(
-							new Error(`Failed to open ${filePath} with application chooser`, {
-								cause: error,
-							}),
-						),
-					)
-				},
-			)
-		})
-
-		if (!started.ok)
-			resolve(
-				err(
-					new Error(`Failed to open application chooser for ${filePath}`, {
-						cause: started.err,
-					}),
-				),
-			)
-	})
+	return withContext(result, `Failed to open ${filePath}`)
 }
 
 export type ClipboardFilePayload = {
@@ -671,13 +594,17 @@ function pathsFromUris(uris: string[]) {
 		.filter((path): path is string => !!path)
 }
 
+export function splitPayloadLines(text: string): string[] {
+	return text
+		.split(/\r?\n/g)
+		.map((line) => line.trim())
+		.filter(Boolean)
+}
+
 export async function readClipboardFilePayload(): Promise<ClipboardFilePayload | null> {
 	const copiedFiles = await readClipboardMime("x-special/gnome-copied-files")
 	if (copiedFiles) {
-		const lines = copiedFiles
-			.split("\n")
-			.map((line) => line.trim())
-			.filter(Boolean)
+		const lines = splitPayloadLines(copiedFiles)
 		const files = pathsFromUris(lines.slice(1))
 		if (files.length > 0) {
 			let operation: ClipboardOperation = "copy"
@@ -690,10 +617,7 @@ export async function readClipboardFilePayload(): Promise<ClipboardFilePayload |
 	if (!uriList) return null
 
 	const files = pathsFromUris(
-		uriList
-			.split("\n")
-			.map((line) => line.trim())
-			.filter((line) => line && !line.startsWith("#")),
+		splitPayloadLines(uriList).filter((line) => !line.startsWith("#")),
 	)
 	if (files.length === 0) return null
 	return { operation: "copy", files }

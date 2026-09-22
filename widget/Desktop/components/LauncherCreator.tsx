@@ -22,7 +22,7 @@ import icons from "$lib/icons"
 import { isDialogDismissed } from "$lib/ui"
 import { ApplicationIcon } from "widget/shared/ApplicationIcon"
 import { Placeholder } from "widget/shared/Placeholder"
-import { createDesktopLauncherOn, desktopInteraction } from "../Desktop"
+import { createDesktopEntry, desktopInteraction } from "../Desktop"
 
 export namespace DesktopLauncherCreator {
 	export function open(monitorId: string) {
@@ -606,7 +606,8 @@ export namespace DesktopLauncherCreator {
 		function create() {
 			setErrorMessage("")
 			const isDirectory = directoryTarget.peek()
-			const path = createDesktopLauncherOn(targetMonitor.peek(), {
+			const path = createDesktopEntry(targetMonitor.peek(), {
+				kind: "launcher",
 				name: name.peek(),
 				comment: comment.peek(),
 				command: command.peek(),

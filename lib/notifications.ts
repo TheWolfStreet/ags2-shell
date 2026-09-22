@@ -8,7 +8,7 @@ import GLib from "gi://GLib"
 
 import icons from "$lib/icons"
 import { hasProgram } from "$lib/programs"
-import { attempt, attemptAsync } from "$lib/result"
+import { attempt, attemptAsync, logError, unwrapOr } from "$lib/result"
 
 export const notificationDaemon = AstalNotifd.get_default()
 
@@ -84,11 +84,11 @@ export async function notify(options: {
 		if (actionList.length) wireNotificationActions(notificationId)
 		return notificationId
 	})
-	if (!result.ok) {
-		console.error("notifications.send: Failed to send notification", result.err)
-		return undefined
-	}
-	return result.value
+	return unwrapOr(
+		result,
+		undefined,
+		"notifications.send: Failed to send notification",
+	)
 }
 
 export function notifyMissingPrograms(...bins: string[]): boolean {
@@ -131,11 +131,10 @@ function wireNotificationActions(id: number): void {
 				const notification = notificationDaemon.get_notification(id)
 				if (notification) attach(notification)
 			})
-			if (!result.ok)
-				console.error(
-					`notifications.action: Failed to watch notification ${id}`,
-					result.err,
-				)
+			logError(
+				result,
+				`notifications.action: Failed to watch notification ${id}`,
+			)
 		},
 	)
 }

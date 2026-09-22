@@ -37,6 +37,14 @@ function renameSelectionEnd(name: string): number {
 	return extension > 0 ? extension : name.length
 }
 
+function ensureRenameFocus(editor: Gtk.Text, file: DesktopFile): void {
+	if (
+		editor.editable &&
+		desktopInteraction.rename.path.peek() === file.path
+	)
+		focusRename(editor)
+}
+
 function focusRename(editor: Gtk.Text): void {
 	editor.grab_focus()
 	idle(() => {
@@ -161,13 +169,7 @@ function IconLabel({
 				onActivate={desktopInteraction.rename.commit}
 				onNotifyEditable={(self) => {
 					if (self.editable) {
-						idle(() => {
-							if (
-								self.editable &&
-								desktopInteraction.rename.path.peek() === file.path
-							)
-								focusRename(self)
-						})
+						idle(() => ensureRenameFocus(self, file))
 						return
 					}
 					self.select_region(0, 0)
@@ -185,22 +187,14 @@ function IconLabel({
 						const root = self.get_root()
 						if (
 							self.get_mapped() &&
-							self.editable &&
 							root instanceof Gtk.Window &&
-							root.is_active &&
-							desktopInteraction.rename.path.peek() === file.path
+							root.is_active
 						)
-							focusRename(self)
+							ensureRenameFocus(self, file)
 					})
 				}}
 				$={(self) => {
-					self.connect("map", () => {
-						if (
-							self.editable &&
-							desktopInteraction.rename.path.peek() === file.path
-						)
-							focusRename(self)
-					})
+					self.connect("map", () => ensureRenameFocus(self, file))
 				}}
 			/>
 		</box>

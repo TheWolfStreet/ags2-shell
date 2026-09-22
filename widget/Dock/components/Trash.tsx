@@ -7,7 +7,7 @@ import Gio from "gi://Gio"
 
 import env from "$lib/env"
 import { ensureDirectory } from "$lib/files"
-import { attempt } from "$lib/result"
+import { attempt, logError } from "$lib/result"
 import { debounce } from "$lib/time"
 import { getClientWorkspaceId, moveClientToWorkspaceSilent } from "$lib/windowing"
 
@@ -31,8 +31,7 @@ function refreshState() {
 		return hasItem
 	})
 
-	if (!result.ok)
-		console.error("dock.trash.refresh: Failed to refresh trash state", result.err)
+	logError(result, "dock.trash.refresh: Failed to refresh trash state")
 
 	setHasItems(result.ok && result.value)
 }
@@ -51,8 +50,7 @@ export function acquireTrashWatcher() {
 			watcher.connect("changed", () => refresh.call())
 		})
 
-		if (!result.ok)
-			console.error(`dock.trash.watch: Failed to watch ${TRASH_DIR}`, result.err)
+		logError(result, `dock.trash.watch: Failed to watch ${TRASH_DIR}`)
 	}
 
 	return releaseTrashWatcher
@@ -87,6 +85,5 @@ export function openOrFocus(clients: AstalHyprland.Client[], activeWorkspaceId: 
 		Gio.app_info_launch_default_for_uri("trash:///", null)
 	})
 
-	if (!result.ok)
-		console.error("dock.trash.open_or_focus: Failed to open or focus trash", result.err)
+	logError(result, "dock.trash.open_or_focus: Failed to open or focus trash")
 }

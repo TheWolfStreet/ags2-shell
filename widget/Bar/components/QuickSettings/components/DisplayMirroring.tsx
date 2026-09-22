@@ -10,7 +10,7 @@ import { Placeholder } from "widget/shared/Placeholder"
 import { ToggleButton, Menu, quickSettingsSubmenu } from "./MenuControls"
 
 import icons from "$lib/icons"
-import { attemptAsync } from "$lib/result"
+import { attemptAsync, unwrapOr } from "$lib/result"
 import { hyprland } from "$lib/hyprland"
 
 import options from "$shell/options"
@@ -104,11 +104,7 @@ export namespace DisplayMirroring {
 				) as AstalHyprland.Monitor[]
 			).filter((m) => m.id !== 0),
 		)
-		if (!result.ok) {
-			console.error("Error fetching monitors:", result.err)
-			return []
-		}
-		return result.value
+		return unwrapOr(result, [], "DisplayMirroring: failed to fetch monitors")
 	}
 
 	function Entry({

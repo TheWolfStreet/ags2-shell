@@ -10,7 +10,7 @@ import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
 import env from "$lib/env"
-import { attempt } from "$lib/result"
+import { attempt, logError, unwrapOr, type Result } from "$lib/result"
 import { debounce } from "$lib/time"
 
 import {
@@ -22,7 +22,6 @@ import {
 	importDesktopFiles,
 	loadDesktopFiles,
 	openPath,
-	openPathWithChooser,
 	pasteFilesToDesktop,
 	permanentlyDeleteFiles,
 	readClipboardFilePayload,
@@ -54,7 +53,6 @@ type DesktopPlacement = {
 }
 
 type DesktopLayout = {
-	version: 3
 	placements: Record<string, DesktopPlacement>
 	columns: Record<string, number>
 }
@@ -67,11 +65,6 @@ export type DesktopGridData = {
 }
 
 type PathEntry = { path: string }
-
-type LegacyMonitor = {
-	positions: Record<string, number>
-	columns?: number
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -99,26 +92,8 @@ function sanitizeColumnCount(value: unknown): number | undefined {
 	return columns > 0 ? columns : undefined
 }
 
-function decodeLegacyMonitors(value: unknown): Record<string, LegacyMonitor> {
-	if (!isRecord(value)) return {}
-	const monitors: Record<string, LegacyMonitor> = {}
-	for (const [rawId, rawMonitor] of Object.entries(value)) {
-		if (!isRecord(rawMonitor)) continue
-		const positions: Record<string, number> = {}
-		if (isRecord(rawMonitor.positions)) {
-			for (const [path, slot] of Object.entries(rawMonitor.positions))
-				if (path) positions[path] = sanitizeSlot(slot)
-		}
-		const columns = isRecord(rawMonitor.grid)
-			? sanitizeColumnCount(rawMonitor.grid.columns)
-			: undefined
-		monitors[normalizeMonitorId(rawId)] = { positions, columns }
-	}
-	return monitors
-}
-
 function decodeLayout(value: unknown): DesktopLayout {
-	const layout: DesktopLayout = { version: 3, placements: {}, columns: {} }
+	const layout: DesktopLayout = { placements: {}, columns: {} }
 	if (!isRecord(value)) return layout
 
 	if (isRecord(value.placements)) {
@@ -132,40 +107,10 @@ function decodeLayout(value: unknown): DesktopLayout {
 		}
 	}
 
-	if (value.version === 3) {
-		if (isRecord(value.columns)) {
-			for (const [rawId, rawColumns] of Object.entries(value.columns)) {
-				const columns = sanitizeColumnCount(rawColumns)
-				if (columns) layout.columns[normalizeMonitorId(rawId)] = columns
-			}
-		}
-		return layout
-	}
-
-	if (value.version === 2) {
-		if (isRecord(value.grids)) {
-			for (const [rawId, rawGrid] of Object.entries(value.grids)) {
-				if (!isRecord(rawGrid)) continue
-				const columns = sanitizeColumnCount(rawGrid.columns)
-				if (columns) layout.columns[normalizeMonitorId(rawId)] = columns
-			}
-		}
-		return layout
-	}
-
-	const monitors = decodeLegacyMonitors(value.monitors)
-	for (const [id, monitor] of Object.entries(monitors)) {
-		if (monitor.columns) layout.columns[id] = monitor.columns
-		for (const [path, slot] of Object.entries(monitor.positions))
-			layout.placements[path] = { monitor: id, slot }
-	}
-	if (isRecord(value.entries)) {
-		for (const [path, rawMonitor] of Object.entries(value.entries)) {
-			if (!path || typeof rawMonitor !== "string") continue
-			const monitor = normalizeMonitorId(rawMonitor)
-			const slot =
-				monitors[monitor]?.positions[path] ?? layout.placements[path]?.slot
-			layout.placements[path] = slot == null ? { monitor } : { monitor, slot }
+	if (isRecord(value.columns)) {
+		for (const [rawId, rawColumns] of Object.entries(value.columns)) {
+			const columns = sanitizeColumnCount(rawColumns)
+			if (columns) layout.columns[normalizeMonitorId(rawId)] = columns
 		}
 	}
 	return layout
@@ -174,12 +119,9 @@ function decodeLayout(value: unknown): DesktopLayout {
 function loadLayout(): DesktopLayout {
 	if (!GLib.file_test(cacheFile, GLib.FileTest.EXISTS)) return decodeLayout({})
 	const result = attempt((): unknown => JSON.parse(readFile(cacheFile) || "{}"))
-	if (!result.ok)
-		console.error(
-			"desktop.loadLayout: Failed to load desktop layout",
-			result.err,
-		)
-	return decodeLayout(result.ok ? result.value : {})
+	return decodeLayout(
+		unwrapOr(result, {}, "desktop.loadLayout: Failed to load desktop layout"),
+	)
 }
 
 function placementsEqual(
@@ -332,8 +274,7 @@ const saveLayout = debounce(500, () => {
 			JSON.stringify(desktopLayout.peek(), null, 2),
 		),
 	)
-	if (!result.ok)
-		console.error("desktop.save: Failed to save desktop layout", result.err)
+	logError(result, "desktop.save: Failed to save desktop layout")
 })
 
 function updateLayout(next: DesktopLayout): boolean {
@@ -372,13 +313,8 @@ function normalizeKnownPositions(
 
 function reloadDesktopFiles(preferredMonitorId?: string): void {
 	const result = loadDesktopFiles()
-	if (!result.ok) {
-		console.error(
-			"desktop.loadDesktopFiles: Failed to load desktop files",
-			result.err,
-		)
+	if (!logError(result, "desktop.loadDesktopFiles: Failed to load desktop files"))
 		return
-	}
 	const files = result.value
 	const current = desktopLayout.peek()
 	const preferred =
@@ -424,11 +360,11 @@ function watchDesktopDirectory(): void {
 			if (activeTransfers === 0) refreshDesktopFiles.call()
 		})
 	})
-	if (!result.ok)
-		console.error(
-			"desktop.watchDesktopDir: Failed to watch desktop directory",
-			result.err,
-		)
+	logError(result, "desktop.watchDesktopDir: Failed to watch desktop directory")
+}
+
+export function desktopFileByPath(path: string): DesktopFile | undefined {
+	return desktopFiles.peek().find((file) => file.path === path)
 }
 
 export function getDesktopGrid(monitorId: string): DesktopGridData {
@@ -534,21 +470,21 @@ export function monitorOfDesktopPath(path: string): string | null {
 	return path ? (desktopLayout.peek().placements[path]?.monitor ?? null) : null
 }
 
-export function moveDesktopFiles(
-	targetMonitorId: string,
-	paths: string[],
-	targetSlot: number,
-	anchor?: string,
-): void {
-	const movingPaths = [...new Set(paths)].filter(Boolean)
+export function moveDesktopFiles(opts: {
+	to: string
+	paths: string[]
+	slot: number
+	anchor?: string
+}): void {
+	const movingPaths = [...new Set(opts.paths)].filter(Boolean)
 	if (movingPaths.length === 0) return
 
-	const targetId = normalizeMonitorId(targetMonitorId)
+	const targetId = normalizeMonitorId(opts.to)
 	const target = getDesktopGrid(targetId)
 	if (!target.metrics) return
 
 	const layout = desktopLayout.peek()
-	const anchorPath = anchor ?? movingPaths[0]
+	const anchorPath = opts.anchor ?? movingPaths[0]
 	const sourceId = normalizeMonitorId(
 		layout.placements[anchorPath]?.monitor ??
 			layout.placements[movingPaths[0]]?.monitor ??
@@ -580,13 +516,13 @@ export function moveDesktopFiles(
 				columns: layout.columns[sourceId] ?? metrics.columns,
 			},
 			targetGrid,
-			{ paths: movingPaths, anchorPath, targetSlot },
+			{ paths: movingPaths, anchorPath, targetSlot: opts.slot },
 		)
 	} else {
 		movedPositions = movePathsToSlot(targetGrid, target.files, {
 			paths: movingPaths,
 			anchorPath,
-			targetSlot,
+			targetSlot: opts.slot,
 		})
 	}
 
@@ -602,50 +538,42 @@ export function moveDesktopFiles(
 
 export function openDesktopFiles(paths: string[]): void {
 	for (const path of paths) {
-		const result = openPath(path)
-		if (!result.ok)
-			console.error("desktop.open: Failed to open desktop file", result.err)
+		if (!path) continue
+		logError(openPath(path), "desktop.open: Failed to open desktop file")
 	}
 }
 
-export async function openDesktopFileWith(
-	path: string,
-	window: Gtk.Window,
-): Promise<void> {
-	if (!path) return
-	const result = await openPathWithChooser(path, window)
-	if (!result.ok)
-		console.error(
-			"desktop.openWith: Failed to open application chooser",
-			result.err,
-		)
-}
-
-export function setDesktopClipboard(
+function setDesktopClipboard(
 	operation: "copy" | "cut",
 	paths: string[],
 ): void {
 	const files = [...new Set(paths)].filter(Boolean)
 	if (files.length === 0) return
 	void writeClipboardFilePayload(operation, files).then((result) => {
-		if (!result.ok)
-			console.error(
-				"desktop.setClipboardFiles: Failed to set desktop clipboard",
-				result.err,
-			)
+		logError(
+			result,
+			"desktop.setClipboardFiles: Failed to set desktop clipboard",
+		)
 	})
 	updateDesktopClipboard({ operation, files })
+}
+
+export function copyDesktopFiles(paths: string[]): void {
+	setDesktopClipboard("copy", paths)
+}
+
+export function cutDesktopFiles(paths: string[]): void {
+	setDesktopClipboard("cut", paths)
 }
 
 export async function cancelDesktopCut(): Promise<void> {
 	const current = await readClipboardFilePayload()
 	if (current?.operation === "cut") {
 		const result = await clearClipboardFilePayload()
-		if (!result.ok)
-			console.error(
-				"desktop.clearClipboardFiles: Failed to clear desktop clipboard",
-				result.err,
-			)
+		logError(
+			result,
+			"desktop.clearClipboardFiles: Failed to clear desktop clipboard",
+		)
 	}
 	if (desktopClipboard.peek()?.operation === "cut") updateDesktopClipboard(null)
 }
@@ -673,15 +601,15 @@ export async function pasteDesktopFiles(monitorId: string): Promise<void> {
 	}
 }
 
-export async function importFilesToDesktop(
-	paths: string[],
-	monitorId: string,
-	operation: "copy" | "move",
-): Promise<void> {
+export async function importFilesToDesktop(opts: {
+	paths: string[]
+	to: string
+	operation: "copy" | "move"
+}): Promise<void> {
 	let createdPaths: string[] = []
 	beginDesktopTransfer()
 	try {
-		const result = await importDesktopFiles(paths, operation)
+		const result = await importDesktopFiles(opts.paths, opts.operation)
 		createdPaths = result.createdPaths
 		if (result.failures.length > 0)
 			console.error(
@@ -689,7 +617,7 @@ export async function importFilesToDesktop(
 				result.failures,
 			)
 	} finally {
-		finishDesktopTransfer(createdPaths, monitorId)
+		finishDesktopTransfer(createdPaths, opts.to)
 	}
 }
 
@@ -701,10 +629,8 @@ export function removeDesktopFiles(
 	let result: ReturnType<typeof trashFiles>
 	if (opts.permanently) result = permanentlyDeleteFiles(paths)
 	else result = trashFiles(paths)
-	if (!result.ok) {
-		console.error("desktop.remove: Failed to remove desktop files", result.err)
+	if (!logError(result, "desktop.remove: Failed to remove desktop files"))
 		return
-	}
 	reloadDesktopFiles()
 }
 
@@ -714,52 +640,33 @@ function rememberCreatedPath(path: string, monitorId: string): string {
 	return path
 }
 
-export function createDesktopFolderOn(monitorId: string): string | null {
-	const result = createDesktopFolder()
-	if (!result.ok) {
-		console.error(
-			"desktop.createFolder: Failed to create desktop folder",
-			result.err,
-		)
-		return null
-	}
-	return rememberCreatedPath(result.value, monitorId)
-}
+export type DesktopEntrySpec =
+	| { kind: "folder" }
+	| { kind: "file" }
+	| ({ kind: "launcher" } & DesktopLauncherSpec)
 
-export function createDesktopTextFileOn(monitorId: string): string | null {
-	const result = createDesktopTextFile()
-	if (!result.ok) {
-		console.error(
-			"desktop.createTextFile: Failed to create desktop text file",
-			result.err,
-		)
-		return null
-	}
-	return rememberCreatedPath(result.value, monitorId)
-}
-
-export function createDesktopLauncherOn(
+export function createDesktopEntry(
 	monitorId: string,
-	spec: DesktopLauncherSpec,
+	spec: DesktopEntrySpec,
 ): string | null {
-	const result = createDesktopLauncher(spec)
-	if (!result.ok) {
-		console.error(
-			"desktop.createLauncher: Failed to create desktop launcher",
-			result.err,
-		)
-		return null
+	let result: Result<string>
+	if (spec.kind === "folder") {
+		result = createDesktopFolder()
+	} else if (spec.kind === "file") {
+		result = createDesktopTextFile()
+	} else {
+		result = createDesktopLauncher(spec)
 	}
+	if (!logError(result, `desktop.create: Failed to create desktop ${spec.kind}`))
+		return null
 	return rememberCreatedPath(result.value, monitorId)
 }
 
 function renameDesktopFile(target: string, name: string): string | null {
 	if (!target || !name.trim()) return null
 	const result = renameFile(target, name)
-	if (!result.ok) {
-		console.error("desktop.rename: Failed to rename desktop file", result.err)
+	if (!logError(result, "desktop.rename: Failed to rename desktop file"))
 		return null
-	}
 	const path = result.value
 	updateLayout(renamePlacement(desktopLayout.peek(), target, path))
 	setDesktopFiles(
