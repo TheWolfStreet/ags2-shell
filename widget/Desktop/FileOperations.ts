@@ -161,12 +161,15 @@ function mutateDesktopFiles(
 			failures.push({ path, error: "operation returned false" })
 	}
 
-	if (failures.length > 0)
+	if (failures.length > 0) {
+		const first = failures[0].error
+		const detail = first instanceof Error ? first.message : String(first)
 		return err(
-			new Error(`${failureMessage} ${failures.length} item(s)`, {
+			new Error(`${failureMessage} ${failures.length} item(s): ${detail}`, {
 				cause: failures,
 			}),
 		)
+	}
 	return ok(undefined)
 }
 
@@ -182,11 +185,32 @@ export function permanentlyDeleteFiles(filePaths: string[]) {
 	return mutateDesktopFiles(
 		filePaths,
 		(file) => {
-			file.delete(null)
+			deleteFileRecursively(file)
 			return true
 		},
 		"Failed to delete",
 	)
+}
+
+function deleteFileRecursively(file: Gio.File): void {
+	if (
+		file.query_file_type(Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null) ===
+		Gio.FileType.DIRECTORY
+	) {
+		const children = file.enumerate_children(
+			"standard::name",
+			Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+			null,
+		)
+		try {
+			let info: Gio.FileInfo | null
+			while ((info = children.next_file(null)) !== null)
+				deleteFileRecursively(file.get_child(info.get_name()))
+		} finally {
+			children.close(null)
+		}
+	}
+	file.delete(null)
 }
 
 export function renameFile(oldPath: string, newName: string): Result<string> {
