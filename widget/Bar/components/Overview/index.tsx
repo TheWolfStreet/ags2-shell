@@ -1,7 +1,7 @@
 // Shows Hyprland workspaces and windows in an overview for each monitor.
 
 import { createBinding, createComputed, For, onCleanup, onMount } from "ags"
-import { idle } from "ags/time"
+import { idle, interval, Timer } from "ags/time"
 import app from "ags/gtk4/app"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
@@ -14,10 +14,11 @@ import { PanelButton } from "../PanelButton"
 import { hyprland } from "$lib/hyprland"
 import {
 	createClientTitleAccessor,
-	filterValidWindowClients,
+	createWorkspaceClients,
 	focusedWindowClient,
-	getClientWorkspaceId,
 	moveClientToWorkspaceSilent,
+	onWindowToggle,
+	refreshClientPlacement,
 } from "$lib/windowing"
 
 import options from "$shell/options"
@@ -27,17 +28,15 @@ export namespace Overview {
 		const workspaces = createComputed(() =>
 			workspaceIds(options.bar.workspaces.count()),
 		)
-		const clients = createBinding(hyprland, "clients").as((list) =>
-			filterValidWindowClients(list ?? []),
-		)
-		const className = (ws: number) =>
-			createBinding(hyprland, "focusedWorkspace").as((fws) => {
+		const className = (ws: number) => {
+			const occupants = createWorkspaceClients(ws)
+			return createBinding(hyprland, "focusedWorkspace").as((fws) => {
 				const classes: string[] = []
 				if (fws?.id === ws) classes.push("active")
-				if (clients().some((client) => getClientWorkspaceId(client) === ws))
-					classes.push("occupied")
+				if (occupants().length > 0) classes.push("occupied")
 				return classes.join(" ")
 			})
+		}
 
 		return (
 			<PanelButton targetWindow="overview" class="workspaces">
@@ -66,6 +65,37 @@ export namespace Overview {
 			workspaceIds(options.overview.workspaces()),
 		)
 
+		// Mouse drags and resizes emit no Hyprland events, so Astal's cached
+		// geometry goes stale. Re-sync from the compositor while open.
+		let syncPoll: Timer | null = null
+		const stopSyncPoll = () => {
+			syncPoll?.cancel()
+			syncPoll = null
+		}
+		const syncNow = () => {
+			hyprland.sync_clients((_source, result) => {
+				try {
+					hyprland.sync_clients_finish(result)
+				} catch {
+					// Hyprland unreachable; the next tick retries.
+				}
+				refreshClientPlacement()
+			})
+		}
+		const startSyncPoll = () => {
+			stopSyncPoll()
+			syncNow()
+			syncPoll = interval(OVERVIEW_SYNC_INTERVAL_MS, syncNow)
+		}
+		const stopWindowSubscription = onWindowToggle("overview", (window) => {
+			if (window.visible) startSyncPoll()
+			else stopSyncPoll()
+		})
+		onCleanup(() => {
+			stopWindowSubscription()
+			stopSyncPoll()
+		})
+
 		return (
 			<PopupWindow application={app} name="overview" layer={OVERLAY}>
 				<box class="overview horizontal">
@@ -81,7 +111,12 @@ export namespace Overview {
 	}
 
 	const HYPR_UPDATE_SIGNALS = ["client-added", "client-moved"] as const
-	const CLIENT_UPDATE_SIGNALS = ["notify::x", "notify::y"] as const
+	const CLIENT_UPDATE_SIGNALS = [
+		"notify::x",
+		"notify::y",
+		"notify::width",
+		"notify::height",
+	] as const
 
 	function sanitizeOverviewScale(value: number) {
 		return Math.max(1, value)
@@ -239,11 +274,7 @@ export namespace Overview {
 			return `min-width: ${factor * width}px; min-height: ${factor * height}px;`
 		})
 
-		const clients = createBinding(hyprland, "clients").as((list) =>
-			filterValidWindowClients(list ?? []).filter(
-				(client) => getClientWorkspaceId(client) === workspaceId,
-			),
-		)
+		const clients = createWorkspaceClients(workspaceId)
 		let fixed: Gtk.Fixed
 
 		return (
@@ -293,6 +324,7 @@ export namespace Overview {
 	const { MOVE } = Gdk.DragAction
 	const { OVERLAY } = Astal.Layer
 
+	const OVERVIEW_SYNC_INTERVAL_MS = 250
 	const FALLBACK_MONITOR_WIDTH = 1920
 	const FALLBACK_MONITOR_HEIGHT = 1080
 }

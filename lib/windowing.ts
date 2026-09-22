@@ -134,6 +134,40 @@ export function getClientWorkspaceId(client: AstalHyprland.Client) {
 	return client.workspace?.id ?? client.get_workspace?.()?.id ?? null
 }
 
+const [clientPlacementVersion, setClientPlacementVersion] = createState(0)
+let placementTrackerInstalled = false
+
+function installPlacementTracker() {
+	if (placementTrackerInstalled) return
+	placementTrackerInstalled = true
+	const bump = () =>
+		setClientPlacementVersion(clientPlacementVersion.peek() + 1)
+	hyprland.connect("client-moved", bump)
+	hyprland.connect("client-added", bump)
+	hyprland.connect("client-removed", bump)
+}
+
+// Re-runs workspace client filters. Used after a manual client sync so moves
+// the event stream missed are still picked up.
+export function refreshClientPlacement() {
+	setClientPlacementVersion(clientPlacementVersion.peek() + 1)
+}
+
+// Clients per workspace that also refresh when a window moves across
+// workspaces. A plain `createBinding(hyprland, "clients")` filter goes stale
+// on moves because the list itself is unchanged; only the client's workspace
+// property changes.
+export function createWorkspaceClients(workspaceId: number) {
+	installPlacementTracker()
+	const clients = createBinding(hyprland, "clients")
+	return createComputed(() => {
+		clientPlacementVersion()
+		return filterValidWindowClients(clients() ?? []).filter(
+			(client) => getClientWorkspaceId(client) === workspaceId,
+		)
+	})
+}
+
 function sortByWorkspace(clients: AstalHyprland.Client[]) {
 	return [...clients].sort((a, b) => {
 		return (getClientWorkspaceId(a) ?? 0) - (getClientWorkspaceId(b) ?? 0)
