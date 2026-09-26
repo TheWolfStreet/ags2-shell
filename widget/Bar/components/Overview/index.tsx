@@ -18,7 +18,9 @@ import {
 	focusedWindowClient,
 	moveClientToWorkspaceSilent,
 	onWindowToggle,
+	readClientPlacementVersion,
 	refreshClientPlacement,
+	subscribeClientPlacement,
 } from "$lib/windowing"
 
 import options from "$shell/options"
@@ -149,6 +151,29 @@ export namespace Overview {
 		return Array.from({ length: Math.max(1, total) }, (_, index) => index + 1)
 	}
 
+	function monitorOrigin() {
+		const monitors = hyprland.monitors ?? []
+		const monitor =
+			monitors.find((m) => m?.id === 0) ?? monitors[0] ?? null
+		if (!monitor) return { x: 0, y: 0 }
+		const x = monitor.get_x?.() ?? monitor.x ?? 0
+		const y = monitor.get_y?.() ?? monitor.y ?? 0
+		return {
+			x: typeof x === "number" && Number.isFinite(x) ? x : 0,
+			y: typeof y === "number" && Number.isFinite(y) ? y : 0,
+		}
+	}
+
+	function placeClientWidget(self: Gtk.Widget, client: AstalHyprland.Client) {
+		const parent = self.get_parent()
+		if (!(parent instanceof Gtk.Fixed)) return
+		const origin = monitorOrigin()
+		const factor = scaleFactor(options.overview.scale())
+		const x = Math.round(factor * (client.get_x() - origin.x))
+		const y = Math.round(factor * (client.get_y() - origin.y))
+		parent.move(self, x, y)
+	}
+
 	function Client({ entry: client, update }: ClientProps) {
 		const className = focusedWindowClient.as((currentClient) => {
 			const classes: string[] = ["client"]
@@ -160,11 +185,22 @@ export namespace Overview {
 		const contentProvider = Gdk.ContentProvider.new_for_value(
 			client.get_address(),
 		)
-		const clientWidth = createBinding(client, "width")
-		const clientHeight = createBinding(client, "height")
+		const widthNotify = createBinding(client, "width")
+		const heightNotify = createBinding(client, "height")
 
-		const scaledWidth = createComputed(() => scale(clientWidth()))
-		const scaledHeight = createComputed(() => scale(clientHeight()))
+		const clientWidth = createComputed(() => {
+			readClientPlacementVersion()
+			widthNotify()
+			return client.get_width()
+		})
+		const clientHeight = createComputed(() => {
+			readClientPlacementVersion()
+			heightNotify()
+			return client.get_height()
+		})
+
+		const scaledWidth = createComputed(() => Math.round(scale(clientWidth())))
+		const scaledHeight = createComputed(() => Math.round(scale(clientHeight())))
 
 		let widget: Gtk.Widget | null = null
 		let updateScheduled = false
@@ -190,25 +226,37 @@ export namespace Overview {
 			let hyprConnections: number[] = []
 			let clientConnections: number[] = []
 			let scaleSub: (() => void) | undefined
+			let placementSub: (() => void) | undefined
+			let monitorSubs: Array<() => void> = []
 
 			onMount(() => {
-				runUpdate()
+				scheduleUpdate()
 
-				hyprConnections = HYPR_UPDATE_SIGNALS.map((signal) =>
-					hyprland.connect(signal, scheduleUpdate),
-				)
+				hyprConnections = [
+					...HYPR_UPDATE_SIGNALS.map((signal) =>
+						hyprland.connect(signal, scheduleUpdate),
+					),
+					hyprland.connect("monitor-added", scheduleUpdate),
+					hyprland.connect("monitor-removed", scheduleUpdate),
+				]
 
 				clientConnections = CLIENT_UPDATE_SIGNALS.map((signal) =>
 					client.connect(signal, scheduleUpdate),
 				)
 
 				scaleSub = options.overview.scale.subscribe(scheduleUpdate)
+				placementSub = subscribeClientPlacement(scheduleUpdate)
+				monitorSubs = [
+					createBinding(hyprland, "monitors").subscribe(scheduleUpdate),
+				]
 			})
 
 			onCleanup(() => {
 				hyprConnections.forEach((conn) => hyprland.disconnect(conn))
 				clientConnections.forEach((conn) => client.disconnect(conn))
 				scaleSub?.()
+				placementSub?.()
+				monitorSubs.forEach((unsub) => unsub())
 				widget = null
 				imageWidget = null
 			})
@@ -229,7 +277,7 @@ export namespace Overview {
 					hexpand
 					valign={CENTER}
 					halign={CENTER}
-					iconName={client.get_class()}
+					iconName={client.get_class() || "application-x-executable-symbolic"}
 					pixelSize={options.scale.as((scale) =>
 						Math.round((16 * scale) / 100),
 					)}
@@ -275,7 +323,6 @@ export namespace Overview {
 		})
 
 		const clients = createWorkspaceClients(workspaceId)
-		let fixed: Gtk.Fixed
 
 		return (
 			<button
@@ -302,16 +349,12 @@ export namespace Overview {
 						return true
 					}}
 				/>
-				<Gtk.Fixed $={(self) => (fixed = self)}>
-					<For each={clients}>
+				<Gtk.Fixed hexpand vexpand halign={FILL} valign={FILL}>
+					<For each={clients} id={(c) => c.address}>
 						{(c) => (
 							<Client
 								entry={c}
-								update={(self) => {
-									if (self.get_parent() === fixed) {
-										fixed.move(self, scale(c.get_x()), scale(c.get_y()))
-									}
-								}}
+								update={(self) => placeClientWidget(self, c)}
 							/>
 						)}
 					</For>
@@ -320,7 +363,7 @@ export namespace Overview {
 		)
 	}
 
-	const { CENTER } = Gtk.Align
+	const { CENTER, FILL } = Gtk.Align
 	const { MOVE } = Gdk.DragAction
 	const { OVERLAY } = Astal.Layer
 

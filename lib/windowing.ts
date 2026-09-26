@@ -114,7 +114,10 @@ export function filterValidWindowClients(
 	clients: Array<AstalHyprland.Client | null | undefined>,
 ) {
 	return clients.filter((client): client is AstalHyprland.Client => {
-		return !!client && client.class !== ""
+		if (!client) return false
+		if (client.class !== "") return true
+		const title = client.get_title?.() ?? client.title
+		return typeof title === "string" && title.length > 0
 	})
 }
 
@@ -150,7 +153,16 @@ function installPlacementTracker() {
 // Re-runs workspace client filters. Used after a manual client sync so moves
 // the event stream missed are still picked up.
 export function refreshClientPlacement() {
+	installPlacementTracker()
 	setClientPlacementVersion(clientPlacementVersion.peek() + 1)
+}
+
+export function readClientPlacementVersion() {
+	return clientPlacementVersion()
+}
+
+export function subscribeClientPlacement(callback: () => void) {
+	return clientPlacementVersion.subscribe(callback)
 }
 
 // Clients per workspace that also refresh when a window moves across

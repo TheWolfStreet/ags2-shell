@@ -912,6 +912,7 @@ window#overview box.overview button.client {
 window#overview box.overview button.active {
   background-color: var(--widget-bg);
   background-image: none;
+  color: var(--fg);
   box-shadow: inset 0 0 0 var(--border-width) var(--primary-bg);
 }
 

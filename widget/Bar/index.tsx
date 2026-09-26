@@ -9,7 +9,7 @@ import {
 	onCleanup,
 } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import { idle } from "ags/time"
+import { idle, interval, Timer } from "ags/time"
 
 import { DateMenu } from "./components/DateMenu"
 import { Battery } from "./components/Buttons/Battery"
@@ -46,6 +46,9 @@ const { padding } = options.theme
 
 const { NONE } = Keymode
 
+// How often to re-measure the bar height for the screen-corner offset.
+const HEIGHT_POLL_MS = 500
+
 type CornerProps = {
 	name: string
 	gdkmonitor: Gdk.Monitor
@@ -60,6 +63,7 @@ type CornerProps = {
 function setupMarginTracking() {
 	let barWin: Astal.Window | undefined
 	let prevMargin = 0
+	let heightPoll: Timer | null = null
 	let unsubscribe: (() => void)[] = []
 
 	const [margin, setMargin] = createState(34)
@@ -88,6 +92,12 @@ function setupMarginTracking() {
 		barWin = self
 		updateMargin()
 		settle()
+		// Bar content (tray icons, media indicator, recorder) can change height
+		// at any time without emitting anything we can subscribe to, so keep
+		// re-measuring; updateMargin is a no-op unless the height changed.
+		if (!heightPoll) {
+			heightPoll = interval(HEIGHT_POLL_MS, updateMargin)
+		}
 		unsubscribe = [
 			options.scale.subscribe(settle),
 			options.font.subscribe(settle),
@@ -97,6 +107,8 @@ function setupMarginTracking() {
 
 	const destroy = () => {
 		unsubscribe.forEach((u) => u())
+		heightPoll?.cancel()
+		heightPoll = null
 	}
 
 	return {
