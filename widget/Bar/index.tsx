@@ -1,15 +1,12 @@
 // Shows a bar on each monitor and moves hidden bars to newly connected monitors.
 
 import app from "ags/gtk4/app"
-import {
-	Accessor,
-	createBinding,
-	createComputed,
-	createState,
-	onCleanup,
-} from "ags"
+import { Accessor, createBinding, createComputed, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import { idle, interval, Timer } from "ags/time"
+import { idle } from "ags/time"
+
+import giCairo from "cairo"
+import LayerShell from "gi://Gtk4LayerShell"
 
 import { DateMenu } from "./components/DateMenu"
 import { Battery } from "./components/Buttons/Battery"
@@ -29,130 +26,35 @@ import options from "$shell/options"
 import icons from "$lib/icons"
 import { formatClock } from "$lib/time"
 import {
-	ignoreInput,
 	scheduleMonitorWindowRelease,
 	trackMonitorFullscreen,
 } from "$lib/windowing"
 import { screenCapture } from "$service/screenCapture"
 
-const { CENTER } = Gtk.Align
-const { WindowAnchor, Exclusivity, Layer, Keymode } = Astal
+const { CENTER, START, END } = Gtk.Align
+const { VERTICAL } = Gtk.Orientation
+const { WindowAnchor, Layer } = Astal
 const { TOP, BOTTOM, LEFT, RIGHT } = WindowAnchor
-const { EXCLUSIVE, IGNORE, NORMAL } = Exclusivity
 const { TOP: TOP_LAYER } = Layer
 
 const { transparent, position, corners } = options.bar
 const { padding } = options.theme
 
-const { NONE } = Keymode
-
-// How often to re-measure the bar height for the screen-corner offset.
-const HEIGHT_POLL_MS = 500
-
-type CornerProps = {
-	name: string
-	gdkmonitor: Gdk.Monitor
-	class: Accessor<string>
-	visible: Accessor<boolean>
-	marginProp: "marginTop" | "marginBottom"
-	margin: Accessor<number>
-	anchor: number
-	$?: (self: Astal.Window) => void
-}
-
-function setupMarginTracking() {
-	let barWin: Astal.Window | undefined
-	let prevMargin = 0
-	let heightPoll: Timer | null = null
-	let unsubscribe: (() => void)[] = []
-
-	const [margin, setMargin] = createState(34)
-
-	const updateMargin = () => {
-		const height = Math.max(0, barWin?.get_allocated_height() ?? 0)
-		if (height <= 0) return
-
-		const nextMargin = height % 2 === 1 ? height - 1 : height
-		if (nextMargin <= 0 || nextMargin === prevMargin) return
-
-		prevMargin = nextMargin
-		setMargin(nextMargin)
-	}
-
-	const settle = () => {
-		if (!barWin) return
-		let frames = 0
-		barWin.add_tick_callback(() => {
-			updateMargin()
-			return ++frames < 5
-		})
-	}
-
-	const bindBarWindow = (self: Astal.Window) => {
-		barWin = self
-		updateMargin()
-		settle()
-		// Bar content (tray icons, media indicator, recorder) can change height
-		// at any time without emitting anything we can subscribe to, so keep
-		// re-measuring; updateMargin is a no-op unless the height changed.
-		if (!heightPoll) {
-			heightPoll = interval(HEIGHT_POLL_MS, updateMargin)
-		}
-		unsubscribe = [
-			options.scale.subscribe(settle),
-			options.font.subscribe(settle),
-			options.theme.padding.subscribe(settle),
-		]
-	}
-
-	const destroy = () => {
-		unsubscribe.forEach((u) => u())
-		heightPoll?.cancel()
-		heightPoll = null
-	}
-
-	return {
-		margin,
-		bindBarWindow,
-		marginTrackingCleanup: destroy,
-	}
-}
-
-function Corner({
-	name,
-	gdkmonitor,
+function ScreenCorner({
 	class: className,
 	visible,
-	marginProp,
-	margin,
-	anchor,
-	$,
-}: CornerProps) {
+}: {
+	class: Accessor<string>
+	visible: Accessor<boolean>
+}) {
 	return (
-		<window
-			$={(self) => {
-				$?.(self)
-				ignoreInput(self)
-			}}
-			name={name}
-			namespace="screen-corner"
-			class={className}
-			visible={visible}
-			keymode={NONE}
-			gdkmonitor={gdkmonitor}
-			application={app}
-			exclusivity={IGNORE}
-			layer={Layer.TOP}
-			anchor={anchor}
-			onNotifyVisible={ignoreInput}
-			{...{ [marginProp]: margin }}
-		>
-			<box class="shadow">
-				<box class="border">
+		<box class={className} visible={visible} overflow={Gtk.Overflow.HIDDEN}>
+			<box class="shadow" hexpand>
+				<box class="border" hexpand>
 					<box class="corner" hexpand />
 				</box>
 			</box>
-		</window>
+		</box>
 	)
 }
 
@@ -177,115 +79,105 @@ function RecordingIndicator() {
 
 export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 	let barWin: Astal.Window | undefined
-	let topWin: Astal.Window | undefined
-	let bottomWin: Astal.Window | undefined
+	let panel: Gtk.Widget | undefined
 
-	const fullscreen = trackMonitorFullscreen(gdkmonitor)
-	const visible = fullscreen.as((value) => !value)
+	const visible = trackMonitorFullscreen(gdkmonitor).as((value) => !value)
 
 	const isTop = position.as((v) => v === "top-center")
-	const hasCorner = createComputed(() => {
+	const cornerStyle = createComputed(() => {
 		const radius =
 			options.theme.roundness() * options.hyprland.gaps() * corners() * 0.01
-		return radius >= padding()
+		return radius >= padding() ? "corners" : "flat"
 	})
-	const showTop = createComputed(() => visible() && !transparent() && isTop())
-	const showBottom = createComputed(
-		() => visible() && !transparent() && !isTop(),
-	)
+	const cornerClass = (edge: string) =>
+		cornerStyle.as((style) => `screen-corner ${style} ${edge}`)
+	const showTop = createComputed(() => !transparent() && isTop())
+	const showBottom = createComputed(() => !transparent() && !isTop())
 
-	const { margin, bindBarWindow, marginTrackingCleanup } = setupMarginTracking()
+	const syncPanelArea = () => {
+		const surface = barWin?.get_surface()
+		if (!barWin || !panel || !surface) return
+
+		const [, height] = panel.measure(VERTICAL, -1)
+		LayerShell.set_exclusive_zone(barWin, height)
+
+		const region = new giCairo.Region()
+		region.unionRectangle({
+			x: 0,
+			y: isTop.peek() ? 0 : surface.get_height() - height,
+			width: surface.get_width(),
+			height,
+		})
+		surface.set_input_region(region)
+	}
 
 	const repositionUnsub = position.subscribe(() => {
 		idle(() => {
 			if (!barWin) return
-
-			barWin.set_exclusivity(NORMAL)
-			barWin.set_exclusivity(EXCLUSIVE)
+			LayerShell.set_exclusive_zone(barWin, 0)
+			syncPanelArea()
 		})
 	})
 
 	onCleanup(() => {
-		marginTrackingCleanup()
 		scheduleMonitorWindowRelease(barWin)
-		scheduleMonitorWindowRelease(topWin)
-		scheduleMonitorWindowRelease(bottomWin)
 		repositionUnsub()
 	})
 
 	void (
-		<>
-			<window
-				$={(self) => {
-					barWin = self
-					bindBarWindow(self)
-				}}
-				name="bar"
-				visible={visible}
-				class={transparent.as((v) => (v ? "bar transparent" : "bar"))}
-				gdkmonitor={gdkmonitor}
-				layer={TOP_LAYER}
-				exclusivity={EXCLUSIVE}
-				anchor={position.as((pos) => {
-					return (pos === "bottom-center" ? BOTTOM : TOP) | LEFT | RIGHT
-				})}
-				application={app}
-			>
-				<centerbox valign={CENTER}>
-					<box $type="start" class="horizontal" valign={CENTER}>
-						<Launcher.Button />
-						<Overview.Button />
-						<box visible={options.taskbar.location.as((v) => v === "bar")}>
-							<WindowList />
+		<window
+			$={(self) => {
+				barWin = self
+				const hookSurface = () =>
+					self.get_surface()?.connect("layout", syncPanelArea)
+				if (self.get_realized()) hookSurface()
+				self.connect("realize", hookSurface)
+			}}
+			name="bar"
+			visible={visible}
+			class={transparent.as((v) => (v ? "bar transparent" : "bar"))}
+			gdkmonitor={gdkmonitor}
+			layer={TOP_LAYER}
+			anchor={position.as((pos) => {
+				return (pos === "bottom-center" ? BOTTOM : TOP) | LEFT | RIGHT
+			})}
+			application={app}
+		>
+			<box orientation={VERTICAL} valign={isTop.as((top) => (top ? START : END))}>
+				<ScreenCorner class={cornerClass("bottom-center")} visible={showBottom} />
+				<box
+					class="panel"
+					$={(self) => {
+						panel = self
+					}}
+				>
+					<centerbox hexpand valign={CENTER}>
+						<box $type="start" class="horizontal" valign={CENTER}>
+							<Launcher.Button />
+							<Overview.Button />
+							<box visible={options.taskbar.location.as((v) => v === "bar")}>
+								<WindowList />
+							</box>
 						</box>
-					</box>
 
-					<box $type="center" class="horizontal" valign={CENTER}>
-						<DateMenu.Button />
-					</box>
+						<box $type="center" class="horizontal" valign={CENTER}>
+							<DateMenu.Button />
+						</box>
 
-					<box $type="end" class="horizontal" valign={CENTER}>
-						<MediaIndicator />
-						<Notifications.Button />
-						<ColorPicker />
-						<SystemTray />
-						<RecordingIndicator />
-						<QuickSettings.Button />
-						<Battery />
-						<PowerMenu.Button />
-					</box>
-				</centerbox>
-			</window>
-
-			<Corner
-				name="screen-corner-top"
-				gdkmonitor={gdkmonitor}
-				class={createComputed(
-					() => `${hasCorner() ? "corners" : "flat"} top-center`,
-				)}
-				visible={showTop}
-				marginProp="marginTop"
-				margin={margin}
-				anchor={TOP | LEFT | RIGHT}
-				$={(self) => {
-					topWin = self
-				}}
-			/>
-
-			<Corner
-				name="screen-corner-bottom"
-				gdkmonitor={gdkmonitor}
-				class={createComputed(
-					() => `${hasCorner() ? "corners" : "flat"} bottom-center`,
-				)}
-				visible={showBottom}
-				marginProp="marginBottom"
-				margin={margin}
-				anchor={BOTTOM | LEFT | RIGHT}
-				$={(self) => {
-					bottomWin = self
-				}}
-			/>
-		</>
+						<box $type="end" class="horizontal" valign={CENTER}>
+							<MediaIndicator />
+							<Notifications.Button />
+							<ColorPicker />
+							<SystemTray />
+							<RecordingIndicator />
+							<QuickSettings.Button />
+							<Battery />
+							<PowerMenu.Button />
+						</box>
+					</centerbox>
+				</box>
+				<ScreenCorner class={cornerClass("top-center")} visible={showTop} />
+			</box>
+		</window>
 	)
 }

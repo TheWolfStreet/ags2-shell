@@ -1411,11 +1411,14 @@ window#quicksettings .quicksettings box.media box.player box.horizontal.vertical
 }
 
 window#bar {
+  background-color: transparent;
+}
+window#bar box.panel {
   transition: var(--transition);
   background-color: var(--bg);
   padding: calc(var(--padding) * 0.3);
 }
-window#bar > box {
+window#bar box.panel > box {
   margin: 0 calc(var(--spacing) / 2);
 }
 window#bar .horizontal.horizontal > * {
@@ -1562,7 +1565,7 @@ window#bar button.quicksettings:not(.active):not(:active) .bluetooth-connected {
   color: var(--primary-bg);
 }
 
-window#bar.transparent {
+window#bar.transparent box.panel {
   background-color: transparent;
 }
 window#bar.transparent button:not(.active) label,
@@ -1581,82 +1584,60 @@ window#bar.transparent button.workspaces label {
   filter: drop-shadow(0 1px 2px var(--shadow-color));
 }
 
-window#screen-corner-top,
-window#screen-corner-bottom {
-  background-color: transparent;
-}
-window#screen-corner-top.corners box.shadow, window#screen-corner-top.corners box.border, window#screen-corner-top.corners box.corner,
-window#screen-corner-bottom.corners box.shadow,
-window#screen-corner-bottom.corners box.border,
-window#screen-corner-bottom.corners box.corner {
-  min-height: calc(var(--screen-corner-radius) + var(--padding));
-}
-window#screen-corner-top.flat box.shadow, window#screen-corner-top.flat box.border, window#screen-corner-top.flat box.corner,
-window#screen-corner-bottom.flat box.shadow,
-window#screen-corner-bottom.flat box.border,
-window#screen-corner-bottom.flat box.corner {
-  min-height: var(--border-width);
-}
-window#screen-corner-top:not(.hidden),
-window#screen-corner-bottom:not(.hidden) {
+window#bar box.screen-corner {
   --_shadow-size: var(--padding);
   --_radius: var(--screen-corner-radius);
-  --_shadow-color: color-mix(in srgb, var(--shadow-color) 50%, transparent);
+  --_shadow-color: color-mix(in srgb, var(--shadow-color) 45%, transparent);
   transition: var(--transition);
 }
-window#screen-corner-top:not(.hidden).corners.top-center box.shadow,
-window#screen-corner-bottom:not(.hidden).corners.top-center box.shadow {
+window#bar box.screen-corner.corners box.shadow, window#bar box.screen-corner.corners box.border, window#bar box.screen-corner.corners box.corner {
+  min-height: calc(var(--screen-corner-radius) + var(--padding));
+}
+window#bar box.screen-corner.flat box.shadow, window#bar box.screen-corner.flat box.border, window#bar box.screen-corner.flat box.corner {
+  min-height: var(--border-width);
+}
+window#bar box.screen-corner.corners.top-center box.shadow {
   box-shadow: inset 0 var(--_shadow-size) var(--_shadow-size) calc(var(--_shadow-size) * -0.35) var(--_shadow-color);
 }
-window#screen-corner-top:not(.hidden).corners.bottom-center box.shadow,
-window#screen-corner-bottom:not(.hidden).corners.bottom-center box.shadow {
+window#bar box.screen-corner.corners.bottom-center box.shadow {
   box-shadow: inset 0 calc(var(--_shadow-size) * -1) var(--_shadow-size) calc(var(--_shadow-size) * -0.35) var(--_shadow-color);
 }
-window#screen-corner-top:not(.hidden) box.border,
-window#screen-corner-bottom:not(.hidden) box.border {
+window#bar box.screen-corner box.border {
   transition: var(--transition);
 }
-window#screen-corner-top:not(.hidden).top-center box.border,
-window#screen-corner-bottom:not(.hidden).top-center box.border {
+window#bar box.screen-corner.top-center box.border {
   border-top: var(--border-width) solid var(--bg);
   border-bottom: none;
 }
-window#screen-corner-top:not(.hidden).bottom-center box.border,
-window#screen-corner-bottom:not(.hidden).bottom-center box.border {
+window#bar box.screen-corner.bottom-center box.border {
   border-bottom: var(--border-width) solid var(--bg);
   border-top: none;
 }
-window#screen-corner-top:not(.hidden) box.corner,
-window#screen-corner-bottom:not(.hidden) box.corner {
+window#bar box.screen-corner box.corner {
   box-shadow: 0 0 0 var(--border-width) var(--surface-edge-color);
 }
-window#screen-corner-top:not(.hidden).corners box.border,
-window#screen-corner-bottom:not(.hidden).corners box.border {
+window#bar box.screen-corner.corners box.border {
   box-shadow: 0 0 0 var(--_radius) var(--bg);
 }
-window#screen-corner-top:not(.hidden).corners.top-center box.border,
-window#screen-corner-bottom:not(.hidden).corners.top-center box.border {
+window#bar box.screen-corner.corners.top-center box.border {
   border-top-left-radius: var(--_radius);
   border-top-right-radius: var(--_radius);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
-window#screen-corner-top:not(.hidden).corners.bottom-center box.border,
-window#screen-corner-bottom:not(.hidden).corners.bottom-center box.border {
+window#bar box.screen-corner.corners.bottom-center box.border {
   border-bottom-left-radius: var(--_radius);
   border-bottom-right-radius: var(--_radius);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
-window#screen-corner-top:not(.hidden).corners.top-center box.corner,
-window#screen-corner-bottom:not(.hidden).corners.top-center box.corner {
+window#bar box.screen-corner.corners.top-center box.corner {
   border-top-left-radius: var(--_radius);
   border-top-right-radius: var(--_radius);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
-window#screen-corner-top:not(.hidden).corners.bottom-center box.corner,
-window#screen-corner-bottom:not(.hidden).corners.bottom-center box.corner {
+window#bar box.screen-corner.corners.bottom-center box.corner {
   border-bottom-left-radius: var(--_radius);
   border-bottom-right-radius: var(--_radius);
   border-top-left-radius: 0;

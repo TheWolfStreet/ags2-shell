@@ -2,12 +2,18 @@
 @use '../../style/base' as *;
 
 window#bar {
-  transition: var(--transition);
-  background-color: var(--bg);
-  padding: calc(var(--padding) * 0.3);
-  >box {
-    margin: 0 calc(var(--spacing) / 2);
+  background-color: transparent;
+
+  box.panel {
+    transition: var(--transition);
+    background-color: var(--bg);
+    padding: calc(var(--padding) * 0.3);
+
+    >box {
+      margin: 0 calc(var(--spacing) / 2);
+    }
   }
+
   .horizontal {
     @include spacing;
   }
@@ -136,7 +142,9 @@ window#bar {
 
 // Preserve legibility when the panel background is hidden.
 window#bar.transparent {
-  background-color: transparent;
+  box.panel {
+    background-color: transparent;
+  }
 
   button:not(.active),
   box.tasks overlay:not(.active),
@@ -154,9 +162,12 @@ window#bar.transparent {
   }
 }
 
-window#screen-corner-top,
-window#screen-corner-bottom {
-  background-color: transparent;
+window#bar box.screen-corner {
+  --_shadow-size: var(--padding);
+  --_radius: var(--screen-corner-radius);
+  --_shadow-color: color-mix(in srgb, var(--shadow-color) 45%, transparent);
+
+  transition: var(--transition);
 
   &.corners box.shadow,
   &.corners box.border,
@@ -170,69 +181,61 @@ window#screen-corner-bottom {
     min-height: var(--border-width);
   }
 
-  &:not(.hidden) {
-    --_shadow-size: var(--padding);
-    --_radius: var(--screen-corner-radius);
-    --_shadow-color: color-mix(in srgb, var(--shadow-color) 50%, transparent);
+  &.corners.top-center box.shadow {
+    box-shadow: inset 0 var(--_shadow-size) var(--_shadow-size) calc(var(--_shadow-size) * -0.35) var(--_shadow-color);
+  }
 
+  &.corners.bottom-center box.shadow {
+    box-shadow: inset 0 calc(var(--_shadow-size) * -1) var(--_shadow-size) calc(var(--_shadow-size) * -0.35) var(--_shadow-color);
+  }
+
+  box.border {
     transition: var(--transition);
+  }
 
-    &.corners.top-center box.shadow {
-      box-shadow: inset 0 var(--_shadow-size) var(--_shadow-size) calc(var(--_shadow-size) * -0.35) var(--_shadow-color);
-    }
+  &.top-center box.border {
+    border-top: var(--border-width) solid var(--bg);
+    border-bottom: none;
+  }
 
-    &.corners.bottom-center box.shadow {
-      box-shadow: inset 0 calc(var(--_shadow-size) * -1) var(--_shadow-size) calc(var(--_shadow-size) * -0.35) var(--_shadow-color);
-    }
+  &.bottom-center box.border {
+    border-bottom: var(--border-width) solid var(--bg);
+    border-top: none;
+  }
 
-    box.border {
-      transition: var(--transition);
-    }
+  box.corner {
+    box-shadow: 0 0 0 var(--border-width) var(--surface-edge-color);
+  }
 
-    &.top-center box.border {
-      border-top: var(--border-width) solid var(--bg);
-      border-bottom: none;
-    }
+  &.corners box.border {
+    box-shadow: 0 0 0 var(--_radius) var(--bg);
+  }
 
-    &.bottom-center box.border {
-      border-bottom: var(--border-width) solid var(--bg);
-      border-top: none;
-    }
+  &.corners.top-center box.border {
+    border-top-left-radius: var(--_radius);
+    border-top-right-radius: var(--_radius);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
 
-    box.corner {
-      box-shadow: 0 0 0 var(--border-width) var(--surface-edge-color);
-    }
+  &.corners.bottom-center box.border {
+    border-bottom-left-radius: var(--_radius);
+    border-bottom-right-radius: var(--_radius);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
 
-    &.corners box.border {
-      box-shadow: 0 0 0 var(--_radius) var(--bg);
-    }
+  &.corners.top-center box.corner {
+    border-top-left-radius: var(--_radius);
+    border-top-right-radius: var(--_radius);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
 
-    &.corners.top-center box.border {
-      border-top-left-radius: var(--_radius);
-      border-top-right-radius: var(--_radius);
-      border-bottom-left-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-
-    &.corners.bottom-center box.border {
-      border-bottom-left-radius: var(--_radius);
-      border-bottom-right-radius: var(--_radius);
-      border-top-left-radius: 0;
-      border-top-right-radius: 0;
-    }
-
-    &.corners.top-center box.corner {
-      border-top-left-radius: var(--_radius);
-      border-top-right-radius: var(--_radius);
-      border-bottom-left-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-
-    &.corners.bottom-center box.corner {
-      border-bottom-left-radius: var(--_radius);
-      border-bottom-right-radius: var(--_radius);
-      border-top-left-radius: 0;
-      border-top-right-radius: 0;
-    }
+  &.corners.bottom-center box.corner {
+    border-bottom-left-radius: var(--_radius);
+    border-bottom-right-radius: var(--_radius);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
   }
 }
