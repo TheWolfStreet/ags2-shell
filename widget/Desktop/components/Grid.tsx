@@ -31,6 +31,7 @@ import { DesktopIcon } from "./Icon"
 const {
 	BUTTON_PRIMARY,
 	BUTTON_SECONDARY,
+	KEY_A,
 	KEY_C,
 	KEY_Delete,
 	KEY_Escape,
@@ -40,6 +41,7 @@ const {
 	KEY_Shift_R,
 	KEY_V,
 	KEY_X,
+	KEY_a,
 	KEY_c,
 	KEY_v,
 	KEY_x,
@@ -76,7 +78,11 @@ function hitInteractiveTarget(
 	return isInteractiveTarget(picked)
 }
 
-function keyPressed(monitorId: string, key: number, state: number): boolean {
+function keyPressed(
+	grid: DesktopGridData,
+	key: number,
+	state: number,
+): boolean {
 	if (key === KEY_Shift_L || key === KEY_Shift_R) {
 		desktopContextMenu.setShiftHeld(true)
 		return false
@@ -102,6 +108,10 @@ function keyPressed(monitorId: string, key: number, state: number): boolean {
 		})
 		return true
 	}
+	if (control && (key === KEY_a || key === KEY_A)) {
+		desktopInteraction.select(grid.files.map((file) => file.path))
+		return true
+	}
 	if (control && (key === KEY_c || key === KEY_C)) {
 		copyDesktopFiles(paths)
 		return true
@@ -112,7 +122,7 @@ function keyPressed(monitorId: string, key: number, state: number): boolean {
 		return true
 	}
 	if (control && (key === KEY_v || key === KEY_V)) {
-		void pasteDesktopFiles(monitorId)
+		void pasteDesktopFiles(grid.id)
 		return true
 	}
 	if (key === KEY_Return) {
@@ -132,7 +142,7 @@ export function attachDesktopKeyboard(
 ): void {
 	const controller = new Gtk.EventControllerKey()
 	controller.connect("key-pressed", (_self, key, _code, state) =>
-		keyPressed(grid.peek().id, key, state),
+		keyPressed(grid.peek(), key, state),
 	)
 	controller.connect("key-released", (_self, key) => {
 		if (key === KEY_Shift_L || key === KEY_Shift_R)
