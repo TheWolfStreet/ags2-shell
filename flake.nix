@@ -67,6 +67,7 @@
       slurp
       swappy
       systemd
+      util-linux
       wf-recorder
       wl-clipboard
       xdg-utils

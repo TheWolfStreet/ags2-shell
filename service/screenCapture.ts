@@ -131,7 +131,7 @@ class ScreenCaptureService extends GObject.Object {
 			void execAsync([
 				"bash",
 				"-c",
-				`wl-copy --type image/png < ${GLib.shell_quote(screenshotFile)}`,
+				`setsid -f wl-copy --type image/png < ${GLib.shell_quote(screenshotFile)}`,
 			]).catch((error) =>
 				console.error(
 					"screenCapture.screenshot: Failed to copy screenshot",

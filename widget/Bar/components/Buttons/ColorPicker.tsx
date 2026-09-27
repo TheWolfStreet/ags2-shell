@@ -23,7 +23,7 @@ const COLOR_HISTORY_FILE = `${env.paths.cache.base}/colors.json`
 function wlCopy(data: string) {
 	return new Promise<void>((resolve, reject) => {
 		const process = Gio.Subprocess.new(
-			["wl-copy"],
+			["setsid", "-f", "wl-copy"],
 			Gio.SubprocessFlags.STDIN_PIPE,
 		)
 		process.communicate_utf8_async(data, null, (_, result) => {

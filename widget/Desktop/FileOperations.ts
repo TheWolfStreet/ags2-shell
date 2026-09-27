@@ -561,6 +561,8 @@ export async function writeClipboardFilePayload(
 	const payload = serializeClipboardFilePayload(paths, operation)
 	const primary = await attemptAsync(async () =>
 		execAsync([
+			"setsid",
+			"-f",
 			"wl-copy",
 			"-t",
 			"x-special/gnome-copied-files",
@@ -570,7 +572,7 @@ export async function writeClipboardFilePayload(
 	if (primary.ok) return ok(undefined)
 
 	const fallback = await attemptAsync(async () =>
-		execAsync(["wl-copy", "-t", "text/uri-list", payload.uriList]),
+		execAsync(["setsid", "-f", "wl-copy", "-t", "text/uri-list", payload.uriList]),
 	)
 	if (fallback.ok) return ok(undefined)
 
