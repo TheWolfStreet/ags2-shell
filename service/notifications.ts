@@ -104,11 +104,6 @@ class NotificationManager extends GObject.Object {
 		return options.notifications.blacklist.peek().includes(app)
 	}
 
-	dismissAllImmediately(): void {
-		for (const notification of notificationDaemon.get_notifications())
-			notification.dismiss()
-	}
-
 	get doNotDisturb(): boolean {
 		return notificationDaemon.get_dont_disturb()
 	}

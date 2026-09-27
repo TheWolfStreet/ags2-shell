@@ -6,12 +6,11 @@ import {
 	createBinding,
 	createComputed,
 	createRoot,
-	For,
 	onCleanup,
 } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import app from "ags/gtk4/app"
-import { createPoll, timeout, type Timer } from "ags/time"
+import { createPoll, timeout } from "ags/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
@@ -23,7 +22,7 @@ import icons, { substituteIconName } from "$lib/icons"
 import { classifyImageUri, createSquareTextureAccessor } from "$lib/textures"
 import { notificationDaemon } from "$lib/notifications"
 import { notificationManager } from "$service/notifications"
-import { createEntryLifecycle, type EntryIndex } from "./EntryLifecycle"
+import { createEntryLifecycle, type EntryLifecycle } from "./EntryLifecycle"
 
 import options from "$shell/options"
 
@@ -59,36 +58,31 @@ export namespace Notifications {
 				exclusivity={NORMAL}
 				anchor={anchor}
 			>
-				<PopupStack />
+				<NotificationList
+					class="notifications-stack"
+					persistent={false}
+					transitionType={options.notifications.position.as((position) =>
+						position.startsWith("bottom") ? SLIDE_UP : SLIDE_DOWN,
+					)}
+				/>
 			</window>
 		)
 	}
 
 	export function animateDismissAll() {
-		setDismissingAll(true)
-		dismissAllTimer?.cancel()
-		dismissAllTimer = timeout(
-			options.transition.duration.peek() + maxStaggerDelay(),
-			() => {
-				dismissAllTimer = null
-				setDismissingAll(false)
-				notificationManager.dismissAllImmediately()
-			},
-		)
+		const all = notificationDaemon
+			.get_notifications()
+			.sort((left, right) => right.time - left.time)
+		all.forEach((notification, index) => {
+			timeout(index * 50 + Math.random() * 100, () => {
+				if (notificationDaemon.get_notification(notification.id) === notification)
+					notification.dismiss()
+			})
+		})
 	}
 
-	export function Stack({ class: className }: { class?: string }) {
-		return (
-			<box
-				class={className || "notifications-stack"}
-				orientation={VERTICAL}
-				valign={START}
-			>
-				<For each={notifications}>
-					{(n, i) => <Notification entry={n} persistent index={i} />}
-				</For>
-			</box>
-		)
+	export function Stack({ class: className }: { class: string }) {
+		return <NotificationList class={className} persistent />
 	}
 
 	const previewSize = options.scale.as((scale) =>
@@ -98,23 +92,22 @@ export namespace Notifications {
 		Math.round((350 * scale) / 100),
 	)
 
+	type TransitionType =
+		| Accessor<Gtk.RevealerTransitionType>
+		| Gtk.RevealerTransitionType
+
 	type NotificationProps = {
 		entry: AstalNotifd.Notification
-		widthRequest?: Accessor<number> | number
-		persistent: boolean
-		index?: EntryIndex
-		onExit?: () => void
-		registerClose?: (close: () => void) => void
-		transitionType?:
-			Accessor<Gtk.RevealerTransitionType> | Gtk.RevealerTransitionType
+		state: EntryLifecycle
+		transitionType: TransitionType
 	}
 
-	type PopupEntry = {
+	type ListEntry = {
 		notification: AstalNotifd.Notification
-		close?: () => void
-		dispose?: () => void
-		resolved: boolean
-		replacement?: AstalNotifd.Notification
+		state: EntryLifecycle
+		widget: Gtk.Widget
+		dispose: () => void
+		next?: AstalNotifd.Notification
 	}
 
 	type HeaderProps = {
@@ -138,8 +131,6 @@ export namespace Notifications {
 
 	const notifications = createBinding(notificationManager, "notifications")
 	const minuteTicker = createPoll(0, 60_000, (tick) => tick + 1)
-	const [dismissingAll, setDismissingAll] = createState(false)
-	let dismissAllTimer: Timer | null = null
 
 	function anchorForPosition(position: string) {
 		switch (position) {
@@ -157,11 +148,6 @@ export namespace Notifications {
 			default:
 				return TOP | RIGHT
 		}
-	}
-
-	function maxStaggerDelay() {
-		const count = notifications.peek().length
-		return count > 0 ? count * 50 + 100 : 0
 	}
 
 	const URGENCY_CLASS: Record<number, string> = {
@@ -340,30 +326,10 @@ export namespace Notifications {
 
 	function Notification({
 		entry: notification,
-		widthRequest,
-		persistent,
-		index,
-		onExit,
-		registerClose,
-		transitionType = SLIDE_DOWN,
+		state,
+		transitionType,
 	}: NotificationProps) {
 		const [showActions, setShowActions] = createState(false)
-
-		const state = createEntryLifecycle({
-			notification,
-			persistent,
-			index,
-			dismissingAll,
-			onExit,
-		})
-		registerClose?.(state.close)
-
-		const dismissSub = dismissingAll.subscribe(state.onDismissAllChanged)
-
-		onCleanup(() => {
-			dismissSub()
-			state.cleanup()
-		})
 
 		const imageValue = notification.get_image()
 		const imagePath =
@@ -393,14 +359,13 @@ export namespace Notifications {
 				transitionDuration={options.transition.duration}
 				transitionType={transitionType}
 				onMap={state.onMap}
-				onNotifyChildRevealed={(self) => {
-					state.onHidden(!self.get_child_revealed() && !self.get_reveal_child())
-				}}
+				onNotifyChildRevealed={(self) =>
+					state.onRevealedChanged(self.get_child_revealed())
+				}
 			>
 				<box
 					class={`notification ${urgency(notification)}`}
 					orientation={VERTICAL}
-					widthRequest={widthRequest}
 				>
 					<Gtk.EventControllerMotion
 						onEnter={() => {
@@ -428,112 +393,130 @@ export namespace Notifications {
 		)
 	}
 
-	function PopupStack() {
-		const entries = new Map<number, PopupEntry>()
-		const pending = new Map<number, AstalNotifd.Notification>()
+	function NotificationList({
+		class: className,
+		persistent,
+		transitionType = SLIDE_DOWN,
+	}: {
+		class: string
+		persistent: boolean
+		transitionType?: TransitionType
+	}) {
+		const entries: ListEntry[] = []
 		const container = (
-			<box class="notifications-stack" orientation={VERTICAL} valign={START} />
+			<box class={className} orientation={VERTICAL} valign={START} />
 		) as Gtk.Box
-		const transitionType = options.notifications.position.as((position) =>
-			position.startsWith("bottom") ? SLIDE_UP : SLIDE_DOWN,
-		)
 
-		function remove(entry: PopupEntry) {
-			if (entries.get(entry.notification.id) !== entry) return
-			entries.delete(entry.notification.id)
-			entry.dispose?.()
-			if (entry.replacement && !entry.resolved) mount(entry.replacement)
-			fillPending()
+		function accepts(notification: AstalNotifd.Notification) {
+			if (notificationManager.isBlacklisted(notification)) return false
+			return persistent || !notificationManager.doNotDisturb
+		}
+
+		function remove(entry: ListEntry) {
+			const index = entries.indexOf(entry)
+			if (index < 0) return
+			entries.splice(index, 1)
+			entry.dispose()
+			if (entry.next) show(entry.next)
 		}
 
 		function mount(notification: AstalNotifd.Notification) {
-			if (entries.size >= POPUP_LIMIT) return
-			const entry: PopupEntry = { notification, resolved: false }
-			entries.set(notification.id, entry)
-			entry.dispose = createRoot((dispose) => {
+			let index = entries.findIndex(
+				(entry) => entry.notification.time <= notification.time,
+			)
+			if (index < 0) index = entries.length
+
+			const entry: ListEntry = createRoot((dispose) => {
+				const state = createEntryLifecycle({
+					notification,
+					persistent,
+					onExit: () => remove(entry),
+				})
+				onCleanup(state.cleanup)
 				const widget = (
 					<Notification
 						entry={notification}
-						persistent={false}
-						index={entries.size - 1}
+						state={state}
 						transitionType={transitionType}
-						onExit={() => remove(entry)}
-						registerClose={(close) => {
-							entry.close = close
-							if (entry.resolved || entry.replacement) close()
-						}}
 					/>
 				) as Gtk.Widget
-				container.prepend(widget)
-				return () => {
-					container.remove(widget)
-					dispose()
+				return {
+					notification,
+					state,
+					widget,
+					dispose: () => {
+						container.remove(widget)
+						dispose()
+					},
 				}
 			})
+
+			container.insert_child_after(
+				entry.widget,
+				index > 0 ? entries[index - 1].widget : null,
+			)
+			entries.splice(index, 0, entry)
+
+			const open = entries.filter((other) => !other.state.isClosing())
+			if (open.length > LIST_LIMIT) open[open.length - 1].state.close()
 		}
 
-		function fillPending() {
-			while (entries.size < POPUP_LIMIT && pending.size > 0) {
-				const next = pending.entries().next().value as [
-					number,
-					AstalNotifd.Notification,
-				]
-				pending.delete(next[0])
-				mount(next[1])
-			}
-		}
-
-		function enqueue(notification: AstalNotifd.Notification) {
-			if (notificationManager.doNotDisturb) return
-			if (notificationManager.isBlacklisted(notification)) return
-
-			const existing = entries.get(notification.id)
-			if (existing) {
-				existing.replacement = notification
-				existing.close?.()
+		function show(notification: AstalNotifd.Notification) {
+			const entry = entries.find(
+				(other) => other.notification.id === notification.id,
+			)
+			if (!accepts(notification)) {
+				if (!entry) return
+				entry.next = undefined
+				entry.state.close()
 				return
 			}
-			if (entries.size < POPUP_LIMIT) {
+			if (!entry) {
 				mount(notification)
 				return
 			}
-
-			pending.delete(notification.id)
-			pending.set(notification.id, notification)
-			while (pending.size > POPUP_LIMIT)
-				pending.delete(pending.keys().next().value!)
-			for (const entry of entries.values()) entry.close?.()
+			if (entry.notification === notification && !entry.state.isClosing())
+				return
+			entry.next = notification
+			entry.state.close()
 		}
 
 		const notifiedHandler = notificationDaemon.connect(
 			"notified",
 			(_, id: number) => {
 				const notification = notificationDaemon.get_notification(id)
-				if (notification) enqueue(notification)
+				if (notification) show(notification)
 			},
 		)
 
 		const resolvedHandler = notificationDaemon.connect(
 			"resolved",
 			(_, id: number) => {
-				pending.delete(id)
-				const entry = entries.get(id)
+				const entry = entries.find((other) => other.notification.id === id)
 				if (!entry) return
-				entry.resolved = true
-				entry.close?.()
+				entry.next = undefined
+				entry.state.close()
 			},
 		)
 
+		const blacklistUnsub = options.notifications.blacklist.subscribe(() => {
+			for (const entry of [...entries])
+				if (notificationManager.isBlacklisted(entry.notification))
+					entry.state.close()
+			if (persistent)
+				for (const notification of notificationDaemon.get_notifications())
+					show(notification)
+		})
+
 		for (const notification of notificationDaemon.get_notifications())
-			if (notification.time >= notificationManager.sessionStart)
-				enqueue(notification)
+			if (persistent || notification.time >= notificationManager.sessionStart)
+				show(notification)
 
 		onCleanup(() => {
 			notificationDaemon.disconnect(notifiedHandler)
 			notificationDaemon.disconnect(resolvedHandler)
-			for (const entry of entries.values()) entry.dispose?.()
-			entries.clear()
-			pending.clear()
+			blacklistUnsub()
+			for (const entry of entries.splice(0)) entry.dispose()
 		})
 
 		return container
@@ -547,5 +530,5 @@ export namespace Notifications {
 	const { EllipsizeMode } = Pango
 	const { NORMAL } = Astal.Exclusivity
 	const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor
-	const POPUP_LIMIT = 50
+	const LIST_LIMIT = 50
 }
