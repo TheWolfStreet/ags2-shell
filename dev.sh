@@ -1,103 +1,136 @@
 #!/usr/bin/env bash
-# Starts development mode and reloads changed source and style files.
-set -e
+set -euo pipefail
 
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-RESET='\033[0m'
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+instance_name=ags2-shell
+ags_pid=
+scss_watch_pid=
+ts_watch_pid=
 
-log_info() { echo -e "${BLUE}▸${RESET} $1"; }
-log_success() { echo -e "${GREEN}✓${RESET} $1"; }
-log_watch() { echo -e "${YELLOW}◉${RESET} $1"; }
-log_error() { echo -e "${RED}✗${RESET} $1"; }
-
-show_help() {
-  cat << EOF
-Usage: $(basename "$0") [OPTION]...
-
-Run AGS shell with hot-reload for SCSS and TS/TSX files.
-
-Options:
-  -b, --build-once    build styles once and exit
-  -h, --help          display this help and exit
-
-With no options, builds styles if needed, watches for file changes, and runs shell.
-EOF
-  exit 0
+owns_instance() {
+  local response kind pid group
+  response=$(busctl --user --timeout=1s call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus GetConnectionUnixProcessID s "io.Astal.$instance_name" 2>/dev/null) || return 1
+  read -r kind pid <<< "$response"
+  [[ $kind == u && $pid =~ ^[0-9]+$ ]] || return 1
+  group=$(ps -o pgid= -p "$pid" 2>/dev/null) || return 1
+  group=${group//[[:space:]]/}
+  [[ $group == "$ags_pid" ]]
 }
 
-CLEANED_UP=false
-cleanup() {
-  $CLEANED_UP && exit 0
-  CLEANED_UP=true
-  log_info "Shutting down..."
-  [ -n "$AGS_PID" ] && kill "$AGS_PID" 2>/dev/null || true
-  timeout 1 ags quit -i "$INSTANCE_NAME" 2>/dev/null || true
-  if [ -n "$SCSS_WATCH_PID" ]; then
-    kill "$SCSS_WATCH_PID" 2>/dev/null || true
-    wait "$SCSS_WATCH_PID" 2>/dev/null || true
+group_alive() {
+  [[ -n $ags_pid ]] && kill -0 -- "-$ags_pid" 2>/dev/null
+}
+
+stop_ags() {
+  [[ -n $ags_pid ]] || return 0
+  if owns_instance; then
+    local response
+    response=$(ags request -i "$instance_name" quit 2>&1) || printf 'Graceful quit request failed: %s\n' "$response" >&2
+    if [[ $response == accepted ]]; then
+      for attempt in {1..50}; do
+        owns_instance || break
+        sleep 0.1
+      done
+      if owns_instance; then
+        printf 'Shell did not complete quit; preserving its running process and pending settings\n' >&2
+        ags_pid=
+        return 1
+      fi
+      for attempt in {1..20}; do
+        group_alive || break
+        sleep 0.1
+      done
+    fi
   fi
-  pkill -f 'inotifywait' 2>/dev/null || true
-  [ -n "$AGS_PID" ] && kill -9 "$AGS_PID" 2>/dev/null || true
-  exit 0
+  if group_alive; then
+    printf 'Stopping unresponsive development shell process group %s\n' "$ags_pid" >&2
+    kill -TERM -- "-$ags_pid" 2>/dev/null || true
+    for attempt in {1..20}; do
+      group_alive || break
+      sleep 0.1
+    done
+    if group_alive; then kill -KILL -- "-$ags_pid" 2>/dev/null || true; fi
+  fi
+  wait "$ags_pid" 2>/dev/null || true
+  ags_pid=
 }
 
-trap cleanup INT TERM
+cleanup() {
+  trap - INT TERM EXIT
+  if [[ -n $ts_watch_pid ]]; then
+    kill "$ts_watch_pid" 2>/dev/null || true
+    wait "$ts_watch_pid" 2>/dev/null || true
+  fi
+  if [[ -n $scss_watch_pid ]]; then
+    pkill -P "$scss_watch_pid" 2>/dev/null || true
+    kill "$scss_watch_pid" 2>/dev/null || true
+    wait "$scss_watch_pid" 2>/dev/null || true
+  fi
+  stop_ags
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-CSS_FILE="style/compile/main.css"
-INSTANCE_NAME="ags2-shell"
-AGS_PID=""
-SCSS_WATCH_PID=""
-
-BUILD_ONCE=false
-SHELL_ARGS=()
-
+build_once=false
+shell_args=()
 for arg in "$@"; do
   case $arg in
     -h|--help)
-      show_help
+      printf 'Usage: %s [--build-once] [AGS options...]\n' "${0##*/}"
+      exit 0
       ;;
-    -b|--build-once)
-      BUILD_ONCE=true
-      ;;
-    *)
-      SHELL_ARGS+=("$arg")
-      ;;
+    -b|--build-once) build_once=true ;;
+    *) shell_args+=("$arg") ;;
   esac
 done
 
-if [ ! -f "$CSS_FILE" ] || [ -n "$(find style widget -name '*.scss' -newer "$CSS_FILE" 2>/dev/null)" ]; then
-  ./style/compile/build.sh
-fi
-
-if [ "$BUILD_ONCE" = true ]; then
-  log_success "Styles built"
-  exit 0
-fi
-
-watch_dirs="style widget"
-watch_events="modify,create,delete,close_write,moved_to"
-watch_pattern='\.scss$'
-
-log_watch "Watching SCSS files for changes"
-while inotifywait -qre "$watch_events" --include "$watch_pattern" $watch_dirs 2>/dev/null; do
-  ./style/compile/build.sh
-done &
-SCSS_WATCH_PID=$!
-
-log_watch "Watching TS/TSX files for changes"
-while true; do
-  log_info "Starting shell"
-  ags run shell/main.tsx "${SHELL_ARGS[@]}" &
-  AGS_PID=$!
-
-  inotifywait -qre "$watch_events" --include '\.(ts|tsx)$' @./@girs . 2>/dev/null || true
-
-  log_info "TS/TSX change detected, restarting shell"
-  ags quit -i "$INSTANCE_NAME" 2>/dev/null || kill $AGS_PID 2>/dev/null || true
-  sleep 1
+for program in sass find sort mktemp cmp; do
+  command -v "$program" >/dev/null || { printf 'Missing command: %s\n' "$program" >&2; exit 1; }
 done
+if ! $build_once; then
+  for program in ags inotifywait pkill setsid busctl ps; do
+    command -v "$program" >/dev/null || { printf 'Missing command: %s\n' "$program" >&2; exit 1; }
+  done
+fi
 
-cleanup
+export AGS2SHELL_STYLES="$root"
+cd "$root"
+"$root/style/compile/build.sh"
+if $build_once; then exit 0; fi
+
+watch_events=close_write,create,delete,moved_to,moved_from
+(
+  while true; do
+    if ! inotifywait -qre "$watch_events" --include '\.scss$' --exclude '(^|/)widgets\.scss$' "$root/style" "$root/widget"; then
+      printf 'SCSS watcher failed\n' >&2
+      exit 1
+    fi
+    if ! "$root/style/compile/build.sh"; then
+      printf 'SCSS compilation failed; watching for corrections\n' >&2
+    fi
+  done
+) &
+scss_watch_pid=$!
+
+while true; do
+  if ! instances=$(ags list); then
+    printf 'Could not check running AGS instances\n' >&2
+    exit 1
+  fi
+  if grep -Fxq "$instance_name" <<< "$instances"; then
+    printf 'AGS instance %s is already running; refusing to replace it\n' "$instance_name" >&2
+    exit 1
+  fi
+  setsid ags run -g 4 shell/main.tsx "${shell_args[@]}" &
+  ags_pid=$!
+  inotifywait -qre "$watch_events" --include '\.(ts|tsx)$' \
+    --exclude '(^|/)(node_modules|\.git|@girs)/' "$root" &
+  ts_watch_pid=$!
+  if ! wait "$ts_watch_pid"; then
+    printf 'TypeScript watcher failed\n' >&2
+    exit 1
+  fi
+  ts_watch_pid=
+  stop_ags
+done

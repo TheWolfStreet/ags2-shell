@@ -1,5 +1,3 @@
-// Handles shared window controls, monitor state, and Hyprland client actions.
-
 import {
 	type Accessor,
 	createBinding,
@@ -8,32 +6,29 @@ import {
 	onCleanup,
 } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
-import app from "ags/gtk4/app"
-import { idle } from "ags/time"
+import app from "$lib/app"
+import { idle } from "$lib/time"
 
 import AstalHyprland from "gi://AstalHyprland"
 import giCairo from "cairo"
 
 import { hyprland } from "$lib/hyprland"
+import { attempt, attempt_async, err, log_error, ok, type Result } from "$lib/result"
 
 const { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_MIDDLE } = Gdk
 
-export function toggleWindow(name: string | undefined, hide: boolean = true) {
+export function toggle_window(name: string | undefined) {
 	if (name == undefined) return
 	const win = app.get_window(name)
-	if (win?.visible) {
-		if (hide) win.hide()
-		else win.close()
-	} else {
-		win?.show()
-	}
+	if (win?.visible) win.hide()
+	else win?.show()
 }
 
-export function ignoreInput(widget: Gtk.Window) {
+export function ignore_input(widget: Gtk.Window) {
 	widget.get_surface()?.set_input_region(new giCairo.Region())
 }
 
-export function onWindowToggle(
+export function on_window_toggle(
 	name: string,
 	callback: (window: Gtk.Window) => void,
 ) {
@@ -44,28 +39,20 @@ export function onWindowToggle(
 	return () => app.disconnect(handler)
 }
 
-// GTK 4.22 crashes when destroying an unmapped application window. Hide it instead;
-// windows with a surface must still be destroyed so they cannot be re-anchored.
-export function scheduleMonitorWindowRelease(window?: Gtk.Window | null) {
+export function schedule_monitor_window_release(window?: Gtk.Window | null) {
 	if (!window) return
 	idle(() => {
-		if (window.get_application() && !window.get_surface())
+		if (window.get_application() && !window.get_surface()) {
 			window.set_visible(false)
-		else window.destroy()
+			window.get_application()?.remove_window(window)
+		} else window.destroy()
 	})
 }
 
-export function basicMonitorKey(
-	monitor: Gdk.Monitor,
-	fallback: string,
-): string {
-	return monitor.get_connector() ?? fallback
-}
+export function track_monitor_fullscreen(target: Gdk.Monitor) {
+	const [fullscreen, set_fullscreen] = createState(false)
 
-export function trackMonitorFullscreen(target: Gdk.Monitor) {
-	const [fullscreen, setFullscreen] = createState(false)
-
-	const findMonitor = () => {
+	const find_monitor = () => {
 		const connector = target.get_connector()
 		const geometry = target.get_geometry()
 
@@ -78,19 +65,19 @@ export function trackMonitorFullscreen(target: Gdk.Monitor) {
 	}
 
 	const sync = () => {
-		const monitor = findMonitor()
+		const monitor = find_monitor()
 		if (!monitor) {
-			setFullscreen(false)
+			set_fullscreen(false)
 			return
 		}
 
-		const specialWorkspace = monitor.specialWorkspace?.id
+		const special_workspace = monitor.specialWorkspace?.id
 		const workspace =
-			specialWorkspace && specialWorkspace !== 0
-				? specialWorkspace
+			special_workspace && special_workspace !== 0
+				? special_workspace
 				: monitor.activeWorkspace?.id
 
-		setFullscreen(
+		set_fullscreen(
 			typeof workspace === "number" &&
 				hyprland.clients.some(
 					(client) =>
@@ -104,13 +91,13 @@ export function trackMonitorFullscreen(target: Gdk.Monitor) {
 		)
 	}
 
-	const eventHandler = hyprland.connect("event", sync)
+	const event_handler = hyprland.connect("event", sync)
 	sync()
-	onCleanup(() => hyprland.disconnect(eventHandler))
+	onCleanup(() => hyprland.disconnect(event_handler))
 	return fullscreen
 }
 
-export function filterValidWindowClients(
+export function filter_valid_window_clients(
 	clients: Array<AstalHyprland.Client | null | undefined>,
 ) {
 	return clients.filter((client): client is AstalHyprland.Client => {
@@ -121,88 +108,102 @@ export function filterValidWindowClients(
 	})
 }
 
-export const focusedWindowClient = createBinding(hyprland, "focusedClient")
+export const focused_window_client = createBinding(hyprland, "focusedClient")
 
-export function createClientTitleAccessor(client: AstalHyprland.Client) {
+export function create_client_title_accessor(client: AstalHyprland.Client) {
 	const title = createBinding(client, "title")
-	const className = createBinding(client, "class")
+	const class_name = createBinding(client, "class")
 	return createComputed(() => {
 		if (title()?.length) return title()
-		const name = (className() || "Unknown").split(".").pop()!
+		const name = (class_name() || "Unknown").split(".").pop()!
 		return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
 	})
 }
 
-export function getClientWorkspaceId(client: AstalHyprland.Client) {
+export function get_client_workspace_id(client: AstalHyprland.Client) {
 	return client.workspace?.id ?? client.get_workspace?.()?.id ?? null
 }
 
-const [clientPlacementVersion, setClientPlacementVersion] = createState(0)
-let placementTrackerInstalled = false
+const [client_placement_version, set_client_placement_version] = createState(0)
+let placement_tracker_installed = false
+let placement_handlers: number[] = []
 
-function installPlacementTracker() {
-	if (placementTrackerInstalled) return
-	placementTrackerInstalled = true
+function install_placement_tracker() {
+	if (placement_tracker_installed) return
+	placement_tracker_installed = true
 	const bump = () =>
-		setClientPlacementVersion(clientPlacementVersion.peek() + 1)
-	hyprland.connect("client-moved", bump)
-	hyprland.connect("client-added", bump)
-	hyprland.connect("client-removed", bump)
+		set_client_placement_version(client_placement_version.peek() + 1)
+	placement_handlers = [
+		hyprland.connect("client-moved", bump),
+		hyprland.connect("client-added", bump),
+		hyprland.connect("client-removed", bump),
+	]
 }
 
-// Re-runs workspace client filters. Used after a manual client sync so moves
-// the event stream missed are still picked up.
-export function refreshClientPlacement() {
-	installPlacementTracker()
-	setClientPlacementVersion(clientPlacementVersion.peek() + 1)
+app.connect("shutdown", () => {
+	for (const handler of placement_handlers) hyprland.disconnect(handler)
+	placement_handlers = []
+	placement_tracker_installed = false
+})
+
+export function refresh_client_placement() {
+	install_placement_tracker()
+	set_client_placement_version(client_placement_version.peek() + 1)
 }
 
-export function readClientPlacementVersion() {
-	return clientPlacementVersion()
+export function read_client_placement_version() {
+	return client_placement_version()
 }
 
-export function subscribeClientPlacement(callback: () => void) {
-	return clientPlacementVersion.subscribe(callback)
+export function subscribe_client_placement(callback: () => void) {
+	return client_placement_version.subscribe(callback)
 }
 
-// Clients per workspace that also refresh when a window moves across
-// workspaces. A plain `createBinding(hyprland, "clients")` filter goes stale
-// on moves because the list itself is unchanged; only the client's workspace
-// property changes.
-export function createWorkspaceClients(workspaceId: number) {
-	installPlacementTracker()
+export function create_workspace_clients(workspace_id: number) {
+	install_placement_tracker()
 	const clients = createBinding(hyprland, "clients")
 	return createComputed(() => {
-		clientPlacementVersion()
-		return filterValidWindowClients(clients() ?? []).filter(
-			(client) => getClientWorkspaceId(client) === workspaceId,
+		client_placement_version()
+		return filter_valid_window_clients(clients() ?? []).filter(
+			(client) => get_client_workspace_id(client) === workspace_id,
 		)
 	})
 }
 
-function sortByWorkspace(clients: AstalHyprland.Client[]) {
+function sort_by_workspace(clients: AstalHyprland.Client[]) {
 	return [...clients].sort((a, b) => {
-		return (getClientWorkspaceId(a) ?? 0) - (getClientWorkspaceId(b) ?? 0)
+		return (get_client_workspace_id(a) ?? 0) - (get_client_workspace_id(b) ?? 0)
 	})
 }
 
-function filterWindowClientsForWorkspace(
+function filter_window_clients_for_workspace(
 	clients: AstalHyprland.Client[],
-	focusedWorkspaceId: number | null | undefined,
-	isExclusive: boolean,
+	focused_workspace_id: number | null | undefined,
+	is_exclusive: boolean,
 ) {
-	if (!isExclusive || focusedWorkspaceId == null) return clients
+	if (!is_exclusive || focused_workspace_id == null) return clients
 	return clients.filter(
-		(client) => getClientWorkspaceId(client) === focusedWorkspaceId,
+		(client) => get_client_workspace_id(client) === focused_workspace_id,
 	)
 }
 
-export function focusClientAndToggleFullscreen(client: AstalHyprland.Client) {
-	client.focus()
-	hyprland.message("dispatch fullscreen")
+async function dispatch_client(message: string): Promise<Result<void>> {
+	const response = await attempt_async(() => hyprland.message_async(message))
+	if (!response.ok) return response
+	return response.value === "ok"
+		? ok(undefined)
+		: err(new Error(`Hyprland rejected ${message}: ${response.value}`))
 }
 
-function normalizeClientAddress(value: string | null | undefined) {
+export async function focus_client_and_toggle_fullscreen(client: AstalHyprland.Client): Promise<Result<void>> {
+	const focused = attempt(() => client.focus())
+	if (!log_error(focused, "windowing.fullscreen: Failed to focus client")) return focused
+	const result = await dispatch_client("dispatch fullscreen")
+	log_error(result, "windowing.fullscreen: Failed to toggle fullscreen")
+	return result
+}
+
+function normalize_client_address(value: string | null | undefined) {
 	if (!value) return null
 
 	const raw = String(value).trim()
@@ -210,24 +211,27 @@ function normalizeClientAddress(value: string | null | undefined) {
 	return raw.startsWith("0x") ? raw : `0x${raw}`
 }
 
-export function moveClientToWorkspaceSilent(
-	workspaceId: number,
-	clientOrAddress: AstalHyprland.Client | string | null | undefined,
-) {
-	const rawAddress =
-		typeof clientOrAddress === "string"
-			? clientOrAddress
-			: (clientOrAddress?.get_address?.() ?? clientOrAddress?.address)
+export async function move_client_to_workspace_silent(
+	workspace_id: number,
+	client_or_address: AstalHyprland.Client | string | null | undefined,
+): Promise<Result<void>> {
+	const raw_address =
+		typeof client_or_address === "string"
+			? client_or_address
+			: (client_or_address?.get_address?.() ?? client_or_address?.address)
 
-	const address = normalizeClientAddress(rawAddress)
-	if (!address) return
-	hyprland.message_async(
-		`dispatch movetoworkspacesilent ${workspaceId},address:${address}`,
-		null,
-	)
+	const address = normalize_client_address(raw_address)
+	if (!address) {
+		const invalid = err(new Error("Client has no address"))
+		log_error(invalid, "windowing.move: Failed to move client")
+		return invalid
+	}
+	const result = await dispatch_client(`dispatch movetoworkspacesilent ${workspace_id},address:${address}`)
+	log_error(result, "windowing.move: Failed to move client")
+	return result
 }
 
-export function dispatchClientButtonAction(
+export function dispatch_client_button_action(
 	button: number,
 	actions: {
 		primary: () => void
@@ -240,19 +244,19 @@ export function dispatchClientButtonAction(
 	if (button === BUTTON_MIDDLE) actions.middle()
 }
 
-export function createWindowClientList(exclusiveWorkspace: Accessor<boolean>) {
-	const clients = createBinding(hyprland, "clients").as((clients) => {
-		return sortByWorkspace(filterValidWindowClients(clients ?? []))
-	})
-	const focusedWorkspaceId = createBinding(hyprland, "focusedWorkspace").as(
+export function create_window_client_list(exclusive_workspace: Accessor<boolean>) {
+	install_placement_tracker()
+	const clients = createBinding(hyprland, "clients")
+	const focused_workspace_id = createBinding(hyprland, "focusedWorkspace").as(
 		(workspace) => workspace?.id ?? null,
 	)
 
-	return createComputed(() =>
-		filterWindowClientsForWorkspace(
-			clients(),
-			focusedWorkspaceId(),
-			exclusiveWorkspace(),
-		),
-	)
+	return createComputed(() => {
+		client_placement_version()
+		return filter_window_clients_for_workspace(
+			sort_by_workspace(filter_valid_window_clients(clients() ?? [])),
+			focused_workspace_id(),
+			exclusive_workspace(),
+		)
+	})
 }

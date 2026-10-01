@@ -1,4 +1,3 @@
-// Styles desktop icons, selection, dragging, renaming, and the right-click menu.
 @use "../../style/base" as *;
 
 window#desktop {
@@ -169,7 +168,6 @@ window#desktop-context-menu {
 	}
 }
 
-// Styles the desktop "Open With" application picker.
 window.desktop-open-with {
 	background: var(--bg);
 	color: var(--fg);
@@ -253,7 +251,6 @@ window.desktop-open-with {
 	}
 }
 
-// Styles the desktop launcher creator.
 window.desktop-launcher-creator {
 	background: var(--bg);
 	color: var(--fg);
@@ -319,8 +316,7 @@ window.desktop-launcher-creator {
 		margin-bottom: calc(var(--spacing) / 2);
 	}
 
-	.option-detail,
-	.empty-state {
+	.option-detail {
 		color: color-mix(in srgb, var(--fg) 62%, transparent);
 		font-size: 0.9em;
 	}

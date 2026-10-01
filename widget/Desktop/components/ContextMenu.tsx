@@ -1,23 +1,21 @@
-// Shows the desktop right-click menu and handles file and icon layout actions.
-
-import app from "ags/gtk4/app"
+import app from "$lib/app"
 import { Accessor, createComputed, createState, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import { idle, timeout } from "ags/time"
+import { idle, timeout } from "$lib/time"
 
 import Graphene from "gi://Graphene"
 
-import { scheduleMonitorWindowRelease } from "$lib/windowing"
+import { schedule_monitor_window_release } from "$lib/windowing"
 import options from "$shell/options"
 import {
-	copyDesktopFiles,
-	createDesktopEntry,
-	cutDesktopFiles,
-	desktopFileByPath,
-	desktopInteraction,
-	openDesktopFiles,
-	pasteDesktopFiles,
-	removeDesktopFiles,
+	copy_desktop_files,
+	create_desktop_entry,
+	cut_desktop_files,
+	desktop_file_by_path,
+	desktop_interaction,
+	open_desktop_files,
+	paste_desktop_files,
+	remove_desktop_files,
 } from "../Desktop"
 import { DesktopLauncherCreator } from "./LauncherCreator"
 import { DesktopOpenWith } from "./OpenWith"
@@ -27,55 +25,55 @@ const { KEY_Escape, KEY_Shift_L, KEY_Shift_R } = Gdk
 const { START, END, CENTER, FILL } = Gtk.Align
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 
-const [visible, setVisible] = createState(false)
-const [monitor, setMonitor] = createState<Gdk.Monitor | null>(null)
-const [monitorId, setMonitorId] = createState<string | null>(null)
-const [position, setPosition] = createState({ x: 0, y: 0 })
-const [shiftHeld, setShiftHeld] = createState(false)
-const [desktopPointerInside, setDesktopPointerInside] = createState(false)
-const [menuPointerInside, setMenuPointerInside] = createState(false)
-const contextWindows = new Map<Gdk.Monitor, Gtk.Window>()
+const [visible, set_visible] = createState(false)
+const [monitor, set_monitor] = createState<Gdk.Monitor | null>(null)
+const [monitor_id, set_monitor_id] = createState<string | null>(null)
+const [position, set_position] = createState({ x: 0, y: 0 })
+const [shift_held, set_shift_held] = createState(false)
+const [desktop_pointer_inside, set_desktop_pointer_inside] = createState(false)
+const [menu_pointer_inside, set_menu_pointer_inside] = createState(false)
+const context_windows = new Map<Gdk.Monitor, Gtk.Window>()
 
-export const desktopContextMenu = {
+export const desktop_context_menu = {
 	visible,
 	monitor,
-	monitorId,
+	monitor_id,
 	position,
-	shiftHeld,
-	setShiftHeld,
+	shift_held,
+	set_shift_held,
 	show({
 		monitor,
-		monitorId,
+		monitor_id,
 		x,
 		y,
 		shift = false,
 	}: {
 		monitor: Gdk.Monitor
-		monitorId: string
+		monitor_id: string
 		x: number
 		y: number
 		shift?: boolean
 	}) {
 		if (!options.desktop.enabled.peek()) return
-		setPosition({ x, y })
-		setMonitor(monitor)
-		setMonitorId(monitorId)
-		setShiftHeld(shift)
-		setMenuPointerInside(true)
-		setVisible(true)
+		set_position({ x, y })
+		set_monitor(monitor)
+		set_monitor_id(monitor_id)
+		set_shift_held(shift)
+		set_menu_pointer_inside(true)
+		set_visible(true)
 	},
 	hide() {
-		setVisible(false)
-		setMonitor(null)
-		setMonitorId(null)
-		setShiftHeld(false)
-		setMenuPointerInside(false)
+		set_visible(false)
+		set_monitor(null)
+		set_monitor_id(null)
+		set_shift_held(false)
+		set_menu_pointer_inside(false)
 	},
-	hideThen(run: () => void) {
-		const activeMonitor = monitor.peek()
-		const window = activeMonitor ? contextWindows.get(activeMonitor) : null
+	hide_then(run: () => void) {
+		const active_monitor = monitor.peek()
+		const window = active_monitor ? context_windows.get(active_monitor) : null
 		if (!window?.get_visible()) {
-			desktopContextMenu.hide()
+			desktop_context_menu.hide()
 			idle(run)
 			return
 		}
@@ -86,30 +84,30 @@ export const desktopContextMenu = {
 			self.disconnect(handler)
 			idle(run)
 		})
-		desktopContextMenu.hide()
+		desktop_context_menu.hide()
 	},
-	enterDesktop() {
-		setDesktopPointerInside(true)
+	enter_desktop() {
+		set_desktop_pointer_inside(true)
 	},
-	leaveDesktop() {
-		setDesktopPointerInside(false)
-		desktopContextMenu.hideIfOutside()
+	leave_desktop() {
+		set_desktop_pointer_inside(false)
+		desktop_context_menu.hide_if_outside()
 	},
-	enterMenu() {
-		setMenuPointerInside(true)
+	enter_menu() {
+		set_menu_pointer_inside(true)
 	},
-	leaveMenu() {
-		setMenuPointerInside(false)
-		desktopContextMenu.hideIfOutside()
+	leave_menu() {
+		set_menu_pointer_inside(false)
+		desktop_context_menu.hide_if_outside()
 	},
-	hideIfOutside() {
+	hide_if_outside() {
 		timeout(100, () => {
 			if (
 				visible.peek() &&
-				!desktopPointerInside.peek() &&
-				!menuPointerInside.peek()
+				!desktop_pointer_inside.peek() &&
+				!menu_pointer_inside.peek()
 			)
-				desktopContextMenu.hide()
+				desktop_context_menu.hide()
 		})
 	},
 }
@@ -125,7 +123,7 @@ function Action({
 	shortcut?: string | Accessor<string>
 	visible?: boolean | Accessor<boolean>
 	sensitive?: boolean | Accessor<boolean>
-	run: () => void
+	run: () => void | Promise<void>
 }) {
 	return (
 		<button
@@ -134,8 +132,16 @@ function Action({
 			visible={visible}
 			sensitive={sensitive}
 			onClicked={() => {
-				run()
-				desktopContextMenu.hide()
+				try {
+					const outcome = run()
+					if (outcome instanceof Promise)
+						void outcome.catch((error) =>
+							console.error("desktop.menu: Action failed", error))
+				} catch (error) {
+					console.error("desktop.menu: Action failed", error)
+				} finally {
+					desktop_context_menu.hide()
+				}
 			}}
 		>
 			<box orientation={HORIZONTAL} hexpand>
@@ -159,19 +165,19 @@ function MenuContent({
 	id: Accessor<string>
 	$?: (widget: Gtk.Widget) => void
 }) {
-	const hasSelection = desktopInteraction.selected.as(
+	const has_selection = desktop_interaction.selected.as(
 		(paths) => paths.length > 0,
 	)
-	const singleSelection = desktopInteraction.selected.as(
+	const single_selection = desktop_interaction.selected.as(
 		(paths) => paths.length === 1,
 	)
-	const backgroundMenu = desktopInteraction.selected.as(
+	const background_menu = desktop_interaction.selected.as(
 		(paths) => paths.length === 0,
 	)
-	const openWithVisible = createComputed(() => {
-		const paths = desktopInteraction.selected()
+	const open_with_visible = createComputed(() => {
+		const paths = desktop_interaction.selected()
 		if (paths.length !== 1) return false
-		const selected = desktopFileByPath(paths[0])
+		const selected = desktop_file_by_path(paths[0])
 		return !!selected && selected.contentType !== "inode/directory"
 	})
 
@@ -180,82 +186,80 @@ function MenuContent({
 			<Action
 				label="Open"
 				shortcut="↩"
-				visible={singleSelection}
-				run={() => openDesktopFiles(desktopInteraction.selected.peek())}
+				visible={single_selection}
+				run={() => open_desktop_files(desktop_interaction.selected.peek())}
 			/>
 			<Action
 				label="Open With…"
-				visible={openWithVisible}
+				visible={open_with_visible}
 				run={() => {
-					const path = desktopInteraction.selected.peek()[0]
+					const path = desktop_interaction.selected.peek()[0]
 					if (path) DesktopOpenWith.open(path)
 				}}
 			/>
 			<Action
 				label="Rename"
 				shortcut="F2"
-				visible={singleSelection}
+				visible={single_selection}
 				run={() => {
-					const path = desktopInteraction.selected.peek()[0]
-					if (path) desktopInteraction.rename.begin(path)
+					const path = desktop_interaction.selected.peek()[0]
+					if (path) desktop_interaction.rename.begin(path)
 				}}
 			/>
 			<Action
 				label="Cut"
 				shortcut="Ctrl+X"
-				visible={hasSelection}
-				run={() => cutDesktopFiles(desktopInteraction.selected.peek())}
+				visible={has_selection}
+				run={() => cut_desktop_files(desktop_interaction.selected.peek())}
 			/>
 			<Action
 				label="Copy"
 				shortcut="Ctrl+C"
-				visible={hasSelection}
-				run={() => copyDesktopFiles(desktopInteraction.selected.peek())}
+				visible={has_selection}
+				run={() => copy_desktop_files(desktop_interaction.selected.peek())}
 			/>
 			<Action
 				label="Paste"
 				shortcut="Ctrl+V"
-				run={() => {
-					void pasteDesktopFiles(id.peek())
-				}}
+				run={() => paste_desktop_files(id.peek())}
 			/>
 			<Action
-				label={shiftHeld.as((shift) =>
+				label={shift_held.as((shift) =>
 					shift ? "Delete Immediately" : "Move to Trash",
 				)}
-				shortcut={shiftHeld.as((shift) => (shift ? "⇧⌫" : "⌫"))}
-				visible={hasSelection}
+				shortcut={shift_held.as((shift) => (shift ? "⇧⌫" : "⌫"))}
+				visible={has_selection}
 				run={() =>
-					removeDesktopFiles(desktopInteraction.selected.peek(), {
-						permanently: shiftHeld.peek(),
+					remove_desktop_files(desktop_interaction.selected.peek(), {
+						permanently: shift_held.peek(),
 					})
 				}
 			/>
-			<Gtk.Separator visible={backgroundMenu} />
+			<Gtk.Separator visible={background_menu} />
 			<Action
 				label="New Launcher"
-				visible={backgroundMenu}
+				visible={background_menu}
 				run={() => DesktopLauncherCreator.open(id.peek())}
 			/>
 			<Action
 				label="New Folder"
-				visible={backgroundMenu}
+				visible={background_menu}
 				run={() => {
-					const path = createDesktopEntry(id.peek(), { kind: "folder" })
+					const path = create_desktop_entry(id.peek(), { kind: "folder" })
 					if (path)
-						desktopContextMenu.hideThen(() =>
-							desktopInteraction.rename.begin(path),
+						desktop_context_menu.hide_then(() =>
+							desktop_interaction.rename.begin(path),
 						)
 				}}
 			/>
 			<Action
 				label="New Text File"
-				visible={backgroundMenu}
+				visible={background_menu}
 				run={() => {
-					const path = createDesktopEntry(id.peek(), { kind: "file" })
+					const path = create_desktop_entry(id.peek(), { kind: "file" })
 					if (path)
-						desktopContextMenu.hideThen(() =>
-							desktopInteraction.rename.begin(path),
+						desktop_context_menu.hide_then(() =>
+							desktop_interaction.rename.begin(path),
 						)
 				}}
 			/>
@@ -269,28 +273,28 @@ export function DesktopContextMenu({
 	gdkmonitor: Gdk.Monitor
 }) {
 	const id = createComputed(
-		() => desktopContextMenu.monitorId() ?? "monitor:default",
+		() => desktop_context_menu.monitor_id() ?? "monitor:default",
 	)
 	const shown = createComputed(
 		() =>
 			options.desktop.enabled() &&
-			desktopContextMenu.visible() &&
-			desktopContextMenu.monitor() === gdkmonitor,
+			desktop_context_menu.visible() &&
+			desktop_context_menu.monitor() === gdkmonitor,
 	)
 	let content: Gtk.Widget | undefined
 	let window: Gtk.Window | undefined
 
 	onCleanup(() => {
-		if (window && contextWindows.get(gdkmonitor) === window)
-			contextWindows.delete(gdkmonitor)
-		scheduleMonitorWindowRelease(window)
+		if (window && context_windows.get(gdkmonitor) === window)
+			context_windows.delete(gdkmonitor)
+		schedule_monitor_window_release(window)
 	})
 
 	return (
 		<window
 			$={(self) => {
 				window = self
-				contextWindows.set(gdkmonitor, self)
+				context_windows.set(gdkmonitor, self)
 			}}
 			name="desktop-context-menu"
 			layer={Astal.Layer.TOP}
@@ -300,43 +304,43 @@ export function DesktopContextMenu({
 			gdkmonitor={gdkmonitor}
 			visible={shown}
 			keymode={Astal.Keymode.ON_DEMAND}
-			marginLeft={desktopContextMenu.position.as((point) => point.x)}
-			marginTop={desktopContextMenu.position.as((point) => point.y)}
+			marginLeft={desktop_context_menu.position.as((point) => point.x)}
+			marginTop={desktop_context_menu.position.as((point) => point.y)}
 			css="background: transparent;"
 		>
 			<Gtk.EventControllerKey
-				onKeyPressed={(_, key) => {
+				onKeyPressed={(unused, key) => {
 					if (key === KEY_Shift_L || key === KEY_Shift_R) {
-						desktopContextMenu.setShiftHeld(true)
+						desktop_context_menu.set_shift_held(true)
 						return false
 					}
 					if (key === KEY_Escape) {
-						desktopContextMenu.hide()
+						desktop_context_menu.hide()
 						return true
 					}
 					return false
 				}}
-				onKeyReleased={(_, key) => {
+				onKeyReleased={(unused, key) => {
 					if (key === KEY_Shift_L || key === KEY_Shift_R)
-						desktopContextMenu.setShiftHeld(false)
+						desktop_context_menu.set_shift_held(false)
 					return false
 				}}
 			/>
 			<Gtk.EventControllerMotion
-				onEnter={desktopContextMenu.enterMenu}
-				onLeave={desktopContextMenu.leaveMenu}
+				onEnter={desktop_context_menu.enter_menu}
+				onLeave={desktop_context_menu.leave_menu}
 			/>
 			<Gtk.GestureClick
-				onPressed={(controller, _count, x, y) => {
+				onPressed={(controller, count, x, y) => {
 					const widget = controller.get_widget()
 					if (!content || !widget) {
-						desktopContextMenu.hide()
+						desktop_context_menu.hide()
 						return
 					}
 
 					const [ok, bounds] = content.compute_bounds(widget)
 					if (!ok || !bounds.contains_point(new Graphene.Point({ x, y })))
-						desktopContextMenu.hide()
+						desktop_context_menu.hide()
 				}}
 			/>
 			<MenuContent

@@ -1,4 +1,3 @@
-// Styles empty-list messages and full-window placeholders.
 @use '../../style/base' as *;
 
 .placeholder {
@@ -13,16 +12,5 @@
   label {
     color: color-mix(in srgb, var(--fg) 70%, transparent);
     font-size: 1.25em;
-  }
-}
-
-window.placeholder {
-  box {
-    @include spacing(0.5);
-  }
-
-  label {
-    font-size: calc(72pt * var(--scale, 1));
-    font-weight: bold;
   }
 }

@@ -1,8 +1,6 @@
-// Shows a brief volume or brightness indicator on the active monitor.
-
-import app from "ags/gtk4/app"
+import app from "$lib/app"
 import { Astal, Gtk } from "ags/gtk4"
-import { Timer, timeout } from "ags/time"
+import { type Timer, timeout } from "$lib/time"
 import { createState, onCleanup } from "ags"
 
 import AstalWp from "gi://AstalWp"
@@ -10,8 +8,8 @@ import AstalWp from "gi://AstalWp"
 import { PopupWindow, Position } from "widget/shared/PopupWindow"
 
 import { brightness } from "$service/brightness"
-import { getBrightnessIcon } from "$lib/icons"
-import { ignoreInput } from "$lib/windowing"
+import { get_brightness_icon } from "$lib/icons"
+import { ignore_input } from "$lib/windowing"
 import options, { Opt } from "$shell/options"
 
 const audio = AstalWp.get_default()
@@ -19,11 +17,11 @@ const audio = AstalWp.get_default()
 export namespace OSD {
 	export function Window() {
 		if (window) return window
-		const disconnectListeners = connectListeners()
+		const disconnect_listeners = connect_listeners()
 		onCleanup(() => {
-			hideTimer?.cancel()
-			hideTimer = undefined
-			disconnectListeners()
+			hide_timer?.cancel()
+			hide_timer = undefined
+			disconnect_listeners()
 			window = null
 		})
 		window = (
@@ -37,8 +35,8 @@ export namespace OSD {
 				application={app}
 				layout={options.osd.position as Opt<Position>}
 				handleClosing={false}
-				onNotifyVisible={ignoreInput}
-				$={ignoreInput}
+				onNotifyVisible={ignore_input}
+				$={ignore_input}
 			>
 				<Gtk.AspectFrame obeyChild={false} ratio={1}>
 					<box class="state-display" orientation={VERTICAL} hexpand vexpand>
@@ -55,7 +53,7 @@ export namespace OSD {
 							class={content.as((value) =>
 								value.muted ? "percentage muted" : "percentage",
 							)}
-							fraction={content.as((value) => value.value)}
+							fraction={content.as((value) => Number.isFinite(value.value) ? Math.max(0, Math.min(1, value.value)) : 0)}
 							hexpand
 						/>
 					</box>
@@ -65,56 +63,56 @@ export namespace OSD {
 		return window
 	}
 
-	type Content = {
+	type osd_content = {
 		icon: string
 		value: number
 		muted: boolean
 	}
 
-	const [reveal, setReveal] = createState(false)
-	const [content, setContent] = createState<Content>({
+	const [reveal, set_reveal] = createState(false)
+	const [content, set_content] = createState<osd_content>({
 		icon: "",
 		value: 0,
 		muted: false,
 	})
 
-	let hideTimer: Timer | undefined
+	let hide_timer: Timer | undefined
 	let window: Gtk.Window | null = null
 
 	function show(value: number, icon: string, muted: boolean) {
-		setContent({ value, icon, muted })
-		setReveal(true)
+		set_content({ value, icon, muted })
+		set_reveal(true)
 
-		hideTimer?.cancel()
-		hideTimer = timeout(options.osd.dismiss.peek(), () => {
-			setReveal(false)
+		hide_timer?.cancel()
+		hide_timer = timeout(options.osd.dismiss.peek(), () => {
+			set_reveal(false)
 		})
 	}
 
-	function connectListeners() {
-		type AudioEndpoint = ReturnType<typeof audio.get_default_speaker>
+	function connect_listeners() {
+		type audio_endpoint = ReturnType<typeof audio.get_default_speaker>
 
-		const watchEndpoint = (
-			getEndpoint: () => AudioEndpoint,
-			defaultChangedSignal: string,
+		const watch_endpoint = (
+			get_endpoint: () => audio_endpoint,
+			default_changed_signal: string,
 		) => {
-			let endpoint: AudioEndpoint | null = null
-			let endpointHandlers: number[] = []
+			let endpoint: audio_endpoint | null = null
+			let endpoint_handlers: number[] = []
 
-			const disconnectEndpoint = () => {
+			const disconnect_endpoint = () => {
 				if (endpoint) {
-					for (const handler of endpointHandlers) endpoint.disconnect(handler)
+					for (const handler of endpoint_handlers) endpoint.disconnect(handler)
 				}
 				endpoint = null
-				endpointHandlers = []
+				endpoint_handlers = []
 			}
 
-			const reconnectEndpoint = () => {
-				disconnectEndpoint()
-				endpoint = getEndpoint()
+			const reconnect_endpoint = () => {
+				disconnect_endpoint()
+				endpoint = get_endpoint()
 				if (!endpoint) return
 
-				const showEndpoint = () => {
+				const show_endpoint = () => {
 					if (endpoint)
 						show(
 							endpoint.get_volume(),
@@ -122,50 +120,50 @@ export namespace OSD {
 							endpoint.get_mute(),
 						)
 				}
-				endpointHandlers = [
-					endpoint.connect("notify::volume", showEndpoint),
-					endpoint.connect("notify::mute", showEndpoint),
+				endpoint_handlers = [
+					endpoint.connect("notify::volume", show_endpoint),
+					endpoint.connect("notify::mute", show_endpoint),
 				]
 			}
 
-			reconnectEndpoint()
-			const defaultHandler = audio.connect(
-				defaultChangedSignal,
-				reconnectEndpoint,
+			reconnect_endpoint()
+			const default_handler = audio.connect(
+				default_changed_signal,
+				reconnect_endpoint,
 			)
 
 			return () => {
-				audio.disconnect(defaultHandler)
-				disconnectEndpoint()
+				audio.disconnect(default_handler)
+				disconnect_endpoint()
 			}
 		}
 
-		const disconnectSpeaker = watchEndpoint(
+		const disconnect_speaker = watch_endpoint(
 			() => audio.get_default_speaker(),
 			"notify::default-speaker",
 		)
-		const disconnectMicrophone = watchEndpoint(
+		const disconnect_microphone = watch_endpoint(
 			() => audio.get_default_microphone(),
 			"notify::default-microphone",
 		)
-		const displayHandler = brightness.connect("notify::display", () => {
+		const display_handler = brightness.connect("notify::display", () => {
 			if (!brightness.initialized) return
 			show(
 				brightness.display,
-				getBrightnessIcon(brightness.display, "screen"),
+				get_brightness_icon(brightness.display, "screen"),
 				false,
 			)
 		})
-		const keyboardHandler = brightness.connect("notify::kbd", () => {
+		const keyboard_handler = brightness.connect("notify::kbd", () => {
 			if (!brightness.initialized) return
-			show(brightness.kbd, getBrightnessIcon(brightness.kbd, "keyboard"), false)
+			show(brightness.kbd, get_brightness_icon(brightness.kbd, "keyboard"), false)
 		})
 
 		return () => {
-			disconnectSpeaker()
-			disconnectMicrophone()
-			brightness.disconnect(displayHandler)
-			brightness.disconnect(keyboardHandler)
+			disconnect_speaker()
+			disconnect_microphone()
+			brightness.disconnect(display_handler)
+			brightness.disconnect(keyboard_handler)
 		}
 	}
 

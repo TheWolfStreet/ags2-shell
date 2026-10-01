@@ -1,13 +1,12 @@
-// Shows the appropriate editor for each setting.
 
-import { createComputed } from "ags"
+import { Accessor, createComputed } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
 import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
 import { attempt } from "$lib/result"
-import { isDialogDismissed } from "$lib/ui"
+import { is_dialog_dismissed } from "$lib/ui"
 import { Opt } from "$shell/options"
 
 const { CENTER } = Gtk.Align
@@ -28,36 +27,36 @@ export type EditorType =
 type SetterProps = {
 	opt: Opt<any>
 	type?: EditorType
-	enums?: readonly EnumValue[]
+	enums?: readonly EnumValue[] | Accessor<readonly EnumValue[]>
 	max?: number
 	min?: number
 }
 
 type EnumSetterProps = {
 	opt: Opt<any>
-	values: readonly EnumValue[]
+	values: readonly EnumValue[] | Accessor<readonly EnumValue[]>
 }
 
-function resolveSetterType(opt: SetterProps["opt"], type: SetterProps["type"]): EditorType {
+function resolve_setter_type(opt: SetterProps["opt"], type: SetterProps["type"]): EditorType {
 	if (type) {
 		return type
 	}
 
-	const valueType = typeof opt.peek()
-	if (valueType === "boolean") return "boolean"
-	if (valueType === "number") return "number"
+	const value_type = typeof opt.peek()
+	if (value_type === "boolean") return "boolean"
+	if (value_type === "number") return "number"
 	return "string"
 }
 
-const fontDialog = (() => {
+const font_dialog = (() => {
 	const filter = new Gtk.CustomFilter()
 	filter.set_filter_func((item) => {
 		if (item instanceof FontFamily) {
 			return true
 		}
 		if (item instanceof FontFace) {
-			const faceName = item.get_face_name().toLowerCase()
-			return faceName === "regular" || faceName === "normal"
+			const face_name = item.get_face_name().toLowerCase()
+			return face_name === "regular" || face_name === "normal"
 		}
 		return false
 	})
@@ -66,28 +65,35 @@ const fontDialog = (() => {
 	return dialog
 })()
 
-const toHex = (rgba: Gdk.RGBA) => {
+const to_hex = (rgba: Gdk.RGBA) => {
 	const { red, green, blue } = rgba
 	return `#${[red, green, blue]
-		.map(n => Math.floor(255 * n).toString(16).padStart(2, "0"))
+		.map(n => Math.round(255 * n).toString(16).padStart(2, "0"))
 		.join("")}`
 }
 
 const EnumSetter = ({ opt, values }: EnumSetterProps) => {
+	const available = createComputed(() => (values instanceof Accessor ? values() : values).length > 0)
 	const step = (dir: 1 | -1) => {
-		const currentIndex = values.findIndex(value => value === opt.peek())
-		const nextIndex = dir > 0
-			? (currentIndex + 1) % values.length
-			: (currentIndex - 1 + values.length) % values.length
-		opt.set(values[nextIndex])
+		const choices = values instanceof Accessor ? values.peek() : values
+		if (!choices.length) return
+		const current_index = choices.findIndex(value => value === opt.peek())
+		if (current_index < 0) {
+			opt.set(choices[0])
+			return
+		}
+		const next_index = dir > 0
+			? (current_index + 1) % choices.length
+			: (current_index - 1 + choices.length) % choices.length
+		opt.set(choices[next_index])
 	}
 	return (
 		<box class="enum-setter">
-			<label label={createComputed(() => String(opt()))} />
-			<button onClicked={() => step(-1)}>
+			<label label={createComputed(() => available() ? String(opt()) : "No enum values")} />
+			<button sensitive={available} onClicked={() => step(-1)}>
 				<image iconName={icons.ui.arrow.left} />
 			</button>
-			<button onClicked={() => step(1)}>
+			<button sensitive={available} onClicked={() => step(1)}>
 				<image iconName={icons.ui.arrow.right} />
 			</button>
 		</box>
@@ -96,9 +102,9 @@ const EnumSetter = ({ opt, values }: EnumSetterProps) => {
 
 export default function Setter(props: SetterProps) {
 	const { opt, type, enums, max = 1000, min = 0 } = props
-	const resolvedType = resolveSetterType(opt, type)
+	const resolved_type = resolve_setter_type(opt, type)
 
-	switch (resolvedType) {
+	switch (resolved_type) {
 		case "number": {
 			return (
 				<Gtk.SpinButton
@@ -121,9 +127,7 @@ export default function Setter(props: SetterProps) {
 			)
 		}
 		case "enum": {
-			if (!enums?.length)
-				return <label label="No enum values" sensitive={false} />
-			return <EnumSetter opt={opt} values={enums} />
+			return <EnumSetter opt={opt} values={enums ?? []} />
 		}
 		case "boolean": {
 			return (
@@ -143,7 +147,7 @@ export default function Setter(props: SetterProps) {
 					tooltipText="Select a font"
 					useSize={true}
 					level={FONT}
-					dialog={fontDialog}
+					dialog={font_dialog}
 					fontDesc={createComputed(() => FontDescription.from_string(String(opt())))}
 					onNotifyFontDesc={(self) => {
 						const desc = self.get_font_desc()
@@ -158,16 +162,16 @@ export default function Setter(props: SetterProps) {
 		}
 		case "color": {
 			const dialog = new Gtk.ColorDialog
-			const chooseColor = (self: Gtk.Button) => {
+			const choose_color = (self: Gtk.Button) => {
 				const initial = new RGBA()
 				initial.parse(String(opt.peek()))
 				const root = self.get_root()
 
 				dialog.choose_rgba(root instanceof Gtk.Window ? root : null, initial, null, (_source, result) => {
 					const outcome = attempt(() => {
-						opt.set(toHex(dialog.choose_rgba_finish(result)))
+						opt.set(to_hex(dialog.choose_rgba_finish(result)))
 					})
-					if (!outcome.ok && !isDialogDismissed(outcome.err))
+					if (!outcome.ok && !is_dialog_dismissed(outcome.err))
 						console.error("settings.color_dialog: Failed to choose color", outcome.err)
 				})
 			}
@@ -177,7 +181,7 @@ export default function Setter(props: SetterProps) {
 					class="color-setter"
 					valign={CENTER}
 					tooltipText="Select a color"
-					onClicked={chooseColor}
+					onClicked={choose_color}
 				>
 					<box
 						class="color-swatch"
@@ -188,7 +192,7 @@ export default function Setter(props: SetterProps) {
 		}
 		default:
 			return <label
-				label={`[ERROR]: No setter with type ${resolvedType}`}
+				label={`[ERROR]: No setter with type ${resolved_type}`}
 			/>
 	}
 }

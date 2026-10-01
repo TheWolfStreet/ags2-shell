@@ -1,6 +1,3 @@
-// Styles the dock, reveal areas, screen-edge layouts, and launch feedback.
-// Window and hotzone surfaces stay transparent around the dock container.
-window#dock,
 window#dock-left,
 window#dock-bottom {
   all: unset;
@@ -11,10 +8,8 @@ window#dock-bottom {
   margin: 0;
 }
 
-window#dock-hotzone,
 window#dock-hotzone-left,
 window#dock-hotzone-bottom,
-window#dock-hotzone .dock-hotzone,
 window#dock-hotzone-left .dock-hotzone,
 window#dock-hotzone-bottom .dock-hotzone {
   all: unset;
@@ -23,7 +18,6 @@ window#dock-hotzone-bottom .dock-hotzone {
   border: none;
 }
 
-window#dock .dock-container,
 window#dock-left .dock-container,
 window#dock-bottom .dock-container {
   all: unset;
@@ -118,7 +112,6 @@ window#dock-bottom .dock-container {
   }
 }
 
-window#dock .dock-container.dock-horizontal,
 window#dock-left .dock-container.dock-horizontal,
 window#dock-bottom .dock-container.dock-horizontal {
   padding: var(--dock-pad-block) var(--dock-pad-inline);
@@ -140,7 +133,6 @@ window#dock-bottom .dock-container.dock-horizontal {
   }
 }
 
-window#dock .dock-container.dock-vertical,
 window#dock-left .dock-container.dock-vertical,
 window#dock-bottom .dock-container.dock-vertical {
   padding: var(--dock-pad-block-vertical) var(--dock-pad-inline-vertical);
@@ -165,14 +157,6 @@ window#dock-bottom .dock-container.dock-vertical {
     margin: 0 calc(var(--dock-space) * 1.25);
     margin-top: var(--dock-separator-gap);
   }
-}
-
-window#dock .dock-container.neumorphic,
-window#dock-left .dock-container.neumorphic,
-window#dock-bottom .dock-container.neumorphic {
-  box-shadow:
-    var(--neu-widget-highlight),
-    var(--neu-widget-shadow);
 }
 
 @keyframes subtle-jump {

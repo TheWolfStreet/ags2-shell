@@ -1,10 +1,9 @@
 {
-  "dependencies": {
-    "ags": "3.0.0",
-    "gnim": "1.6.5"
-  },
+  "type": "module",
   "scripts": {
-    "types": "ags types -d . -u -v ."
+    "types": "ags types -d . -u",
+    "typecheck": "bash scripts/typecheck.sh",
+    "test": "node --experimental-vm-modules --test 'tests/**/*.test.mjs'"
   },
   "prettier": {
     "semi": false,

@@ -1,8 +1,6 @@
-// Shows Hyprland workspaces and windows in an overview for each monitor.
-
 import { createBinding, createComputed, For, onCleanup, onMount } from "ags"
-import { idle, interval, Timer } from "ags/time"
-import app from "ags/gtk4/app"
+import { idle, timeout, type Timer } from "$lib/time"
+import app from "$lib/app"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 
@@ -13,14 +11,14 @@ import { PanelButton } from "../PanelButton"
 
 import { hyprland } from "$lib/hyprland"
 import {
-	createClientTitleAccessor,
-	createWorkspaceClients,
-	focusedWindowClient,
-	moveClientToWorkspaceSilent,
-	onWindowToggle,
-	readClientPlacementVersion,
-	refreshClientPlacement,
-	subscribeClientPlacement,
+	create_client_title_accessor,
+	create_workspace_clients,
+	focused_window_client,
+	move_client_to_workspace_silent,
+	on_window_toggle,
+	read_client_placement_version,
+	refresh_client_placement,
+	subscribe_client_placement,
 } from "$lib/windowing"
 
 import options from "$shell/options"
@@ -28,13 +26,14 @@ import options from "$shell/options"
 export namespace Overview {
 	export function Button() {
 		const workspaces = createComputed(() =>
-			workspaceIds(options.bar.workspaces.count()),
+			workspace_ids(options.bar.workspaces.count()),
 		)
-		const className = (ws: number) => {
-			const occupants = createWorkspaceClients(ws)
-			return createBinding(hyprland, "focusedWorkspace").as((fws) => {
+		const class_name = (workspace_id: number) => {
+			const occupants = create_workspace_clients(workspace_id)
+			const focused = createBinding(hyprland, "focusedWorkspace")
+			return createComputed(() => {
 				const classes: string[] = []
-				if (fws?.id === ws) classes.push("active")
+				if (focused()?.id === workspace_id) classes.push("active")
 				if (occupants().length > 0) classes.push("occupied")
 				return classes.join(" ")
 			})
@@ -44,13 +43,13 @@ export namespace Overview {
 			<PanelButton targetWindow="overview" class="workspaces">
 				<box valign={CENTER}>
 					<For each={workspaces}>
-						{(ws) => {
+						{(workspace_id) => {
 							return (
 								<label
 									valign={CENTER}
-									name={`${ws}`}
-									label={`${ws}`}
-									class={className(ws)}
+									name={`${workspace_id}`}
+									label={`${workspace_id}`}
+									class={class_name(workspace_id)}
 								/>
 							)
 						}}
@@ -64,67 +63,106 @@ export namespace Overview {
 		const existing = app.get_window("overview")
 		if (existing) return existing
 		const workspaces = createComputed(() =>
-			workspaceIds(options.overview.workspaces()),
+			workspace_ids(options.overview.workspaces()),
 		)
 
-		// Mouse drags and resizes emit no Hyprland events, so Astal's cached
-		// geometry goes stale. Re-sync from the compositor while open.
-		let syncPoll: Timer | null = null
-		const stopSyncPoll = () => {
-			syncPoll?.cancel()
-			syncPoll = null
-		}
-		const syncNow = () => {
-			hyprland.sync_clients((_source, result) => {
-				try {
-					hyprland.sync_clients_finish(result)
-				} catch {
-					// Hyprland unreachable; the next tick retries.
-				}
-				refreshClientPlacement()
+		let sync_timer: Timer | null = null
+		let generation = 0
+		let in_flight = false
+		let visible = false
+		let previous_snapshot = ""
+		let sync_warned = false
+		const schedule_sync = () => {
+			if (!visible || sync_timer) return
+			const current_generation = generation
+			sync_timer = timeout(overview_sync_interval_ms, () => {
+				sync_timer = null
+				if (!visible || current_generation !== generation) return
+				if (in_flight) schedule_sync()
+				else sync_now()
 			})
 		}
-		const startSyncPoll = () => {
-			stopSyncPoll()
-			syncNow()
-			syncPoll = interval(OVERVIEW_SYNC_INTERVAL_MS, syncNow)
+		const stop_sync = () => {
+			visible = false
+			generation++
+			sync_timer?.cancel()
+			sync_timer = null
 		}
-		const stopWindowSubscription = onWindowToggle("overview", (window) => {
-			if (window.visible) startSyncPoll()
-			else stopSyncPoll()
+		const sync_now = () => {
+			if (in_flight) return
+			in_flight = true
+			const current_generation = generation
+			hyprland.sync_clients((_source, result) => {
+				let succeeded = false
+				try {
+					hyprland.sync_clients_finish(result)
+					succeeded = true
+				} catch {
+					if (!sync_warned) console.warn("overview: Hyprland client sync failed")
+					sync_warned = true
+				}
+				in_flight = false
+				if (current_generation !== generation) {
+					schedule_sync()
+					return
+				}
+				if (succeeded) {
+					sync_warned = false
+					const snapshot = hyprland.clients.map((client) => [
+						client.address, client.workspace?.id, client.x, client.y,
+						client.width, client.height,
+					].join(":")).sort().join("|")
+					if (snapshot !== previous_snapshot) {
+						previous_snapshot = snapshot
+						refresh_client_placement()
+					}
+				}
+				schedule_sync()
+			})
+		}
+		const start_sync = () => {
+			stop_sync()
+			visible = true
+			if (in_flight) schedule_sync()
+			else sync_now()
+		}
+		const stop_window_subscription = on_window_toggle("overview", (window) => {
+			if (window.visible) start_sync()
+			else stop_sync()
 		})
 		onCleanup(() => {
-			stopWindowSubscription()
-			stopSyncPoll()
+			stop_window_subscription()
+			stop_sync()
 		})
 
 		return (
 			<PopupWindow application={app} name="overview" layer={OVERLAY}>
 				<box class="overview horizontal">
-					<For each={workspaces}>{(ws) => <Workspace entry={ws} />}</For>
+					<For each={workspaces}>{(workspace_id) => <Workspace entry={workspace_id} />}</For>
 				</box>
 			</PopupWindow>
 		)
 	}
 
-	type ClientProps = {
+	type client_props = {
 		entry: AstalHyprland.Client
 		update: (self: Gtk.Widget) => void
 	}
 
-	const HYPR_UPDATE_SIGNALS = ["client-added", "client-moved"] as const
-	const CLIENT_UPDATE_SIGNALS = [
+	const client_update_signals = [
 		"notify::x",
 		"notify::y",
 		"notify::width",
 		"notify::height",
+		"notify::monitor",
+		"notify::workspace",
 	] as const
 
-	function sanitizeOverviewScale(value: number) {
+	function sanitize_overview_scale(value: number) {
 		return Math.max(1, value)
 	}
 
-	function sanitizeDimension(
+	function sanitize_dimension(
 		value: number | null | undefined,
 		fallback: number,
 	) {
@@ -135,144 +173,146 @@ export namespace Overview {
 		return value
 	}
 
-	function scaleFactor(value: number) {
-		const safeValue = sanitizeOverviewScale(value)
-		if (safeValue <= 15) {
-			return safeValue / 100
+	function scale_factor(value: number) {
+		const safe_value = sanitize_overview_scale(value)
+		if (safe_value <= 15) {
+			return safe_value / 100
 		}
-		return ((safeValue / 100) * 9) / 100
+		return ((safe_value / 100) * 9) / 100
 	}
 
 	function scale(size: number) {
-		return scaleFactor(options.overview.scale()) * size
+		return scale_factor(options.overview.scale()) * size
 	}
 
-	function workspaceIds(total: number) {
-		return Array.from({ length: Math.max(1, total) }, (_, index) => index + 1)
+	function workspace_ids(total: number) {
+		if (total > 0) return Array.from({ length: Math.min(16, total) }, (_, index) => index + 1)
+		const workspaces = createBinding(hyprland, "workspaces")() ?? []
+		const ids = workspaces.map((workspace) => workspace.id).filter((id) => id > 0)
+		return [...new Set(ids)].sort((a, b) => a - b)
 	}
 
-	function monitorOrigin() {
-		const monitors = hyprland.monitors ?? []
-		const monitor =
-			monitors.find((m) => m?.id === 0) ?? monitors[0] ?? null
-		if (!monitor) return { x: 0, y: 0 }
-		const x = monitor.get_x?.() ?? monitor.x ?? 0
-		const y = monitor.get_y?.() ?? monitor.y ?? 0
-		return {
-			x: typeof x === "number" && Number.isFinite(x) ? x : 0,
-			y: typeof y === "number" && Number.isFinite(y) ? y : 0,
-		}
+	function workspace_monitor(workspace_id: number) {
+		return hyprland.get_workspace(workspace_id)?.get_monitor()
+			?? hyprland.get_focused_monitor() ?? hyprland.monitors[0] ?? null
 	}
 
-	function placeClientWidget(self: Gtk.Widget, client: AstalHyprland.Client) {
+	function monitor_size(monitor: AstalHyprland.Monitor | null) {
+		if (!monitor) return { width: fallback_monitor_width, height: fallback_monitor_height }
+		const transform = createBinding(monitor, "transform")()
+		const rotated = [1, 3, 5, 7].includes(transform)
+		const scale = sanitize_dimension(createBinding(monitor, "scale")(), 1)
+		const width = sanitize_dimension(createBinding(monitor, "width")(), fallback_monitor_width)
+		const height = sanitize_dimension(createBinding(monitor, "height")(), fallback_monitor_height)
+		return { width: (rotated ? height : width) / scale, height: (rotated ? width : height) / scale }
+	}
+
+	function place_client_widget(self: Gtk.Widget, client: AstalHyprland.Client) {
 		const parent = self.get_parent()
 		if (!(parent instanceof Gtk.Fixed)) return
-		const origin = monitorOrigin()
-		const factor = scaleFactor(options.overview.scale())
-		const x = Math.round(factor * (client.get_x() - origin.x))
-		const y = Math.round(factor * (client.get_y() - origin.y))
+		const monitor = workspace_monitor(client.get_workspace()?.id ?? 0)
+		const factor = scale_factor(options.overview.scale())
+		const x = Math.round(factor * (client.get_x() - (monitor?.get_x() ?? 0)))
+		const y = Math.round(factor * (client.get_y() - (monitor?.get_y() ?? 0)))
 		parent.move(self, x, y)
 	}
 
-	function Client({ entry: client, update }: ClientProps) {
-		const className = focusedWindowClient.as((currentClient) => {
+	function Client({ entry: client, update }: client_props) {
+		const class_name = focused_window_client.as((current_client) => {
 			const classes: string[] = ["client"]
-			if (currentClient?.address === client.address) classes.push("active")
+			if (current_client?.address === client.address) classes.push("active")
 			return classes.join(" ")
 		})
 
-		const title = createClientTitleAccessor(client)
-		const contentProvider = Gdk.ContentProvider.new_for_value(
+		const title = create_client_title_accessor(client)
+		const content_provider = Gdk.ContentProvider.new_for_value(
 			client.get_address(),
 		)
-		const widthNotify = createBinding(client, "width")
-		const heightNotify = createBinding(client, "height")
+		const width_notify = createBinding(client, "width")
+		const height_notify = createBinding(client, "height")
 
-		const clientWidth = createComputed(() => {
-			readClientPlacementVersion()
-			widthNotify()
+		const client_width = createComputed(() => {
+			read_client_placement_version()
+			width_notify()
 			return client.get_width()
 		})
-		const clientHeight = createComputed(() => {
-			readClientPlacementVersion()
-			heightNotify()
+		const client_height = createComputed(() => {
+			read_client_placement_version()
+			height_notify()
 			return client.get_height()
 		})
 
-		const scaledWidth = createComputed(() => Math.round(scale(clientWidth())))
-		const scaledHeight = createComputed(() => Math.round(scale(clientHeight())))
+		const scaled_width = createComputed(() => Math.round(scale(client_width())))
+		const scaled_height = createComputed(() => Math.round(scale(client_height())))
 
 		let widget: Gtk.Widget | null = null
-		let updateScheduled = false
-		function runUpdate() {
+		let update_timer: Timer | null = null
+		function run_update() {
 			if (!widget) return
 
 			update(widget)
 		}
 
-		function scheduleUpdate() {
-			if (updateScheduled) return
-			updateScheduled = true
-			idle(() => {
-				runUpdate()
-				updateScheduled = false
+		function schedule_update() {
+			if (update_timer) return
+			update_timer = idle(() => {
+				update_timer = null
+				run_update()
 			})
 		}
 
-		let imageWidget: Gtk.Image | null = null
+		let image_widget: Gtk.Image | null = null
 
-		const setupClientWidgetLifecycle = (self: Gtk.Widget) => {
+		const setup_client_widget_lifecycle = (self: Gtk.Widget) => {
 			widget = self
-			let hyprConnections: number[] = []
-			let clientConnections: number[] = []
-			let scaleSub: (() => void) | undefined
-			let placementSub: (() => void) | undefined
-			let monitorSubs: Array<() => void> = []
+			let client_connections: number[] = []
+			let scale_sub: (() => void) | undefined
+			let placement_sub: (() => void) | undefined
+			let monitor_sub: (() => void) | undefined
 
 			onMount(() => {
-				scheduleUpdate()
+				schedule_update()
 
-				hyprConnections = [
-					...HYPR_UPDATE_SIGNALS.map((signal) =>
-						hyprland.connect(signal, scheduleUpdate),
-					),
-					hyprland.connect("monitor-added", scheduleUpdate),
-					hyprland.connect("monitor-removed", scheduleUpdate),
-				]
-
-				clientConnections = CLIENT_UPDATE_SIGNALS.map((signal) =>
-					client.connect(signal, scheduleUpdate),
+				client_connections = client_update_signals.map((signal) =>
+					client.connect(signal, schedule_update),
 				)
 
-				scaleSub = options.overview.scale.subscribe(scheduleUpdate)
-				placementSub = subscribeClientPlacement(scheduleUpdate)
-				monitorSubs = [
-					createBinding(hyprland, "monitors").subscribe(scheduleUpdate),
-				]
+				scale_sub = options.overview.scale.subscribe(schedule_update)
+				placement_sub = subscribe_client_placement(schedule_update)
+				monitor_sub = createComputed(() => {
+					createBinding(hyprland, "monitors")()
+					const workspace = createBinding(client, "workspace")()
+					const monitor = workspace ? createBinding(workspace, "monitor")() : null
+					if (monitor) {
+						createBinding(monitor, "x")()
+						createBinding(monitor, "y")()
+						monitor_size(monitor)
+					}
+				}).subscribe(schedule_update)
 			})
 
 			onCleanup(() => {
-				hyprConnections.forEach((conn) => hyprland.disconnect(conn))
-				clientConnections.forEach((conn) => client.disconnect(conn))
-				scaleSub?.()
-				placementSub?.()
-				monitorSubs.forEach((unsub) => unsub())
+				client_connections.forEach((connection) => client.disconnect(connection))
+				scale_sub?.()
+				placement_sub?.()
+				monitor_sub?.()
+				update_timer?.cancel()
 				widget = null
-				imageWidget = null
+				image_widget = null
 			})
 		}
 
 		return (
 			<button
-				class={className}
+				class={class_name}
 				tooltipText={title}
-				heightRequest={scaledHeight}
-				widthRequest={scaledWidth}
+				heightRequest={scaled_height}
+				widthRequest={scaled_width}
 				onClicked={() => client.focus()}
-				$={setupClientWidgetLifecycle}
+				$={setup_client_widget_lifecycle}
 			>
 				<image
-					$={(self) => (imageWidget = self)}
+					$={(self) => (image_widget = self)}
 					vexpand
 					hexpand
 					valign={CENTER}
@@ -284,10 +324,10 @@ export namespace Overview {
 				/>
 				<Gtk.DragSource
 					actions={MOVE}
-					content={contentProvider}
+					content={content_provider}
 					onDragBegin={(source) => {
-						if (imageWidget) {
-							const paintable = Gtk.WidgetPaintable.new(imageWidget)
+						if (image_widget) {
+							const paintable = Gtk.WidgetPaintable.new(image_widget)
 							source.set_icon(paintable, 8, 8)
 						}
 					}}
@@ -296,43 +336,33 @@ export namespace Overview {
 		)
 	}
 
-	function Workspace({ entry: workspaceId }: { entry: number }) {
-		const className = createBinding(hyprland, "focusedWorkspace").as((fws) => {
+	function Workspace({ entry: workspace_id }: { entry: number }) {
+		const class_name = createBinding(hyprland, "focusedWorkspace").as((focused_workspace) => {
 			const classes: string[] = ["workspace"]
-			if (fws?.id === workspaceId) classes.push("active")
+			if (focused_workspace?.id === workspace_id) classes.push("active")
 			return classes.join(" ")
 		})
 
-		const monitor = createBinding(hyprland, "monitors").as(
-			(monitors) =>
-				(monitors ?? []).find((m) => m?.id === 0) ??
-				(monitors ?? [])[0] ??
-				null,
-		)
 		const css = createComputed(() => {
-			const factor = scaleFactor(options.overview.scale())
-			const width = sanitizeDimension(
-				monitor()?.get_width(),
-				FALLBACK_MONITOR_WIDTH,
-			)
-			const height = sanitizeDimension(
-				monitor()?.get_height(),
-				FALLBACK_MONITOR_HEIGHT,
-			)
+			const factor = scale_factor(options.overview.scale())
+			createBinding(hyprland, "workspaces")()
+			const workspace = hyprland.get_workspace(workspace_id)
+			const monitor = workspace ? createBinding(workspace, "monitor")() : workspace_monitor(workspace_id)
+			const { width, height } = monitor_size(monitor)
 			return `min-width: ${factor * width}px; min-height: ${factor * height}px;`
 		})
 
-		const clients = createWorkspaceClients(workspaceId)
+		const clients = create_workspace_clients(workspace_id)
 
 		return (
 			<button
-				name={`${workspaceId}`}
-				class={className}
-				tooltipText={`${workspaceId}`}
+				name={`${workspace_id}`}
+				class={class_name}
+				tooltipText={`${workspace_id}`}
 				css={css}
 				valign={CENTER}
 				onClicked={() =>
-					hyprland.message_async(`dispatch workspace ${workspaceId}`, null)
+					hyprland.message_async(`dispatch workspace ${workspace_id}`, null)
 				}
 			>
 				<Gtk.DropTarget
@@ -343,9 +373,9 @@ export namespace Overview {
 						return formats.contain_gtype(GObject.TYPE_STRING)
 					}}
 					onDrop={(_, value) => {
-						if (value) {
-							moveClientToWorkspaceSilent(workspaceId, String(value))
-						}
+						if (typeof value !== "string" || !/^(?:0x)?[0-9a-fA-F]+$/.test(value)) return false
+						if (!hyprland.get_client(value)) return false
+						move_client_to_workspace_silent(workspace_id, value)
 						return true
 					}}
 				/>
@@ -354,7 +384,7 @@ export namespace Overview {
 						{(c) => (
 							<Client
 								entry={c}
-								update={(self) => placeClientWidget(self, c)}
+								update={(self) => place_client_widget(self, c)}
 							/>
 						)}
 					</For>
@@ -367,7 +397,7 @@ export namespace Overview {
 	const { MOVE } = Gdk.DragAction
 	const { OVERLAY } = Astal.Layer
 
-	const OVERVIEW_SYNC_INTERVAL_MS = 250
-	const FALLBACK_MONITOR_WIDTH = 1920
-	const FALLBACK_MONITOR_HEIGHT = 1080
+	const overview_sync_interval_ms = 250
+	const fallback_monitor_width = 1920
+	const fallback_monitor_height = 1080
 }

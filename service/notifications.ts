@@ -1,55 +1,54 @@
-// Maintains filtered notification history and bounded persistence.
-
 import GObject, { getter, register } from "ags/gobject"
-import { Timer, timeout } from "ags/time"
+import { type Timer, timeout } from "$lib/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
 import { attempt } from "$lib/result"
-import { notificationDaemon } from "$lib/notifications"
+import { notification_daemon } from "$lib/notifications"
 import options from "$shell/options"
 
-const DISPLAY_LIMIT = 50
-const PERSIST_KEEP = 50
-const PERSIST_TRIGGER = 75
-const PRUNE_BUDGET = 8
-const COALESCE_MS = 16
-const PRUNE_DELAY_MS = 250
+const display_limit = 50
+const persist_keep = 50
+const persist_trigger = 75
+const prune_budget = 8
+const coalesce_ms = 16
+const prune_delay_ms = 250
 
 @register()
 class NotificationManager extends GObject.Object {
 	declare static $gtype: GObject.GType<NotificationManager>
 
-	#storeHandlers: number[] = []
-	#coalesceSourceId: number | null = null
-	#pruneSourceId: number | null = null
-	#ownerWarningTimer: Timer | null = null
-	#unsubscribeBlacklist: () => void
+	#store_handlers: number[] = []
+	#coalesce_source_id: number | null = null
+	#prune_source_id: number | null = null
+	#pruning = false
+	#owner_warning_timer: Timer | null = null
+	#unsubscribe_blacklist: () => void
 
-	readonly sessionStart = Math.floor(Date.now() / 1000)
+	readonly session_start = Math.floor(Date.now() / 1000)
 
 	constructor() {
 		super()
-		this.#storeHandlers.push(
-			notificationDaemon.connect("notified", () => this.#onStoreChanged()),
-			notificationDaemon.connect("resolved", () => this.#onStoreChanged()),
+		this.#store_handlers.push(
+			notification_daemon.connect("notified", () => this.#on_store_changed()),
+			notification_daemon.connect("resolved", () => this.#on_store_changed()),
 		)
-		this.#unsubscribeBlacklist = options.notifications.blacklist.subscribe(() =>
+		this.#unsubscribe_blacklist = options.notifications.blacklist.subscribe(() =>
 			this.notify("notifications"),
 		)
-		this.#schedulePrune()
-		this.#ownerWarningTimer = timeout(5000, () => {
-			this.#ownerWarningTimer = null
-			this.#warnIfNotDaemonOwner()
+		this.#schedule_prune()
+		this.#owner_warning_timer = timeout(5000, () => {
+			this.#owner_warning_timer = null
+			this.#warn_if_not_daemon_owner()
 		})
 	}
 
-	#warnIfNotDaemonOwner(): void {
+	#warn_if_not_daemon_owner(): void {
 		const result = attempt(() => {
 			const connection = Gio.DBus.session
-			const reply = connection.call_sync(
+			connection.call(
 				"org.freedesktop.DBus",
 				"/org/freedesktop/DBus",
 				"org.freedesktop.DBus",
@@ -61,12 +60,16 @@ class NotificationManager extends GObject.Object {
 				Gio.DBusCallFlags.NONE,
 				1000,
 				null,
+				(source, response) => {
+					const owner = attempt(() => connection.call_finish(response).recursiveUnpack() as [string])
+					if (!owner.ok) {
+						console.debug("notifications: could not verify daemon bus ownership", owner.err)
+						return
+					}
+					if (owner.value[0] !== connection.get_unique_name())
+						console.warn(`notifications: org.freedesktop.Notifications is owned by ${owner.value[0]}, not this shell (${connection.get_unique_name()})`)
+				},
 			)
-			const [owner] = reply.recursiveUnpack() as [string]
-			if (owner !== connection.get_unique_name())
-				console.warn(
-					`notifications: org.freedesktop.Notifications is owned by ${owner}, not this shell (${connection.get_unique_name()}) — a squatting process will steal notifications and desync the list`,
-				)
 		})
 		if (!result.ok)
 			console.debug(
@@ -75,15 +78,15 @@ class NotificationManager extends GObject.Object {
 			)
 	}
 
-	#onStoreChanged(): void {
-		this.#schedulePrune()
-		if (this.#coalesceSourceId !== null) return
+	#on_store_changed(): void {
+		this.#schedule_prune()
+		if (this.#coalesce_source_id !== null) return
 
-		this.#coalesceSourceId = GLib.timeout_add(
+		this.#coalesce_source_id = GLib.timeout_add(
 			GLib.PRIORITY_DEFAULT,
-			COALESCE_MS,
+			coalesce_ms,
 			() => {
-				this.#coalesceSourceId = null
+				this.#coalesce_source_id = null
 				this.notify("notifications")
 				return GLib.SOURCE_REMOVE
 			},
@@ -92,29 +95,29 @@ class NotificationManager extends GObject.Object {
 
 	@getter(Array)
 	get notifications(): AstalNotifd.Notification[] {
-		return notificationDaemon
+		return notification_daemon
 			.get_notifications()
-			.filter((notification) => !this.isBlacklisted(notification))
+			.filter((notification) => !this.is_blacklisted(notification))
 			.sort((left, right) => right.time - left.time)
-			.slice(0, DISPLAY_LIMIT)
+			.slice(0, display_limit)
 	}
 
-	isBlacklisted(notification: AstalNotifd.Notification): boolean {
+	is_blacklisted(notification: AstalNotifd.Notification): boolean {
 		const app = notification.get_app_name() || notification.get_desktop_entry()
 		return options.notifications.blacklist.peek().includes(app)
 	}
 
-	get doNotDisturb(): boolean {
-		return notificationDaemon.get_dont_disturb()
+	get do_not_disturb(): boolean {
+		return notification_daemon.get_dont_disturb()
 	}
 
-	#schedulePrune(): void {
-		if (this.#pruneSourceId !== null) return
-		this.#pruneSourceId = GLib.timeout_add(
+	#schedule_prune(): void {
+		if (this.#prune_source_id !== null) return
+		this.#prune_source_id = GLib.timeout_add(
 			GLib.PRIORITY_DEFAULT_IDLE,
-			PRUNE_DELAY_MS,
+			prune_delay_ms,
 			() => {
-				this.#pruneSourceId = null
+				this.#prune_source_id = null
 				this.#prune()
 				return GLib.SOURCE_REMOVE
 			},
@@ -122,29 +125,34 @@ class NotificationManager extends GObject.Object {
 	}
 
 	#prune(): void {
-		const all = notificationDaemon.get_notifications()
-		if (all.length <= PERSIST_TRIGGER) return
+		const all = notification_daemon.get_notifications().filter((notification) => !notification.transient)
+		if (all.length <= (this.#pruning ? persist_keep : persist_trigger)) {
+			this.#pruning = false
+			return
+		}
+		this.#pruning = true
 
 		const oldest = all
 			.slice()
 			.sort((left, right) => left.time - right.time)
-			.slice(0, all.length - PERSIST_KEEP)
-		for (const notification of oldest.slice(0, PRUNE_BUDGET))
+			.slice(0, all.length - persist_keep)
+		for (const notification of oldest.slice(0, prune_budget))
 			notification.dismiss()
-		if (oldest.length > PRUNE_BUDGET) this.#schedulePrune()
+		if (oldest.length > prune_budget) this.#schedule_prune()
+		else this.#pruning = false
 	}
 
 	vfunc_finalize(): void {
-		this.#ownerWarningTimer?.cancel()
-		if (this.#coalesceSourceId !== null)
-			GLib.Source.remove(this.#coalesceSourceId)
-		if (this.#pruneSourceId !== null) GLib.Source.remove(this.#pruneSourceId)
-		for (const handler of this.#storeHandlers)
-			notificationDaemon.disconnect(handler)
-		this.#storeHandlers = []
-		this.#unsubscribeBlacklist()
+		this.#owner_warning_timer?.cancel()
+		if (this.#coalesce_source_id !== null)
+			GLib.Source.remove(this.#coalesce_source_id)
+		if (this.#prune_source_id !== null) GLib.Source.remove(this.#prune_source_id)
+		for (const handler of this.#store_handlers)
+			notification_daemon.disconnect(handler)
+		this.#store_handlers = []
+		this.#unsubscribe_blacklist()
 		super.vfunc_finalize()
 	}
 }
 
-export const notificationManager = new NotificationManager()
+export const notification_manager = new NotificationManager()

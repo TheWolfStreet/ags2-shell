@@ -1,35 +1,34 @@
-// Initializes Hyprland while suppressing known transient Astal startup warnings.
 
 import Hyprland from "gi://AstalHyprland"
 import GLib from "gi://GLib"
 
-function createHyprland() {
+function create_hyprland() {
 	const critical = GLib.LogLevelFlags.LEVEL_CRITICAL
-	const knownMessages = [
+	const known_messages = [
 		"json_node_get_string: assertion 'JSON_NODE_IS_VALID (node)' failed",
 		"astal_hyprland_hyprland_get_client: assertion 'address != NULL' failed",
 	]
-	const ignoreKnownWarnings = (
+	const ignore_known_warnings = (
 		domain: string | null,
 		level: GLib.LogLevelFlags,
 		message: string,
 	) => {
-		if (!knownMessages.some((known) => message.includes(known)))
+		if (!known_messages.some((known) => message.includes(known)))
 			GLib.log_default_handler(domain, level, message, null)
 	}
-	const jsonHandler = GLib.log_set_handler(
+	const json_handler = GLib.log_set_handler(
 		"Json",
 		critical,
-		ignoreKnownWarnings,
+		ignore_known_warnings,
 	)
-	const defaultHandler = GLib.log_set_handler("", critical, ignoreKnownWarnings)
+	const default_handler = GLib.log_set_handler("", critical, ignore_known_warnings)
 
 	try {
 		return Hyprland.get_default()
 	} finally {
-		GLib.log_remove_handler("Json", jsonHandler)
-		GLib.log_remove_handler("", defaultHandler)
+		GLib.log_remove_handler("Json", json_handler)
+		GLib.log_remove_handler("", default_handler)
 	}
 }
 
-export const hyprland = createHyprland()
+export const hyprland = create_hyprland()

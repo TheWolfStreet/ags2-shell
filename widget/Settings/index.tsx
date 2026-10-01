@@ -1,10 +1,9 @@
-// Shows the Settings window and switches between editable pages.
 
 import { createComputed, createRoot, createState } from "ags"
-import app from "ags/gtk4/app"
+import app from "$lib/app"
 import { Gtk } from "ags/gtk4"
 
-import { createPages } from "./components/Pages"
+import { create_pages } from "./components/Pages"
 
 import icons from "$lib/icons"
 import { hyprland } from "$lib/hyprland"
@@ -17,7 +16,7 @@ export namespace Settings {
 			<button
 				valign={CENTER}
 				onClicked={() => {
-					const settings = ensureWindow()
+					const settings = ensure_window()
 					const qsettings = app.get_window("quicksettings")
 					qsettings?.hide()
 
@@ -41,23 +40,29 @@ export namespace Settings {
 	export function Window() {
 		const existing = app.get_window("settings-dialog")
 		if (existing) return existing
-		const pages = createPages()
-		const allOpts = collectOpts(options)
+		const pages = create_pages()
+		const page_buttons = pages.map((page) => {
+			const name = page.name
+			if (!name) throw new Error("Settings page has no name")
+			return { name, icon_name: page.iconName }
+		})
+		if (!page_buttons.length) throw new Error("Settings has no pages")
+		const all_opts = collect_opts(options)
 
 		let stack: Gtk.Stack | undefined
-		const [currentPage, setCurrentPage] = createState(pages[0].name)
+		const [current_page, set_current_page] = createState(page_buttons[0].name)
 
-		const anyChanged = createComputed(() =>
-			allOpts.some((opt) => opt() !== opt.getDefault()),
+		const any_changed = createComputed(() =>
+			all_opts.some((opt) => opt() !== opt.get_default()),
 		)
 
-		function resetAll() {
-			allOpts.forEach((opt) => opt.reset())
+		function reset_all() {
+			all_opts.forEach((opt) => opt.reset())
 		}
 
 		function setup(self: Gtk.Stack) {
 			stack = self
-			const name = currentPage.peek()
+			const name = current_page.peek()
 			if (self.get_child_by_name(name)) {
 				self.set_visible_child_name(name)
 			}
@@ -84,25 +89,25 @@ export namespace Settings {
 							class="reset"
 							$type="start"
 							valign={CENTER}
-							sensitive={anyChanged}
+							sensitive={any_changed}
 							tooltipText="Reset"
-							onClicked={resetAll}
+							onClicked={reset_all}
 						>
 							<image iconName={icons.ui.refresh} useFallback />
 						</button>
 
 						<box class="pager horizontal" $type="center">
-							{pages.map(({ name, iconName }) => (
+							{page_buttons.map(({ name, icon_name }) => (
 								<button
-									class={currentPage.as((v) => (v === name ? `active` : ""))}
+									class={current_page.as((v) => (v === name ? `active` : ""))}
 									valign={CENTER}
 									onClicked={() => {
-										setCurrentPage(name)
+										set_current_page(name)
 										stack?.set_visible_child_name(name)
 									}}
 								>
 									<box>
-										<image iconName={iconName} useFallback />
+										<image iconName={icon_name} useFallback />
 										<label label={name} />
 									</box>
 								</button>
@@ -133,7 +138,7 @@ export namespace Settings {
 
 	let root: (() => void) | null = null
 
-	function ensureWindow() {
+	function ensure_window() {
 		const existing = app.get_window("settings-dialog")
 		if (existing) return existing
 
@@ -145,14 +150,14 @@ export namespace Settings {
 		return window
 	}
 
-	function collectOpts(obj: Record<string, unknown>): Opt<any>[] {
+	function collect_opts(obj: Record<string, unknown>): Opt<any>[] {
 		let opts: Opt<any>[] = []
 		for (const key in obj) {
 			const value = obj[key]
 			if (value instanceof Opt) {
 				opts.push(value)
 			} else if (value && typeof value === "object") {
-				opts = opts.concat(collectOpts(value as Record<string, unknown>))
+				opts = opts.concat(collect_opts(value as Record<string, unknown>))
 			}
 		}
 		return opts

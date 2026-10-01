@@ -1,22 +1,20 @@
-// Shows desktop icons, labels, selection, dragging, and inline renaming.
-
 import { Accessor, createComputed, onCleanup } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
-import { idle } from "ags/time"
+import { idle } from "$lib/time"
 
 import type { DesktopIconMetrics } from "../GridGeometry"
 import type { DesktopFile } from "../FileOperations"
-import { createSquareTextureAccessor, hiddenDragIcon } from "$lib/textures"
+import { create_square_texture_accessor, hidden_drag_icon } from "$lib/textures"
 import type { DesktopDragController } from "../DragAndDrop"
-import { desktopInteraction, openDesktopFiles } from "../Desktop"
-import { desktopContextMenu } from "./ContextMenu"
+import { desktop_interaction, open_desktop_files } from "../Desktop"
+import { desktop_context_menu } from "./ContextMenu"
 
 const { BUTTON_PRIMARY, BUTTON_SECONDARY, ModifierType } = Gdk
 const { START, CENTER, FILL } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { COVER } = Gtk.ContentFit
 
-function isImageDesktopFile(file: DesktopFile): boolean {
+function is_image_desktop_file(file: DesktopFile): boolean {
 	return (
 		file.contentType.startsWith("image/") ||
 		file.contentType === "image" ||
@@ -27,54 +25,54 @@ function isImageDesktopFile(file: DesktopFile): boolean {
 	)
 }
 
-function renameSelectionEnd(name: string): number {
+function rename_selection_end(name: string): number {
 	if (!name || name === "." || name === "..") return name.length
 	if (name.startsWith(".")) {
-		const nextDot = name.indexOf(".", 1)
-		return nextDot > 1 ? nextDot : name.length
+		const next_dot = name.indexOf(".", 1)
+		return next_dot > 1 ? next_dot : name.length
 	}
 	const extension = name.indexOf(".")
 	return extension > 0 ? extension : name.length
 }
 
-function ensureRenameFocus(editor: Gtk.Text, file: DesktopFile): void {
+function ensure_rename_focus(editor: Gtk.Text, file: DesktopFile): void {
 	if (
 		editor.editable &&
-		desktopInteraction.rename.path.peek() === file.path
+		desktop_interaction.rename.path.peek() === file.path
 	)
-		focusRename(editor)
+		focus_rename(editor)
 }
 
-function focusRename(editor: Gtk.Text): void {
+function focus_rename(editor: Gtk.Text): void {
 	editor.grab_focus()
 	idle(() => {
 		if (
 			!editor.editable ||
 			!editor.has_focus ||
-			!desktopInteraction.rename.path.peek()
+			!desktop_interaction.rename.path.peek()
 		)
 			return
-		const name = desktopInteraction.rename.value.peek()
+		const name = desktop_interaction.rename.value.peek()
 		if (editor.get_text() !== name) editor.set_text(name)
-		editor.select_region(0, renameSelectionEnd(name))
+		editor.select_region(0, rename_selection_end(name))
 	})
 }
 
 function IconGraphic({
 	size,
 	preview,
-	isCut,
-	iconName,
-	isLauncher,
+	is_cut: is_cut,
+	icon_name: icon_name,
+	is_launcher: is_launcher,
 }: {
 	size: Accessor<number>
 	preview: Accessor<Gdk.Paintable | null>
-	isCut: Accessor<boolean>
-	iconName: string
-	isLauncher: boolean
+	is_cut: Accessor<boolean>
+	icon_name: string
+	is_launcher: boolean
 }) {
-	const paintable = preview.as((image) => image ?? hiddenDragIcon())
-	const emblemSize = size.as((value) => Math.max(10, Math.round(value * 0.22)))
+	const paintable = preview.as((image) => image ?? hidden_drag_icon())
+	const emblem_size = size.as((value) => Math.max(10, Math.round(value * 0.22)))
 	return (
 		<overlay
 			class="desktop-icon-visual"
@@ -91,7 +89,7 @@ function IconGraphic({
 			>
 				<image
 					visible={preview.as((image) => !image)}
-					iconName={isCut.as((cut) => (cut ? "edit-cut" : iconName))}
+					iconName={is_cut.as((cut) => (cut ? "edit-cut" : icon_name))}
 					pixelSize={size}
 					halign={CENTER}
 					valign={CENTER}
@@ -112,9 +110,9 @@ function IconGraphic({
 			<image
 				$type="overlay"
 				class="desktop-shortcut-emblem"
-				visible={isCut.as((cut) => isLauncher && !cut)}
+				visible={is_cut.as((cut) => is_launcher && !cut)}
 				iconName="emblem-symbolic-link-symbolic"
-				pixelSize={emblemSize}
+				pixelSize={emblem_size}
 				halign={START}
 				valign={Gtk.Align.END}
 			/>
@@ -124,24 +122,24 @@ function IconGraphic({
 
 function IconLabel({
 	file,
-	isInlineRename,
-	labelPillChars,
+	is_inline_rename: is_inline_rename,
+	label_pill_chars: label_pill_chars,
 }: {
 	file: DesktopFile
-	isInlineRename: Accessor<boolean>
-	labelPillChars: Accessor<number>
+	is_inline_rename: Accessor<boolean>
+	label_pill_chars: Accessor<number>
 }) {
-	const displayName = file.displayName ?? file.name
+	const display_name = file.displayName ?? file.name
 	const text = createComputed(() => {
-		if (isInlineRename()) return desktopInteraction.rename.value()
-		const characters = [...displayName]
-		const maxCharacters = labelPillChars()
-		return characters.length > maxCharacters
-			? `${characters.slice(0, Math.max(1, maxCharacters - 1)).join("")}…`
-			: displayName
+		if (is_inline_rename()) return desktop_interaction.rename.value()
+		const characters = [...display_name]
+		const max_characters = label_pill_chars()
+		return characters.length > max_characters
+			? `${characters.slice(0, Math.max(1, max_characters - 1)).join("")}…`
+			: display_name
 	})
-	const tooltip = labelPillChars.as((maxCharacters) =>
-		[...displayName].length > maxCharacters ? displayName : "",
+	const tooltip = label_pill_chars.as((max_characters) =>
+		[...display_name].length > max_characters ? display_name : "",
 	)
 	return (
 		<box
@@ -155,21 +153,21 @@ function IconLabel({
 				class="desktop-icon-rename"
 				text={text}
 				xalign={0.5}
-				maxWidthChars={labelPillChars}
-				widthChars={labelPillChars}
+				maxWidthChars={label_pill_chars}
+				widthChars={label_pill_chars}
 				propagateTextWidth={false}
 				halign={FILL}
-				editable={isInlineRename}
-				canFocus={isInlineRename}
-				canTarget={isInlineRename}
+				editable={is_inline_rename}
+				canFocus={is_inline_rename}
+				canTarget={is_inline_rename}
 				onNotifyText={(self) => {
-					if (isInlineRename.peek())
-						desktopInteraction.rename.setValue(self.get_text())
+					if (is_inline_rename.peek())
+						desktop_interaction.rename.set_value(self.get_text())
 				}}
-				onActivate={desktopInteraction.rename.commit}
+				onActivate={desktop_interaction.rename.commit}
 				onNotifyEditable={(self) => {
 					if (self.editable) {
-						idle(() => ensureRenameFocus(self, file))
+						idle(() => ensure_rename_focus(self, file))
 						return
 					}
 					self.select_region(0, 0)
@@ -180,7 +178,7 @@ function IconLabel({
 				onNotifyHasFocus={(self) => {
 					if (
 						self.has_focus ||
-						desktopInteraction.rename.path.peek() !== file.path
+						desktop_interaction.rename.path.peek() !== file.path
 					)
 						return
 					idle(() => {
@@ -190,11 +188,11 @@ function IconLabel({
 							root instanceof Gtk.Window &&
 							root.is_active
 						)
-							ensureRenameFocus(self, file)
+							ensure_rename_focus(self, file)
 					})
 				}}
 				$={(self) => {
-					self.connect("map", () => ensureRenameFocus(self, file))
+					self.connect("map", () => ensure_rename_focus(self, file))
 				}}
 			/>
 		</box>
@@ -204,14 +202,14 @@ function IconLabel({
 export function DesktopIcon({
 	file,
 	monitor,
-	monitorId,
+	monitorId: monitor_id,
 	drag,
-	iconMetrics,
-	selectedPaths,
-	draggedPaths,
-	cutPaths,
-	registerWidget,
-	unregisterWidget,
+	iconMetrics: icon_metrics,
+	selectedPaths: selected_paths,
+	draggedPaths: dragged_paths,
+	cutPaths: cut_paths,
+	register_widget,
+	unregister_widget,
 }: {
 	file: DesktopFile
 	monitor: Gdk.Monitor
@@ -221,34 +219,35 @@ export function DesktopIcon({
 	selectedPaths: Accessor<Set<string>>
 	draggedPaths: Accessor<Set<string>>
 	cutPaths: Accessor<Set<string>>
-	registerWidget(path: string, widget: Gtk.Widget): void
-	unregisterWidget(path: string, widget: Gtk.Widget): void
+	register_widget(path: string, widget: Gtk.Widget): void
+	unregister_widget(path: string, widget: Gtk.Widget): void
 }) {
-	const isInlineRename = desktopInteraction.rename.path.as(
+	const is_inline_rename = desktop_interaction.rename.path.as(
 		(path) => path === file.path,
 	)
-	const isCut = cutPaths.as((paths) => paths.has(file.path))
-	const isLauncher = file.path.toLowerCase().endsWith(".desktop")
-	const supportsPreview = isImageDesktopFile(file) || !!file.iconFile
-	const previewPaintable = createComputed(() => {
-		if (isCut() || !supportsPreview) return null
-		return createSquareTextureAccessor(
+	const is_cut = cut_paths.as((paths) => paths.has(file.path))
+	const is_launcher = file.path.toLowerCase().endsWith(".desktop")
+	const supports_preview = is_image_desktop_file(file) || !!file.iconFile
+	const preview_texture = createComputed(() => {
+		if (is_cut() || !supports_preview) return null
+		return create_square_texture_accessor(
 			file.iconFile ?? file.path,
-			iconMetrics().iconPx,
-		)()
+			icon_metrics().iconPx,
+		)
 	})
-	const iconPixelSize = iconMetrics.as((metrics) => metrics.iconPx)
-	const labelPillChars = iconMetrics.as((metrics) =>
+	const preview_paintable = createComputed(() => preview_texture()?.() ?? null)
+	const icon_pixel_size = icon_metrics.as((metrics) => metrics.iconPx)
+	const label_pill_chars = icon_metrics.as((metrics) =>
 		Math.max(4, metrics.labelChars - 1),
 	)
-	const isSelected = selectedPaths.as((paths) => paths.has(file.path))
-	const isDragGroupMember = draggedPaths.as(
+	const is_selected = selected_paths.as((paths) => paths.has(file.path))
+	const is_drag_group_member = dragged_paths.as(
 		(paths) => paths.size > 1 && paths.has(file.path),
 	)
-	const cssClass = createComputed(() => {
-		const selected = isSelected()
+	const css_class = createComputed(() => {
+		const selected = is_selected()
 		const dragging = drag.state().paths.includes(file.path)
-		const grouped = isDragGroupMember()
+		const grouped = is_drag_group_member()
 		return (
 			"desktop-icon" +
 			(selected ? " selected" : "") +
@@ -256,17 +255,17 @@ export function DesktopIcon({
 			(grouped ? " drag-pack" : "")
 		)
 	})
-	let pendingSingleSelect = false
-	let draggedSincePress = false
+	let pending_single_select = false
+	let dragged_since_press = false
 
-	function handleClick(button: number, gesture: Gtk.GestureClick): void {
+	function handle_click(button: number, gesture: Gtk.GestureClick): void {
 		if (button === BUTTON_PRIMARY) {
-			desktopContextMenu.hide()
+			desktop_context_menu.hide()
 			const state = gesture.get_current_event_state()
-			const controlHeld = (state & ModifierType.CONTROL_MASK) !== 0
-			const current = desktopInteraction.selected.peek()
-			if (controlHeld) {
-				desktopInteraction.select(
+			const control_held = (state & ModifierType.CONTROL_MASK) !== 0
+			const current = desktop_interaction.selected.peek()
+			if (control_held) {
+				desktop_interaction.select(
 					current.includes(file.path)
 						? current.filter((path) => path !== file.path)
 						: [...current, file.path],
@@ -274,27 +273,27 @@ export function DesktopIcon({
 				return
 			}
 			if (current.length > 1 && current.includes(file.path)) {
-				pendingSingleSelect = true
+				pending_single_select = true
 				return
 			}
-			desktopInteraction.select([file.path])
+			desktop_interaction.select([file.path])
 		}
 
 		if (button === BUTTON_SECONDARY) {
-			if (!desktopInteraction.selected.peek().includes(file.path))
-				desktopInteraction.select([file.path])
+			if (!desktop_interaction.selected.peek().includes(file.path))
+				desktop_interaction.select([file.path])
 			const event = gesture.get_current_event()
 			if (event) {
 				const [success, x, y] = event.get_position()
-				const shiftHeld =
+				const shift_held =
 					(gesture.get_current_event_state() & ModifierType.SHIFT_MASK) !== 0
 				if (success)
-					desktopContextMenu.show({
+					desktop_context_menu.show({
 						monitor,
-						monitorId: monitorId.peek(),
+						monitor_id: monitor_id.peek(),
 						x,
 						y,
-						shift: shiftHeld,
+						shift: shift_held,
 					})
 			}
 		}
@@ -302,39 +301,39 @@ export function DesktopIcon({
 
 	return (
 		<box
-			class={cssClass}
+			class={css_class}
 			halign={START}
 			valign={START}
 			$={(self: Gtk.Widget) => {
-				registerWidget(file.path, self)
-				drag.attachSource(self, file.path, () => {
-					draggedSincePress = true
+				register_widget(file.path, self)
+				drag.attach_source(self, file.path, () => {
+					dragged_since_press = true
 				})
-				onCleanup(() => unregisterWidget(file.path, self))
+				onCleanup(() => unregister_widget(file.path, self))
 			}}
 		>
 			<Gtk.GestureClick
 				button={0}
-				onPressed={(gesture, pressCount) => {
-					const renamedPath = desktopInteraction.rename.path.peek()
-					if (renamedPath === file.path) return
-					if (renamedPath) desktopInteraction.rename.commit()
-					const clickedButton = gesture.get_current_button()
-					if (clickedButton === BUTTON_PRIMARY) {
-						desktopInteraction.press(file.path)
-						pendingSingleSelect = false
-						draggedSincePress = false
+				onPressed={(gesture, press_count) => {
+					const renamed_path = desktop_interaction.rename.path.peek()
+					if (renamed_path === file.path) return
+					if (renamed_path) desktop_interaction.rename.commit()
+					const clicked_button = gesture.get_current_button()
+					if (clicked_button === BUTTON_PRIMARY) {
+						desktop_interaction.press(file.path)
+						pending_single_select = false
+						dragged_since_press = false
 					}
-					handleClick(clickedButton, gesture)
-					if (clickedButton === BUTTON_PRIMARY && pressCount === 2)
-						openDesktopFiles([file.path])
+					handle_click(clicked_button, gesture)
+					if (clicked_button === BUTTON_PRIMARY && press_count === 2)
+						open_desktop_files([file.path])
 				}}
 				onReleased={(gesture) => {
 					if (gesture.get_current_button() !== BUTTON_PRIMARY) return
-					if (pendingSingleSelect && !draggedSincePress)
-						desktopInteraction.select([file.path])
-					pendingSingleSelect = false
-					desktopInteraction.press(null)
+					if (pending_single_select && !dragged_since_press)
+						desktop_interaction.select([file.path])
+					pending_single_select = false
+					desktop_interaction.press(null)
 				}}
 			/>
 			<box
@@ -346,16 +345,16 @@ export function DesktopIcon({
 				class="desktop-icon-inner"
 			>
 				<IconGraphic
-					size={iconPixelSize}
-					preview={previewPaintable}
-					isCut={isCut}
-					iconName={file.icon}
-					isLauncher={isLauncher}
+					size={icon_pixel_size}
+					preview={preview_paintable}
+					is_cut={is_cut}
+					icon_name={file.icon}
+					is_launcher={is_launcher}
 				/>
 				<IconLabel
 					file={file}
-					isInlineRename={isInlineRename}
-					labelPillChars={labelPillChars}
+					is_inline_rename={is_inline_rename}
+					label_pill_chars={label_pill_chars}
 				/>
 			</box>
 		</box>

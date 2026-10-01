@@ -1,8 +1,6 @@
-// Converts monitor work areas into icon grid cells and selection areas.
+type grid_item = { path: string }
 
-type GridItem = { path: string }
-
-type DesktopIconSize = "small" | "medium" | "large" | "extralarge"
+type desktop_icon_size = "small" | "medium" | "large" | "extralarge"
 
 export type DesktopIconMetrics = {
 	iconPx: number
@@ -28,34 +26,34 @@ export type SlotRect = {
 	height: number
 }
 
-type WorkAreaPadding = {
+type work_area_padding = {
 	left: number
 	right: number
 	top: number
 	bottom: number
 }
 
-const GRID = {
-	edgeMargins: { left: 12, right: 12, top: 12, bottom: 12 },
+const grid = {
+	edge_margins: { left: 12, right: 12, top: 12, bottom: 12 },
 }
 
-const ICON_METRICS_BY_SIZE: Record<DesktopIconSize, DesktopIconMetrics> = {
+const icon_metrics_by_size: Record<desktop_icon_size, DesktopIconMetrics> = {
 	small: { iconPx: 56, cellPx: 100, labelChars: 9 },
 	medium: { iconPx: 64, cellPx: 110, labelChars: 10 },
 	large: { iconPx: 80, cellPx: 140, labelChars: 11 },
 	extralarge: { iconPx: 96, cellPx: 156, labelChars: 12 },
 }
 
-const ZERO_PADDING: WorkAreaPadding = { left: 0, right: 0, top: 0, bottom: 0 }
+const zero_padding: work_area_padding = { left: 0, right: 0, top: 0, bottom: 0 }
 
-export function getDesktopIconMetrics(
+export function get_desktop_icon_metrics(
 	size: string,
 	scale = 1,
 ): DesktopIconMetrics {
-	let metrics = ICON_METRICS_BY_SIZE.small
-	if (size === "medium") metrics = ICON_METRICS_BY_SIZE.medium
-	else if (size === "large") metrics = ICON_METRICS_BY_SIZE.large
-	else if (size === "extralarge") metrics = ICON_METRICS_BY_SIZE.extralarge
+	let metrics = icon_metrics_by_size.small
+	if (size === "medium") metrics = icon_metrics_by_size.medium
+	else if (size === "large") metrics = icon_metrics_by_size.large
+	else if (size === "extralarge") metrics = icon_metrics_by_size.extralarge
 	return {
 		...metrics,
 		iconPx: Math.max(8, Math.round(metrics.iconPx * scale)),
@@ -63,80 +61,80 @@ export function getDesktopIconMetrics(
 	}
 }
 
-export function getGridMetrics(
+export function get_grid_metrics(
 	width: number,
 	height: number,
-	padding: WorkAreaPadding = ZERO_PADDING,
-	cellSize = ICON_METRICS_BY_SIZE.small.cellPx,
+	padding: work_area_padding = zero_padding,
+	cell_size = icon_metrics_by_size.small.cellPx,
 	scale = 1,
 ): GridMetrics {
-	const requestedEdgeLeft = Math.max(
+	const requested_edge_left = Math.max(
 		0,
-		Math.floor(GRID.edgeMargins.left * scale),
+		Math.floor(grid.edge_margins.left * scale),
 	)
-	const requestedEdgeRight = Math.max(
+	const requested_edge_right = Math.max(
 		0,
-		Math.floor(GRID.edgeMargins.right * scale),
+		Math.floor(grid.edge_margins.right * scale),
 	)
-	const edgeTop = Math.max(0, Math.floor(GRID.edgeMargins.top * scale))
-	const edgeBottom = Math.max(0, Math.floor(GRID.edgeMargins.bottom * scale))
-	const paddingLeft = Math.max(0, Math.floor(padding.left))
-	const paddingRight = Math.max(0, Math.floor(padding.right))
-	const paddingTop = Math.max(0, Math.floor(padding.top))
-	const paddingBottom = Math.max(0, Math.floor(padding.bottom))
-	const baseWidth = Math.max(1, Math.floor(width) - paddingLeft - paddingRight)
-	const baseHeight = Math.max(
+	const edge_top = Math.max(0, Math.floor(grid.edge_margins.top * scale))
+	const edge_bottom = Math.max(0, Math.floor(grid.edge_margins.bottom * scale))
+	const padding_left = Math.max(0, Math.floor(padding.left))
+	const padding_right = Math.max(0, Math.floor(padding.right))
+	const padding_top = Math.max(0, Math.floor(padding.top))
+	const padding_bottom = Math.max(0, Math.floor(padding.bottom))
+	const base_width = Math.max(1, Math.floor(width) - padding_left - padding_right)
+	const base_height = Math.max(
 		1,
-		Math.floor(height) - paddingTop - paddingBottom,
+		Math.floor(height) - padding_top - padding_bottom,
 	)
-	const columns = Math.max(1, Math.floor(baseWidth / cellSize))
-	const requestedSideMarginTotal = requestedEdgeLeft + requestedEdgeRight
-	const maxSideMarginTotal = Math.max(0, baseWidth - columns * cellSize)
-	const sideMarginTotal = Math.min(requestedSideMarginTotal, maxSideMarginTotal)
-	const leftRatio =
-		requestedSideMarginTotal > 0
-			? requestedEdgeLeft / requestedSideMarginTotal
+	const columns = Math.max(1, Math.floor(base_width / cell_size))
+	const requested_side_margin_total = requested_edge_left + requested_edge_right
+	const max_side_margin_total = Math.max(0, base_width - columns * cell_size)
+	const side_margin_total = Math.min(requested_side_margin_total, max_side_margin_total)
+	const left_ratio =
+		requested_side_margin_total > 0
+			? requested_edge_left / requested_side_margin_total
 			: 0.5
-	const edgeLeft = Math.floor(sideMarginTotal * leftRatio)
-	const edgeRight = sideMarginTotal - edgeLeft
-	const safeWidth = Math.max(1, baseWidth - edgeLeft - edgeRight)
-	const safeHeight = Math.max(1, baseHeight - edgeTop - edgeBottom)
-	const targetRows = Math.max(1, Math.floor(safeHeight / cellSize))
-	const widthCell = Math.max(1, Math.floor(safeWidth / columns))
-	const heightCell = Math.max(1, Math.floor(safeHeight / targetRows))
-	const squareCell = Math.max(1, Math.min(widthCell, heightCell))
-	const rows = Math.max(1, Math.floor(safeHeight / squareCell))
-	const cellWidth = widthCell
-	const cellHeight = squareCell
-	const usedWidth = cellWidth * columns
-	const usedHeight = cellHeight * rows
-	const freeWidth = Math.max(0, baseWidth - usedWidth)
-	const gapLeft = Math.floor(freeWidth / 2)
-	const gapRight = freeWidth - gapLeft
-	const freeHeight = Math.max(0, safeHeight - usedHeight)
+	const edge_left = Math.floor(side_margin_total * left_ratio)
+	const edge_right = side_margin_total - edge_left
+	const safe_width = Math.max(1, base_width - edge_left - edge_right)
+	const safe_height = Math.max(1, base_height - edge_top - edge_bottom)
+	const target_rows = Math.max(1, Math.floor(safe_height / cell_size))
+	const width_cell = Math.max(1, Math.floor(safe_width / columns))
+	const height_cell = Math.max(1, Math.floor(safe_height / target_rows))
+	const square_cell = Math.max(1, Math.min(width_cell, height_cell))
+	const rows = Math.max(1, Math.floor(safe_height / square_cell))
+	const cell_width = width_cell
+	const cell_height = square_cell
+	const used_width = cell_width * columns
+	const used_height = cell_height * rows
+	const free_width = Math.max(0, base_width - used_width)
+	const gap_left = Math.floor(free_width / 2)
+	const gap_right = free_width - gap_left
+	const free_height = Math.max(0, safe_height - used_height)
 
 	return {
-		cellWidth,
-		cellHeight,
+		cellWidth: cell_width,
+		cellHeight: cell_height,
 		rows,
 		columns,
-		offsetX: paddingLeft + gapLeft,
-		offsetY: paddingTop + edgeTop,
-		paddingRight: paddingRight + gapRight,
-		paddingBottom: paddingBottom + edgeBottom + freeHeight,
+		offsetX: padding_left + gap_left,
+		offsetY: padding_top + edge_top,
+		paddingRight: padding_right + gap_right,
+		paddingBottom: padding_bottom + edge_bottom + free_height,
 	}
 }
 
-export function expandGridMetrics(
+export function expand_grid_metrics(
 	grid: GridMetrics,
-	itemCount: number,
+	item_count: number,
 ): GridMetrics {
-	const rows = Math.max(grid.rows, Math.ceil(itemCount / grid.columns))
+	const rows = Math.max(grid.rows, Math.ceil(item_count / grid.columns))
 	return rows === grid.rows ? grid : { ...grid, rows }
 }
 
-export function findPathsIntersectingRectangle(
-	fileList: GridItem[],
+export function find_paths_intersecting_rectangle(
+	file_list: grid_item[],
 	positions: Record<string, number>,
 	grid: GridMetrics,
 	x1: number,
@@ -144,39 +142,39 @@ export function findPathsIntersectingRectangle(
 	x2: number,
 	y2: number,
 ): string[] {
-	const minX = Math.min(x1, x2)
-	const maxX = Math.max(x1, x2)
-	const minY = Math.min(y1, y2)
-	const maxY = Math.max(y1, y2)
-	const slotCount = grid.rows * grid.columns
-	const normalized = reconcileGridPositions(
-		fileList,
+	const min_x = Math.min(x1, x2)
+	const max_x = Math.max(x1, x2)
+	const min_y = Math.min(y1, y2)
+	const max_y = Math.max(y1, y2)
+	const slot_count = grid.rows * grid.columns
+	const normalized = reconcile_grid_positions(
+		file_list,
 		positions,
-		slotCount,
+		slot_count,
 		grid.columns,
 	)
-	const slots: Array<GridItem | null> = Array.from(
-		{ length: slotCount },
+	const slots: Array<grid_item | null> = Array.from(
+		{ length: slot_count },
 		() => null,
 	)
 
-	for (const file of fileList) {
+	for (const file of file_list) {
 		const slot = normalized[file.path]
-		if (slot != null && slot >= 0 && slot < slotCount && !slots[slot])
+		if (slot != null && slot >= 0 && slot < slot_count && !slots[slot])
 			slots[slot] = file
 	}
 
-	const selectedPaths: string[] = []
+	const selected_paths: string[] = []
 	slots.forEach((file, index) => {
 		if (!file) return
-		const { x, y, width, height } = slotIndexToRect(index, grid)
-		if (x + width >= minX && x <= maxX && y + height >= minY && y <= maxY)
-			selectedPaths.push(file.path)
+		const { x, y, width, height } = slot_index_to_rect(index, grid)
+		if (x + width >= min_x && x <= max_x && y + height >= min_y && y <= max_y)
+			selected_paths.push(file.path)
 	})
-	return selectedPaths
+	return selected_paths
 }
 
-export function nearestSlotIndexForPoint(
+export function nearest_slot_index_for_point(
 	x: number,
 	y: number,
 	grid: GridMetrics,
@@ -192,12 +190,12 @@ export function nearestSlotIndexForPoint(
 	return row * grid.columns + column
 }
 
-export function slotIndexToRect(
-	slotIndex: number,
+export function slot_index_to_rect(
+	slot_index: number,
 	grid: GridMetrics,
 ): SlotRect {
-	const row = Math.floor(slotIndex / grid.columns)
-	const column = slotIndex % grid.columns
+	const row = Math.floor(slot_index / grid.columns)
+	const column = slot_index % grid.columns
 	return {
 		x: grid.offsetX + column * grid.cellWidth,
 		y: grid.offsetY + row * grid.cellHeight,
@@ -206,19 +204,19 @@ export function slotIndexToRect(
 	}
 }
 
-type SlotLayout = {
+type slot_layout = {
 	positions: Record<string, number>
 	columns: number
 	slotCount: number
 }
 
-type SlotMove = {
+type slot_move = {
 	paths: string[]
 	anchorPath: string
 	targetSlot: number
 }
 
-export function pickPositions(
+export function pick_positions(
 	paths: Set<string>,
 	positions: Record<string, number>,
 ): Record<string, number> {
@@ -229,94 +227,93 @@ export function pickPositions(
 	return picked
 }
 
-export function remapSlotsAcrossColumns(
+export function remap_slots_across_columns(
 	positions: Record<string, number>,
-	previousColumns: number,
-	nextColumns: number,
-	slotCount: number,
+	previous_columns: number,
+	next_columns: number,
+	slot_count: number,
 ): Record<string, number> {
 	if (
-		previousColumns <= 0 ||
-		nextColumns <= 0 ||
-		previousColumns === nextColumns
+		previous_columns <= 0 ||
+		next_columns <= 0 ||
+		previous_columns === next_columns
 	)
 		return positions
 
 	const remapped: Record<string, number> = {}
 	for (const [path, slot] of Object.entries(positions)) {
 		const normalized = Math.max(0, Math.floor(slot))
-		const row = Math.floor(normalized / previousColumns)
-		const column = normalized % previousColumns
-		const nextSlot = row * nextColumns + Math.min(column, nextColumns - 1)
-		if (nextSlot >= 0 && nextSlot < slotCount) remapped[path] = nextSlot
+		const row = Math.floor(normalized / previous_columns)
+		const column = normalized % previous_columns
+		const next_slot = row * next_columns + Math.min(column, next_columns - 1)
+		if (next_slot >= 0 && next_slot < slot_count) remapped[path] = next_slot
 	}
 	return remapped
 }
 
-export function reconcileGridPositions(
-	fileList: GridItem[],
+export function reconcile_grid_positions(
+	file_list: grid_item[],
 	current: Record<string, number>,
-	slotCount: number,
+	slot_count: number,
 	columns: number,
 ): Record<string, number> {
-	const validPaths = new Set(fileList.map((file) => file.path))
+	const valid_paths = new Set(file_list.map((file) => file.path))
 	const positions = { ...current }
 	for (const path of Object.keys(positions))
-		if (!validPaths.has(path)) delete positions[path]
+		if (!valid_paths.has(path)) delete positions[path]
 
-	const usedSlots = new Set<number>()
-	for (const file of fileList) {
+	const used_slots = new Set<number>()
+	for (const file of file_list) {
 		const slot = positions[file.path]
-		if (slot != null && slot >= 0 && slot < slotCount && !usedSlots.has(slot))
-			usedSlots.add(slot)
+		if (slot != null && slot >= 0 && slot < slot_count && !used_slots.has(slot))
+			used_slots.add(slot)
 		else delete positions[file.path]
 	}
 
-	const columnCount = Math.max(1, columns)
-	const rowCount = Math.max(1, Math.floor(slotCount / columnCount))
+	const column_count = Math.max(1, columns)
+	const row_count = Math.max(1, Math.floor(slot_count / column_count))
 	let cursor = 0
 
-	for (const file of fileList) {
+	for (const file of file_list) {
 		if (positions[file.path] != null) continue
 
-		let freeSlot: number | null = null
-		while (cursor < slotCount) {
-			// New icons fill top-to-bottom before advancing to the next column.
+		let free_slot: number | null = null
+		while (cursor < slot_count) {
 			const slot =
-				(cursor % rowCount) * columnCount + Math.floor(cursor / rowCount)
+				(cursor % row_count) * column_count + Math.floor(cursor / row_count)
 			cursor += 1
-			if (!usedSlots.has(slot)) {
-				freeSlot = slot
+			if (!used_slots.has(slot)) {
+				free_slot = slot
 				break
 			}
 		}
 
-		if (freeSlot == null) break
-		positions[file.path] = freeSlot
-		usedSlots.add(freeSlot)
+		if (free_slot == null) break
+		positions[file.path] = free_slot
+		used_slots.add(free_slot)
 	}
 
 	return positions
 }
 
-type DragOffset = { path: string; row: number; column: number }
+type drag_offset = { path: string; row: number; column: number }
 
-function getDragOffsets(
+function get_drag_offsets(
 	paths: string[],
-	anchorPath: string,
+	anchor_path: string,
 	positions: Record<string, number>,
 	columns: number,
-): DragOffset[] {
-	const safeColumns = Math.max(1, columns)
-	const anchorSlot = positions[anchorPath] ?? positions[paths[0]] ?? 0
-	const anchorRow = Math.floor(anchorSlot / safeColumns)
-	const anchorColumn = anchorSlot % safeColumns
+): drag_offset[] {
+	const safe_columns = Math.max(1, columns)
+	const anchor_slot = positions[anchor_path] ?? positions[paths[0]] ?? 0
+	const anchor_row = Math.floor(anchor_slot / safe_columns)
+	const anchor_column = anchor_slot % safe_columns
 	return paths.map((path) => {
-		const slot = positions[path] ?? anchorSlot
+		const slot = positions[path] ?? anchor_slot
 		return {
 			path,
-			row: Math.floor(slot / safeColumns) - anchorRow,
-			column: (slot % safeColumns) - anchorColumn,
+			row: Math.floor(slot / safe_columns) - anchor_row,
+			column: (slot % safe_columns) - anchor_column,
 		}
 	})
 }
@@ -326,38 +323,38 @@ function clamp(value: number, minimum: number, maximum: number): number {
 	return Math.max(minimum, Math.min(maximum, value))
 }
 
-function getBoundedAnchor(
-	targetSlot: number,
+function get_bounded_anchor(
+	target_slot: number,
 	columns: number,
-	slotCount: number,
-	offsets: DragOffset[],
+	slot_count: number,
+	offsets: drag_offset[],
 ) {
-	const safeColumns = Math.max(1, columns)
-	const rows = Math.max(1, Math.floor(slotCount / safeColumns))
-	const minimumRow = Math.min(...offsets.map(({ row }) => row))
-	const maximumRow = Math.max(...offsets.map(({ row }) => row))
-	const minimumColumn = Math.min(...offsets.map(({ column }) => column))
-	const maximumColumn = Math.max(...offsets.map(({ column }) => column))
+	const safe_columns = Math.max(1, columns)
+	const rows = Math.max(1, Math.floor(slot_count / safe_columns))
+	const minimum_row = Math.min(...offsets.map(({ row }) => row))
+	const maximum_row = Math.max(...offsets.map(({ row }) => row))
+	const minimum_column = Math.min(...offsets.map(({ column }) => column))
+	const maximum_column = Math.max(...offsets.map(({ column }) => column))
 	return {
 		row: clamp(
-			Math.floor(targetSlot / safeColumns),
-			-minimumRow,
-			rows - 1 - maximumRow,
+			Math.floor(target_slot / safe_columns),
+			-minimum_row,
+			rows - 1 - maximum_row,
 		),
 		column: clamp(
-			targetSlot % safeColumns,
-			-minimumColumn,
-			safeColumns - 1 - maximumColumn,
+			target_slot % safe_columns,
+			-minimum_column,
+			safe_columns - 1 - maximum_column,
 		),
 	}
 }
 
-export function movePathsToSlot(
-	layout: SlotLayout,
-	files: GridItem[],
-	move: SlotMove,
+export function move_paths_to_slot(
+	layout: slot_layout,
+	files: grid_item[],
+	move: slot_move,
 ): Record<string, number> {
-	const normalized = reconcileGridPositions(
+	const normalized = reconcile_grid_positions(
 		files,
 		layout.positions,
 		layout.slotCount,
@@ -368,99 +365,98 @@ export function movePathsToSlot(
 	)
 	if (dragged.length === 0) return normalized
 
-	// A single icon swaps with its occupant; groups reject collisions to preserve their shape.
 	if (dragged.length === 1) {
-		const draggedPath = dragged[0]
-		const sourceSlot = normalized[draggedPath]
-		if (sourceSlot == null || sourceSlot === move.targetSlot) return normalized
+		const dragged_path = dragged[0]
+		const source_slot = normalized[dragged_path]
+		if (source_slot == null || source_slot === move.targetSlot) return normalized
 		const next = { ...normalized }
-		const occupiedPath = Object.entries(normalized).find(
-			([path, slot]) => path !== draggedPath && slot === move.targetSlot,
+		const occupied_path = Object.entries(normalized).find(
+			([path, slot]) => path !== dragged_path && slot === move.targetSlot,
 		)?.[0]
-		next[draggedPath] = move.targetSlot
-		if (occupiedPath) next[occupiedPath] = sourceSlot
+		next[dragged_path] = move.targetSlot
+		if (occupied_path) next[occupied_path] = source_slot
 		return next
 	}
 
-	const orderedDragged = [...dragged].sort(
+	const ordered_dragged = [...dragged].sort(
 		(a, b) => (normalized[a] ?? 0) - (normalized[b] ?? 0),
 	)
-	const anchorPath = orderedDragged.includes(move.anchorPath)
+	const anchor_path = ordered_dragged.includes(move.anchorPath)
 		? move.anchorPath
-		: orderedDragged[0]
-	const fromSlot = normalized[anchorPath]
-	if (fromSlot == null || fromSlot === move.targetSlot) return normalized
-	const draggedPaths = new Set(orderedDragged)
-	const occupiedByOthers = new Set(
+		: ordered_dragged[0]
+	const from_slot = normalized[anchor_path]
+	if (from_slot == null || from_slot === move.targetSlot) return normalized
+	const dragged_paths = new Set(ordered_dragged)
+	const occupied_by_others = new Set(
 		files
-			.filter((file) => !draggedPaths.has(file.path))
+			.filter((file) => !dragged_paths.has(file.path))
 			.map((file) => normalized[file.path])
 			.filter((slot): slot is number => slot != null),
 	)
-	const offsets = getDragOffsets(
-		orderedDragged,
-		anchorPath,
+	const offsets = get_drag_offsets(
+		ordered_dragged,
+		anchor_path,
 		normalized,
 		layout.columns,
 	)
-	const anchor = getBoundedAnchor(
+	const anchor = get_bounded_anchor(
 		move.targetSlot,
 		layout.columns,
 		layout.slotCount,
 		offsets,
 	)
-	const desiredSlots = new Map<string, number>()
+	const desired_slots = new Map<string, number>()
 	for (const offset of offsets) {
-		const desiredSlot =
+		const desired_slot =
 			(anchor.row + offset.row) * layout.columns + anchor.column + offset.column
-		if (occupiedByOthers.has(desiredSlot)) return normalized
-		desiredSlots.set(offset.path, desiredSlot)
+		if (occupied_by_others.has(desired_slot)) return normalized
+		desired_slots.set(offset.path, desired_slot)
 	}
 	const next = { ...normalized }
-	desiredSlots.forEach((slot, path) => {
+	desired_slots.forEach((slot, path) => {
 		next[path] = slot
 	})
 	return next
 }
 
-export function movePathsToGrid(
-	source: Pick<SlotLayout, "positions" | "columns">,
-	target: SlotLayout,
-	move: SlotMove,
+export function move_paths_to_grid(
+	source: Pick<slot_layout, "positions" | "columns">,
+	target: slot_layout,
+	move: slot_move,
 ): Record<string, number> {
 	const paths = [...new Set(move.paths)].filter(Boolean)
 	const positions = { ...target.positions }
 	if (paths.length === 0) return positions
 
 	const columns = Math.max(1, target.columns)
-	const offsets = getDragOffsets(
+	const offsets = get_drag_offsets(
 		paths,
 		move.anchorPath,
 		source.positions,
 		source.columns,
 	)
-	const anchor = getBoundedAnchor(
+	const anchor = get_bounded_anchor(
 		move.targetSlot,
 		columns,
 		target.slotCount,
 		offsets,
 	)
-	const usedSlots = new Set(Object.values(target.positions))
-	let freeSlotCursor = 0
+	const used_slots = new Set(Object.values(target.positions))
+	let free_slot_cursor = 0
 
 	for (const offset of offsets) {
 		let slot =
 			(anchor.row + offset.row) * columns + anchor.column + offset.column
 
-		if (slot < 0 || slot >= target.slotCount || usedSlots.has(slot)) {
-			while (freeSlotCursor < target.slotCount && usedSlots.has(freeSlotCursor))
-				freeSlotCursor += 1
-			if (freeSlotCursor >= target.slotCount) break
-			slot = freeSlotCursor
+		if (slot < 0 || slot >= target.slotCount || used_slots.has(slot)) {
+			while (free_slot_cursor < target.slotCount && used_slots.has(free_slot_cursor))
+				free_slot_cursor += 1
+			if (free_slot_cursor >= target.slotCount) break
+			slot = free_slot_cursor
 		}
 
 		positions[offset.path] = slot
-		usedSlots.add(slot)
+		used_slots.add(slot)
 	}
 
 	return positions

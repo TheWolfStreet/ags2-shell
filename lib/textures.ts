@@ -1,426 +1,388 @@
-// Loads and caches images from files, URLs, and embedded data.
-
-import { Accessor, createState } from "ags"
+import { createState, type Accessor } from "ags"
 import { Gdk } from "ags/gtk4"
-import { idle, timeout } from "ags/time"
-
 import GLib from "gi://GLib"
 import Gio from "gi://Gio"
 import GdkPixbuf from "gi://GdkPixbuf"
 
 import env from "$lib/env"
-import { attempt, unwrapOr } from "$lib/result"
+import { attempt } from "$lib/result"
 
 const { Texture } = Gdk
+type Entry = { texture: Accessor<Gdk.Texture | null>, set: (value: Gdk.Texture) => void, created: number }
+const signature_cache = new Map<string, { value: string | null, size: number | null, checked: number }>()
+const square_cache = new Map<string, Gdk.Texture>()
+const accessor_cache = new Map<string, Entry>()
+const pending: Array<() => void> = []
+const http_jobs = new Map<string, Array<{ key: string, size: number, entry: Entry }>>()
+const cache_dir = `${env.paths.cache.base}/artwork`
+const max_bytes = 8 * 1024 * 1024
+const max_local_bytes = 64 * 1024 * 1024
+const max_dimension = 8192
+const max_pixels = 32 * 1024 * 1024
+const max_size = 512
+const max_pending = 64
+const max_active = 4
+let active = 0
+let inline_bytes_queued = 0
 
-type FileSignature = {
-	size: number
-	modified: number
-}
+type ImageUriKind = "local" | "http" | "data" | "unknown"
 
-type CachedSignature = {
-	signature: FileSignature | null
-	checkedAtUs: number
-}
-
-const SQUARE_TEXTURE_CACHE_LIMIT = 256
-const FILE_SIGNATURE_CACHE_TTL_US = 1_000_000
-const HTTP_ART_CACHE_TTL_SECONDS = 60
-const SQUARE_TEXTURE_DISK_CACHE_DIR = env.paths.cache.thumbnails
-const MPRIS_ART_CACHE_DIR = `${GLib.get_user_cache_dir()}/astal/mpris`
-// Memory caches are bounded and evict their oldest entries; async accessors use FIFO.
-const squareContainTextureCache = new Map<string, { signature: string, texture: Gdk.Texture }>()
-const fileSignatureCache = new Map<string, CachedSignature>()
-
-export type ImageUriKind = "local" | "http" | "data" | "unknown"
-
-export function classifyImageUri(uri: string): ImageUriKind {
+export function classify_image_uri(uri: string): ImageUriKind {
 	if (uri.startsWith("/") || uri.startsWith("file://")) return "local"
 	if (uri.startsWith("http://") || uri.startsWith("https://")) return "http"
-	if (isInlineImageData(uri)) return "data"
+	if (is_inline_image_data(uri)) return "data"
 	return "unknown"
 }
 
-function normalizeLocalImagePath(uri: string) {
-	return uri.startsWith("file://") ? uri.slice(7) : uri
-}
-
-export function getFileSize(filePath: string): number | null {
-	const signature = getFileSignature(filePath)
-	return signature ? signature.size : null
-}
-
-function getFileSignature(filePath: string): FileSignature | null {
-	if (!filePath)
+function local_path(uri: string): string | null {
+	if (uri.startsWith("/")) return uri
+	const result = attempt(() => Gio.File.new_for_uri(uri).get_path())
+	if (!result.ok) {
+		console.error(`textures: Invalid file URI ${uri}`, result.err)
 		return null
-
-	const nowUs = GLib.get_monotonic_time()
-	const cached = fileSignatureCache.get(filePath)
-	if (cached && nowUs - cached.checkedAtUs <= FILE_SIGNATURE_CACHE_TTL_US) {
-		return cached.signature
 	}
+	return result.value && GLib.path_is_absolute(result.value) ? result.value : null
+}
 
-	const result = attempt(() => {
-		const info = Gio.File.new_for_path(filePath).query_info(
-			"standard::size,time::modified",
-			Gio.FileQueryInfoFlags.NONE,
-			null,
-		)
-		return {
-			size: info.get_size(),
-			modified: info.get_attribute_uint64("time::modified"),
-		}
-	})
-
-	const signature = result.ok ? result.value : null
-	fileSignatureCache.set(filePath, { signature, checkedAtUs: nowUs })
+function file_signature(path: string, refresh = false) {
+	const now = GLib.get_monotonic_time()
+	const cached = signature_cache.get(path)
+	if (!refresh && cached && now - cached.checked < 1_000_000) return cached
+	let value: string | null = null
+	let size: number | null = null
+	const result = attempt(() => Gio.File.new_for_path(path).query_info(
+		"standard::size,time::modified,time::modified-usec,etag::value",
+		Gio.FileQueryInfoFlags.NONE, null,
+	))
+	if (result.ok) {
+		size = result.value.get_size()
+		value = [size, result.value.get_attribute_uint64("time::modified"),
+			result.value.get_attribute_uint32("time::modified-usec"),
+			result.value.get_attribute_string("etag::value") ?? ""].join(":")
+	} else if (!(result.err instanceof GLib.Error && result.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND))) {
+		console.error(`textures: Failed to stat ${path}`, result.err)
+	}
+	const signature = { value, size, checked: now }
+	if (signature_cache.has(path)) signature_cache.delete(path)
+	signature_cache.set(path, signature)
+	if (signature_cache.size > 256) signature_cache.delete(signature_cache.keys().next().value!)
 	return signature
 }
 
-function rememberSquareTexture(key: string, signature: string, texture: Gdk.Texture) {
-	if (squareContainTextureCache.has(key)) {
-		squareContainTextureCache.delete(key)
-	}
-
-	squareContainTextureCache.set(key, { signature, texture })
-
-	if (squareContainTextureCache.size > SQUARE_TEXTURE_CACHE_LIMIT) {
-		const oldest = squareContainTextureCache.keys().next().value
-		if (oldest) {
-			squareContainTextureCache.delete(oldest)
-		}
-	}
+export function get_file_size(file_path: string): number | null {
+	return file_path ? file_signature(file_path).size : null
 }
 
-function ensureSquareTextureCacheDir(size: number) {
-	const dirPath = `${SQUARE_TEXTURE_DISK_CACHE_DIR}/${size}`
-	GLib.mkdir_with_parents(dirPath, 0o755)
-	return dirPath
+function valid_dimensions(width: number, height: number) {
+	return width > 0 && height > 0 && width <= max_dimension && height <= max_dimension && width * height <= max_pixels
 }
 
-function getSquareTextureDiskCachePath(filePath: string, size: number, signatureKey: string) {
-	const dirPath = ensureSquareTextureCacheDir(size)
-	const fileHash = GLib.compute_checksum_for_string(GLib.ChecksumType.MD5, filePath, -1)
-	const normalizedSignature = signatureKey.replace(/[^0-9a-zA-Z._-]/g, "-")
-	return `${dirPath}/${fileHash}-${normalizedSignature}.png`
+function file_pixbuf(path: string, width: number, height: number) {
+	const [format, source_width, source_height] = GdkPixbuf.Pixbuf.get_file_info(path)
+	if (!format || !valid_dimensions(source_width, source_height))
+		throw new Error(`Invalid or oversized image dimensions: ${path}`)
+	return GdkPixbuf.Pixbuf.new_from_file_at_scale(path, width, height, true)
 }
 
-function loadSquareTextureFromDiskCache(cachePath: string) {
-	if (!GLib.file_test(cachePath, GLib.FileTest.EXISTS))
-		return null
-
-	return textureFromFile(cachePath)
+function square_texture(pixbuf: GdkPixbuf.Pixbuf, size: number): Gdk.Texture {
+	const width = pixbuf.get_width()
+	const height = pixbuf.get_height()
+	const scale = Math.min(size / width, size / height)
+	const dest_width = Math.max(1, Math.round(width * scale))
+	const dest_height = Math.max(1, Math.round(height * scale))
+	const scaled = pixbuf.scale_simple(dest_width, dest_height, GdkPixbuf.InterpType.BILINEAR)
+	if (!scaled) throw new Error("Failed to scale image")
+	const square = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, true, 8, size, size)
+	if (!square) throw new Error("Failed to allocate square image")
+	square.fill(0x00000000)
+	scaled.copy_area(0, 0, dest_width, dest_height, square,
+		Math.floor((size - dest_width) / 2), Math.floor((size - dest_height) / 2))
+	return Texture.new_for_pixbuf(square)
 }
 
-export function textureFromFile(filePath: string, width?: number, height?: number): Gdk.Texture | null {
-	if (!getFileSize(filePath)) {
-		return null
-	}
-
-	const primary = attempt(() => {
-		let pixbuf = GdkPixbuf.Pixbuf.new_from_file(filePath)
-		if (width && height)
-			pixbuf = pixbuf.scale_simple(width, height, GdkPixbuf.InterpType.BILINEAR)!
-		return Texture.new_for_pixbuf(pixbuf)
-	})
-	if (primary.ok) return primary.value
-
-	const fallback = attempt(() => Texture.new_from_filename(filePath))
-	if (fallback.ok) return fallback.value
-
-	console.error(`textures.textureFromFile: Failed to load ${filePath}`, new Error("All texture decoders failed", {
-		cause: { primary: primary.err, fallback: fallback.err },
-	}))
-	return null
+function remember_square(key: string, texture: Gdk.Texture) {
+	if (square_cache.has(key)) square_cache.delete(key)
+	square_cache.set(key, texture)
+	if (square_cache.size > 256) square_cache.delete(square_cache.keys().next().value!)
 }
 
-export function textureFromFileSquareContain(filePath: string, size: number): Gdk.Texture | null {
-	if (!getFileSize(filePath)) {
+export function texture_from_file_square_contain(file_path: string, size: number): Gdk.Texture | null {
+	if (!Number.isInteger(size) || size < 1 || size > max_size) return null
+	const signature = file_signature(file_path, true)
+	if (!signature.value || !signature.size) return null
+	const key = `${file_path}:${size}:${signature.value}`
+	const cached = square_cache.get(key)
+	if (cached) return cached
+	const result = attempt(() => square_texture(file_pixbuf(file_path, size, size), size))
+	if (!result.ok) {
+		console.error(`textures.textureFromFileSquareContain: Failed to load ${file_path}`, result.err)
 		return null
 	}
-
-	const signature = getFileSignature(filePath)
-	const cacheKey = signature ? `${filePath}:${size}` : null
-	const signatureKey = signature ? `${signature.size}:${signature.modified}` : null
-	const diskCachePath = signature && signatureKey
-		? getSquareTextureDiskCachePath(filePath, size, signatureKey)
-		: null
-
-	if (cacheKey && signatureKey) {
-		const cached = squareContainTextureCache.get(cacheKey)
-		if (cached && cached.signature === signatureKey)
-			return cached.texture
-	}
-
-	if (cacheKey && signatureKey && diskCachePath) {
-		const diskCachedTexture = loadSquareTextureFromDiskCache(diskCachePath)
-		if (diskCachedTexture) {
-			rememberSquareTexture(cacheKey, signatureKey, diskCachedTexture)
-			return diskCachedTexture
-		}
-	}
-
-	const result = attempt(() => {
-		const source = GdkPixbuf.Pixbuf.new_from_file_at_scale(filePath, size, size, true)
-		const square = pixbufSquareContain(source, size)
-		if (!square)
-			return null
-
-		if (diskCachePath) {
-			const saved = attempt(() => square.savev(diskCachePath, "png", [], []))
-			if (!saved.ok)
-				console.error(`textures.textureFromFileSquareContain: Failed to cache ${filePath}`, saved.err)
-		}
-
-		const texture = Texture.new_for_pixbuf(square)
-		if (texture && cacheKey && signatureKey)
-			rememberSquareTexture(cacheKey, signatureKey, texture)
-		return texture
-	})
-
-	return unwrapOr(
-		result,
-		null,
-		`textures.textureFromFileSquareContain: Failed to load ${filePath}`,
-	)
+	remember_square(key, result.value)
+	return result.value
 }
 
-function pixbufSquareContain(source: GdkPixbuf.Pixbuf, size: number): GdkPixbuf.Pixbuf | null {
-	const result = attempt(() => {
-		const srcW = source.get_width()
-		const srcH = source.get_height()
-
-		if (!srcW || !srcH) return null
-
-		const scale = Math.min(size / srcW, size / srcH)
-		const dstW = Math.max(1, Math.round(srcW * scale))
-		const dstH = Math.max(1, Math.round(srcH * scale))
-		const dx = Math.floor((size - dstW) / 2)
-		const dy = Math.floor((size - dstH) / 2)
-
-		const scaled = source.scale_simple(dstW, dstH, GdkPixbuf.InterpType.HYPER)
-			?? source.scale_simple(dstW, dstH, GdkPixbuf.InterpType.BILINEAR)
-		if (!scaled) return null
-
-		const square = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, true, 8, size, size)
-		if (!square) return null
-		square.fill(0x00000000)
-		scaled.copy_area(0, 0, dstW, dstH, square, dx, dy)
-
-		return square
-	})
-
-	return unwrapOr(
-		result,
-		null,
-		"textures.pixbufSquareContain: Failed to build square texture",
-	)
-}
-
-function pixbufFromBytes(bytes: GLib.Bytes): GdkPixbuf.Pixbuf | null {
-	const loader = GdkPixbuf.PixbufLoader.new()
-	loader.write_bytes(bytes)
-	loader.close()
-	return loader.get_pixbuf()
-}
-
-export function isInlineImageData(uri: string): boolean {
+function is_inline_image_data(uri: string): boolean {
 	return uri.startsWith("data:image/") || uri.includes("iVBORw0KGgo") || uri.includes("/9j/")
 }
 
-function pixbufFromInlineImageData(uri: string): GdkPixbuf.Pixbuf | null {
-	const result = attempt(() => {
-		const base64 = uri.startsWith("data:") ? uri.split(",")[1] : uri
-		const bytes = new GLib.Bytes(GLib.base64_decode(base64.replace(/\s/g, "")))
-		return pixbufFromBytes(bytes)
+function inline_texture(uri: string, size: number) {
+	const encoded = uri.startsWith("data:") ? uri.slice(uri.indexOf(",") + 1) : uri
+	if (encoded.length > max_bytes * 4 / 3 + 4) throw new Error("Inline artwork exceeds 8 MiB")
+	if (uri.startsWith("data:") && !uri.slice(0, uri.indexOf(",")).includes(";base64"))
+		throw new Error("Unsupported inline image encoding")
+	const bytes = GLib.base64_decode(encoded.replace(/\s/g, ""))
+	if (bytes.length > max_bytes) throw new Error("Inline artwork exceeds 8 MiB")
+	const loader = GdkPixbuf.PixbufLoader.new()
+	let invalid = false
+	loader.connect("size-prepared", (_loader, width, height) => {
+		if (!valid_dimensions(width, height)) invalid = true
+		const scale = Math.min(size / width, size / height, 1)
+		loader.set_size(invalid ? 1 : Math.max(1, Math.round(width * scale)),
+			invalid ? 1 : Math.max(1, Math.round(height * scale)))
 	})
-	return unwrapOr(
-		result,
-		null,
-		"textures.inlineImage: Failed to decode base64 image",
-	)
+	try {
+		loader.write_bytes(new GLib.Bytes(bytes))
+	} finally {
+		loader.close()
+	}
+	if (invalid) throw new Error("Invalid or oversized inline image dimensions")
+	const pixbuf = loader.get_pixbuf()
+	if (!pixbuf) throw new Error("Failed to decode inline image")
+	return square_texture(pixbuf, size)
 }
 
-function loadHttpPixbufAsync(uri: string, onLoaded: (pixbuf: GdkPixbuf.Pixbuf | null) => void) {
-	const started = attempt(() => {
-		GLib.mkdir_with_parents(MPRIS_ART_CACHE_DIR, 0o755)
-		const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA1, uri, -1)
-		const cachePath = `${MPRIS_ART_CACHE_DIR}/${hash}`
-		const cached = Gio.File.new_for_path(cachePath)
-		if (cached.query_exists(null)) {
-			const fresh = attempt(() => {
-				const info = cached.query_info("time::modified", Gio.FileQueryInfoFlags.NONE, null)
-				return Math.floor(Date.now() / 1000) - info.get_attribute_uint64("time::modified") <= HTTP_ART_CACHE_TTL_SECONDS
-			})
-			if (fresh.ok && fresh.value) {
-				const decoded = attempt(() => GdkPixbuf.Pixbuf.new_from_file(cachePath))
-				if (decoded.ok) {
-					onLoaded(decoded.value)
-					return
-				}
+function prune_disk() {
+	const result = attempt(() => {
+		const files: Array<{ path: string, size: number, modified: number }> = []
+		const enumerator = Gio.File.new_for_path(cache_dir).enumerate_children(
+			"standard::name,standard::size,time::modified", Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null)
+		try {
+			let info: Gio.FileInfo | null
+			while ((info = enumerator.next_file(null))) {
+				if (!/^[a-f0-9]{40}$/.test(info.get_name())) continue
+				files.push({ path: `${cache_dir}/${info.get_name()}`, size: info.get_size(),
+					modified: info.get_attribute_uint64("time::modified") })
 			}
-			attempt(() => cached.delete(null))
+		} finally {
+			enumerator.close(null)
 		}
+		files.sort((a, b) => a.modified - b.modified)
+		let total = files.reduce((sum, file) => sum + file.size, 0)
+		while (files.length > 128 || total > 64 * 1024 * 1024) {
+			const file = files.shift()!
+			Gio.File.new_for_path(file.path).delete(null)
+			total -= file.size
+		}
+	})
+	if (!result.ok) console.error("textures: Failed to prune artwork cache", result.err)
+}
 
-		const process = Gio.Subprocess.new([
-			"curl",
-			"--fail",
-			"--silent",
-			"--location",
-			"--connect-timeout", "5",
-			"--max-time", "15",
-			"--remove-on-error",
-			"--output", cachePath,
-			uri,
-		], Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE)
+function enqueue(job: () => void) {
+	if (pending.length >= max_pending) return false
+	pending.push(job)
+	pump()
+	return true
+}
+
+function pump() {
+	while (active < max_active && pending.length) {
+		active++
+		pending.shift()!()
+	}
+}
+
+function finished() {
+	active--
+	pump()
+}
+
+function deliver(key: string, entry: Entry, texture: Gdk.Texture | null, error?: unknown) {
+	if (error) console.error(`textures: Failed to load ${key}`, error)
+	if (texture) entry.set(texture)
+	else if (accessor_cache.get(key) === entry) accessor_cache.delete(key)
+}
+
+function load_local(path: string, size: number, key: string, entry: Entry, revision: string) {
+	const file = Gio.File.new_for_path(path)
+	const dimensions = attempt(() => GdkPixbuf.Pixbuf.get_file_info(path))
+	if (!dimensions.ok || !dimensions.value[0] || !valid_dimensions(dimensions.value[1], dimensions.value[2])) {
+		deliver(key, entry, null, dimensions.ok ? new Error("Invalid or oversized image dimensions") : dimensions.err)
+		finished()
+		return
+	}
+	const opened = attempt(() => file.read_async(GLib.PRIORITY_DEFAULT, null, (_source, result) => {
+		const stream_result = attempt(() => file.read_finish(result))
+		if (!stream_result.ok) {
+			deliver(key, entry, null, stream_result.err)
+			finished()
+			return
+		}
+		const stream = stream_result.value
+		const decoded = attempt(() => GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(stream, size, size, true, null, (_source, pixbuf_result) => {
+			const image = attempt(() => square_texture(GdkPixbuf.Pixbuf.new_from_stream_finish(pixbuf_result), size))
+			const closed = attempt(() => stream.close(null))
+			if (!closed.ok) console.error(`textures: Failed to close ${path}`, closed.err)
+			if (file_signature(path, true).value === revision)
+				deliver(key, entry, image.ok ? image.value : null, image.ok ? undefined : image.err)
+			else deliver(key, entry, null)
+			finished()
+		}))
+		if (!decoded.ok) {
+			const closed = attempt(() => stream.close(null))
+			if (!closed.ok) console.error(`textures: Failed to close ${path}`, closed.err)
+			deliver(key, entry, null, decoded.err)
+			finished()
+		}
+	}))
+	if (!opened.ok) {
+		deliver(key, entry, null, opened.err)
+		finished()
+	}
+}
+
+function load_http(uri: string) {
+	if (!http_jobs.get(uri)?.length) {
+		http_jobs.delete(uri)
+		finished()
+		return
+	}
+	const path = `${cache_dir}/${GLib.compute_checksum_for_string(GLib.ChecksumType.SHA1, uri, -1)}`
+	const cache = Gio.File.new_for_path(path)
+	const fresh = attempt(() => cache.query_info("standard::size,time::modified", Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null))
+	if (fresh.ok && fresh.value.get_size() > 0 && fresh.value.get_size() <= max_bytes &&
+		Date.now() / 1000 - fresh.value.get_attribute_uint64("time::modified") <= 60) {
+		complete_http(uri, path)
+		return
+	}
+	const temporary = `${cache_dir}/.${GLib.uuid_string_random()}`
+	const started = attempt(() => {
+		if (GLib.mkdir_with_parents(cache_dir, 0o700) !== 0) throw new Error("Cannot create artwork cache")
+		const process = Gio.Subprocess.new(["curl", "--fail", "--silent", "--location",
+			"--proto", "=http,https", "--proto-redir", "=http,https", "--connect-timeout", "5",
+			"--max-time", "15", "--max-filesize", String(max_bytes), "--output", temporary, uri],
+			Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE)
 		process.wait_async(null, (_source, result) => {
-			const loaded = attempt(() => {
+			const downloaded = attempt(() => {
 				process.wait_finish(result)
-				return process.get_successful() ? GdkPixbuf.Pixbuf.new_from_file(cachePath) : null
+				if (!process.get_successful()) throw new Error(`curl failed for ${uri}`)
+				const info = Gio.File.new_for_path(temporary).query_info("standard::size", Gio.FileQueryInfoFlags.NONE, null)
+				if (!info.get_size() || info.get_size() > max_bytes) throw new Error("Artwork exceeds 8 MiB")
+				if (!Gio.File.new_for_path(temporary).move(cache, Gio.FileCopyFlags.OVERWRITE, null, null))
+					throw new Error("Failed to publish downloaded artwork")
 			})
-			if (!loaded.ok || !loaded.value) attempt(() => cached.delete(null))
-			onLoaded(loaded.ok ? loaded.value : null)
+			if (!downloaded.ok) {
+				remove_temporary(temporary)
+				complete_http(uri, null, downloaded.err)
+			} else {
+				prune_disk()
+				complete_http(uri, path)
+			}
 		})
 	})
 	if (!started.ok) {
-		onLoaded(null)
+		remove_temporary(temporary)
+		complete_http(uri, null, started.err)
 	}
 }
 
-function loadLocalPixbufAsync(filePath: string, size: number, onLoaded: (texture: Gdk.Texture | null) => void) {
-	const fallback = () => {
-		const result = attempt(() => textureFromFileSquareContain(filePath, size))
-		onLoaded(result.ok ? result.value : null)
+function remove_temporary(path: string) {
+	const removed = attempt(() => Gio.File.new_for_path(path).delete(null))
+	if (removed.ok) {
+		if (!removed.value) console.error(`textures: Failed to remove temporary artwork ${path}`)
+	} else if (!(removed.err instanceof GLib.Error && removed.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND))) {
+		console.error(`textures: Failed to remove temporary artwork ${path}`, removed.err)
 	}
+}
 
-	const started = attempt(() => {
-		const file = Gio.File.new_for_path(filePath)
-		file.read_async(GLib.PRIORITY_DEFAULT, null, (source, result) => {
-			const opened = attempt(() => (source as Gio.File).read_finish(result))
-			if (!opened.ok) {
-				fallback()
-				return
+function complete_http(uri: string, path: string | null, error?: unknown) {
+	const subscribers = http_jobs.get(uri) ?? []
+	http_jobs.delete(uri)
+	let invalid = false
+	for (const { key, size, entry } of subscribers) {
+		const decoded = path ? attempt(() => square_texture(file_pixbuf(path, size, size), size)) : null
+		if (decoded && !decoded.ok) invalid = true
+		deliver(key, entry, decoded?.ok ? decoded.value : null, decoded && !decoded.ok ? decoded.err : error)
+	}
+	if (invalid && path) {
+		const removed = attempt(() => Gio.File.new_for_path(path).delete(null))
+		if (!removed.ok) console.error(`textures: Failed to remove invalid artwork ${path}`, removed.err)
+	}
+	finished()
+}
+
+export function create_square_texture_accessor(uri: string, size: number): Accessor<Gdk.Texture | null> {
+	const empty = () => createState<Gdk.Texture | null>(null)[0]
+	if (!uri || !Number.isInteger(size) || size < 1 || size > max_size) return empty()
+	const kind = classify_image_uri(uri)
+	if (kind === "unknown") return empty()
+	if ((kind === "data" && uri.length > max_bytes * 4 / 3 + 128) ||
+		(kind === "http" && uri.length > 4096)) {
+		console.error("textures: Image URI exceeds length limit")
+		return empty()
+	}
+	const path = kind === "local" ? local_path(uri) : null
+	if (kind === "local" && !path) return empty()
+	const signature = path ? file_signature(path, true) : null
+	if (signature?.size && signature.size > max_local_bytes) {
+		console.error("textures: Local image exceeds 64 MiB")
+		return empty()
+	}
+	const revision = signature?.value ?? null
+	if (path && !revision) return empty()
+	const identifier = kind === "data"
+		? GLib.compute_checksum_for_string(GLib.ChecksumType.SHA1, uri, -1) : uri
+	const key = `${size}:${identifier}:${revision ?? ""}`
+	const now = GLib.get_monotonic_time()
+	const cached = accessor_cache.get(key)
+	if (cached && (kind !== "http" || now - cached.created <= 60_000_000)) return cached.texture
+	const [texture, set] = createState<Gdk.Texture | null>(null)
+	const entry: Entry = { texture, set, created: now }
+	accessor_cache.delete(key)
+	accessor_cache.set(key, entry)
+	if (accessor_cache.size > 64) {
+		const oldest = accessor_cache.keys().next().value!
+		accessor_cache.delete(oldest)
+	}
+	if (kind === "http") {
+		const subscribers = http_jobs.get(uri)
+		if (subscribers) {
+			if (subscribers.length >= 128) deliver(key, entry, null, new Error("Artwork subscriber queue full"))
+			else subscribers.push({ key, size, entry })
+		}
+		else {
+			http_jobs.set(uri, [{ key, size, entry }])
+			if (!enqueue(() => load_http(uri))) {
+				http_jobs.delete(uri)
+				deliver(key, entry, null, new Error("Artwork queue full"))
 			}
-			GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(opened.value, size, size, true, null, (_pixbufSource, pixbufResult) => {
-				const decoded = attempt(() => {
-					const pixbuf = GdkPixbuf.Pixbuf.new_from_stream_finish(pixbufResult)
-					const square = pixbuf ? pixbufSquareContain(pixbuf, size) : null
-					return square ? Texture.new_for_pixbuf(square) : null
-				})
-				if (decoded.ok && decoded.value) onLoaded(decoded.value)
-				else fallback()
-			})
-		})
-	})
-	if (!started.ok)
-		fallback()
-}
-
-function textureFromUriSquareContain(uri: string, size: number): Gdk.Texture | null {
-	if (!uri) return null
-	const kind = classifyImageUri(uri)
-
-	if (kind === "local") {
-		return textureFromFileSquareContain(normalizeLocalImagePath(uri), size)
-	}
-
-	if (kind === "http") {
-		return null
-	}
-
-	if (kind === "data") {
-		const pixbuf = pixbufFromInlineImageData(uri)
-		if (!pixbuf) return null
-		const square = pixbufSquareContain(pixbuf, size)
-		return square ? Texture.new_for_pixbuf(square) : null
-	}
-
-	return null
-}
-
-const asyncTextureCache = new Map<string, { texture: Accessor<Gdk.Texture | null>, createdAtUs: number }>()
-const ASYNC_TEXTURE_CACHE_LIMIT = 64
-const ASYNC_TEXTURE_RETRY_DELAYS_MS = [250, 1000, 3000]
-
-function loadTextureAsync(
-	key: string,
-	texture: Accessor<Gdk.Texture | null>,
-	setTexture: (texture: Gdk.Texture) => void,
-	load: (done: (texture: Gdk.Texture | null) => void) => void,
-	retry = 0,
-) {
-	load(loaded => {
-		if (loaded) {
-			setTexture(loaded)
-			return
 		}
-		const delay = ASYNC_TEXTURE_RETRY_DELAYS_MS[retry]
-		if (delay !== undefined) {
-			timeout(delay, () => { loadTextureAsync(key, texture, setTexture, load, retry + 1) })
-			return
+	} else if (path) {
+		if (!enqueue(() => load_local(path, size, key, entry, revision!)))
+			deliver(key, entry, null, new Error("Artwork queue full"))
+	} else {
+		if (inline_bytes_queued + uri.length > 16 * 1024 * 1024) {
+			deliver(key, entry, null, new Error("Inline artwork queue full"))
+			return texture
 		}
-
-		if (asyncTextureCache.get(key)?.texture === texture)
-			asyncTextureCache.delete(key)
-	})
-}
-
-export function createSquareTextureAccessor(uri: string, size: number): Accessor<Gdk.Texture | null> {
-	if (!uri) {
-		const [empty] = createState<Gdk.Texture | null>(null)
-		return empty
+		inline_bytes_queued += uri.length
+		if (!enqueue(() => {
+			const result = attempt(() => inline_texture(uri, size))
+			deliver(key, entry, result.ok ? result.value : null, result.ok ? undefined : result.err)
+			inline_bytes_queued -= uri.length
+			finished()
+		})) {
+			inline_bytes_queued -= uri.length
+			deliver(key, entry, null, new Error("Artwork queue full"))
+		}
 	}
-
-	const kind = classifyImageUri(uri)
-	const key = `${size}:${uri}`
-	const cached = asyncTextureCache.get(key)
-	const nowUs = GLib.get_monotonic_time()
-	if (cached && (kind !== "http" || nowUs - cached.createdAtUs <= HTTP_ART_CACHE_TTL_SECONDS * 1_000_000))
-		return cached.texture
-	if (cached)
-		asyncTextureCache.delete(key)
-
-	const [texture, setTexture] = createState<Gdk.Texture | null>(null)
-	asyncTextureCache.set(key, { texture, createdAtUs: nowUs })
-	if (asyncTextureCache.size > ASYNC_TEXTURE_CACHE_LIMIT) {
-		const oldest = asyncTextureCache.keys().next().value
-		if (oldest) asyncTextureCache.delete(oldest)
-	}
-
-	if (kind === "http") {
-		loadTextureAsync(key, texture, setTexture, done => {
-			loadHttpPixbufAsync(uri, pixbuf => {
-				if (!pixbuf) return done(null)
-				const square = pixbufSquareContain(pixbuf, size)
-				done(square ? Texture.new_for_pixbuf(square) : null)
-			})
-		})
-		return texture
-	}
-
-	if (kind === "local") {
-		const filePath = normalizeLocalImagePath(uri)
-		loadTextureAsync(key, texture, setTexture, done => {
-			loadLocalPixbufAsync(filePath, size, done)
-		})
-		return texture
-	}
-
-	idle(() => {
-		const tex = textureFromUriSquareContain(uri, size)
-		if (tex) setTexture(tex)
-	})
 	return texture
 }
 
-let hiddenDragTexture: Gdk.Texture | null = null
+let hidden_drag_texture: Gdk.Texture | null = null
 
-export function hiddenDragIcon(): Gdk.Texture {
-	return hiddenDragTexture ??= Gdk.MemoryTexture.new(
-		1,
-		1,
-		Gdk.MemoryFormat.R8G8B8A8,
-		new Uint8Array([0, 0, 0, 0]),
-		4,
+export function hidden_drag_icon(): Gdk.Texture {
+	return hidden_drag_texture ??= Gdk.MemoryTexture.new(
+		1, 1, Gdk.MemoryFormat.R8G8B8A8, new Uint8Array([0, 0, 0, 0]), 4,
 	)
 }

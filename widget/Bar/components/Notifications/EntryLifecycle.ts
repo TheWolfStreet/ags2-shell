@@ -1,91 +1,97 @@
-// Times notification animations, pauses expiry on hover, and handles user actions.
-
 import { createState } from "ags"
-import { timeout, Timer } from "ags/time"
+import { timeout, type Timer } from "$lib/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 
-import { attempt, logError } from "$lib/result"
-import { notificationDaemon } from "$lib/notifications"
+import { attempt, log_error } from "$lib/result"
+import { notification_daemon } from "$lib/notifications"
 import options from "$shell/options"
 
-type EntryLifecycleProps = {
+type entry_lifecycle_props = {
 	notification: AstalNotifd.Notification
 	persistent: boolean
-	onExit: () => void
+	on_exit: () => void
 }
 
-export type EntryLifecycle = ReturnType<typeof createEntryLifecycle>
+export type entry_lifecycle = ReturnType<typeof create_entry_lifecycle>
 
-export function createEntryLifecycle({
+export function create_entry_lifecycle({
 	notification,
 	persistent,
-	onExit,
-}: EntryLifecycleProps) {
-	const [visible, setVisible] = createState(false)
-	let autoHide: Timer | undefined
-	let exitTimer: Timer | undefined
+	on_exit,
+}: entry_lifecycle_props) {
+	const [visible, set_visible] = createState(false)
+	let auto_hide: Timer | undefined
+	let exit_timer: Timer | undefined
 	let closing = false
 	let exited = false
+	let hovered = false
 
-	const isCurrent = () =>
-		notificationDaemon.get_notification(notification.id) === notification
+	const is_current = () =>
+		notification_daemon.get_notification(notification.id) === notification
 
 	const exit = () => {
 		if (exited) return
 		exited = true
-		exitTimer?.cancel()
-		onExit()
+		exit_timer?.cancel()
+		on_exit()
 	}
 
 	const close = () => {
 		if (closing) return
 		closing = true
-		autoHide?.cancel()
+		auto_hide?.cancel()
 		if (!visible.peek()) {
 			exit()
 			return
 		}
-		setVisible(false)
-		exitTimer = timeout(
+		set_visible(false)
+		exit_timer = timeout(
 			Math.max(100, options.transition.duration.peek() * 2),
 			exit,
 		)
 	}
 
-	const scheduleAutoHide = () => {
-		if (persistent || closing) return
-		autoHide?.cancel()
-		autoHide = timeout(options.notifications.dismiss.peek(), close)
+	const schedule_auto_hide = () => {
+		if (persistent || closing || hovered) return
+		auto_hide?.cancel()
+		auto_hide = timeout(options.notifications.dismiss.peek(), close)
 	}
 
 	return {
 		visible,
-		isClosing: () => closing,
+		is_closing: () => closing,
 		close,
 		dismiss() {
-			if (isCurrent()) notification.dismiss()
+			if (is_current()) notification.dismiss()
 			close()
 		},
-		onActionClick(actionId: string) {
-			if (isCurrent()) {
-				const result = attempt(() => notification.invoke(actionId))
-				logError(result, "notifications.action: Failed to invoke notification action")
+		on_action_click(action_id: string) {
+			if (is_current()) {
+				const result = attempt(() => notification.invoke(action_id))
+				log_error(result, "notifications.action: Failed to invoke notification action")
 			}
 			if (!persistent || !notification.resident) close()
 		},
-		keepAlive: scheduleAutoHide,
-		onMap() {
-			if (closing || visible.peek()) return
-			setVisible(true)
-			scheduleAutoHide()
+		keep_alive() {
+			hovered = true
+			auto_hide?.cancel()
 		},
-		onRevealedChanged(revealed: boolean) {
+		resume() {
+			hovered = false
+			schedule_auto_hide()
+		},
+		on_map() {
+			if (closing || visible.peek()) return
+			set_visible(true)
+			schedule_auto_hide()
+		},
+		on_revealed_changed(revealed: boolean) {
 			if (closing && !revealed) exit()
 		},
 		cleanup() {
-			autoHide?.cancel()
-			exitTimer?.cancel()
+			auto_hide?.cancel()
+			exit_timer?.cancel()
 			closing = true
 			exited = true
 		},

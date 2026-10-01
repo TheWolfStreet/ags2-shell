@@ -1,29 +1,27 @@
-// Shows battery charge and power details in the bar and an attached popover.
-
 import { createBinding, createComputed, onCleanup } from "ags"
 import { Gtk } from "ags/gtk4"
 
 import AstalBattery from "gi://AstalBattery"
 
 import options from "$shell/options"
-import { createAnimatedPopover } from "widget/shared/AnimatedPopover"
+import { create_animated_popover } from "widget/shared/AnimatedPopover"
 import { PanelButton } from "../PanelButton"
 
 const battery = AstalBattery.get_default()
 
 const percentage = createBinding(battery, "percentage")
-const isPresent = createBinding(battery, "isPresent")
-const iconName = createBinding(battery, "batteryIconName")
+const is_present = createBinding(battery, "isPresent")
+const icon_name = createBinding(battery, "batteryIconName")
 
-function formatDuration(seconds: number) {
-	const totalSeconds = Math.max(0, Math.floor(seconds))
-	if (totalSeconds === 0) return ""
+function format_duration(seconds: number) {
+	const total_seconds = Math.max(0, Math.floor(seconds))
+	if (total_seconds === 0) return ""
 
-	if (totalSeconds < 60) return `${totalSeconds} sec`
+	if (total_seconds < 60) return `${total_seconds} sec`
 
-	const days = Math.floor(totalSeconds / 86400)
-	const hours = Math.floor((totalSeconds % 86400) / 3600)
-	const minutes = Math.floor((totalSeconds % 3600) / 60)
+	const days = Math.floor(total_seconds / 86400)
+	const hours = Math.floor((total_seconds % 86400) / 3600)
+	const minutes = Math.floor((total_seconds % 3600) / 60)
 	const parts: string[] = []
 
 	if (days > 0) parts.push(`${days} day${days === 1 ? "" : "s"}`)
@@ -34,23 +32,23 @@ function formatDuration(seconds: number) {
 
 export function Battery() {
 	const charging = createBinding(battery, "charging")
-	const timeToEmpty = createBinding(battery, "timeToEmpty")
-	const timeToFull = createBinding(battery, "timeToFull")
-	const remainingTime = createComputed(() => {
+	const time_to_empty = createBinding(battery, "timeToEmpty")
+	const time_to_full = createBinding(battery, "timeToFull")
+	const remaining_time = createComputed(() => {
 		if (percentage() === 1) return "Fully charged"
 
-		const isCharging = charging()
-		const formatted = formatDuration(isCharging ? timeToFull() : timeToEmpty())
-		if (!formatted) return isCharging ? "Charging" : "Draining"
+		const is_charging = charging()
+		const formatted = format_duration(is_charging ? time_to_full() : time_to_empty())
+		if (!formatted) return is_charging ? "Charging" : "Draining"
 
-		return isCharging ? `${formatted} until full` : `${formatted} remaining`
+		return is_charging ? `${formatted} until full` : `${formatted} remaining`
 	})
 
-	const popoverPosition = () =>
+	const popover_position = () =>
 		options.bar.position.peek() === "top-center"
 			? Gtk.PositionType.BOTTOM
 			: Gtk.PositionType.TOP
-	const { popover, revealer } = createAnimatedPopover(popoverPosition(), false)
+	const { popover, revealer, dispose } = create_animated_popover(popover_position(), false)
 	revealer.set_child(
 		(
 			<box class="batterystate vertical" orientation={Gtk.Orientation.VERTICAL}>
@@ -61,27 +59,28 @@ export function Battery() {
 						Math.round((125 * scale) / 100),
 					)}
 				/>
-				<label label={remainingTime} />
+				<label label={remaining_time} />
 			</box>
 		) as Gtk.Widget,
 	)
 
 	const unsubscribe = options.bar.position.subscribe(() =>
-		popover.set_position(popoverPosition()),
+		popover.set_position(popover_position()),
 	)
 	onCleanup(() => {
 		unsubscribe()
+		dispose()
 		popover.unparent()
 	})
 
 	return (
 		<PanelButton
-			visible={isPresent}
+			visible={is_present}
 			onClicked={() => popover.popup()}
 			$={(self) => popover.set_parent(self)}
 		>
 			<box class="battery horizontal">
-				<image iconName={iconName} useFallback />
+				<image iconName={icon_name} useFallback />
 				<label
 					label={percentage.as((value) => `${Math.floor(value * 100)}%`)}
 				/>

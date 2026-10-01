@@ -1,13 +1,11 @@
-// Starts services and windows and handles launcher, power, recording, and screenshot requests.
-
-import startShell from "$shell/startup"
+import start_shell from "$shell/startup"
 import env from "$lib/env"
 
-import app from "ags/gtk4/app"
+import app from "$lib/app"
 import { createRoot } from "ags"
 import { Gdk } from "ags/gtk4"
 import { Process, subprocess } from "ags/process"
-import { idle, timeout, Timer } from "ags/time"
+import { idle, timeout, Timer } from "$lib/time"
 
 import GLib from "gi://GLib"
 
@@ -22,17 +20,21 @@ import { Bar } from "widget/Bar"
 import { Dock } from "widget/Dock"
 import { Desktop } from "widget/Desktop"
 
-import { basicMonitorKey } from "$lib/windowing"
 import { hyprland } from "$lib/hyprland"
-import { screenCapture } from "$service/screenCapture"
+import { screen_capture } from "$service/screenCapture"
+import { flush_options } from "$shell/options"
+import { attempt, log_error } from "$lib/result"
 
-const deferredRoots: Array<() => void> = []
-let wallpaperChild: Process | null = null
-let wallpaperRestart: Timer | null = null
+const deferred_roots: Array<() => void> = []
+let wallpaper_child: Process | null = null
+let wallpaper_restart: Timer | null = null
 let stopping = false
+let ready = false
+let quitting = false
+let startup_failed = false
 
-function mountDeferredWindows(build: () => void) {
-	deferredRoots.push(
+function mount_deferred_windows(build: () => void) {
+	deferred_roots.push(
 		createRoot((dispose) => {
 			build()
 			return dispose
@@ -40,90 +42,107 @@ function mountDeferredWindows(build: () => void) {
 	)
 }
 
-function toggleRecording(selectArea: boolean) {
-	if (screenCapture.recording) screenCapture.stopRecording()
-	else screenCapture.startRecording(selectArea)
+async function toggle_recording(scope: "focused" | "area") {
+	if (screen_capture.recording || screen_capture.starting) {
+		const stopped = screen_capture.stop_recording()
+		return stopped.ok ? "accepted" : `Recording failed: ${stopped.err}`
+	}
+	const started = await screen_capture.start_recording({ scope })
+	return started.ok ? started.value : `Recording failed: ${started.err}`
 }
 
-function wallpaperCommand() {
-	const parentArg = `--parent-pid=${GLib.file_read_link("/proc/self")}`
+app.before_quit = async () => {
+	quitting = true
+	try {
+		const options = await flush_options()
+		if (!log_error(options, "shell.quit: Failed to flush options") && !startup_failed)
+			return false
+		const recording = await screen_capture.shutdown()
+		log_error(recording, "shell.quit: Failed to stop recorder")
+		stopping = true
+		return true
+	} finally {
+		if (!stopping) quitting = false
+	}
+}
+
+function wallpaper_command() {
+	const parent_arg = `--parent-pid=${GLib.file_read_link("/proc/self")}`
 	if (
 		typeof WALLPAPER_BIN !== "undefined" &&
 		GLib.file_test(WALLPAPER_BIN, GLib.FileTest.IS_EXECUTABLE)
 	)
-		return [WALLPAPER_BIN, parentArg]
+		return [WALLPAPER_BIN, parent_arg]
 
-	const sourceRoot = GLib.getenv("AGS2SHELL_STYLES") ?? GLib.get_current_dir()
-	const sourceEntry = GLib.build_filenamev([
-		sourceRoot,
+	const source_root = GLib.getenv("AGS2SHELL_STYLES") ?? GLib.get_current_dir()
+	const source_entry = GLib.build_filenamev([
+		source_root,
 		"shell",
 		"wallpaper.tsx",
 	])
-	if (!GLib.file_test(sourceEntry, GLib.FileTest.EXISTS)) return null
+	if (!GLib.file_test(source_entry, GLib.FileTest.EXISTS)) return null
 	return [
 		"env",
 		"-C",
-		sourceRoot,
+		source_root,
 		"ags",
 		"run",
 		"--gtk",
 		"4",
 		"shell/wallpaper.tsx",
 		"--",
-		parentArg,
+		parent_arg,
 	]
 }
 
-function startWallpaper() {
-	wallpaperRestart = null
-	if (stopping || wallpaperChild) return
+function start_wallpaper() {
+	wallpaper_restart = null
+	if (stopping || wallpaper_child) return
 
-	const command = wallpaperCommand()
+	const command = wallpaper_command()
 	if (!command) {
 		console.error("wallpaper: Could not locate shell/wallpaper.tsx")
-		wallpaperRestart = timeout(1000, startWallpaper)
+		wallpaper_restart = timeout(1000, start_wallpaper)
 		return
 	}
 
-	let lastError = ""
 	try {
-		const process = subprocess(command, print, (error) => (lastError = error))
-		wallpaperChild = process
-		process.connect("exit", (_, code, signaled) => {
-			if (wallpaperChild !== process) return
-			wallpaperChild = null
+		const process = subprocess(command, print, (error) =>
+			console.error("wallpaper: Child stderr:", error))
+		wallpaper_child = process
+		process.connect("exit", (source, code, signaled) => {
+			if (wallpaper_child !== process) return
+			wallpaper_child = null
 			if (stopping) return
 
 			const reason = signaled ? `signal ${code}` : `status ${code}`
-			console.error(
-				`wallpaper: Child exited with ${reason}${lastError ? `: ${lastError}` : ""}`,
-			)
-			wallpaperRestart = timeout(1000, startWallpaper)
+			console.error(`wallpaper: Child exited with ${reason}`)
+			wallpaper_restart = timeout(1000, start_wallpaper)
 		})
 	} catch (error) {
 		console.error("wallpaper: Failed to start child", error)
-		wallpaperRestart = timeout(1000, startWallpaper)
+		wallpaper_restart = timeout(1000, start_wallpaper)
 	}
 }
 
 app.start({
 	instanceName: env.appName,
-	main() {
-		startShell().catch((err) => console.error("Startup error:", err))
-		startWallpaper()
+	async main() {
+		const started = await start_shell()
+		if (!log_error(started, "shell.startup: Failed to initialize")) {
+			startup_failed = true
+			app.quit()
+			return
+		}
+		start_wallpaper()
 
-		const activeMonitorWindows = new Map<
+		const active_monitor_windows = new Map<
 			string,
 			{ monitor: Gdk.Monitor; dispose: Array<() => void> }
 		>()
-		let monitorWindowsStopped = false
-		const syncMonitorWindows = () => {
-			// GDK/Wayland can leave a stale Gdk.Monitor behind after a real
-			// disconnect (the compositor never tears down its wl_output), which
-			// would otherwise persist as a duplicate window; Hyprland's own
-			// IPC-driven monitor list is authoritative, so drop anything it
-			// doesn't currently know about.
-			const liveConnectors = new Set(
+		let monitor_windows_stopped = false
+		const sync_monitor_windows = () => {
+			const live_connectors = new Set(
 				hyprland.monitors.map((monitor) => monitor.name),
 			)
 			const current = new Map(
@@ -131,28 +150,25 @@ app.start({
 					.get_monitors()
 					.filter((monitor) => {
 						const connector = monitor.get_connector()
-						return connector == null || liveConnectors.has(connector)
+						return connector == null || live_connectors.has(connector)
 					})
 					.map((monitor) => {
 						const geometry = monitor.get_geometry()
-						const key = basicMonitorKey(
-							monitor,
-							`mon-${geometry.x}x${geometry.y}`,
-						)
+						const key = monitor.get_connector() ?? `mon-${geometry.x}x${geometry.y}`
 						return [key, monitor] as const
 					}),
 			)
 
-			for (const [key, windows] of activeMonitorWindows) {
+			for (const [key, windows] of active_monitor_windows) {
 				if (current.get(key) !== windows.monitor) {
 					windows.dispose.forEach((dispose) => dispose())
-					activeMonitorWindows.delete(key)
+					active_monitor_windows.delete(key)
 				}
 			}
 
 			for (const [key, monitor] of current) {
-				if (!activeMonitorWindows.has(key)) {
-					activeMonitorWindows.set(key, {
+				if (!active_monitor_windows.has(key)) {
+					active_monitor_windows.set(key, {
 						monitor,
 						dispose: [
 							createRoot((dispose) => {
@@ -177,34 +193,34 @@ app.start({
 			}
 		}
 
-		const monitorHandler = app.connect("notify::monitors", syncMonitorWindows)
-		const hyprMonitorAddedHandler = hyprland.connect(
+		const monitor_handler = app.connect("notify::monitors", sync_monitor_windows)
+		const hypr_monitor_added_handler = hyprland.connect(
 			"monitor-added",
-			syncMonitorWindows,
+			sync_monitor_windows,
 		)
-		const hyprMonitorRemovedHandler = hyprland.connect(
+		const hypr_monitor_removed_handler = hyprland.connect(
 			"monitor-removed",
-			syncMonitorWindows,
+			sync_monitor_windows,
 		)
-		let monitorShutdownHandler = 0
-		const cleanupMonitorWindows = () => {
-			if (monitorWindowsStopped) return
-			monitorWindowsStopped = true
-			app.disconnect(monitorHandler)
-			hyprland.disconnect(hyprMonitorAddedHandler)
-			hyprland.disconnect(hyprMonitorRemovedHandler)
-			if (monitorShutdownHandler) app.disconnect(monitorShutdownHandler)
-			for (const windows of activeMonitorWindows.values())
+		let monitor_shutdown_handler = 0
+		const cleanup_monitor_windows = () => {
+			if (monitor_windows_stopped) return
+			monitor_windows_stopped = true
+			app.disconnect(monitor_handler)
+			hyprland.disconnect(hypr_monitor_added_handler)
+			hyprland.disconnect(hypr_monitor_removed_handler)
+			if (monitor_shutdown_handler) app.disconnect(monitor_shutdown_handler)
+			for (const windows of active_monitor_windows.values())
 				windows.dispose.forEach((dispose) => dispose())
-			activeMonitorWindows.clear()
+			active_monitor_windows.clear()
 		}
 
-		monitorShutdownHandler = app.connect("shutdown", cleanupMonitorWindows)
-		syncMonitorWindows()
+		monitor_shutdown_handler = app.connect("shutdown", cleanup_monitor_windows)
+		sync_monitor_windows()
 
 		idle(() => {
 			idle(() => {
-				mountDeferredWindows(() => {
+				mount_deferred_windows(() => {
 					DateMenu.Window()
 					PowerMenu.Window()
 					if (!app.get_window("verification")) PowerMenu.VerificationModal()
@@ -213,7 +229,7 @@ app.start({
 					OSD.Window()
 				})
 				idle(() => {
-					mountDeferredWindows(() => {
+					mount_deferred_windows(() => {
 						Launcher.Window()
 						Overview.Window()
 					})
@@ -221,48 +237,62 @@ app.start({
 			})
 		})
 		app.connect("shutdown", () => {
+			ready = false
 			stopping = true
-			wallpaperRestart?.cancel()
-			wallpaperRestart = null
-			const child = wallpaperChild
-			wallpaperChild = null
-			child?.kill()
-			for (const dispose of deferredRoots.splice(0)) dispose()
+			wallpaper_restart?.cancel()
+			wallpaper_restart = null
+			const child = wallpaper_child
+			wallpaper_child = null
+			if (child) log_error(attempt(() => child.kill()), "wallpaper: Failed to stop child")
+			for (const dispose of deferred_roots.splice(0)) dispose()
 		})
+		ready = true
 	},
 	requestHandler(argv: string[], res: (response: string) => void) {
 		const [request, ...rest] = argv
+		if (!ready || quitting || stopping) {
+			res("Shell is starting or stopping")
+			return
+		}
 
 		switch (request) {
 			case "launcher-search": {
 				const query = rest.join(" ")
 				if (!app.get_window("launcher"))
-					mountDeferredWindows(() => Launcher.Window())
-				Launcher.setSearchQuery(query, true)
+					mount_deferred_windows(() => Launcher.Window())
+				Launcher.set_search_query(query, true)
 				break
 			}
 			case "shutdown":
 				if (!app.get_window("verification"))
-					mountDeferredWindows(() => PowerMenu.VerificationModal())
-				PowerMenu.requestActionConfirmation("shutdown")
+					mount_deferred_windows(() => PowerMenu.VerificationModal())
+				PowerMenu.request_action_confirmation("shutdown")
 				break
+			case "quit":
+				res("accepted")
+				timeout(100, () => app.quit())
+				return
 			case "record":
-				toggleRecording(false)
-				break
+				void toggle_recording("focused").then(res)
+				return
 			case "record-area":
-				toggleRecording(true)
-				break
+				void toggle_recording("area").then(res)
+				return
 			case "screenshot":
-				screenCapture.screenshot()
-				break
+				void screen_capture.screenshot({ scope: "focused" }).then((result) =>
+					res(result.ok ? result.value : `Screenshot failed: ${result.err}`),
+				)
+				return
 			case "screenshot-area":
-				screenCapture.screenshot(true)
-				break
+				void screen_capture.screenshot({ scope: "area" }).then((result) =>
+					res(result.ok ? result.value : `Screenshot failed: ${result.err}`),
+				)
+				return
 			default:
 				res(`Unknown request: ${request}`)
 				return
 		}
 
-		res("Request handled successfully")
+		res("accepted")
 	},
 })

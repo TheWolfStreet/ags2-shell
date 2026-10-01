@@ -1,4 +1,3 @@
-// Converts errors from regular and async functions into result values.
 export type Ok<T> = { ok: true, value: T }
 export type Result<T> = Ok<T> | { ok: false, err: unknown }
 
@@ -18,7 +17,7 @@ export function attempt<T>(fn: () => T): Result<T> {
 	}
 }
 
-export async function attemptAsync<T>(fn: () => Promise<T>): Promise<Result<T>> {
+export async function attempt_async<T>(fn: () => Promise<T>): Promise<Result<T>> {
 	try {
 		return ok(await fn())
 	} catch (error) {
@@ -26,23 +25,19 @@ export async function attemptAsync<T>(fn: () => Promise<T>): Promise<Result<T>> 
 	}
 }
 
-// Logs the failure under tag. A false return narrows the result to unusable,
-// so `if (!logError(result, "...")) return` both reports and bails out.
-export function logError<T>(result: Result<T>, tag: string): result is Ok<T> {
+export function log_error<T>(result: Result<T>, tag: string): result is Ok<T> {
 	if (result.ok) return true
 	console.error(tag, result.err)
 	return false
 }
 
-// Uses the value, or the fallback after logging the cause under tag.
-export function unwrapOr<T>(result: Result<T>, fallback: T, tag: string): T {
+export function unwrap_or<T>(result: Result<T>, fallback: T, tag: string): T {
 	if (result.ok) return result.value
 	console.error(tag, result.err)
 	return fallback
 }
 
-// Propagates a failure with added context, passing successes through.
-export function withContext<T>(result: Result<T>, message: string): Result<T> {
+export function with_context<T>(result: Result<T>, message: string): Result<T> {
 	if (result.ok) return result
 	return err(new Error(message, { cause: result.err }))
 }

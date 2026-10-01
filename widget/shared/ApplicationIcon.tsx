@@ -1,14 +1,12 @@
-// Renders theme names and icon file paths within a fixed square allocation.
-
 import { createComputed, With } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
-import { createSquareTextureAccessor } from "$lib/textures"
-import { type MaybeAccessor, readValue } from "$lib/ui"
+import { create_square_texture_accessor } from "$lib/textures"
+import { type MaybeAccessor, read_value } from "$lib/ui"
 
-function renderIcon(icon: string, size: number) {
+function render_icon(icon: string, size: number) {
 	if (icon.includes("/")) {
-		const texture = createSquareTextureAccessor(icon, size)
+		const texture = create_square_texture_accessor(icon, size)
 		return (
 			<Gtk.Picture
 				paintable={texture.as(value => value as Gdk.Paintable)}
@@ -48,8 +46,8 @@ export function ApplicationIcon({
 	valign?: Gtk.Align
 }) {
 	const values = createComputed(() => ({
-		icon: readValue(icon),
-		size: readValue(size),
+		icon: read_value(icon),
+		size: read_value(size),
 	}))
 	return (
 		<box
@@ -60,7 +58,7 @@ export function ApplicationIcon({
 			valign={valign}
 		>
 			<With value={values}>
-				{value => renderIcon(value.icon, value.size)}
+				{value => render_icon(value.icon, value.size)}
 			</With>
 		</box>
 	)

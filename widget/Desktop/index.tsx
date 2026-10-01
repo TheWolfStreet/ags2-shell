@@ -1,35 +1,33 @@
-// Shows each monitor's desktop grid and wires its menu and input behavior.
-
-import app from "ags/gtk4/app"
+import app from "$lib/app"
 import { createBinding, createComputed, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import { idle } from "ags/time"
+import { idle } from "$lib/time"
 
 import AstalHyprland from "gi://AstalHyprland"
 
-import { scheduleMonitorWindowRelease } from "$lib/windowing"
+import { schedule_monitor_window_release } from "$lib/windowing"
 import { hyprland } from "$lib/hyprland"
-import options, { surfaceScale, uiScale } from "$shell/options"
+import options, { surface_scale, ui_scale } from "$shell/options"
 
-import { attachDesktopKeyboard, DesktopGrid } from "./components/Grid"
+import { attach_desktop_keyboard, DesktopGrid } from "./components/Grid"
 import { DesktopContextMenu } from "./components/ContextMenu"
-import { createDesktopDragController } from "./DragAndDrop"
+import { create_desktop_drag_controller } from "./DragAndDrop"
 import {
-	desktopInteraction,
-	getDesktopGrid,
-	resizeDesktopGrid,
-	setDesktopMonitors,
+	desktop_interaction,
+	get_desktop_grid,
+	resize_desktop_grid,
+	set_desktop_monitors,
 } from "./Desktop"
-import { getDesktopIconMetrics, getGridMetrics } from "./GridGeometry"
+import { get_desktop_icon_metrics, get_grid_metrics } from "./GridGeometry"
 
-function fontSize(font: string): number {
+function font_size(font: string): number {
 	const match = font.trim().match(/(\d+(?:\.\d+)?)\s*$/)
 	if (!match) return 11
 	const size = Number.parseFloat(match[1])
 	return Number.isFinite(size) && size > 0 ? size : 11
 }
 
-function matchMonitor(
+function match_monitor(
 	monitor: Gdk.Monitor,
 	monitors: AstalHyprland.Monitor[],
 	geometry = monitor.get_geometry(),
@@ -47,21 +45,21 @@ function matchMonitor(
 	return { connector, geometry, match }
 }
 
-function monitorKey(
+function monitor_key(
 	monitor: Gdk.Monitor,
 	monitors: AstalHyprland.Monitor[],
 	geometry = monitor.get_geometry(),
 ): string {
-	const { connector, match } = matchMonitor(monitor, monitors, geometry)
+	const { connector, match } = match_monitor(monitor, monitors, geometry)
 	if (match?.name) return `monitor:${match.name.toLowerCase()}`
 	if (connector) return `monitor:${connector}`
 	return `monitor:${geometry.x}:${geometry.y}:${geometry.width}x${geometry.height}`
 }
 
-function desktopPadding() {
-	const factor = uiScale()
+function desktop_padding() {
+	const factor = ui_scale()
 	const padding = Math.max(0, Math.floor(options.theme.padding() * factor))
-	const font = Math.max(8, Math.floor(fontSize(options.font()) * factor))
+	const font = Math.max(8, Math.floor(font_size(options.font()) * factor))
 	const bar = Math.max(24, Math.round(font + padding * 1.6 + 10 * factor))
 	let top = 0
 	let bottom = 0
@@ -74,7 +72,7 @@ function desktopPadding() {
 		options.taskbar.location() === "dock" &&
 		options.dock.mode() === "static"
 	) {
-		const scale = surfaceScale(options.dock.scale, 0.25) * factor
+		const scale = surface_scale(options.dock.scale, 0.25) * factor
 		const dock = Math.max(
 			48,
 			Math.round((64 + 4 * 2 + 4 + 4 + 6 * 2 + 2 * 2) * scale) +
@@ -92,52 +90,54 @@ export namespace Desktop {
 
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 		let window: Gtk.Window | undefined
-		const appMonitors = createBinding(app, "monitors")
-		const hyprMonitors = createBinding(hyprland, "monitors")
+		const hypr_monitors = createBinding(hyprland, "monitors")
 		const geometry = createBinding(gdkmonitor, "geometry")
 		const id = createComputed(() =>
-			monitorKey(gdkmonitor, hyprMonitors() ?? [], geometry()),
+			monitor_key(gdkmonitor, hypr_monitors() ?? [], geometry()),
 		)
-		const gridMetrics = createComputed(() => {
-			const { geometry: monitorGeometry } = matchMonitor(
+		const grid_metrics = createComputed(() => {
+			const { geometry: monitor_geometry } = match_monitor(
 				gdkmonitor,
-				hyprMonitors() ?? [],
+				hypr_monitors() ?? [],
 				geometry(),
 			)
-			return getGridMetrics(
-				monitorGeometry.width,
-				monitorGeometry.height,
-				desktopPadding(),
-				getDesktopIconMetrics(options.desktop.iconSize(), uiScale()).cellPx,
-				uiScale(),
+			return get_grid_metrics(
+				monitor_geometry.width,
+				monitor_geometry.height,
+				desktop_padding(),
+				get_desktop_icon_metrics(options.desktop.iconSize(), ui_scale()).cellPx,
+				ui_scale(),
 			)
 		})
-		const grid = createComputed(() => getDesktopGrid(id()))
+		const grid = createComputed(() => get_desktop_grid(id()))
 
-		function reportGrid(): void {
-			resizeDesktopGrid(id.peek(), gridMetrics.peek())
+		function report_grid(): void {
+			resize_desktop_grid(id.peek(), grid_metrics.peek())
 		}
 
-		function reportMonitors(): void {
-			const connected = hyprMonitors.peek() ?? []
-			const ids = (appMonitors.peek() ?? []).map((item) =>
-				monitorKey(item, connected),
-			)
-			setDesktopMonitors(ids, ids[0] ?? id.peek())
+		function report_monitors(): void {
+			const connected = hypr_monitors.peek() ?? []
+			const live = new Set(connected.map((item) => item.name))
+			const ids = app.get_monitors()
+				.filter((item) => {
+					const connector = item.get_connector()
+					return connector === null || live.has(connector)
+				})
+				.map((item) => monitor_key(item, connected))
+			set_desktop_monitors(ids, ids[0] ?? id.peek())
 		}
 
-		reportGrid()
-		reportMonitors()
+		report_grid()
+		report_monitors()
+		const monitor_model = Gdk.Display.get_default()?.get_monitors()
+		const monitor_handler = monitor_model?.connect("items-changed", report_monitors)
 		const unsubscribers = [
-			gridMetrics.subscribe(reportGrid),
-			id.subscribe(reportGrid),
-			appMonitors.subscribe(reportMonitors),
-			hyprMonitors.subscribe(reportMonitors),
+			grid_metrics.subscribe(report_grid),
+			id.subscribe(report_grid),
+			hypr_monitors.subscribe(report_monitors),
 		]
-		const drag = createDesktopDragController(grid)
-		// Hyprland can leave an ON_DEMAND layer surface focused when a client maps.
-		// Hand focus to clients opened beneath the pointer without disabling desktop keys.
-		const clientAdded = hyprland.connect("client-added", (_self, client) => {
+		const drag = create_desktop_drag_controller(grid)
+		const client_added = hyprland.connect("client-added", (self, client) => {
 			idle(() => {
 				if (!window?.is_active) return
 				const cursor = hyprland.cursorPosition
@@ -151,9 +151,10 @@ export namespace Desktop {
 			})
 		})
 		onCleanup(() => {
+			if (monitor_model && monitor_handler) monitor_model.disconnect(monitor_handler)
 			unsubscribers.forEach((unsubscribe) => unsubscribe())
-			hyprland.disconnect(clientAdded)
-			scheduleMonitorWindowRelease(window)
+			hyprland.disconnect(client_added)
+			schedule_monitor_window_release(window)
 			window = undefined
 		})
 
@@ -161,9 +162,9 @@ export namespace Desktop {
 			<window
 				$={(self) => {
 					window = self
-					attachDesktopKeyboard(self, grid)
-					desktopInteraction.roots.add(self)
-					onCleanup(() => desktopInteraction.roots.delete(self))
+					attach_desktop_keyboard(self, grid)
+					desktop_interaction.roots.add(self)
+					onCleanup(() => desktop_interaction.roots.delete(self))
 				}}
 				name="desktop"
 				namespace="desktop"

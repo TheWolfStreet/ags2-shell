@@ -1,4 +1,3 @@
-// Creates shared spacing, color, border, shadow, and text style helpers.
 @mixin spacing($multiplier: 1) {
   &.horizontal > * {
     margin: 0 calc(var(--spacing) * $multiplier / 2);

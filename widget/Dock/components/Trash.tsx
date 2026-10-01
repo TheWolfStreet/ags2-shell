@@ -1,64 +1,58 @@
-// Watches the trash folder and opens it when the dock icon is clicked.
-
 import { createState } from "ags"
 
-import AstalHyprland from "gi://AstalHyprland"
 import Gio from "gi://Gio"
+import GLib from "gi://GLib"
 
-import env from "$lib/env"
-import { ensureDirectory } from "$lib/files"
-import { attempt, logError } from "$lib/result"
+import { attempt, log_error } from "$lib/result"
 import { debounce } from "$lib/time"
-import { getClientWorkspaceId, moveClientToWorkspaceSilent } from "$lib/windowing"
 
-const TRASH_DIR = env.paths.trash
-const REFRESH_DEBOUNCE_MS = 120
+const trash_uri = "trash:///"
+const refresh_debounce_ms = 120
 
-let watcherUsers = 0
+let watcher_users = 0
 let watcher: Gio.FileMonitor | null = null
-const [_hasItems, setHasItems] = createState(false)
-export const hasItems = _hasItems
+const [has_items, set_has_items] = createState(false)
+export { has_items }
 
-function refreshState() {
-	const result = attempt(() => {
-		const dir = Gio.File.new_for_path(TRASH_DIR)
-		if (!dir.query_exists(null))
-			return false
-
-		const enumerator = dir.enumerate_children("standard::name", Gio.FileQueryInfoFlags.NONE, null)
-		const hasItem = enumerator.next_file(null) !== null
-		enumerator.close(null)
-		return hasItem
-	})
-
-	logError(result, "dock.trash.refresh: Failed to refresh trash state")
-
-	setHasItems(result.ok && result.value)
+async function refresh_state() {
+	try {
+		const dir = Gio.File.new_for_uri(trash_uri)
+		const enumerator = await dir.enumerate_children_async("standard::name",
+			Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, null)
+		try {
+			const items = await enumerator.next_files_async(1, GLib.PRIORITY_DEFAULT, null)
+			if (watcher_users > 0) set_has_items(items.length > 0)
+		} finally {
+			if (!await enumerator.close_async(GLib.PRIORITY_DEFAULT, null))
+				throw new Error("Failed to close Trash enumeration")
+		}
+	} catch (error) {
+		console.error("dock.trash.refresh: Failed to refresh trash state", error)
+	}
 }
 
-const refresh = debounce(REFRESH_DEBOUNCE_MS, refreshState)
+const refresh = debounce(refresh_debounce_ms, refresh_state)
 
-export function acquireTrashWatcher() {
-	watcherUsers += 1
-	if (watcherUsers === 1) {
-		refreshState()
+export function acquire_trash_watcher() {
+	watcher_users += 1
+	if (watcher_users === 1) {
+		void refresh_state()
 
 		const result = attempt(() => {
-			ensureDirectory(TRASH_DIR)
-			const dir = Gio.File.new_for_path(TRASH_DIR)
+			const dir = Gio.File.new_for_uri(trash_uri)
 			watcher = dir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null)
 			watcher.connect("changed", () => refresh.call())
 		})
 
-		logError(result, `dock.trash.watch: Failed to watch ${TRASH_DIR}`)
+		log_error(result, `dock.trash.watch: Failed to watch ${trash_uri}`)
 	}
 
-	return releaseTrashWatcher
+	return release_trash_watcher
 }
 
-function releaseTrashWatcher() {
-	watcherUsers = Math.max(0, watcherUsers - 1)
-	if (watcherUsers > 0)
+function release_trash_watcher() {
+	watcher_users = Math.max(0, watcher_users - 1)
+	if (watcher_users > 0)
 		return
 
 	watcher?.cancel()
@@ -67,23 +61,11 @@ function releaseTrashWatcher() {
 	refresh.cancel()
 }
 
-export function openOrFocus(clients: AstalHyprland.Client[], activeWorkspaceId: number | null | undefined) {
+export function open_trash() {
 	const result = attempt(() => {
-		const existing = clients.find(c =>
-			(c.get_title?.() ?? "").toLowerCase().includes("trash") ||
-			(c.get_class?.() ?? "").toLowerCase().includes("trash")
-		)
-
-		if (existing && activeWorkspaceId != null) {
-			const currentId = getClientWorkspaceId(existing)
-			if (currentId !== activeWorkspaceId)
-				moveClientToWorkspaceSilent(activeWorkspaceId, existing)
-			existing.focus()
-			return
-		}
-
-		Gio.app_info_launch_default_for_uri("trash:///", null)
+		if (!Gio.app_info_launch_default_for_uri(trash_uri, null))
+			throw new Error("No application could open Trash")
 	})
 
-	logError(result, "dock.trash.open_or_focus: Failed to open or focus trash")
+	log_error(result, "dock.trash.open: Failed to open trash")
 }

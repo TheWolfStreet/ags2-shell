@@ -1,5 +1,3 @@
-// Creates popovers that finish hiding after their content transition settles.
-
 import { Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 
@@ -22,33 +20,33 @@ class AnimatedPopoverImpl extends Gtk.Popover {
 		super.vfunc_hide()
 	}
 
-	performHide() {
+	perform_hide() {
 		super.vfunc_hide()
 	}
 }
 
 const AnimatedPopover = GObject.registerClass(AnimatedPopoverImpl)
 
-export function createAnimatedPopover(
+export function create_animated_popover(
 	position: Gtk.PositionType,
-	addMenuClass = true,
-): { popover: Gtk.Popover; revealer: Gtk.Revealer } {
+	add_menu_class = true,
+): { popover: Gtk.Popover; revealer: Gtk.Revealer; dispose: () => void } {
 	const popover = new AnimatedPopover() as AnimatedPopoverImpl
 	popover.set_has_arrow(false)
 	popover.set_position(position)
-	if (addMenuClass)
+	if (add_menu_class)
 		popover.add_css_class("menu")
 
 	const revealer = new Gtk.Revealer({
 		transitionType: Gtk.RevealerTransitionType.SLIDE_DOWN,
 		transitionDuration: options.transition.duration.peek(),
 	})
-	revealer.connect("notify::child-revealed", self => {
+	const handler = revealer.connect("notify::child-revealed", self => {
 		if (!self.get_child_revealed() && !self.get_reveal_child())
-			popover.performHide()
+			popover.perform_hide()
 	})
 
 	popover.revealer = revealer
 	popover.set_child(revealer)
-	return { popover, revealer }
+	return { popover, revealer, dispose: () => revealer.disconnect(handler) }
 }

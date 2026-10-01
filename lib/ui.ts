@@ -1,11 +1,9 @@
-// Shares widget classes, dialog checks, and accessor values.
-
 import { Accessor, CCProps } from "ags"
 import { Gtk } from "ags/gtk4"
 
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
 
-export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) {
+export function toggle_class(widget: Gtk.Widget, name: string, enable?: boolean) {
 	if (enable === undefined)
 		enable = !widget.has_css_class(name)
 
@@ -15,7 +13,7 @@ export function toggleClass(widget: Gtk.Widget, name: string, enable?: boolean) 
 		widget.remove_css_class(name)
 }
 
-export function isDialogDismissed(error: unknown) {
+export function is_dialog_dismissed(error: unknown) {
 	return typeof error === "object"
 		&& error !== null
 		&& "code" in error
@@ -24,10 +22,10 @@ export function isDialogDismissed(error: unknown) {
 
 export type MaybeAccessor<T> = Accessor<T> | T
 
-export function isAccessor<T>(value: unknown): value is Accessor<T> {
+export function is_accessor<T>(value: unknown): value is Accessor<T> {
 	return typeof value === "function" && "peek" in value
 }
 
-export function readValue<T>(value: MaybeAccessor<T>): T {
-	return isAccessor(value) ? value() : value
+export function read_value<T>(value: MaybeAccessor<T>): T {
+	return is_accessor(value) ? value() : value
 }

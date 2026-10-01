@@ -1,15 +1,5 @@
-// Shows a searchable application list and handles keyboard and pointer input.
-
-import app from "ags/gtk4/app"
-import {
-	Accessor,
-	createBinding,
-	createComputed,
-	createState,
-	For,
-	onCleanup,
-	With,
-} from "ags"
+import app from "$lib/app"
+import { createBinding, createComputed, createState, For, onCleanup, With } from "ags"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 
 import AstalApps from "gi://AstalApps"
@@ -18,27 +8,39 @@ import { ApplicationIcon } from "widget/shared/ApplicationIcon"
 import { Placeholder } from "widget/shared/Placeholder"
 import { PopupWindow, Position } from "widget/shared/PopupWindow"
 import { PanelButton } from "../PanelButton"
+import { rank_apps, display_apps } from "./search"
 
-import { launchApp as launchApplication } from "$lib/apps"
+import { launch_app } from "$lib/apps"
+import { log_error } from "$lib/result"
 import { applications } from "$service/apps"
 import icons from "$lib/icons"
+import options, { Opt, surface_scale, ui_scale } from "$shell/options"
 
-import options, { Opt, surfaceScale, uiScale } from "$shell/options"
+type search_result = { app: AstalApps.Application; rank: number }
+
+const { OVERLAY } = Astal.Layer
+const { NORMAL } = Astal.Exclusivity
+const { ON_DEMAND } = Astal.Keymode
+const { SLIDE_DOWN, SLIDE_UP } = Gtk.RevealerTransitionType
+const { VERTICAL } = Gtk.Orientation
+const { CENTER, END } = Gtk.Align
+const { LEFT } = Gtk.Justification
+const { ALT_MASK } = Gdk.ModifierType
+const digit_keys = [
+	Gdk.KEY_1, Gdk.KEY_2, Gdk.KEY_3, Gdk.KEY_4, Gdk.KEY_5,
+	Gdk.KEY_6, Gdk.KEY_7, Gdk.KEY_8, Gdk.KEY_9,
+] as const
+
+const { position } = options.launcher
+const launcher_scale = createComputed(() => surface_scale(options.launcher.scale, 0.5))
+const icon_size = createComputed(() => Math.round(64 * ui_scale() * launcher_scale()))
+const is_on_bottom = createComputed(() => position() === "bottom-center")
+const app_transition = is_on_bottom.as((bottom) => bottom ? SLIDE_UP : SLIDE_DOWN)
+let update_search_entry: ((query: string, visible: boolean) => void) | null = null
 
 export namespace Launcher {
-	export function setSearchQuery(query: string, ensureVisible = true) {
-		const window =
-			launcherWin ?? (app.get_window("launcher") as Astal.Window | null)
-		if (!window) return
-
-		if (ensureVisible && !window.visible) {
-			window.show()
-		}
-
-		if (entry) {
-			entry.grab_focus()
-			entry.set_text(query)
-		}
+	export function set_search_query(query: string, ensure_visible = true) {
+		update_search_entry?.(query, ensure_visible)
 	}
 
 	export function Button() {
@@ -52,444 +54,147 @@ export namespace Launcher {
 	}
 
 	export function Window() {
-		const existing =
-			launcherWin ?? (app.get_window("launcher") as Astal.Window | null)
+		const existing = app.get_window("launcher")
 		if (existing) return existing
-		let win: Astal.Window
-
-		const [text, setText] = createState("")
+		let window: Astal.Window & { set_requested_visible(visible: boolean): void }
+		let entry: Gtk.Entry | null = null
+		const [text, set_text] = createState("")
 		const favorites = createBinding(applications, "favorites")
-		const searchIndex = createComputed(() => indexApplications(allApps()))
-		const visibleApps = createComputed(() => {
-			const maxVisible = options.launcher.apps.max.peek() || 9
-			return rankApplications(searchIndex(), text(), maxVisible)
+		const all_apps = createBinding(applications, "list")
+		const search_index = createComputed(() => all_apps().map((candidate) => ({
+			app: candidate,
+			name: candidate.get_name().toLowerCase(),
+		})))
+		const ranked_apps = createComputed(() => {
+			const limit = Math.max(0, Math.min(9, options.launcher.apps.max()))
+			return rank_apps(search_index(), text(), limit)
 		})
-
-		function favsVisible(location: string) {
-			return location === "launcher" || location === "both"
+		const displayed_apps = createComputed(() => display_apps(ranked_apps(), is_on_bottom()))
+		const show_favorites = createComputed(() => !text() &&
+			["launcher", "both"].includes(options.favorites.location()))
+		const not_found = createComputed(() => !!text().trim() && !ranked_apps().length)
+		const launcher_css = createComputed(() => {
+			const scale = launcher_scale()
+			const margin = options.launcher.margin() * ui_scale() * scale
+			return [
+				is_on_bottom() ? `margin-bottom: ${margin}pt;` : `margin-top: ${margin}pt;`,
+				`--padding: calc(var(--ui-padding) * ${scale});`,
+				`--spacing: calc(var(--ui-spacing) * ${scale});`,
+				`--radius: calc(var(--ui-radius) * ${scale});`,
+				`--border-width: calc(var(--ui-border-width) * ${scale});`,
+				`--font-size: calc(var(--ui-font-size) * ${scale});`,
+				`--icon-size: calc(var(--ui-icon-size) * ${scale});`,
+				`--popover-padding: calc(var(--ui-popover-padding) * ${scale});`,
+				`--popover-radius: calc(var(--ui-popover-radius) * ${scale});`,
+				`--scale: ${ui_scale() * scale};`,
+			].join("")
+		})
+		const launch = (candidate?: AstalApps.Application) => {
+			if (!candidate) return
+			window.hide()
+			void launch_app(candidate).then(result => log_error(result, "launcher: Could not launch application"))
 		}
-
-		function onKey(
-			win: Astal.Window,
-			keyval: number,
-			mod: number,
-			visibleApps: AstalApps.Application[],
-			favorites: AstalApps.Application[],
-		) {
-			if (mod !== ALT_MASK) return
-
-			for (let i = 0; i < Math.min(visibleApps.length, 9); i++) {
-				const key = ALT_DIGIT_KEYS[i]
-				if (keyval === key) {
-					launchApp(win, visibleApps[i])
-					return
-				}
-			}
-
-			if (
-				visibleApps.length === 0 &&
-				favsVisible(options.favorites.location.peek())
-			) {
-				for (let i = 0; i < Math.min(favorites.length, 9); i++) {
-					const key = ALT_DIGIT_KEYS[i]
-					if (keyval === key) {
-						launchApp(win, favorites[i])
-						return
-					}
-				}
-			}
-		}
-
-		const orderedVisibleApps = createComputed(() => orderApps(visibleApps()))
-		const notFound = createComputed(
-			() => text().length > 0 && visibleApps().length === 0,
-		)
-		const showFavorites = createComputed(
-			() => text().length === 0 && favsVisible(options.favorites.location()),
-		)
-
 		const SearchEntry = () => (
 			<entry
-				$={(e) => {
-					entry = e
-				}}
+				$={(self) => { entry = self }}
+				text={text}
 				placeholderText="Search"
 				primaryIconName="system-search-symbolic"
-				onNotifyText={(e) => setText(e.text)}
+				onNotifyText={(self) => set_text(self.get_text())}
+				onActivate={() => launch(ranked_apps.peek()[0])}
 			/>
 		)
-
-		const NotFoundRevealer = () => (
-			<revealer
-				halign={CENTER}
-				revealChild={notFound}
-				transitionType={appTransition}
-				transitionDuration={options.transition.duration}
-			>
-				<Placeholder
-					iconName={icons.ui.search}
-					iconSize={iconSize}
-					label="No results found"
-				/>
+		const NotFound = () => (
+			<revealer halign={CENTER} revealChild={not_found}
+				transitionType={app_transition} transitionDuration={options.transition.duration}>
+				<Placeholder iconName={icons.ui.search} iconSize={icon_size} label="No results found" />
+			</revealer>
+		)
+		const Results = () => (
+			<box orientation={VERTICAL}>
+				<For each={displayed_apps} id={(result) => `${result.app.get_entry()}:${result.rank}`}>
+					{(result) => <AppEntry result={result} launch={launch} />}
+				</For>
+			</box>
+		)
+		const Favorites = () => (
+			<revealer revealChild={show_favorites} transitionType={app_transition}
+				transitionDuration={options.transition.duration}>
+				<box orientation={VERTICAL}>
+					<Gtk.Separator visible={is_on_bottom.as((bottom) => !bottom)} />
+					<box class="quicklaunch horizontal">
+						<For each={favorites} id={(favorite) => favorite.get_entry()}>
+							{(favorite) => (
+								<button tooltipText={favorite.get_name()} onClicked={() => launch(favorite)} hexpand>
+									<ApplicationIcon icon={favorite.get_icon_name()} size={icon_size} />
+								</button>
+							)}
+						</For>
+					</box>
+					<Gtk.Separator visible={is_on_bottom} />
+				</box>
 			</revealer>
 		)
 
-		const launcherCss = createComputed(() => {
-			const componentScale = launcherScale()
-			const margin = options.launcher.margin() * uiScale() * componentScale
-			const positionMargin =
-				position() === "bottom-center"
-					? `margin-bottom: ${margin}pt;`
-					: `margin-top: ${margin}pt;`
-
-			return [
-				positionMargin,
-				`--padding: calc(var(--ui-padding) * ${componentScale});`,
-				`--spacing: calc(var(--ui-spacing) * ${componentScale});`,
-				`--radius: calc(var(--ui-radius) * ${componentScale});`,
-				`--border-width: calc(var(--ui-border-width) * ${componentScale});`,
-				`--font-size: calc(var(--ui-font-size) * ${componentScale});`,
-				`--icon-size: calc(var(--ui-icon-size) * ${componentScale});`,
-				`--popover-padding: calc(var(--ui-popover-padding) * ${componentScale});`,
-				`--popover-radius: calc(var(--ui-popover-radius) * ${componentScale});`,
-				`--scale: ${uiScale() * componentScale};`,
-			].join("")
-		})
+		update_search_entry = (query, visible) => {
+			if (visible) window.set_requested_visible(true)
+			set_text(query)
+			entry?.grab_focus()
+		}
+		onCleanup(() => { update_search_entry = null })
 
 		return (
 			<PopupWindow
-				name="launcher"
-				exclusivity={NORMAL}
-				keymode={ON_DEMAND}
-				layer={OVERLAY}
-				layout={position as Opt<Position>}
-				application={app}
-				onKey={(_ctrl, keyval, _code, mod) =>
-					onKey(win, keyval, mod, orderedVisibleApps.peek(), favorites.peek())
-				}
-				$={(w) => {
-					win = w
-					launcherWin = w
+				name="launcher" exclusivity={NORMAL} keymode={ON_DEMAND} layer={OVERLAY}
+				layout={position as Opt<Position>} application={app}
+				onKey={(_ctrl, keyval, _code, mod) => {
+					if ((mod & ALT_MASK) !== ALT_MASK) return
+					const rank = digit_keys.indexOf(keyval as typeof digit_keys[number])
+					if (rank < 0) return
+					if (displayed_apps.peek().length) launch(displayed_apps.peek()[rank]?.app)
+					else if (show_favorites.peek()) launch(favorites.peek()[rank])
 				}}
-				onNotifyVisible={(w) => {
-					if (w.visible) {
-						entry?.grab_focus()
-					} else {
-						entry?.set_text("")
-					}
+				$={(self) => { window = self }}
+				onNotifyVisible={(self) => {
+					if (self.visible) entry?.grab_focus()
+					else set_text("")
 				}}
 			>
-				<With value={isOnBottom}>
-					{(isBottom) => {
-						if (isBottom)
-							return (
-								<box class="launcher" orientation={VERTICAL} css={launcherCss}>
-									<AppList
-										allApps={allApps}
-										visibleApps={visibleApps}
-										launch={(a) => launchApp(win, a)}
-									/>
-									<Favorites
-										favorites={favorites}
-										visible={showFavorites}
-										launch={(a) => launchApp(win, a)}
-									/>
-									<NotFoundRevealer />
-									<SearchEntry />
-								</box>
-							)
-
-						return (
-							<box class="launcher" orientation={VERTICAL} css={launcherCss}>
-								<SearchEntry />
-								<NotFoundRevealer />
-								<Favorites
-									favorites={favorites}
-									visible={showFavorites}
-									launch={(a) => launchApp(win, a)}
-								/>
-								<AppList
-									allApps={allApps}
-									visibleApps={visibleApps}
-									launch={(a) => launchApp(win, a)}
-								/>
-							</box>
-						)
-					}}
+				<With value={is_on_bottom}>
+					{(bottom) => bottom ? (
+						<box class="launcher" orientation={VERTICAL} css={launcher_css}>
+							<Results /><Favorites /><NotFound /><SearchEntry />
+						</box>
+					) : (
+						<box class="launcher" orientation={VERTICAL} css={launcher_css}>
+							<SearchEntry /><NotFound /><Favorites /><Results />
+						</box>
+					)}
 				</With>
 			</PopupWindow>
 		) as Gtk.Window
 	}
 }
 
-const { OVERLAY } = Astal.Layer
-const { NORMAL } = Astal.Exclusivity
-const { ON_DEMAND } = Astal.Keymode
-
-const { SLIDE_DOWN, SLIDE_UP } = Gtk.RevealerTransitionType
-const { VERTICAL } = Gtk.Orientation
-const { CENTER, END } = Gtk.Align
-
-const { LEFT } = Gtk.Justification
-const { ALT_MASK } = Gdk.ModifierType
-const ALT_DIGIT_KEYS = [
-	Gdk.KEY_1,
-	Gdk.KEY_2,
-	Gdk.KEY_3,
-	Gdk.KEY_4,
-	Gdk.KEY_5,
-	Gdk.KEY_6,
-	Gdk.KEY_7,
-	Gdk.KEY_8,
-	Gdk.KEY_9,
-] as const
-
-const { position } = options.launcher
-
-type FavoritesProps = {
-	favorites: Accessor<AstalApps.Application[]>
-	visible: Accessor<boolean>
-	launch: (a: AstalApps.Application) => void
-}
-
-type AppListProps = {
-	allApps: Accessor<AstalApps.Application[]>
-	visibleApps: Accessor<AstalApps.Application[]>
-	launch: (a: AstalApps.Application) => void
-}
-
-type AppEntryProps = {
-	app: AstalApps.Application
-	visibleApps: Accessor<AstalApps.Application[]>
-	launch: (app: AstalApps.Application) => void
-}
-
-type IndexedApplication = {
-	app: AstalApps.Application
-	name: string
-}
-
-function indexApplications(
-	applications: AstalApps.Application[],
-): IndexedApplication[] {
-	return applications.map((app) => ({
-		app,
-		name: app.get_name().toLowerCase(),
-	}))
-}
-
-function rankApplications(
-	index: IndexedApplication[],
-	query: string,
-	limit: number,
-) {
-	const normalizedQuery = query.trim().toLowerCase()
-	if (!normalizedQuery) return []
-
-	return index
-		.map((indexed) => ({
-			...indexed,
-			matchPosition: indexed.name.indexOf(normalizedQuery),
-		}))
-		.filter((result) => result.matchPosition >= 0)
-		.sort((left, right) => {
-			if (left.matchPosition !== right.matchPosition)
-				return left.matchPosition - right.matchPosition
-			return left.name.localeCompare(right.name)
-		})
-		.slice(0, limit)
-		.map((result) => result.app)
-}
-
-const allApps = createBinding(applications, "list")
-const launcherScale = createComputed(() =>
-	surfaceScale(options.launcher.scale, 0.5),
-)
-const iconSize = createComputed(() =>
-	Math.round(64 * uiScale() * launcherScale()),
-)
-const revealers = new Map<string, Gtk.Revealer>()
-const isOnBottom = createComputed(() => position() === "bottom-center")
-const appTransition = isOnBottom.as((isBottom) =>
-	isBottom ? SLIDE_UP : SLIDE_DOWN,
-)
-
-function orderApps<T>(apps: T[]) {
-	return isOnBottom.peek() ? [...apps].reverse() : apps
-}
-
-let appsBox: Gtk.Box | undefined
-let prevOrder: string[] = []
-function updateRevealers(visibleApps: AstalApps.Application[]) {
-	const orderedVisibleApps = orderApps(visibleApps)
-	const visibleNames = new Set(orderedVisibleApps.map((app) => app.get_name()))
-	const currentOrder = orderedVisibleApps.map((app) => app.get_name())
-
-	if (!appsBox) {
-		revealers.forEach((revealer, appName) => {
-			revealer.set_reveal_child(visibleNames.has(appName))
-		})
-		return
-	}
-
-	const orderChanged =
-		currentOrder.length !== prevOrder.length ||
-		currentOrder.some((name, orderIndex) => name !== prevOrder[orderIndex])
-
-	if (orderChanged) {
-		for (let orderIndex = 0; orderIndex < currentOrder.length; orderIndex++) {
-			const revealer = revealers.get(currentOrder[orderIndex])
-			if (revealer && !revealer.get_reveal_child()) {
-				appsBox.reorder_child_after(
-					revealer,
-					orderIndex === 0
-						? null
-						: (revealers.get(currentOrder[orderIndex - 1]) ?? null),
-				)
-			}
-		}
-
-		prevOrder = currentOrder
-	}
-
-	revealers.forEach((revealer, appName) => {
-		revealer.set_reveal_child(visibleNames.has(appName))
-	})
-}
-
-function launchApp(win: Astal.Window, app?: AstalApps.Application) {
-	if (app) {
-		win.hide()
-		launchApplication(app)
-	}
-}
-
-function Favorites({ favorites, visible, launch }: FavoritesProps) {
-	const quickLaunch = (
-		<box class="quicklaunch horizontal">
-			<For each={favorites}>
-				{(favorite: AstalApps.Application | null) => {
-					if (!favorite) return <box visible={false} />
-					return (
-						<button
-							tooltipText={favorite.get_name()}
-							onClicked={() => launch(favorite)}
-							hexpand
-						>
-							<ApplicationIcon
-								icon={favorite.get_icon_name()}
-								size={iconSize}
-							/>
-						</button>
-					)
-				}}
-			</For>
-		</box>
-	)
-
+function AppEntry({ result, launch }: { result: search_result; launch: (app: AstalApps.Application) => void }) {
+	const { app, rank } = result
 	return (
-		<revealer
-			revealChild={visible}
-			transitionDuration={options.transition.duration}
-			transitionType={appTransition}
-		>
-			<box orientation={VERTICAL}>
-				<Gtk.Separator visible={isOnBottom.as((b) => !b)} />
-				{quickLaunch}
-				<Gtk.Separator visible={isOnBottom} />
-			</box>
-		</revealer>
-	)
-}
-
-function AppEntry({ app, visibleApps, launch }: AppEntryProps) {
-	const appName = app.get_name()
-	const [iconReady, setIconReady] = createState(false)
-	const hint = visibleApps.as((apps) => {
-		const matchRank = apps.findIndex(
-			(candidate) => candidate.get_name() === appName,
-		)
-		return matchRank >= 0 && matchRank < 9 ? `󰘳 ${matchRank + 1}` : ""
-	})
-
-	const appButton = (
-		<button class="app-item" onClicked={() => launch(app)}>
-			<box>
-				<ApplicationIcon
-					icon={iconReady.as((ready) => (ready ? app.get_icon_name() : ""))}
-					size={iconSize}
-				/>
-				<box valign={CENTER} orientation={VERTICAL}>
-					<label class="title" hexpand xalign={0} label={app.name} />
-					{app.description && (
-						<label
-							class="description"
-							hexpand
-							wrap
-							maxWidthChars={30}
-							justify={LEFT}
-							valign={CENTER}
-							xalign={0}
-							label={app.description}
-						/>
-					)}
+		<box orientation={VERTICAL}>
+			<Gtk.Separator visible={is_on_bottom.as((bottom) => !bottom)} />
+			<button class="app-item" onClicked={() => launch(app)}>
+				<box>
+					<ApplicationIcon icon={app.get_icon_name()} size={icon_size} />
+					<box valign={CENTER} orientation={VERTICAL}>
+						<label class="title" hexpand xalign={0} label={app.name} />
+						{app.description && (
+							<label class="description" hexpand wrap maxWidthChars={30}
+								justify={LEFT} valign={CENTER} xalign={0} label={app.description} />
+						)}
+					</box>
+					<label class="launch-hint" hexpand halign={END} label={`󰘳 ${rank + 1}`} />
 				</box>
-				<label class="launch-hint" hexpand halign={END} label={hint} />
-			</box>
-		</button>
-	)
-
-	return (
-		<revealer
-			name={appName}
-			transitionType={appTransition}
-			transitionDuration={options.transition.duration}
-			revealChild={false}
-			$={(r) => {
-				revealers.set(appName, r)
-				const revealHandler = r.connect("notify::reveal-child", () => {
-					if (r.get_reveal_child()) setIconReady(true)
-				})
-				onCleanup(() => {
-					r.disconnect(revealHandler)
-					revealers.delete(appName)
-				})
-			}}
-		>
-			<box orientation={VERTICAL}>
-				<Gtk.Separator visible={isOnBottom.as((b) => !b)} />
-				{appButton}
-				<Gtk.Separator visible={isOnBottom} />
-			</box>
-		</revealer>
-	) as Gtk.Revealer
-}
-
-function AppList({ allApps, visibleApps, launch }: AppListProps) {
-	const orderedApps = createComputed(() => orderApps(allApps()))
-	return (
-		<box
-			orientation={VERTICAL}
-			$={(self) => {
-				appsBox = self
-				const unsub = visibleApps.subscribe(() =>
-					updateRevealers(visibleApps.peek()),
-				)
-				onCleanup(() => {
-					unsub()
-					revealers.clear()
-					prevOrder = []
-				})
-			}}
-		>
-			<For each={orderedApps}>
-				{(app: AstalApps.Application) => (
-					<AppEntry app={app} visibleApps={visibleApps} launch={launch} />
-				)}
-			</For>
+			</button>
+			<Gtk.Separator visible={is_on_bottom} />
 		</box>
 	)
 }
-
-let entry: Gtk.Entry | undefined
-let launcherWin: Astal.Window | undefined

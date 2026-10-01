@@ -1,4 +1,3 @@
-// Shows three tabs and finds each group's changed rows for automatic reset buttons.
 
 import { Gdk, Gtk } from "ags/gtk4"
 import { Accessor, createBinding, createComputed } from "ags"
@@ -11,18 +10,19 @@ import { Placeholder } from "widget/shared/Placeholder"
 
 import { asusctl } from "$service/asusctl"
 import {
-	clearWallpaper,
-	setWallpaper,
-	wallpaperPath,
-	wallpaperRevision,
+	clear_wallpaper,
+	set_wallpaper,
+	wallpaper_path,
+	wallpaper_revision,
 } from "$lib/wallpaper"
-import { fileExists } from "$lib/files"
+import { file_exists } from "$lib/files"
 import icons from "$lib/icons"
+import { notify } from "$lib/notifications"
 import { attempt } from "$lib/result"
-import { getFileSize, textureFromFile } from "$lib/textures"
-import { isDialogDismissed } from "$lib/ui"
+import { create_square_texture_accessor, hidden_drag_icon } from "$lib/textures"
+import { is_dialog_dismissed } from "$lib/ui"
 
-import options, { Opt, optionValues } from "$shell/options"
+import options, { Opt, option_values } from "$shell/options"
 
 const { START, CENTER, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
@@ -35,11 +35,11 @@ type PageProps = {
 	children?: JSX.Element | Array<JSX.Element>
 }
 
-function Page({ name, iconName, children = [] }: PageProps) {
+function Page({ name, iconName: icon_name, children = [] }: PageProps) {
 	return (
 		<Gtk.StackPage
 			name={name}
-			iconName={iconName}
+			iconName={icon_name}
 			child={
 				(
 					<Gtk.ScrolledWindow
@@ -59,33 +59,52 @@ function Page({ name, iconName, children = [] }: PageProps) {
 }
 
 function WallpaperChooser() {
-	const wall = wallpaperRevision.as(() => wallpaperPath)
-	const isSet = wall.as((path) => !!path && (getFileSize(path) ?? 0) > 0)
+	const is_set = wallpaper_revision.as(() => {
+		const size = attempt(() => Gio.File.new_for_path(wallpaper_path)
+			.query_info("standard::size", Gio.FileQueryInfoFlags.NONE, null).get_size())
+		return size.ok && size.value > 0
+	})
+	const preview_texture = createComputed(() => {
+		wallpaper_revision()
+		return create_square_texture_accessor(wallpaper_path, 256)
+	})
+	const preview = createComputed(() => preview_texture()() ?? hidden_drag_icon())
 	let dialog: Gtk.FileDialog
-	let dialogOpen = false
+	let dialog_open = false
 
-	function openDialog() {
-		if (dialogOpen) return
-		dialogOpen = true
+	function open_dialog() {
+		if (dialog_open) return
+		dialog_open = true
 
 		const opened = attempt(() => {
-			dialog ??= new Gtk.FileDialog({ title: "Set wallpaper", modal: true })
-			if (fileExists(wallpaperPath))
-				dialog.set_initial_file(Gio.File.new_for_path(wallpaperPath))
+			if (!dialog) {
+				dialog = new Gtk.FileDialog({ title: "Set wallpaper", modal: true })
+				const filter = new Gtk.FileFilter()
+				filter.set_name("Images")
+				filter.add_mime_type("image/*")
+				dialog.set_default_filter(filter)
+			}
+			if (file_exists(wallpaper_path))
+				dialog.set_initial_file(Gio.File.new_for_path(wallpaper_path))
 
 			dialog.open(null, null, (_, result) => {
-				dialogOpen = false
+				dialog_open = false
 				if (!result) return
 
 				const outcome = attempt(
 					() => dialog.open_finish(result)?.get_path() ?? null,
 				)
 				if (outcome.ok) {
-					if (outcome.value) void setWallpaper(outcome.value)
+					if (outcome.value) void set_wallpaper(outcome.value).then((saved) => {
+						if (!saved.ok) {
+							console.error("wallpaper.dialog: Failed to set wallpaper", saved.err)
+							void notify({ app_name: "Wallpaper", summary: "Could not set wallpaper", body: String(saved.err), urgency: "critical" })
+						}
+					})
 					return
 				}
 
-				if (!isDialogDismissed(outcome.err))
+				if (!is_dialog_dismissed(outcome.err))
 					console.error(
 						"wallpaper.dialog: Failed to choose wallpaper",
 						outcome.err,
@@ -94,7 +113,7 @@ function WallpaperChooser() {
 		})
 
 		if (!opened.ok) {
-			dialogOpen = false
+			dialog_open = false
 			console.error(
 				"wallpaper.dialog: Failed to open wallpaper chooser",
 				opened.err,
@@ -106,18 +125,18 @@ function WallpaperChooser() {
 		<box class="row">
 			<overlay
 				cursor={Gdk.Cursor.new_from_name("pointer", null)}
-				tooltipText={isSet.as((set) => (set ? "Middle-click to clear" : ""))}
+				tooltipText={is_set.as((set) => (set ? "Middle-click to clear" : ""))}
 			>
-				<Gtk.GestureClick button={Gdk.BUTTON_PRIMARY} onPressed={openDialog} />
+				<Gtk.GestureClick button={Gdk.BUTTON_PRIMARY} onPressed={open_dialog} />
 				<Gtk.GestureClick
 					button={Gdk.BUTTON_MIDDLE}
-					onPressed={clearWallpaper}
+					onPressed={clear_wallpaper}
 				/>
 				<revealer
 					transitionDuration={options.transition.duration.as(
 						(value) => value * 4,
 					)}
-					revealChild={isSet.as((set) => !set)}
+					revealChild={is_set.as((set) => !set)}
 					transitionType={CROSSFADE}
 					$type="overlay"
 				>
@@ -132,7 +151,7 @@ function WallpaperChooser() {
 					vexpand
 					canShrink
 					contentFit={COVER}
-					paintable={wall.as((path) => textureFromFile(path) as Gdk.Paintable)}
+					paintable={preview}
 				/>
 			</overlay>
 		</box>
@@ -145,26 +164,26 @@ type GroupProps = {
 	children?: JSX.Element | Array<JSX.Element>
 }
 
-const optionByRow = new WeakMap<object, Opt<any>>()
+const option_by_row = new WeakMap<object, Opt<any>>()
 
-function collectRowOptions(children: JSX.Element | JSX.Element[]) {
+function collect_row_options(children: JSX.Element | JSX.Element[]) {
 	return (Array.isArray(children) ? children : [children])
 		.map((child) =>
-			child && typeof child === "object" ? optionByRow.get(child) : undefined,
+			child && typeof child === "object" ? option_by_row.get(child) : undefined,
 		)
 		.filter((opt): opt is Opt<any> => opt !== undefined)
 }
 
 function Group({ title, visible = true, children = [] }: GroupProps) {
-	const groupOptions = collectRowOptions(children)
-	const anyChanged =
-		groupOptions.length > 0
+	const group_options = collect_row_options(children)
+	const any_changed =
+		group_options.length > 0
 			? createComputed(() =>
-					groupOptions.some((opt) => opt() !== opt.getDefault()),
+					group_options.some((opt) => opt() !== opt.get_default()),
 				)
 			: false
 
-	const resetGroup = () => groupOptions.forEach((opt) => opt.reset())
+	const reset_group = () => group_options.forEach((opt) => opt.reset())
 
 	return (
 		<box class="group" orientation={VERTICAL} visible={visible}>
@@ -180,8 +199,8 @@ function Group({ title, visible = true, children = [] }: GroupProps) {
 					class="reset"
 					$type="end"
 					halign={END}
-					onClicked={resetGroup}
-					sensitive={anyChanged}
+					onClicked={reset_group}
+					sensitive={any_changed}
 				>
 					<image iconName={icons.ui.refresh} useFallback />
 				</button>
@@ -196,13 +215,13 @@ type RowProps = {
 	title: string
 	note?: string
 	type?: EditorType
-	enums?: readonly (string | number)[]
+	enums?: readonly (string | number)[] | Accessor<readonly (string | number)[]>
 	max?: number
 	min?: number
 }
 
 function Row({ opt, title, note, type, enums, max, min }: RowProps) {
-	const isChanged = createComputed(() => opt() !== opt.getDefault())
+	const is_changed = createComputed(() => opt() !== opt.get_default())
 
 	const row = (
 		<box class="row" tooltipText={note}>
@@ -216,20 +235,20 @@ function Row({ opt, title, note, type, enums, max, min }: RowProps) {
 					class="reset"
 					valign={CENTER}
 					onClicked={() => opt.reset()}
-					sensitive={isChanged}
+					sensitive={is_changed}
 				>
 					<image iconName={icons.ui.refresh} useFallback />
 				</button>
 			</box>
 		</box>
 	) as Gtk.Box
-	optionByRow.set(row, opt)
+	option_by_row.set(row, opt)
 	return row
 }
 
 const {
 	autotheme,
-	scale: uiScale,
+	scale: ui_scale,
 	font,
 	theme,
 	transition,
@@ -271,14 +290,14 @@ const Appearance = () =>
 					opt={scheme}
 					title="Scheme"
 					type="enum"
-					enums={optionValues.themeScheme}
+					enums={option_values.theme_scheme}
 				/>
 				<Row opt={autotheme} title="Generate from Wallpaper" />
 			</Group>
 
 			<Group title="Interface">
 				<Row
-					opt={uiScale}
+					opt={ui_scale}
 					title="Scale"
 					min={50}
 					max={200}
@@ -347,7 +366,7 @@ const Shell = () =>
 					opt={bar.position}
 					title="Position"
 					type="enum"
-					enums={optionValues.barPosition}
+					enums={option_values.bar_position}
 				/>
 				<Row
 					opt={bar.transparent}
@@ -364,7 +383,7 @@ const Shell = () =>
 					opt={taskbar.location}
 					title="Location"
 					type="enum"
-					enums={optionValues.taskbarLocation}
+					enums={option_values.taskbar_location}
 				/>
 				<Row opt={bar.taskbar.exclusive} title="Only Current Workspace" />
 			</Group>
@@ -374,13 +393,13 @@ const Shell = () =>
 					opt={dock.mode}
 					title="Mode"
 					type="enum"
-					enums={optionValues.dockMode}
+					enums={option_values.dock_mode}
 				/>
 				<Row
 					opt={dock.position}
 					title="Position"
 					type="enum"
-					enums={optionValues.dockPosition}
+					enums={option_values.dock_position}
 				/>
 				<Row opt={dock.scale} title="Scale" min={50} max={200} />
 				<Row opt={dock.trash} title="Show Trash" />
@@ -391,16 +410,16 @@ const Shell = () =>
 					opt={launcher.position}
 					title="Position"
 					type="enum"
-					enums={optionValues.launcherPosition}
+					enums={option_values.launcher_position}
 				/>
 				<Row opt={launcher.scale} title="Scale" min={50} max={200} />
 				<Row
 					opt={favorites.location}
 					title="Favorites"
 					type="enum"
-					enums={optionValues.favoritesLocation}
+					enums={option_values.favorites_location}
 				/>
-				<Row opt={launcher.apps.max} title="Max Items" max={9} />
+				<Row opt={launcher.apps.max} title="Max Items" min={1} max={9} />
 				<Row opt={bar.launcher.icon} title="Icon" />
 			</Group>
 
@@ -433,7 +452,7 @@ const System = () =>
 					opt={notifications.position}
 					title="Position"
 					type="enum"
-					enums={optionValues.popupPosition}
+					enums={option_values.popup_position}
 				/>
 			</Group>
 
@@ -443,7 +462,7 @@ const System = () =>
 					opt={desktop.iconSize}
 					title="Icon Size"
 					type="enum"
-					enums={optionValues.desktopIconSize}
+					enums={option_values.desktop_icon_size}
 				/>
 			</Group>
 
@@ -452,7 +471,7 @@ const System = () =>
 					opt={powermenu.layout}
 					title="Layout"
 					type="enum"
-					enums={optionValues.powerMenuLayout}
+					enums={option_values.power_menu_layout}
 				/>
 				<Row opt={powermenu.labels} title="Show Labels" />
 			</Group>
@@ -462,7 +481,7 @@ const System = () =>
 					opt={osd.position}
 					title="Position"
 					type="enum"
-					enums={optionValues.osdPosition}
+					enums={option_values.osd_position}
 				/>
 			</Group>
 
@@ -471,19 +490,19 @@ const System = () =>
 					opt={asus.ac_hz}
 					title="Refresh Rate (AC)"
 					type="enum"
-					enums={asusctl.refreshRates}
+					enums={createBinding(asusctl, "refreshRates")}
 				/>
 				<Row
 					opt={asus.bat_hz}
 					title="Refresh Rate (Battery)"
 					type="enum"
-					enums={asusctl.refreshRates}
+					enums={createBinding(asusctl, "refreshRates")}
 				/>
 			</Group>
 		</Page>
 	) as Gtk.StackPage
 
-export const createPages = (): Gtk.StackPage[] => [
+export const create_pages = (): Gtk.StackPage[] => [
 	Appearance(),
 	Shell(),
 	System(),

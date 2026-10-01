@@ -1,7 +1,5 @@
-// Styles Quick Settings passwords, controls, device lists, toggles, and media players.
 @use "../../../../style/base" as *;
 
-// Keep network authentication visually aligned with shell inputs.
 window#wifi-auth {
 	box {
 		@include spacing;
@@ -63,6 +61,7 @@ window#wifi-auth {
 }
 
 window#quicksettings {
+	button.arrow image { transition: transform var(--transition); }
 	.quicksettings {
 		@extend .floating;
 		@include spacing;
@@ -156,7 +155,7 @@ window#quicksettings {
 				margin-right: calc(var(--padding) * 0.7);
 			}
 
-			icon.icon {
+			image.icon {
 				margin-left: calc(var(--spacing) * 0.2);
 			}
 
@@ -178,7 +177,7 @@ window#quicksettings {
 					font-weight: bold;
 				}
 
-				icon:first-child {
+				image:first-child {
 					margin-right: calc(var(--spacing) / 2);
 				}
 			}

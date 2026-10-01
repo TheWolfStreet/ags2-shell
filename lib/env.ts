@@ -1,15 +1,11 @@
-// Stores app and user information and config, cache, and temporary paths.
-
 import GLib from "gi://GLib"
+import { ensure_directory } from "$lib/files"
+import { type Result } from "$lib/result"
 
-const APPNAME = "ags2-shell"
-
-function ensureDir(path: string) {
-	GLib.mkdir_with_parents(path, 0o755)
-}
+const app_name = "ags2-shell"
 
 const env = {
-	appName: APPNAME,
+	appName: app_name,
 	username: GLib.get_user_name(),
 
 	paths: {
@@ -17,21 +13,15 @@ const env = {
 		avatar: `/var/lib/AccountsService/icons/${GLib.get_user_name()}`,
 		cfg: `${GLib.get_user_config_dir()}/ags/`,
 		cache: {
-			base: `${GLib.get_user_cache_dir()}/${APPNAME}`,
-			thumbnails: `${GLib.get_user_cache_dir()}/${APPNAME}/previews/thumbnails`,
+			base: `${GLib.get_user_cache_dir()}/${app_name}`,
 		},
-		tmp: `${GLib.get_tmp_dir()}/${APPNAME}/`,
-		trash: `${GLib.get_user_data_dir()}/Trash/files`,
 	},
 
 	distro: {
-		id: GLib.get_os_info("ID"),
 		logo: GLib.get_os_info("LOGO") ?? undefined,
 	},
-	init: async () => {
-		ensureDir(env.paths.tmp)
-		ensureDir(env.paths.cache.base)
-		ensureDir(env.paths.cache.thumbnails)
+	init: (): Result<void> => {
+		return ensure_directory(env.paths.cache.base)
 	}
 }
 

@@ -1,6 +1,4 @@
-// Shows network, audio, power, media, and display controls on each monitor.
-
-import app from "ags/gtk4/app"
+import app from "$lib/app"
 import { createBinding, createComputed, createState, For, onCleanup } from "ags"
 import { monitorFile } from "ags/file"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
@@ -11,7 +9,7 @@ import AstalWp from "gi://AstalWp"
 
 import { Settings } from "widget/Settings"
 import { PanelButton } from "widget/Bar/components/PanelButton"
-import { createPopupPosition, PopupWindow } from "widget/shared/PopupWindow"
+import { create_popup_position, PopupWindow } from "widget/shared/PopupWindow"
 import { Network } from "./components/Network"
 import { Audio } from "./components/Audio"
 import { ToggleButton } from "./components/MenuControls"
@@ -21,21 +19,21 @@ import { MediaPlayer } from "./components/MediaPlayer"
 import { PowerProfiles } from "./components/PowerProfiles"
 
 import env from "$lib/env"
-import icons, { getBrightnessIcon } from "$lib/icons"
-import { attemptAsync, unwrapOr } from "$lib/result"
-import { textureFromFileSquareContain } from "$lib/textures"
+import icons, { get_brightness_icon } from "$lib/icons"
+import { attempt, attempt_async, unwrap_or } from "$lib/result"
+import { texture_from_file_square_contain } from "$lib/textures"
 import { hyprland } from "$lib/hyprland"
-import { media } from "$lib/media"
-import { notificationDaemon } from "$lib/notifications"
+import { notification_daemon } from "$lib/notifications"
 import { brightness } from "$service/brightness"
 
-import options, { uiScale } from "$shell/options"
+import options, { ui_scale } from "$shell/options"
 
 const audio = AstalWp.get_default()
+const media = AstalMpris.get_default()
 
 export namespace QuickSettings {
 	export function Button() {
-		const handleScroll = (_: unknown, __: number, dy: number) => {
+		const handle_scroll = (controller: unknown, dx: number, dy: number) => {
 			const speaker = audio?.get_default_speaker()
 			if (speaker) {
 				const current = speaker.get_volume() ?? 0
@@ -44,7 +42,7 @@ export namespace QuickSettings {
 			return true
 		}
 
-		const handlePress = (self: Gtk.GestureClick) => {
+		const handle_press = (self: Gtk.GestureClick) => {
 			if (self.get_current_button() === BUTTON_MIDDLE) {
 				const speaker = audio?.get_default_speaker()
 				if (speaker) {
@@ -59,9 +57,9 @@ export namespace QuickSettings {
 			<PanelButton targetWindow="quicksettings">
 				<Gtk.EventControllerScroll
 					flags={SCROLL_VERTICAL}
-					onScroll={handleScroll}
+					onScroll={handle_scroll}
 				/>
-				<Gtk.GestureClick button={0} onPressed={handlePress} />
+				<Gtk.GestureClick button={0} onPressed={handle_press} />
 				<box class="horizontal">
 					<KeyboardLayout />
 					<PowerProfiles.State.Power />
@@ -80,9 +78,9 @@ export namespace QuickSettings {
 		Network.Wifi.Window()
 
 		const players = createBinding(media, "players")
-		const avatarSize = options.scale.as(() => Math.round(56 * uiScale()))
-		const popupWidth = createComputed(() =>
-			Math.round(quicksettings.width() * uiScale()),
+		const avatar_size = options.scale.as(() => Math.round(56 * ui_scale()))
+		const popup_width = createComputed(() =>
+			Math.round(quicksettings.width() * ui_scale()),
 		)
 
 		function ToggleRow({
@@ -107,21 +105,22 @@ export namespace QuickSettings {
 				class="avatar"
 				$={(self) => {
 					const refresh = () => {
-						self.paintable = textureFromFileSquareContain(
+						self.paintable = texture_from_file_square_contain(
 							env.paths.avatar,
-							avatarSize.peek(),
+							avatar_size.peek(),
 						) as Gdk.Paintable
 					}
-					const monitor = monitorFile(env.paths.avatar, refresh)
-					const unsubscribe = avatarSize.subscribe(refresh)
+					const monitored = attempt(() => monitorFile(env.paths.avatar, refresh))
+					if (!monitored.ok) console.error("quicksettings.avatar: Failed to watch avatar", monitored.err)
+					const unsubscribe = avatar_size.subscribe(refresh)
 					refresh()
 					onCleanup(() => {
-						monitor.cancel()
+						if (monitored.ok) monitored.value.cancel()
 						unsubscribe()
 					})
 				}}
-				widthRequest={avatarSize}
-				heightRequest={avatarSize}
+				widthRequest={avatar_size}
+				heightRequest={avatar_size}
 				halign={CENTER}
 				valign={CENTER}
 				contentFit={COVER}
@@ -142,15 +141,25 @@ export namespace QuickSettings {
 			</box>
 		)
 
-		const monitorHeights = app
-			.get_monitors()
-			.map((m) => m.get_geometry().height)
-		const monitorHeight = monitorHeights.length
-			? Math.min(...monitorHeights)
-			: 1080
-		const maxContentHeight = options.scale.as(
-			(scale) => monitorHeight - Math.round((96 * scale) / 100),
-		)
+		const [monitors, set_monitors] = createState(app.get_monitors())
+		let geometry_handlers: Array<[Gdk.Monitor, number]> = []
+		const refresh_monitors = () => {
+			for (const [monitor, handler] of geometry_handlers) monitor.disconnect(handler)
+			const current = app.get_monitors()
+			geometry_handlers = current.map((monitor) => [monitor, monitor.connect("notify::geometry", () => set_monitors([...current]))])
+			set_monitors(current)
+		}
+		const monitors_handler = app.connect("notify::monitors", refresh_monitors)
+		refresh_monitors()
+		onCleanup(() => {
+			app.disconnect(monitors_handler)
+			for (const [monitor, handler] of geometry_handlers) monitor.disconnect(handler)
+		})
+		const max_content_height = createComputed(() => {
+			const heights = monitors().map((monitor) => monitor.get_geometry().height)
+			const minimum = heights.length ? Math.min(...heights) : 1080
+			return Math.max(200, minimum - Math.round(96 * ui_scale()))
+		})
 
 		return (
 			<PopupWindow
@@ -164,11 +173,11 @@ export namespace QuickSettings {
 					vscrollbarPolicy={Gtk.PolicyType.AUTOMATIC}
 					propagateNaturalHeight
 					propagateNaturalWidth
-					maxContentHeight={maxContentHeight}
+					maxContentHeight={max_content_height}
 				>
 					<box
 						class="quicksettings vertical"
-						css={popupWidth.as((width) => `min-width: ${width}px;`)}
+						css={popup_width.as((width) => `min-width: ${width}px;`)}
 						orientation={VERTICAL}
 					>
 						<Header />
@@ -219,9 +228,9 @@ const { BUTTON_MIDDLE } = Gdk
 const { bar, quicksettings } = options
 const { scheme } = options.theme
 
-const layout = createPopupPosition(bar.position, quicksettings.position)
+const layout = create_popup_position(bar.position, quicksettings.position)
 
-const LAYOUT_CODES: Record<string, string> = {
+const layout_codes: Record<string, string> = {
 	english: "en",
 	russian: "ru",
 	hebrew: "he",
@@ -332,13 +341,18 @@ const LAYOUT_CODES: Record<string, string> = {
 	dhivehi: "dv",
 }
 
-async function queryKeyboardLayout(): Promise<string> {
-	const result = await attemptAsync(async (): Promise<string> => {
-		const output = (await execAsync("hyprctl devices -j")).trim()
-		if (!output) return "err"
+function layout_code(keymap: string): string {
+	const name = keymap.trim().split(/[\s(]/)[0].toLowerCase()
+	return layout_codes[name] || name || "unk"
+}
+
+async function query_keyboard_layout(): Promise<{ keyboard: string, layout: string }> {
+	const result = await attempt_async(async () => {
+		const output = (await execAsync(["hyprctl", "devices", "-j"])).trim()
+		if (!output) throw new Error("Empty keyboard list")
 
 		const data = JSON.parse(output) as {
-			keyboards?: Array<{ active_keymap?: string; main?: boolean }>
+			keyboards?: Array<{ name?: string; active_keymap?: string; main?: boolean }>
 		}
 		const keyboards = Array.isArray(data.keyboards) ? data.keyboards : []
 		for (const keyboard of keyboards) {
@@ -347,46 +361,65 @@ async function queryKeyboardLayout(): Promise<string> {
 				typeof keyboard.active_keymap === "string" &&
 				keyboard.active_keymap.length > 0
 			) {
-				const keymap = keyboard.active_keymap
-					.trim()
-					.split(/[\s(]/)[0]
-					.toLowerCase()
-				return LAYOUT_CODES[keymap] || keymap
+				return { keyboard: keyboard.name ?? "", layout: layout_code(keyboard.active_keymap) }
 			}
 		}
-		return "unk"
+		return { keyboard: "", layout: "unk" }
 	})
 
-	return unwrapOr(result, "err", "KeyboardLayout: failed to read layout")
+	return unwrap_or(result, { keyboard: "", layout: "err" }, "KeyboardLayout: failed to read layout")
 }
 
 function KeyboardLayout() {
-	const [layout, setLayout] = createState("")
-	let active = true
-	const update = () =>
-		void queryKeyboardLayout().then((value) => {
-			if (active) setLayout(value)
+	if (++keyboard_users === 1) {
+		refresh_keyboard_layout()
+		keyboard_handler = hyprland.connect("keyboard-layout", (source_hyprland, keyboard, layout) => {
+			if (!keyboard_name || keyboard !== keyboard_name) {
+				refresh_keyboard_layout()
+				return
+			}
+			keyboard_revision++
+			set_keyboard_layout(layout_code(layout))
 		})
-
-	update()
-	const connection = hyprland.connect("keyboard-layout", update)
+	}
 	onCleanup(() => {
-		active = false
-		hyprland.disconnect(connection)
+		if (--keyboard_users === 0) {
+			keyboard_revision++
+			keyboard_name = ""
+			hyprland.disconnect(keyboard_handler)
+		}
 	})
+	return <label label={keyboard_layout} />
+}
 
-	return <label label={layout} />
+const [keyboard_layout, set_keyboard_layout] = createState("")
+let keyboard_users = 0
+let keyboard_handler = 0
+let keyboard_revision = 0
+let keyboard_name = ""
+function refresh_keyboard_layout() {
+	const revision = ++keyboard_revision
+	void query_keyboard_layout().then((value) => {
+		if (keyboard_users && revision === keyboard_revision) {
+			keyboard_name = value.keyboard
+			set_keyboard_layout(value.layout)
+		}
+	})
 }
 
 function BrightnessSlider() {
-	let prevBrightness = 1
+	let prev_brightness = 1
 
-	const toggleBrightnessMute = () => {
+	const toggle_brightness_mute = () => {
 		if (brightness.display > 0) {
-			prevBrightness = brightness.display
-			brightness.display = 0
+			prev_brightness = brightness.display
+			void brightness.set_display(0).then((result) => {
+				if (!result.ok) console.error("brightness.toggle:", result.err)
+			})
 		} else {
-			brightness.display = prevBrightness
+			void brightness.set_display(prev_brightness).then((result) => {
+				if (!result.ok) console.error("brightness.toggle:", result.err)
+			})
 		}
 	}
 
@@ -399,13 +432,13 @@ function BrightnessSlider() {
 		>
 			<button
 				valign={CENTER}
-				onClicked={toggleBrightnessMute}
+				onClicked={toggle_brightness_mute}
 				tooltipText={display.as(
 					(v) => `Screen Brightness: ${Math.floor(v * 100)}% `,
 				)}
 			>
 				<image
-					iconName={display.as((value) => getBrightnessIcon(value, "screen"))}
+					iconName={display.as((value) => get_brightness_icon(value, "screen"))}
 					useFallback
 				/>
 			</button>
@@ -414,7 +447,9 @@ function BrightnessSlider() {
 				hexpand
 				value={display}
 				onChangeValue={({ value }) => {
-					brightness.display = value
+					void brightness.set_display(value).then((result) => {
+						if (!result.ok) console.error("brightness.slider:", result.err)
+					})
 				}}
 			/>
 		</box>
@@ -422,37 +457,37 @@ function BrightnessSlider() {
 }
 
 function DarkModeToggle() {
-	const isDark = scheme.as((s) => s === "dark")
+	const is_dark = scheme.as((s) => s === "dark")
 
-	const toggleThemeScheme = () => {
-		scheme.set(isDark.peek() ? "light" : "dark")
+	const toggle_theme_scheme = () => {
+		scheme.set(is_dark.peek() ? "light" : "dark")
 	}
 
 	return (
 		<ToggleButton
-			iconName={isDark.as((dark) => icons.color[dark ? "dark" : "light"])}
-			label={isDark.as((dark) => (dark ? "Dark" : "Light"))}
-			toggle={toggleThemeScheme}
-			connection={isDark}
+			iconName={is_dark.as((dark) => icons.color[dark ? "dark" : "light"])}
+			label={is_dark.as((dark) => (dark ? "Dark" : "Light"))}
+			onToggle={toggle_theme_scheme}
+			connection={is_dark}
 		/>
 	)
 }
 
-const doNotDisturb = createBinding(notificationDaemon, "dontDisturb")
+const do_not_disturb = createBinding(notification_daemon, "dontDisturb")
 
 function DoNotDisturbToggle() {
 	return (
 		<ToggleButton
-			iconName={doNotDisturb.as((v) =>
+			iconName={do_not_disturb.as((v) =>
 				v ? icons.notifications.silent : icons.notifications.noisy,
 			)}
-			label={doNotDisturb.as((v) => (v ? "Silent" : "Normal"))}
-			toggle={() =>
-				notificationDaemon.set_dont_disturb(
-					!notificationDaemon.get_dont_disturb(),
+			label={do_not_disturb.as((v) => (v ? "Silent" : "Normal"))}
+			onToggle={() =>
+				notification_daemon.set_dont_disturb(
+					!notification_daemon.get_dont_disturb(),
 				)
 			}
-			connection={doNotDisturb}
+			connection={do_not_disturb}
 		/>
 	)
 }
@@ -461,7 +496,7 @@ function DoNotDisturbState() {
 	return (
 		<image
 			iconName={icons.notifications.silent}
-			visible={doNotDisturb}
+			visible={do_not_disturb}
 			useFallback
 		/>
 	)

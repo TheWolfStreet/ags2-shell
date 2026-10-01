@@ -1,16 +1,11 @@
-// Lists installed apps and updates GNOME favorites when the list changes.
-
 import GObject, { getter, register } from "ags/gobject"
-import { execAsync } from "ags/process"
-import { idle } from "ags/time"
+import { execAsync, Process, subprocess } from "ags/process"
+import { idle, timeout, type Timer } from "$lib/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
 
-import env from "$lib/env"
-import { fileExists } from "$lib/files"
-import { attempt, logError, unwrapOr } from "$lib/result"
-import { hyprland } from "$lib/hyprland"
+import { attempt, unwrap_or } from "$lib/result"
 import { debounce } from "$lib/time"
 
 @register()
@@ -18,80 +13,67 @@ class ApplicationCatalog extends GObject.Object {
 	declare static $gtype: GObject.GType<ApplicationCatalog>
 
 	#favorites: Array<AstalApps.Application>
-	#favoritesSnapshot: string
-	#favoritesRefreshing = false
-	#lastFavoritesRead = 0
+	#favorites_snapshot = ""
+	#favorites_read = 0
 	#apps: AstalApps.Apps
-	#monitors: Gio.FileMonitor[]
-	#hyprlandHandlerId: number
-	#reload = debounce(500, () => {
-		idle(() => {
-			this.#apps.reload()
-			this.#setFavorites(this.#favoritesSnapshot, true)
-			this.notify("list")
-		})
-	})
+	#app_monitor: Gio.AppInfoMonitor
+	#app_handler: number
+	#favorites_watcher: Process | null = null
+	#watch_retry: Timer | null = null
+	#watch_failures = 0
+	#finished = false
+	#refresh_idle: Timer | null = null
+	#favorites_refresh = debounce(75, () => this.#refresh_favorites())
 
 	constructor() {
 		super()
 
 		this.#favorites = []
-		this.#favoritesSnapshot = ""
 		this.#apps = new AstalApps.Apps()
-		this.#monitors = []
-		this.#hyprlandHandlerId = 0
-
-		const scheduleReload = () => this.#reload.call()
-
-		const watchDirectory = (dir: string) => {
-			if (!fileExists(dir)) return
-
-			const result = attempt(() => {
-				const file = Gio.File.new_for_path(dir)
-				const monitor = file.monitor_directory(Gio.FileMonitorFlags.NONE, null)
-
-				monitor.set_rate_limit(300)
-
-				monitor.connect("changed", (_monitor, file, _other, eventType) => {
-					if (eventType === Gio.FileMonitorEvent.CREATED) {
-						const fileName = file.get_basename()
-						if (fileName && !fileName.startsWith(".")) {
-							scheduleReload()
-						}
-					} else if (eventType === Gio.FileMonitorEvent.DELETED) {
-						scheduleReload()
-					}
-				})
-
-				this.#monitors.push(monitor)
+		this.#app_monitor = Gio.AppInfoMonitor.get()
+		this.#app_handler = this.#app_monitor.connect("changed", () => {
+			if (this.#refresh_idle) return
+			this.#refresh_idle = idle(() => {
+				this.#refresh_idle = null
+				this.#set_favorites(this.#favorites_snapshot, true)
+				this.notify("list")
 			})
-			logError(
-				result,
-				`applications.watchDirectory: Failed to watch ${dir}`,
-			)
+		})
+		this.#watch_favorites()
+		this.#refresh_favorites()
+	}
+
+	#watch_favorites() {
+		const watched = attempt(() => subprocess(
+			["dconf", "watch", "/org/gnome/shell/favorite-apps"],
+			() => {
+				this.#watch_failures = 0
+				this.#favorites_refresh.call()
+			},
+			(error) => console.error("applications.favoritesWatch:", error),
+		))
+		if (!watched.ok) {
+			console.error("applications.favoritesWatch:", watched.err)
+			this.#retry_watch()
+			return
 		}
+		this.#favorites_watcher = watched.value
+		watched.value.connect("exit", (source_process, code, signaled) => {
+			if (this.#finished) return
+			this.#favorites_watcher = null
+			console.error(`applications.favoritesWatch: dconf watch exited with ${signaled ? "signal" : "status"} ${code}`)
+			this.#retry_watch()
+		})
+	}
 
-		const appDirs = [
-			`${env.paths.home}/.local/share/applications/`,
-			`${env.paths.home}/.local/share/flatpak/exports/share/applications/`,
-			`${env.paths.home}/.local/share/flatpak/app/`,
-			"/usr/share/applications/",
-			"/usr/local/share/applications/",
-			"/var/lib/flatpak/exports/share/applications/",
-			"/var/lib/flatpak/app/",
-		]
-
-		for (const dir of appDirs) {
-			watchDirectory(dir)
-		}
-
-		this.#hyprlandHandlerId = hyprland.connect(
-			"config-reloaded",
-			scheduleReload,
-		)
-
-		this.#lastFavoritesRead = Date.now()
-		this.#refreshFavorites()
+	#retry_watch() {
+		if (this.#watch_retry || this.#watch_failures >= 3 || this.#finished) return
+		const delay = 5000 * 3 ** this.#watch_failures++
+		this.#watch_retry = timeout(delay, () => {
+			this.#watch_retry = null
+			this.#watch_favorites()
+			this.#refresh_favorites()
+		})
 	}
 
 	@getter(Array<AstalApps.Application>)
@@ -101,55 +83,39 @@ class ApplicationCatalog extends GObject.Object {
 
 	@getter(Array<AstalApps.Application>)
 	get favorites(): Array<AstalApps.Application> {
-		const now = Date.now()
-		if (now - this.#lastFavoritesRead > 2000) {
-			this.#lastFavoritesRead = now
-			this.#refreshFavorites()
-		}
 		return this.#favorites
 	}
 
-	readonly #refreshFavorites = () => {
-		if (this.#favoritesRefreshing) return
-		this.#favoritesRefreshing = true
+	readonly #refresh_favorites = () => {
+		const read = ++this.#favorites_read
 		execAsync(["dconf", "read", "/org/gnome/shell/favorite-apps"])
-			.then((raw) => this.#setFavorites(raw.trim()))
+			.then((raw) => {
+				if (read === this.#favorites_read) this.#set_favorites(raw.trim())
+			})
 			.catch((error) =>
 				console.error(
 					"applications.refreshFavorites: Failed to read favorites",
 					error,
 				),
 			)
-			.finally(() => {
-				this.#favoritesRefreshing = false
-			})
 	}
 
-	readonly #setFavorites = (raw: string, remap = false) => {
-		if (!remap && raw === this.#favoritesSnapshot) return
-		this.#favoritesSnapshot = raw
+	readonly #set_favorites = (raw: string, remap = false) => {
+		if (!remap && raw === this.#favorites_snapshot) return
+		this.#favorites_snapshot = raw
 
 		const result = attempt(() => {
-			const apps: Array<AstalApps.Application> = []
-			for (const [, entry] of raw.matchAll(/'([^']*)'/g)) {
-				const name = entry.replace(/\.desktop$/, "")
-				const key = name.toLowerCase()
-				const results = this.#apps.exact_query(name)
-				const match =
-					results.find(
-						(app) =>
-							app.get_name().toLowerCase() === key ||
-							app
-								.get_entry()
-								?.replace(/\.desktop$/, "")
-								.toLowerCase() === key,
-					) ?? results[0]
-				if (match) apps.push(match)
+			const entries = new Map<string, AstalApps.Application>()
+			for (const app of this.#apps.list) {
+				const entry = app.get_entry()
+				if (entry) entries.set(entry.toLowerCase(), app)
 			}
-			return apps
+			return [...raw.matchAll(/'([^']*)'/g)]
+				.map(([, entry]) => entries.get(entry.toLowerCase()))
+				.filter((app): app is AstalApps.Application => app !== undefined)
 		})
 
-		this.#favorites = unwrapOr(
+		this.#favorites = unwrap_or(
 			result,
 			[],
 			"applications.setFavorites: Failed to read favorite apps",
@@ -159,16 +125,13 @@ class ApplicationCatalog extends GObject.Object {
 	}
 
 	vfunc_finalize() {
-		this.#reload.cancel()
-
-		for (const monitor of this.#monitors) {
-			monitor.cancel()
-		}
-		this.#monitors = []
-		if (this.#hyprlandHandlerId) {
-			hyprland.disconnect(this.#hyprlandHandlerId)
-			this.#hyprlandHandlerId = 0
-		}
+		this.#finished = true
+		this.#favorites_read++
+		this.#favorites_refresh.cancel()
+		this.#watch_retry?.cancel()
+		this.#refresh_idle?.cancel()
+		this.#favorites_watcher?.kill()
+		this.#app_monitor.disconnect(this.#app_handler)
 		super.vfunc_finalize()
 	}
 }

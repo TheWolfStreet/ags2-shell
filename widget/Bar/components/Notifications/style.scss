@@ -1,4 +1,3 @@
-// Styles notification text, urgency, buttons, and popups.
 @use '../../../../style/base' as *;
 
 .notification {
@@ -19,9 +18,6 @@
       min-height: 1.5em;
       min-width: 1.5em;
 
-      &.icon {
-        border: var(--border);
-      }
     }
 
     label.app-name {
@@ -42,9 +38,6 @@
     picture.preview {
       border-radius: calc(var(--radius) * 0.8);
 
-      &.icon {
-        border: var(--border);
-      }
     }
 
     label.summary {
@@ -83,8 +76,5 @@ window.notifications {
     border-radius: var(--radius);
     margin-bottom: 0;
 
-    box.description {
-      min-width: calc(350px * var(--scale, 1));
-    }
   }
 }

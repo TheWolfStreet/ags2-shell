@@ -212,7 +212,7 @@ Install the host services from the Feature Services table as needed. For example
 
 ### Build And Install
 
-The native installer compiles the stylesheet, bundles the main and wallpaper entry points, and installs them under `~/.local` by default. It checks for the build commands `ags`, `sass`, `install`, and `sed`; runtime libraries and commands must be installed separately as described above.
+The native installer compiles the stylesheet, bundles the main and wallpaper entry points, and installs them under `~/.local` by default. It requires `ags`, `sass`, `install`, `sed`, `realpath`, `mktemp`, `grep`, and `cmp`; runtime libraries and commands must be installed separately as described above. The compiled stylesheet is generated at build time, not kept in Git.
 
 ```bash
 git clone https://github.com/TheWolfStreet/ags2-shell
@@ -236,7 +236,7 @@ The shell defaults to SF Pro Display Nerd Font and is styled independently throu
 
 Changing the shell's light or dark scheme updates `org.gnome.desktop.interface color-scheme`, selects an installed matching icon-theme variant when one exists, and optionally synchronizes the accent color to tmux. Wallpaper color generation is available under **Settings > Appearance > Generate from Wallpaper**.
 
-The selected wallpaper is copied to `~/.config/background` and drawn by a supervised, separately bundled process with one surface per monitor. HEIC and WebP sources are converted to PNG with `heif-dec` and `dwebp`; other supported formats are copied directly.
+The selected wallpaper is validated before atomically replacing `~/.config/background` and drawn by a supervised, separately bundled process with one surface per monitor. HEIC and WebP sources are converted to PNG with `heif-dec` and `dwebp`; other supported formats are copied directly. Wallpaper validation accepts files up to 64 MiB, 8192 pixels per side, and 40 million pixels using the installed GdkPixbuf loaders.
 
 ## Configuration And State
 
@@ -247,10 +247,12 @@ Use the Settings window to change shell options. Changes are saved automatically
 | Shell options        | `$XDG_CACHE_HOME/ags2-shell/options.json`         |
 | Desktop icon layout  | `$XDG_CACHE_HOME/ags2-shell/desktop-layout.json`  |
 | Color-picker history | `$XDG_CACHE_HOME/ags2-shell/colors.json`          |
-| Thumbnail cache      | `$XDG_CACHE_HOME/ags2-shell/previews/thumbnails/` |
+| Artwork cache        | `$XDG_CACHE_HOME/ags2-shell/artwork/`              |
 | Wallpaper            | `~/.config/background`                            |
 | Screenshots          | `~/Pictures/Screenshots/`                         |
 | Recordings           | `~/Videos/Screencasting/`                         |
+
+Artwork loading allows four concurrent jobs and 64 queued jobs. Downloads and inline images are limited to 8 MiB, local preview files to 64 MiB, and decoded artwork to 8192 pixels per side and 32 million pixels. The downloaded-art cache is bounded to 128 files and 64 MiB.
 
 There is currently no declarative Nix option interface for shell settings. Removing `options.json` restores defaults on the next start.
 
@@ -266,12 +268,18 @@ nix develop -c ./dev.sh
 systemctl --user start ags.service
 ```
 
-Stop the packaged service only when it is enabled; a packaged and development instance cannot own the same `ags2-shell` name simultaneously. Build and validate the package with:
+Stop the packaged service only when it is enabled; a packaged and development instance cannot own the same `ags2-shell` name simultaneously. The development watcher requires `inotifywait`, `busctl`, `ps`, and `setsid`; it refuses to replace an existing instance and only requests quit from its own process group. `./dev.sh --build-once` always compiles styles without starting the shell. Build and validate the package with:
 
 ```bash
 nix build
 nix flake check
 ```
+
+While adding new, untracked source files, use `nix build path:. --no-link` and `nix flake check path:.` to include them without staging. The normal Git-backed flake includes only tracked files; add new source files to Git before using it for releases.
+
+Tests live in `tests/`, grouped by subsystem. `npm test` runs its `*.test.mjs` suites; the native GJS smoke check and TypeScript contract test also live there. The flake check builds the package, runs Node tests and an isolated native GJS smoke check, and separately generates GIR declarations from pinned inputs for a strict typecheck. It does not depend on host `@girs/` or `node_modules/` artifacts.
+
+In `nix develop`, run `npm run types` once to generate local GIR declarations and link the AGS/Gnim versions supplied by that shell, then run `npm run typecheck` and `npm test`. This project does not use `npm install` or a portable npm lock: AGS owns the local links. `types` writes `@girs/`, `node_modules/`, and may update `tsconfig.json`; `typecheck` generates ignored AGS/Gnim declarations in `@girs/` before checking application source without emitting application files. The generated AGS declaration restores the `Gtk.Window` argument lost when TypeScript emits its private `window-toggled` method. TypeScript excludes generated GTK3 declarations from the GTK4 project. `skipLibCheck` tolerates generated declaration errors but does not suppress errors in application source. The declaration step uses `--noCheck` only for the linked dependencies, not for the application.
 
 ## Troubleshooting
 

@@ -1,5 +1,3 @@
-// Draws and handles input for a monitor's desktop grid.
-
 import { Accessor, createComputed, createState, For, onCleanup } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
@@ -8,24 +6,24 @@ import GLib from "gi://GLib"
 import type { DesktopFile } from "../FileOperations"
 import { DragLayer, type DesktopDragController } from "../DragAndDrop"
 import {
-	cancelDesktopCut,
-	copyDesktopFiles,
-	cutDesktopFiles,
-	desktopClipboard,
-	desktopInteraction,
-	openDesktopFiles,
-	pasteDesktopFiles,
-	removeDesktopFiles,
+	cancel_desktop_cut,
+	copy_desktop_files,
+	cut_desktop_files,
+	desktop_clipboard,
+	desktop_interaction,
+	open_desktop_files,
+	paste_desktop_files,
+	remove_desktop_files,
 	type DesktopGridData,
 } from "../Desktop"
 import {
-	findPathsIntersectingRectangle,
-	getDesktopIconMetrics,
-	slotIndexToRect,
+	find_paths_intersecting_rectangle,
+	get_desktop_icon_metrics,
+	slot_index_to_rect,
 	type SlotRect,
 } from "../GridGeometry"
-import options, { uiScale } from "$shell/options"
-import { desktopContextMenu } from "./ContextMenu"
+import options, { ui_scale } from "$shell/options"
+import { desktop_context_menu } from "./ContextMenu"
 import { DesktopIcon } from "./Icon"
 
 const {
@@ -48,17 +46,17 @@ const {
 	ModifierType,
 } = Gdk
 const { FILL, START } = Gtk.Align
-const EMPTY_PATH_SET = new Set<string>()
-const NO_LAYOUT = (_path: string, _widget?: Gtk.Widget): void => {}
+const empty_path_set = new Set<string>()
+const no_layout = (path: string, widget?: Gtk.Widget): void => {}
 
-type SelectionRectangle = {
+type selection_rectangle = {
 	x: number
 	y: number
 	width: number
 	height: number
 }
 
-function isInteractiveTarget(widget: Gtk.Widget | null): boolean {
+function is_interactive_target(widget: Gtk.Widget | null): boolean {
 	let current = widget
 	while (current) {
 		if (current instanceof Gtk.Entry || current.has_css_class?.("desktop-icon"))
@@ -68,85 +66,87 @@ function isInteractiveTarget(widget: Gtk.Widget | null): boolean {
 	return false
 }
 
-function hitInteractiveTarget(
+function hit_interactive_target(
 	gesture: Gtk.GestureClick,
 	x: number,
 	y: number,
 ): boolean {
 	const picked =
 		gesture.get_widget()?.pick?.(x, y, Gtk.PickFlags.DEFAULT) ?? null
-	return isInteractiveTarget(picked)
+	return is_interactive_target(picked)
 }
 
-function keyPressed(
+function key_pressed(
 	grid: DesktopGridData,
 	key: number,
 	state: number,
 ): boolean {
 	if (key === KEY_Shift_L || key === KEY_Shift_R) {
-		desktopContextMenu.setShiftHeld(true)
+		desktop_context_menu.set_shift_held(true)
 		return false
 	}
 	if (!options.desktop.enabled.peek()) return false
-	if (desktopInteraction.rename.path.peek()) {
+	if (desktop_interaction.rename.path.peek()) {
 		if (key === KEY_Escape) {
-			desktopInteraction.rename.cancel()
+			desktop_interaction.rename.cancel()
 			return true
 		}
 		return false
 	}
 
-	const paths = desktopInteraction.selected.peek()
+	const paths = desktop_interaction.selected.peek()
 	const control = (state & ModifierType.CONTROL_MASK) !== 0
 	if (key === KEY_Escape) {
-		desktopContextMenu.hide()
+		desktop_context_menu.hide()
 		return true
 	}
 	if (key === KEY_Delete) {
-		removeDesktopFiles(paths, {
+		void remove_desktop_files(paths, {
 			permanently: (state & ModifierType.SHIFT_MASK) !== 0,
-		})
+		}).catch((error) => console.error("desktop.keyboard: Failed to remove files", error))
 		return true
 	}
 	if (control && (key === KEY_a || key === KEY_A)) {
-		desktopInteraction.select(grid.files.map((file) => file.path))
+		desktop_interaction.select(grid.files.map((file) => file.path))
 		return true
 	}
 	if (control && (key === KEY_c || key === KEY_C)) {
-		copyDesktopFiles(paths)
+		copy_desktop_files(paths)
 		return true
 	}
 	if (control && (key === KEY_x || key === KEY_X)) {
-		if (paths.length > 0) cutDesktopFiles(paths)
-		else void cancelDesktopCut()
+		if (paths.length > 0) cut_desktop_files(paths)
+		else void cancel_desktop_cut().catch((error) =>
+			console.error("desktop.keyboard: Failed to cancel cut", error))
 		return true
 	}
 	if (control && (key === KEY_v || key === KEY_V)) {
-		void pasteDesktopFiles(grid.id)
+		void paste_desktop_files(grid.id).catch((error) =>
+			console.error("desktop.keyboard: Failed to paste files", error))
 		return true
 	}
 	if (key === KEY_Return) {
-		if (paths.length === 1) openDesktopFiles(paths)
+		if (paths.length === 1) open_desktop_files(paths)
 		return true
 	}
 	if (key === KEY_F2) {
-		if (paths.length === 1) desktopInteraction.rename.begin(paths[0])
+		if (paths.length === 1) desktop_interaction.rename.begin(paths[0])
 		return true
 	}
 	return false
 }
 
-export function attachDesktopKeyboard(
+export function attach_desktop_keyboard(
 	window: Gtk.Window,
 	grid: Accessor<DesktopGridData>,
 ): void {
 	const controller = new Gtk.EventControllerKey()
-	controller.connect("key-pressed", (_self, key, _code, state) =>
-		keyPressed(grid.peek(), key, state),
+	controller.connect("key-pressed", (self, key, code, state) =>
+		key_pressed(grid.peek(), key, state),
 	)
-	controller.connect("key-released", (_self, key) => {
+	controller.connect("key-released", (self, key) => {
 		if (key === KEY_Shift_L || key === KEY_Shift_R)
-			desktopContextMenu.setShiftHeld(false)
+			desktop_context_menu.set_shift_held(false)
 	})
 	window.add_controller(controller)
 }
@@ -160,11 +160,11 @@ function DesktopInteractions({
 	grid: Accessor<DesktopGridData>
 	drag: DesktopDragController
 }) {
-	const [selecting, setSelecting] = createState(false)
-	const [selectionRectangle, setSelectionRectangle] =
-		createState<SelectionRectangle | null>(null)
-	const normalizedRectangle = createComputed(() => {
-		const rectangle = selectionRectangle()
+	const [selecting, set_selecting] = createState(false)
+	const [selection_rectangle, set_selection_rectangle] =
+		createState<selection_rectangle | null>(null)
+	const normalized_rectangle = createComputed(() => {
+		const rectangle = selection_rectangle()
 		if (!rectangle) return { x: 0, y: 0, width: 0, height: 0 }
 		return {
 			x: Math.min(rectangle.x, rectangle.x + rectangle.width),
@@ -173,9 +173,9 @@ function DesktopInteractions({
 			height: Math.abs(rectangle.height),
 		}
 	})
-	let lastSelectionSample = 0
+	let last_selection_sample = 0
 
-	function selectRectangle(
+	function select_rectangle(
 		x1: number,
 		y1: number,
 		x2: number,
@@ -183,7 +183,7 @@ function DesktopInteractions({
 	): void {
 		const data = grid.peek()
 		if (!data.metrics) return
-		const next = findPathsIntersectingRectangle(
+		const next = find_paths_intersecting_rectangle(
 			data.files,
 			data.positions,
 			data.metrics,
@@ -192,70 +192,70 @@ function DesktopInteractions({
 			x2,
 			y2,
 		)
-		const current = desktopInteraction.selected.peek()
+		const current = desktop_interaction.selected.peek()
 		if (
 			current.length !== next.length ||
 			current.some((path, index) => path !== next[index])
 		)
-			desktopInteraction.select(next)
+			desktop_interaction.select(next)
 	}
 
 	return (
 		<>
 			<Gtk.EventControllerMotion
-				onEnter={desktopContextMenu.enterDesktop}
-				onMotion={desktopContextMenu.enterDesktop}
-				onLeave={desktopContextMenu.leaveDesktop}
+				onEnter={desktop_context_menu.enter_desktop}
+				onMotion={desktop_context_menu.enter_desktop}
+				onLeave={desktop_context_menu.leave_desktop}
 			/>
 			<Gtk.DropControllerMotion
-				onMotion={(_, x, y) => drag.track(x, y)}
+				onMotion={(unused, x, y) => drag.track(x, y)}
 				onLeave={drag.leave}
 			/>
 			<Gtk.GestureClick
 				button={BUTTON_PRIMARY}
-				onPressed={(gesture, _count, x, y) => {
+				onPressed={(gesture, count, x, y) => {
 					if (
 						!options.desktop.enabled.peek() ||
-						hitInteractiveTarget(gesture, x, y)
+						hit_interactive_target(gesture, x, y)
 					)
 						return
-					if (desktopInteraction.rename.path.peek()) {
-						desktopInteraction.rename.commit()
+					if (desktop_interaction.rename.path.peek()) {
+						desktop_interaction.rename.commit()
 						return
 					}
-					desktopInteraction.select([])
-					desktopContextMenu.hide()
+					desktop_interaction.select([])
+					desktop_context_menu.hide()
 				}}
 			/>
 			<Gtk.GestureClick
 				button={BUTTON_SECONDARY}
-				onPressed={(gesture, _count, x, y) => {
+				onPressed={(gesture, count, x, y) => {
 					if (
 						!options.desktop.enabled.peek() ||
-						hitInteractiveTarget(gesture, x, y)
+						hit_interactive_target(gesture, x, y)
 					)
 						return
-					if (desktopInteraction.rename.path.peek())
-						desktopInteraction.rename.commit()
-					desktopInteraction.select([])
+					if (desktop_interaction.rename.path.peek())
+						desktop_interaction.rename.commit()
+					desktop_interaction.select([])
 					const shift =
 						(gesture.get_current_event_state() & ModifierType.SHIFT_MASK) !== 0
 					const widget = gesture.get_widget()
 					const root = widget?.get_root()
 					let translated = false
-					let menuX = x
-					let menuY = y
+					let menu_x = x
+					let menu_y = y
 					if (widget && root instanceof Gtk.Widget)
-						[translated, menuX, menuY] = widget.translate_coordinates(
+						[translated, menu_x, menu_y] = widget.translate_coordinates(
 							root,
 							x,
 							y,
 						)
-					desktopContextMenu.show({
+					desktop_context_menu.show({
 						monitor,
-						monitorId: grid.peek().id,
-						x: translated ? menuX : x,
-						y: translated ? menuY : y,
+						monitor_id: grid.peek().id,
+						x: translated ? menu_x : x,
+						y: translated ? menu_y : y,
 						shift,
 					})
 				}}
@@ -265,25 +265,25 @@ function DesktopInteractions({
 				onDragBegin={(gesture, x, y) => {
 					if (
 						!options.desktop.enabled.peek() ||
-						desktopInteraction.pressed.peek()
+						desktop_interaction.pressed.peek()
 					) {
 						gesture.reset()
 						return
 					}
-					lastSelectionSample = 0
-					setSelecting(true)
-					setSelectionRectangle({ x, y, width: 0, height: 0 })
-					desktopContextMenu.hide()
-					selectRectangle(x, y, x, y)
+					last_selection_sample = 0
+					set_selecting(true)
+					set_selection_rectangle({ x, y, width: 0, height: 0 })
+					desktop_context_menu.hide()
+					select_rectangle(x, y, x, y)
 				}}
-				onDragUpdate={(_gesture, width, height) => {
-					const rectangle = selectionRectangle.peek()
+				onDragUpdate={(gesture, width, height) => {
+					const rectangle = selection_rectangle.peek()
 					if (!rectangle) return
-					setSelectionRectangle({ ...rectangle, width, height })
+					set_selection_rectangle({ ...rectangle, width, height })
 					const now = GLib.get_monotonic_time()
-					if (now - lastSelectionSample >= 16_000) {
-						lastSelectionSample = now
-						selectRectangle(
+					if (now - last_selection_sample >= 16_000) {
+						last_selection_sample = now
+						select_rectangle(
 							rectangle.x,
 							rectangle.y,
 							rectangle.x + width,
@@ -291,18 +291,18 @@ function DesktopInteractions({
 						)
 					}
 				}}
-				onDragEnd={(_gesture, width, height) => {
-					setSelecting(false)
-					const rectangle = selectionRectangle.peek()
+				onDragEnd={(gesture, width, height) => {
+					set_selecting(false)
+					const rectangle = selection_rectangle.peek()
 					if (rectangle && (Math.abs(width) > 5 || Math.abs(height) > 5))
-						selectRectangle(
+						select_rectangle(
 							rectangle.x,
 							rectangle.y,
 							rectangle.x + width,
 							rectangle.y + height,
 						)
-					setSelectionRectangle(null)
-					desktopInteraction.redraw()
+					set_selection_rectangle(null)
+					desktop_interaction.redraw()
 				}}
 			/>
 			<box
@@ -311,10 +311,10 @@ function DesktopInteractions({
 				class="selection-rectangle"
 				halign={START}
 				valign={START}
-				marginStart={normalizedRectangle.as((rectangle) => rectangle.x)}
-				marginTop={normalizedRectangle.as((rectangle) => rectangle.y)}
-				widthRequest={normalizedRectangle.as((rectangle) => rectangle.width)}
-				heightRequest={normalizedRectangle.as((rectangle) => rectangle.height)}
+				marginStart={normalized_rectangle.as((rectangle) => rectangle.x)}
+				marginTop={normalized_rectangle.as((rectangle) => rectangle.y)}
+				widthRequest={normalized_rectangle.as((rectangle) => rectangle.width)}
+				heightRequest={normalized_rectangle.as((rectangle) => rectangle.height)}
 			/>
 		</>
 	)
@@ -332,30 +332,30 @@ export function DesktopGrid({
 	drag: DesktopDragController
 }) {
 	const widgets = new Map<string, Gtk.Widget>()
-	let layoutIcon = NO_LAYOUT
-	const selectedPaths = createComputed(() => {
-		const selected = desktopInteraction.selected()
-		return selected.length > 0 ? new Set(selected) : EMPTY_PATH_SET
+	let layout_icon = no_layout
+	const selected_paths = createComputed(() => {
+		const selected = desktop_interaction.selected()
+		return selected.length > 0 ? new Set(selected) : empty_path_set
 	})
-	const draggedPaths = createComputed(() => {
+	const dragged_paths = createComputed(() => {
 		const paths = drag.state().paths
-		return paths.length > 0 ? new Set(paths) : EMPTY_PATH_SET
+		return paths.length > 0 ? new Set(paths) : empty_path_set
 	})
-	const cutPaths = createComputed(() => {
-		const clipboard = desktopClipboard()
+	const cut_paths = createComputed(() => {
+		const clipboard = desktop_clipboard()
 		if (
 			!clipboard ||
 			clipboard.operation !== "cut" ||
 			clipboard.files.length === 0
 		)
-			return EMPTY_PATH_SET
+			return empty_path_set
 		return new Set(clipboard.files)
 	})
-	const iconMetrics = createComputed(() =>
-		getDesktopIconMetrics(options.desktop.iconSize(), uiScale()),
+	const icon_metrics = createComputed(() =>
+		get_desktop_icon_metrics(options.desktop.iconSize(), ui_scale()),
 	)
-	const monitorId = grid.as((data) => data.id)
-	const contentHeight = createComputed(() => {
+	const monitor_id = grid.as((data) => data.id)
+	const content_height = createComputed(() => {
 		const metrics = grid().metrics
 		return metrics
 			? metrics.offsetY +
@@ -363,48 +363,48 @@ export function DesktopGrid({
 					metrics.paddingBottom
 			: geometry().height
 	})
-	const slotRectangles = createComputed(() => {
+	const slot_rectangles = createComputed(() => {
 		const data = grid()
 		const rectangles: Record<string, SlotRect> = {}
 		if (!data.metrics) return rectangles
 		for (const file of data.files) {
-			const slotIndex = data.positions[file.path]
-			if (slotIndex != null)
-				rectangles[file.path] = slotIndexToRect(slotIndex, data.metrics)
+			const slot_index = data.positions[file.path]
+			if (slot_index != null)
+				rectangles[file.path] = slot_index_to_rect(slot_index, data.metrics)
 		}
 		return rectangles
 	})
 
-	function registerWidget(path: string, widget: Gtk.Widget): void {
+	function register_widget(path: string, widget: Gtk.Widget): void {
 		widgets.set(path, widget)
-		layoutIcon(path, widget)
+		layout_icon(path, widget)
 	}
 
-	function unregisterWidget(path: string, widget: Gtk.Widget): void {
+	function unregister_widget(path: string, widget: Gtk.Widget): void {
 		if (widgets.get(path) === widget) widgets.delete(path)
 	}
 
-	function bindLayout(fixed: Gtk.Fixed): () => void {
-		function placeIcon(widget: Gtk.Widget, rectangle: SlotRect): void {
+	function bind_layout(fixed: Gtk.Fixed): () => void {
+		function place_icon(widget: Gtk.Widget, rectangle: SlotRect): void {
 			widget.set_size_request(rectangle.width, rectangle.height)
 			fixed.move(widget, rectangle.x, rectangle.y)
 		}
 
-		function applyAllLayouts(): void {
-			const rectangles = slotRectangles.peek()
+		function apply_all_layouts(): void {
+			const rectangles = slot_rectangles.peek()
 			for (const [path, widget] of widgets) {
 				const rectangle = rectangles[path]
-				if (rectangle) placeIcon(widget, rectangle)
+				if (rectangle) place_icon(widget, rectangle)
 			}
 		}
 
-		layoutIcon = (path, widget) => {
+		layout_icon = (path, widget) => {
 			const icon = widget ?? widgets.get(path)
-			const rectangle = icon && slotRectangles.peek()[path]
-			if (icon && rectangle) placeIcon(icon, rectangle)
+			const rectangle = icon && slot_rectangles.peek()[path]
+			if (icon && rectangle) place_icon(icon, rectangle)
 		}
-		const unsubscribe = slotRectangles.subscribe(applyAllLayouts)
-		applyAllLayouts()
+		const unsubscribe = slot_rectangles.subscribe(apply_all_layouts)
+		apply_all_layouts()
 		return unsubscribe
 	}
 
@@ -420,7 +420,7 @@ export function DesktopGrid({
 				hexpand
 				vexpand
 				widthRequest={geometry.as((value) => value.width)}
-				heightRequest={contentHeight}
+				heightRequest={content_height}
 			>
 				<Gtk.Fixed
 					visible={options.desktop.enabled}
@@ -430,27 +430,28 @@ export function DesktopGrid({
 					halign={FILL}
 					valign={FILL}
 					$={(fixed) => {
-						const unbindLayout = bindLayout(fixed)
-						drag.attachTarget(fixed)
+						const unbind_layout = bind_layout(fixed)
+						drag.attach_target(fixed)
 						onCleanup(() => {
-							unbindLayout()
-							layoutIcon = NO_LAYOUT
+							unbind_layout()
+							layout_icon = no_layout
 						})
 					}}
 				>
-					<For each={grid.as((data) => data.files)} id={(file) => file.path}>
+					<For each={grid.as((data) => data.files)}
+						id={(file) => `${file.path}\0${file.displayName ?? ""}\0${file.icon}\0${file.iconFile ?? ""}\0${file.contentType}\0${file.modified?.getTime() ?? 0}`}>
 						{(file: DesktopFile) => (
 							<DesktopIcon
 								file={file}
 								monitor={monitor}
-								monitorId={monitorId}
+								monitorId={monitor_id}
 								drag={drag}
-								iconMetrics={iconMetrics}
-								selectedPaths={selectedPaths}
-								draggedPaths={draggedPaths}
-								cutPaths={cutPaths}
-								registerWidget={registerWidget}
-								unregisterWidget={unregisterWidget}
+								iconMetrics={icon_metrics}
+								selectedPaths={selected_paths}
+								draggedPaths={dragged_paths}
+								cutPaths={cut_paths}
+								register_widget={register_widget}
+								unregister_widget={unregister_widget}
 							/>
 						)}
 					</For>

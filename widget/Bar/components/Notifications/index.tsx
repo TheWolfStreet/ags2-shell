@@ -1,5 +1,3 @@
-// Shows notification popups and history with timed animations.
-
 import {
 	Accessor,
 	createState,
@@ -9,8 +7,9 @@ import {
 	onCleanup,
 } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import app from "ags/gtk4/app"
-import { createPoll, timeout } from "ags/time"
+import app from "$lib/app"
+import { createPoll } from "ags/time"
+import { timeout } from "$lib/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 import GLib from "gi://GLib"
@@ -18,11 +17,11 @@ import Pango from "gi://Pango"
 
 import { PanelButton } from "../PanelButton"
 
-import icons, { substituteIconName } from "$lib/icons"
-import { classifyImageUri, createSquareTextureAccessor } from "$lib/textures"
-import { notificationDaemon } from "$lib/notifications"
-import { notificationManager } from "$service/notifications"
-import { createEntryLifecycle, type EntryLifecycle } from "./EntryLifecycle"
+import icons, { substitute_icon_name } from "$lib/icons"
+import { classify_image_uri, create_square_texture_accessor } from "$lib/textures"
+import { notification_daemon } from "$lib/notifications"
+import { notification_manager } from "$service/notifications"
+import { create_entry_lifecycle, type entry_lifecycle } from "./EntryLifecycle"
 
 import options from "$shell/options"
 
@@ -44,14 +43,15 @@ export namespace Notifications {
 
 	export function Window() {
 		const anchor = createComputed(() =>
-			anchorForPosition(options.notifications.position()),
+			anchor_for_position(options.notifications.position()),
 		)
+		const [popup_count, set_popup_count] = createState(0)
 		return (
 			<window
-				visible
+				visible={popup_count.as((count) => count > 0)}
 				resizable={false}
 				heightRequest={1}
-				widthRequest={popupWidth}
+				widthRequest={popup_width}
 				name="notifications"
 				class="notifications"
 				application={app}
@@ -61,7 +61,8 @@ export namespace Notifications {
 				<NotificationList
 					class="notifications-stack"
 					persistent={false}
-					transitionType={options.notifications.position.as((position) =>
+					on_count_changed={set_popup_count}
+					transition_type={options.notifications.position.as((position) =>
 						position.startsWith("bottom") ? SLIDE_UP : SLIDE_DOWN,
 					)}
 				/>
@@ -69,70 +70,72 @@ export namespace Notifications {
 		)
 	}
 
-	export function animateDismissAll() {
-		const all = notificationDaemon
+	export function animate_dismiss_all() {
+		const all = notification_daemon
 			.get_notifications()
 			.sort((left, right) => right.time - left.time)
-		all.forEach((notification, index) => {
-			timeout(index * 50 + Math.random() * 100, () => {
-				if (notificationDaemon.get_notification(notification.id) === notification)
-					notification.dismiss()
-			})
-		})
+		let index = 0
+		const dismiss_next = () => {
+			const notification = all[index++]
+			if (notification_daemon.get_notification(notification.id) === notification)
+				notification.dismiss()
+			if (index < all.length) timeout(50, dismiss_next)
+		}
+		if (all.length) timeout(Math.random() * 100, dismiss_next)
 	}
 
-	export function Stack({ class: className }: { class: string }) {
-		return <NotificationList class={className} persistent />
+	export function Stack({ class: class_name }: { class: string }) {
+		return <NotificationList class={class_name} persistent />
 	}
 
-	const previewSize = options.scale.as((scale) =>
+	const preview_size = options.scale.as((scale) =>
 		Math.round((75 * scale) / 100),
 	)
-	const popupWidth = options.scale.as((scale) =>
+	const popup_width = options.scale.as((scale) =>
 		Math.round((350 * scale) / 100),
 	)
 
-	type TransitionType =
+	type transition_type =
 		| Accessor<Gtk.RevealerTransitionType>
 		| Gtk.RevealerTransitionType
 
-	type NotificationProps = {
+	type notification_props = {
 		entry: AstalNotifd.Notification
-		state: EntryLifecycle
-		transitionType: TransitionType
+		state: entry_lifecycle
+		transition_type: transition_type
 	}
 
-	type ListEntry = {
+	type list_entry = {
 		notification: AstalNotifd.Notification
-		state: EntryLifecycle
+		state: entry_lifecycle
 		widget: Gtk.Widget
 		dispose: () => void
 		next?: AstalNotifd.Notification
 	}
 
-	type HeaderProps = {
+	type header_props = {
 		notification: AstalNotifd.Notification
-		appIcon: string
-		appName: string
-		showActions: Accessor<boolean>
-		onDismiss: () => void
+		app_icon: string
+		app_name: string
+		show_actions: Accessor<boolean>
+		on_dismiss: () => void
 	}
 
-	type ContentProps = {
+	type content_props = {
 		notification: AstalNotifd.Notification
-		imagePath: string | null
+		image_path: string | null
 	}
 
-	type ActionsProps = {
+	type actions_props = {
 		actions: Array<{ label: string; id: string }>
-		showActions: Accessor<boolean>
-		onActionClick: (actionId: string) => void
+		show_actions: Accessor<boolean>
+		on_action_click: (action_id: string) => void
 	}
 
-	const notifications = createBinding(notificationManager, "notifications")
-	const minuteTicker = createPoll(0, 60_000, (tick) => tick + 1)
+	const notifications = createBinding(notification_manager, "notifications")
+	const minute_ticker = createPoll(0, 60_000, (tick) => tick + 1)
 
-	function anchorForPosition(position: string) {
+	function anchor_for_position(position: string) {
 		switch (position) {
 			case "top-left":
 				return TOP | LEFT
@@ -150,16 +153,16 @@ export namespace Notifications {
 		}
 	}
 
-	const URGENCY_CLASS: Record<number, string> = {
+	const urgency_class: Record<number, string> = {
 		[AstalNotifd.Urgency.LOW]: "low",
 		[AstalNotifd.Urgency.CRITICAL]: "critical",
 	}
 
-	function urgency(n: AstalNotifd.Notification): string {
-		return URGENCY_CLASS[n.urgency] ?? "normal"
+	function urgency(notification: AstalNotifd.Notification): string {
+		return urgency_class[notification.urgency] ?? "normal"
 	}
 
-	function decodeMarkupEntities(text: string) {
+	function decode_markup_entities(text: string) {
 		const named: Record<string, string> = {
 			amp: "&",
 			apos: "'",
@@ -174,26 +177,26 @@ export namespace Notifications {
 				if (!name.startsWith("#")) return named[name]
 
 				const hexadecimal = name[1]?.toLowerCase() === "x"
-				const codePoint = Number.parseInt(
+				const code_point = Number.parseInt(
 					name.slice(hexadecimal ? 2 : 1),
 					hexadecimal ? 16 : 10,
 				)
-				const validControl =
-					codePoint === 9 || codePoint === 10 || codePoint === 13
+				const valid_control =
+					code_point === 9 || code_point === 10 || code_point === 13
 				if (
-					!Number.isInteger(codePoint) ||
-					codePoint > 0x10ffff ||
-					(codePoint < 0x20 && !validControl)
+					!Number.isInteger(code_point) ||
+					code_point > 0x10ffff ||
+					(code_point < 0x20 && !valid_control)
 				)
 					return "\uFFFD"
 
-				return String.fromCodePoint(codePoint)
+				return String.fromCodePoint(code_point)
 			},
 		)
 	}
 
-	function bodyText(body: string) {
-		return decodeMarkupEntities(
+	function body_text(body: string) {
+		return decode_markup_entities(
 			body
 				.replace(
 					/<img\b[^>]*>/gi,
@@ -204,7 +207,7 @@ export namespace Notifications {
 		)
 	}
 
-	function timeAgo(time: number) {
+	function time_ago(time: number) {
 		const now = GLib.DateTime.new_now_local()
 		const then = GLib.DateTime.new_from_unix_local(time)
 		if (!then) return ""
@@ -217,33 +220,33 @@ export namespace Notifications {
 
 	function Header({
 		notification,
-		appIcon,
-		appName,
-		showActions,
-		onDismiss,
-	}: HeaderProps) {
+		app_icon,
+		app_name,
+		show_actions,
+		on_dismiss,
+	}: header_props) {
 		return (
 			<box class="header">
-				<image class="app-icon" iconName={appIcon} useFallback />
+				<image class="app-icon" iconName={app_icon} useFallback />
 				<label
 					class="app-name"
 					halign={START}
 					maxWidthChars={24}
 					ellipsize={EllipsizeMode.END}
-					label={appName}
+					label={app_name}
 				/>
 				<label
 					class="time"
 					halign={END}
 					hexpand
-					label={minuteTicker(() => timeAgo(notification.time))}
+					label={minute_ticker(() => time_ago(notification.time))}
 				/>
 				<revealer
-					revealChild={showActions}
+					revealChild={show_actions}
 					transitionDuration={options.transition.duration}
 					transitionType={SWING_RIGHT}
 				>
-					<button class="close-button" onClicked={onDismiss}>
+					<button class="close-button" onClicked={on_dismiss}>
 						<image
 							iconName={icons.ui.close}
 							halign={CENTER}
@@ -256,28 +259,29 @@ export namespace Notifications {
 		)
 	}
 
-	function Content({ notification, imagePath }: ContentProps) {
-		const previewPaintable = imagePath
-			? createComputed(() =>
-					createSquareTextureAccessor(imagePath, previewSize())(),
-				)
+	function Content({ notification, image_path }: content_props) {
+		const preview_texture = image_path
+			? createComputed(() => create_square_texture_accessor(image_path, preview_size()))
+			: null
+		const preview_paintable = preview_texture
+			? createComputed(() => preview_texture()())
 			: null
 
 		return (
 			<box class="content">
-				{previewPaintable && (
+				{preview_paintable && (
 					<box
 						class="image-preview"
-						widthRequest={previewSize}
-						heightRequest={previewSize}
+						widthRequest={preview_size}
+						heightRequest={preview_size}
 					>
 						<Gtk.Picture
 							class="preview"
-							widthRequest={previewSize}
-							heightRequest={previewSize}
+							widthRequest={preview_size}
+							heightRequest={preview_size}
 							halign={CENTER}
 							valign={CENTER}
-							paintable={previewPaintable as unknown as Accessor<Gdk.Paintable>}
+							paintable={preview_paintable as unknown as Accessor<Gdk.Paintable>}
 							canShrink
 						/>
 					</box>
@@ -298,7 +302,7 @@ export namespace Notifications {
 							wrapMode={WORD}
 							maxWidthChars={28}
 							halign={START}
-							label={bodyText(notification.body)}
+						label={body_text(notification.body)}
 						/>
 					)}
 				</box>
@@ -306,18 +310,18 @@ export namespace Notifications {
 		)
 	}
 
-	function Actions({ actions, showActions, onActionClick }: ActionsProps) {
+	function Actions({ actions, show_actions, on_action_click }: actions_props) {
 		if (actions.length === 0) return <box visible={false} />
 
 		return (
 			<revealer
-				revealChild={showActions}
+				revealChild={show_actions}
 				transitionDuration={options.transition.duration}
 				transitionType={SWING_DOWN}
 			>
 				<box class="actions horizontal">
 					{actions.map(({ label, id }) => (
-						<button hexpand label={label} onClicked={() => onActionClick(id)} />
+						<button hexpand label={label} onClicked={() => on_action_click(id)} />
 					))}
 				</box>
 			</revealer>
@@ -327,28 +331,28 @@ export namespace Notifications {
 	function Notification({
 		entry: notification,
 		state,
-		transitionType,
-	}: NotificationProps) {
-		const [showActions, setShowActions] = createState(false)
+		transition_type,
+	}: notification_props) {
+		const [show_actions, set_show_actions] = createState(false)
 
-		const imageValue = notification.get_image()
-		const imagePath =
-			imageValue && classifyImageUri(imageValue) !== "unknown"
-				? imageValue
+		const image_value = notification.get_image()
+		const image_path =
+			image_value && classify_image_uri(image_value) !== "unknown"
+				? image_value
 				: null
-		const appIcon = substituteIconName(
+		const app_icon = substitute_icon_name(
 			notification.get_app_icon() ||
-				(imageValue && !imagePath ? imageValue : "") ||
+				(image_value && !image_path ? image_value : "") ||
 				notification.get_desktop_entry() ||
 				icons.fallback.notification,
 			icons.fallback.notification,
 		)
-		const appName = (
+		const app_name = (
 			notification.get_app_name() ||
 			notification.get_desktop_entry() ||
 			"Notification"
 		).toUpperCase()
-		const validActions = notification
+		const valid_actions = notification
 			.get_actions()
 			.filter((a) => a.label?.trim())
 			.map((a) => ({ label: a.label!, id: a.id }))
@@ -357,10 +361,10 @@ export namespace Notifications {
 			<revealer
 				revealChild={state.visible}
 				transitionDuration={options.transition.duration}
-				transitionType={transitionType}
-				onMap={state.onMap}
+				transitionType={transition_type}
+				onMap={state.on_map}
 				onNotifyChildRevealed={(self) =>
-					state.onRevealedChanged(self.get_child_revealed())
+					state.on_revealed_changed(self.get_child_revealed())
 				}
 			>
 				<box
@@ -369,24 +373,27 @@ export namespace Notifications {
 				>
 					<Gtk.EventControllerMotion
 						onEnter={() => {
-							state.keepAlive()
-							setShowActions(true)
+							state.keep_alive()
+							set_show_actions(true)
 						}}
-						onMotion={state.keepAlive}
-						onLeave={() => setShowActions(false)}
+						onMotion={state.keep_alive}
+						onLeave={() => {
+							state.resume()
+							set_show_actions(false)
+						}}
 					/>
 					<Header
 						notification={notification}
-						appIcon={appIcon}
-						appName={appName}
-						showActions={showActions}
-						onDismiss={state.dismiss}
+						app_icon={app_icon}
+						app_name={app_name}
+						show_actions={show_actions}
+						on_dismiss={state.dismiss}
 					/>
-					<Content notification={notification} imagePath={imagePath} />
+					<Content notification={notification} image_path={image_path} />
 					<Actions
-						actions={validActions}
-						showActions={showActions}
-						onActionClick={state.onActionClick}
+						actions={valid_actions}
+						show_actions={show_actions}
+						on_action_click={state.on_action_click}
 					/>
 				</box>
 			</revealer>
@@ -394,30 +401,47 @@ export namespace Notifications {
 	}
 
 	function NotificationList({
-		class: className,
+		class: class_name,
 		persistent,
-		transitionType = SLIDE_DOWN,
+		transition_type = SLIDE_DOWN,
+		on_count_changed,
 	}: {
 		class: string
 		persistent: boolean
-		transitionType?: TransitionType
+		transition_type?: transition_type
+		on_count_changed?: (count: number) => void
 	}) {
-		const entries: ListEntry[] = []
+		const entries: list_entry[] = []
 		const container = (
-			<box class={className} orientation={VERTICAL} valign={START} />
+			<box class={class_name} orientation={VERTICAL} valign={START} />
 		) as Gtk.Box
 
 		function accepts(notification: AstalNotifd.Notification) {
-			if (notificationManager.isBlacklisted(notification)) return false
-			return persistent || !notificationManager.doNotDisturb
+			if (notification_manager.is_blacklisted(notification)) return false
+			return persistent || !notification_manager.do_not_disturb
 		}
 
-		function remove(entry: ListEntry) {
+		function remove(entry: list_entry) {
 			const index = entries.indexOf(entry)
 			if (index < 0) return
 			entries.splice(index, 1)
 			entry.dispose()
-			if (entry.next) show(entry.next)
+			on_count_changed?.(entries.length)
+			if (entry.next && notification_daemon.get_notification(entry.next.id) === entry.next)
+				show(entry.next)
+			if (persistent) reconcile()
+		}
+
+		function reconcile() {
+			if (!persistent) return
+			const desired = notification_daemon.get_notifications()
+				.filter(accepts)
+				.sort((left, right) => right.time - left.time)
+				.slice(0, list_limit)
+			for (const entry of [...entries])
+				if (!desired.some((notification) => notification.id === entry.notification.id))
+					entry.state.close()
+			for (const notification of desired) show(notification)
 		}
 
 		function mount(notification: AstalNotifd.Notification) {
@@ -426,18 +450,18 @@ export namespace Notifications {
 			)
 			if (index < 0) index = entries.length
 
-			const entry: ListEntry = createRoot((dispose) => {
-				const state = createEntryLifecycle({
+			const entry: list_entry = createRoot((dispose) => {
+				const state = create_entry_lifecycle({
 					notification,
 					persistent,
-					onExit: () => remove(entry),
+					on_exit: () => remove(entry),
 				})
 				onCleanup(state.cleanup)
 				const widget = (
 					<Notification
 						entry={notification}
 						state={state}
-						transitionType={transitionType}
+						transition_type={transition_type}
 					/>
 				) as Gtk.Widget
 				return {
@@ -456,9 +480,10 @@ export namespace Notifications {
 				index > 0 ? entries[index - 1].widget : null,
 			)
 			entries.splice(index, 0, entry)
+			on_count_changed?.(entries.length)
 
-			const open = entries.filter((other) => !other.state.isClosing())
-			if (open.length > LIST_LIMIT) open[open.length - 1].state.close()
+			const open = entries.filter((other) => !other.state.is_closing())
+			if (open.length > list_limit) open[open.length - 1].state.close()
 		}
 
 		function show(notification: AstalNotifd.Notification) {
@@ -475,48 +500,55 @@ export namespace Notifications {
 				mount(notification)
 				return
 			}
-			if (entry.notification === notification && !entry.state.isClosing())
+			if (entry.notification === notification && !entry.state.is_closing())
 				return
 			entry.next = notification
 			entry.state.close()
 		}
 
-		const notifiedHandler = notificationDaemon.connect(
+		const notified_handler = notification_daemon.connect(
 			"notified",
 			(_, id: number) => {
-				const notification = notificationDaemon.get_notification(id)
+				const notification = notification_daemon.get_notification(id)
 				if (notification) show(notification)
 			},
 		)
 
-		const resolvedHandler = notificationDaemon.connect(
+		const resolved_handler = notification_daemon.connect(
 			"resolved",
 			(_, id: number) => {
 				const entry = entries.find((other) => other.notification.id === id)
-				if (!entry) return
+				if (!entry) {
+					reconcile()
+					return
+				}
 				entry.next = undefined
 				entry.state.close()
 			},
 		)
-
-		const blacklistUnsub = options.notifications.blacklist.subscribe(() => {
-			for (const entry of [...entries])
-				if (notificationManager.isBlacklisted(entry.notification))
-					entry.state.close()
-			if (persistent)
-				for (const notification of notificationDaemon.get_notifications())
-					show(notification)
+		const dnd_handler = persistent ? 0 : notification_daemon.connect("notify::dont-disturb", () => {
+			if (!notification_manager.do_not_disturb) return
+			for (const entry of entries) entry.state.close()
 		})
 
-		for (const notification of notificationDaemon.get_notifications())
-			if (persistent || notification.time >= notificationManager.sessionStart)
-				show(notification)
+		const blacklist_unsubscribe = options.notifications.blacklist.subscribe(() => {
+			for (const entry of [...entries])
+				if (notification_manager.is_blacklisted(entry.notification))
+					entry.state.close()
+			reconcile()
+		})
+
+		if (persistent) reconcile()
+		else for (const notification of notification_daemon.get_notifications())
+			if (notification.time >= notification_manager.session_start) show(notification)
 
 		onCleanup(() => {
-			notificationDaemon.disconnect(notifiedHandler)
-			notificationDaemon.disconnect(resolvedHandler)
-			blacklistUnsub()
+			notification_daemon.disconnect(notified_handler)
+			notification_daemon.disconnect(resolved_handler)
+			if (dnd_handler) notification_daemon.disconnect(dnd_handler)
+			blacklist_unsubscribe()
 			for (const entry of entries.splice(0)) entry.dispose()
+			on_count_changed?.(0)
 		})
 
 		return container
@@ -530,5 +562,5 @@ export namespace Notifications {
 	const { EllipsizeMode } = Pango
 	const { NORMAL } = Astal.Exclusivity
 	const { TOP, RIGHT, LEFT, BOTTOM } = Astal.WindowAnchor
-	const LIST_LIMIT = 50
+	const list_limit = 50
 }

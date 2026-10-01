@@ -1,22 +1,19 @@
-// Lists open windows in the bar and handles click and scroll actions.
-
 import { createBinding, For } from "ags"
-import { Gtk } from "ags/gtk4"
+import { Gdk, Gtk } from "ags/gtk4"
 
 import AstalHyprland from "gi://AstalHyprland"
 
 import {
-	createClientTitleAccessor,
-	createWindowClientList,
-	dispatchClientButtonAction,
-	focusedWindowClient,
-	focusClientAndToggleFullscreen,
+	create_client_title_accessor,
+	create_window_client_list,
+	focused_window_client,
+	focus_client_and_toggle_fullscreen,
 } from "$lib/windowing"
 
 import options from "$shell/options"
 
 export function WindowList() {
-	const clients = createWindowClientList(options.bar.taskbar.exclusive)
+	const clients = create_window_client_list(options.bar.taskbar.exclusive)
 	return (
 		<box class="tasks horizontal">
 			<For each={clients}>
@@ -27,36 +24,39 @@ export function WindowList() {
 }
 
 function TaskEntry({ client }: { client: AstalHyprland.Client }) {
-	const focused = focusedWindowClient.as(value => {
+	const focused = focused_window_client.as(value => {
 		return value?.address === client.address
 	})
 
 	return (
-		<overlay tooltipText={createClientTitleAccessor(client)} valign={Gtk.Align.CENTER}>
+		<button class="task" tooltipText={create_client_title_accessor(client)} valign={Gtk.Align.CENTER}
+			onClicked={() => client.focus()}>
 			<Gtk.GestureClick
-				button={0}
+				button={Gdk.BUTTON_SECONDARY}
 				onPressed={self => {
-					dispatchClientButtonAction(self.get_current_button(), {
-						primary: () => client.focus(),
-						secondary: () => focusClientAndToggleFullscreen(client),
-						middle: () => client.kill(),
-					})
+					focus_client_and_toggle_fullscreen(client)
 					self.reset()
 				}}
 			/>
-			<image
-				halign={Gtk.Align.CENTER}
-				valign={Gtk.Align.CENTER}
-				iconName={createBinding(client, "class")}
-				useFallback
-			/>
-			<box
-				class="focused"
-				$type="overlay"
-				visible={focused}
-				halign={Gtk.Align.CENTER}
-				valign={Gtk.Align.START}
-			/>
-		</overlay>
+			<Gtk.GestureClick button={Gdk.BUTTON_MIDDLE} onPressed={self => {
+				client.kill()
+				self.reset()
+			}} />
+			<overlay>
+				<image
+					halign={Gtk.Align.CENTER}
+					valign={Gtk.Align.CENTER}
+					iconName={createBinding(client, "class")}
+					useFallback
+				/>
+				<box
+					class="focused"
+					$type="overlay"
+					visible={focused}
+					halign={Gtk.Align.CENTER}
+					valign={Gtk.Align.START}
+				/>
+			</overlay>
+		</button>
 	)
 }

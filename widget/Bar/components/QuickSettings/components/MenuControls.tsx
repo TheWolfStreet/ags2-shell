@@ -1,14 +1,11 @@
-// Creates expandable Quick Settings rows with animated arrows.
-
-import { Accessor, createState, FCProps, Node, onCleanup } from "ags"
+import { Accessor, createComputed, createState, FCProps, Node } from "ags"
 import { Gtk } from "ags/gtk4"
-import { timeout, Timer } from "ags/time"
 
 import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
-import { isAccessor, readValue } from "$lib/ui"
-import { onWindowToggle } from "$lib/windowing"
+import { is_accessor, read_value } from "$lib/ui"
+import { on_window_toggle } from "$lib/windowing"
 
 import options from "$shell/options"
 
@@ -16,43 +13,40 @@ const { SLIDE_DOWN } = Gtk.RevealerTransitionType
 const { VERTICAL } = Gtk.Orientation
 const { EllipsizeMode } = Pango
 
-const [openedMenuName, setOpenedMenuName] = createState("")
+const [opened_menu_name, set_opened_menu_name] = createState("")
 
-export const quickSettingsSubmenu = {
-	opened: openedMenuName,
-	open: (name: string) => {
-		setOpenedMenuName(name)
-	},
+export const quick_settings_submenu = {
+	opened: opened_menu_name,
 	close: () => {
-		setOpenedMenuName("")
+		set_opened_menu_name("")
 	},
 	toggle: (name: string) => {
-		setOpenedMenuName(openedMenuName.peek() === name ? "" : name)
+		set_opened_menu_name(opened_menu_name.peek() === name ? "" : name)
 	},
 }
 
-export function Menu({ name, iconName, title, headerChild, children }: MenuProps & {
+export function Menu({ name, iconName: icon_name, title, headerChild: header_child, children }: menu_props & {
 	headerChild?: Node
 	children?: Node | Node[]
 }) {
-	const menuName = () => readValue(name) ?? ""
-	const className = isAccessor<string>(name) ? name.as(value => `menu ${value}`) : `menu ${name ?? ""}`
+	const menu_name = () => read_value(name) ?? ""
+	const class_name = is_accessor<string>(name) ? name.as(value => `menu ${value}`) : `menu ${name ?? ""}`
 
 	return (
 		<revealer
 			transitionType={SLIDE_DOWN}
 			transitionDuration={options.transition.duration}
-			revealChild={quickSettingsSubmenu.opened.as(opened => opened === menuName())}
+			revealChild={createComputed(() => quick_settings_submenu.opened() === menu_name())}
 			vexpand={false} hexpand={false}
 		>
 			<box
-				class={className}
+				class={class_name}
 				orientation={VERTICAL}
 			>
 				<box class="title-box horizontal">
-					<image class="icon" iconName={iconName} valign={Gtk.Align.CENTER} useFallback />
+					<image class="icon" iconName={icon_name} valign={Gtk.Align.CENTER} useFallback />
 					<label class="title" label={title} valign={Gtk.Align.CENTER} yalign={0.5} />
-					{headerChild}
+					{header_child}
 				</box>
 				<Gtk.Separator />
 				<box class="content vertical" orientation={VERTICAL} vexpand hexpand children={children} />
@@ -63,52 +57,37 @@ export function Menu({ name, iconName, title, headerChild, children }: MenuProps
 
 export function ToggleButton({
 	name,
-	iconName,
+	iconName: icon_name,
 	label,
 	connection,
-	toggle,
-	activate,
-	deactivate,
-	activateOnArrow = false,
+	onToggle: on_toggle,
+	onArrow: on_arrow,
 	arrow = false,
-}: FCProps<Gtk.Widget, ToggleButtonProps> & {
+}: FCProps<Gtk.Widget, toggle_button_props> & {
 	connection?: Accessor<boolean>
-	toggle?: () => void
-	activate?: () => void
-	deactivate?: () => void
-	activateOnArrow?: boolean
+	onToggle?: () => void
+	onArrow?: () => void
 	arrow?: boolean
 }) {
-	const arrowRotation = arrow ? useArrowRotation(name) : null
-
-	const onClicked = () => {
-		if (toggle) {
-			toggle()
-		} else if (connection?.peek()) {
-			deactivate?.()
-			arrowRotation?.closeMenuIfOpen()
-		} else {
-			activate?.()
-		}
-	}
+	const arrow_rotation = arrow ? use_arrow_rotation(name) : null
 
 	const base = arrow ? "toggle-button" : "simple-toggle"
-	const className = connection?.as(v => v ? `${base} active` : base) ?? base
+	const class_name = connection?.as(v => v ? `${base} active` : base) ?? base
 
 	return (
-		<box class={className}>
-			<button onClicked={onClicked} tooltipText={label}>
+		<box class={class_name}>
+			<button onClicked={on_toggle} tooltipText={label} sensitive={on_toggle !== undefined}>
 				<box class="horizontal" hexpand>
-					<image class="icon" iconName={iconName} useFallback />
+					<image class="icon" iconName={icon_name} useFallback />
 					<label class="label" ellipsize={EllipsizeMode.END} maxWidthChars={11} label={label} />
 				</box>
 			</button>
-			{arrow && arrowRotation && (
+			{arrow && arrow_rotation && (
 				<button class="arrow" visible onClicked={() => {
-					arrowRotation.toggleMenu()
-					if (activateOnArrow) activate?.()
+					arrow_rotation.toggle_menu()
+					on_arrow?.()
 				}}>
-					<image iconName={icons.ui.arrow.right} useFallback css={arrowRotation.css} />
+					<image iconName={icons.ui.arrow.right} useFallback css={arrow_rotation.css} />
 				</button>
 			)}
 		</box>
@@ -119,23 +98,21 @@ export function Arrow(
 	{
 		name,
 		visible,
-		activate = false,
-		tooltipText
-	}: FCProps<Gtk.Button, ArrowProps>
+		tooltipText: tooltip_text
+	}: FCProps<Gtk.Button, arrow_props>
 ) {
-	const arrowRotation = useArrowRotation(name)
+	const arrow_rotation = use_arrow_rotation(name)
 
 	return (
 		<button
 			class="arrow"
 			visible={visible}
-			tooltipText={tooltipText ?? ""}
+			tooltipText={tooltip_text ?? ""}
 			onClicked={() => {
-				arrowRotation.toggleMenu()
-				if (typeof activate === "function") activate()
+				arrow_rotation.toggle_menu()
 			}}
 		>
-			<image iconName={icons.ui.arrow.right} useFallback css={arrowRotation.css} />
+			<image iconName={icons.ui.arrow.right} useFallback css={arrow_rotation.css} />
 		</button>
 	)
 }
@@ -151,74 +128,39 @@ export function SettingsButton({ callback }: { callback: () => void }) {
 	)
 }
 
-onWindowToggle("quicksettings", window => {
-	if (!window.visible) {
-		timeout(1, () => quickSettingsSubmenu.close())
-	}
+on_window_toggle("quicksettings", window => {
+	if (!window.visible) quick_settings_submenu.close()
 })
 
-function useArrowRotation(name?: Accessor<string> | string) {
-	let rotation = 0
-	let isOpen = false
-	const [css, setCSS] = createState("")
-	const animationTimers = new Set<Timer>()
-
-	const menuName = () => readValue(name)
-
-	const animate = (step: number) => {
-		for (let i = 0; i < 9; i++) {
-			const timer = timeout(options.transition.duration.peek() * 0.075 * i, () => {
-				animationTimers.delete(timer)
-				rotation += step
-				setCSS(`transform: rotate(${rotation}deg);`)
-			})
-			animationTimers.add(timer)
-		}
-	}
-
-	const disposeOpened = quickSettingsSubmenu.opened.subscribe(() => {
-		const current = menuName()
-		if ((quickSettingsSubmenu.opened.peek() === current && !isOpen) || (quickSettingsSubmenu.opened.peek() !== current && isOpen)) {
-			animate(quickSettingsSubmenu.opened.peek() === current ? 10 : -10)
-			isOpen = !isOpen
-		}
-	})
-
-	onCleanup(() => {
-		disposeOpened()
-		for (const timer of animationTimers) timer.cancel()
-		animationTimers.clear()
-	})
+function use_arrow_rotation(name?: Accessor<string> | string) {
+	const menu_name = () => read_value(name)
+	const css = createComputed(() => quick_settings_submenu.opened() === menu_name()
+		? "transform: rotate(90deg);" : "transform: rotate(0deg);")
 
 	return {
 		css,
-		toggleMenu: () => {
-			const name = menuName()
+		toggle_menu: () => {
+			const name = menu_name()
 			if (name) {
-				quickSettingsSubmenu.toggle(name)
+				quick_settings_submenu.toggle(name)
 			}
-		},
-		closeMenuIfOpen: () => {
-			if (quickSettingsSubmenu.opened.peek() === menuName())
-				quickSettingsSubmenu.close()
 		},
 	}
 }
 
-type ArrowProps = {
+type arrow_props = {
 	name?: string | Accessor<string>
 	visible?: boolean | Accessor<boolean>
 	tooltipText?: string | Accessor<string>
-	activate?: false | (() => void)
 }
 
-type ToggleButtonProps = {
+type toggle_button_props = {
 	name?: Accessor<string> | string
 	iconName?: Accessor<string> | string
 	label?: Accessor<string> | string
 }
 
-type MenuProps = FCProps<Gtk.Widget, {
+type menu_props = FCProps<Gtk.Widget, {
 	name?: Accessor<string> | string
 	iconName?: Accessor<string> | string
 	title?: Accessor<string> | string

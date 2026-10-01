@@ -1,7 +1,4 @@
-// Lets the user pick an application for a file, Nautilus-style, with an
-// "always use" switch that sets the default handler for the file type.
-
-import app from "ags/gtk4/app"
+import app from "$lib/app"
 import {
 	createComputed,
 	createRoot,
@@ -10,7 +7,7 @@ import {
 } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
-import { idle } from "ags/time"
+import { idle } from "$lib/time"
 
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
@@ -20,12 +17,12 @@ import { attempt } from "$lib/result"
 import { Placeholder } from "widget/shared/Placeholder"
 
 export namespace DesktopOpenWith {
-	export function open(filePath: string) {
-		const type = contentTypeOf(filePath)
-		const recommended = Gio.AppInfo.get_recommended_for_type(type).map(toEntry)
+	export function open(file_path: string) {
+		const type = content_type_of(file_path)
+		const recommended = Gio.AppInfo.get_recommended_for_type(type).map(to_entry)
 		const seen = new Set(recommended.map((entry) => entry.id))
 		const others = Gio.AppInfo.get_all_for_type(type)
-			.map(toEntry)
+			.map(to_entry)
 			.filter((entry) => entry.app.should_show() && !seen.has(entry.id))
 			.sort((left, right) => left.name.localeCompare(right.name))
 
@@ -37,15 +34,15 @@ export namespace DesktopOpenWith {
 				? fallback
 				: (recommended[0]?.id ?? "")
 
-		setFilePath(filePath)
-		setContentType(type)
-		setRecommended(recommended)
-		setOthers(others)
-		setSelectedId(preselected)
-		setQuery("")
-		setAlwaysUse(false)
-		ensureWindow()?.present()
-		idle(() => searchEntry?.grab_focus())
+		set_file_path(file_path)
+		set_content_type(type)
+		set_recommended(recommended)
+		set_others(others)
+		set_selected_id(preselected)
+		set_query("")
+		set_always_use(false)
+		ensure_window()?.present()
+		idle(() => search_entry?.grab_focus())
 	}
 
 	export function Window() {
@@ -64,7 +61,7 @@ export namespace DesktopOpenWith {
 				iconName="application-x-executable-symbolic"
 			>
 				<Gtk.EventControllerKey
-					onKeyPressed={(_, key) => {
+					onKeyPressed={(unused, key) => {
 						if (key === KEY_Escape) {
 							hide()
 							return true
@@ -85,7 +82,7 @@ export namespace DesktopOpenWith {
 							$type="end"
 							class="suggested-action"
 							label="Open"
-							sensitive={hasSelection}
+							sensitive={has_selection}
 							onClicked={confirm}
 						/>
 					</centerbox>
@@ -95,12 +92,12 @@ export namespace DesktopOpenWith {
 							placeholderText="Search applications"
 							primaryIconName="system-search-symbolic"
 							text={query}
-							onNotifyText={(self) => setQuery(self.text)}
-							$={(self) => (searchEntry = self)}
+							onNotifyText={(self) => set_query(self.text)}
+							$={(self) => (search_entry = self)}
 						/>
 						<label
 							class="prompt"
-							label={promptMarkup}
+							label={prompt_markup}
 							useMarkup
 							wrap
 							justify={Gtk.Justification.CENTER}
@@ -116,36 +113,36 @@ export namespace DesktopOpenWith {
 									class="section"
 									label="Recommended Apps"
 									xalign={0}
-									visible={filteredRecommended.as((entries) => entries.length > 0)}
+									visible={filtered_recommended.as((entries) => entries.length > 0)}
 								/>
-								<For each={filteredRecommended}>
+								<For each={filtered_recommended}>
 									{(entry) => <AppRow entry={entry} />}
 								</For>
 								<label
 									class="section"
 									label="Other Apps"
 									xalign={0}
-									visible={filteredOthers.as((entries) => entries.length > 0)}
+									visible={filtered_others.as((entries) => entries.length > 0)}
 								/>
-								<For each={filteredOthers}>
+								<For each={filtered_others}>
 									{(entry) => <AppRow entry={entry} />}
 								</For>
 								<Placeholder
 									iconName="system-search-symbolic"
 									label="No results found"
-									visible={hasNoResults}
+									visible={has_no_results}
 								/>
 							</box>
 						</Gtk.ScrolledWindow>
 						<box class="always-row" orientation={HORIZONTAL}>
 							<box orientation={VERTICAL} valign={CENTER} hexpand>
 								<label label="Always use for this file type" xalign={0} />
-								<label class="detail" label={typeDescription} xalign={0} />
+								<label class="detail" label={type_description} xalign={0} />
 							</box>
 							<switch
-								active={alwaysUse}
+								active={always_use}
 								valign={CENTER}
-								onNotifyActive={(self) => setAlwaysUse(self.active)}
+								onNotifyActive={(self) => set_always_use(self.active)}
 							/>
 						</box>
 					</box>
@@ -160,7 +157,7 @@ const { CENTER } = Gtk.Align
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { EllipsizeMode } = Pango
 
-type OpenWithApp = {
+type open_with_app = {
 	id: string
 	name: string
 	detail: string
@@ -168,38 +165,38 @@ type OpenWithApp = {
 	app: Gio.AppInfo
 }
 
-const [filePath, setFilePath] = createState("")
-const [contentType, setContentType] = createState("application/octet-stream")
-const [recommended, setRecommended] = createState<OpenWithApp[]>([])
-const [others, setOthers] = createState<OpenWithApp[]>([])
-const [selectedId, setSelectedId] = createState("")
-const [query, setQuery] = createState("")
-const [alwaysUse, setAlwaysUse] = createState(false)
-let searchEntry: Gtk.Entry | null = null
+const [file_path, set_file_path] = createState("")
+const [content_type, set_content_type] = createState("application/octet-stream")
+const [recommended, set_recommended] = createState<open_with_app[]>([])
+const [others, set_others] = createState<open_with_app[]>([])
+const [selected_id, set_selected_id] = createState("")
+const [query, set_query] = createState("")
+const [always_use, set_always_use] = createState(false)
+let search_entry: Gtk.Entry | null = null
 let root: (() => void) | null = null
 
-const promptMarkup = filePath.as((path) => {
+const prompt_markup = file_path.as((path) => {
 	const name = GLib.markup_escape_text(path.split("/").pop() || path, -1)
 	return `Choose an app to open <b>${name}</b>`
 })
-const typeDescription = contentType.as((type) =>
+const type_description = content_type.as((type) =>
 	Gio.content_type_get_description(type),
 )
-const hasSelection = selectedId.as(Boolean)
+const has_selection = selected_id.as(Boolean)
 
-const filteredRecommended = createComputed(() => filterApps(recommended()))
-const filteredOthers = createComputed(() => filterApps(others()))
-const hasNoResults = createComputed(
-	() => filteredRecommended().length === 0 && filteredOthers().length === 0,
+const filtered_recommended = createComputed(() => filter_apps(recommended()))
+const filtered_others = createComputed(() => filter_apps(others()))
+const has_no_results = createComputed(
+	() => filtered_recommended().length === 0 && filtered_others().length === 0,
 )
-const selectedApp = createComputed(
+const selected_app = createComputed(
 	() =>
 		[...recommended(), ...others()].find(
-			(entry) => entry.id === selectedId(),
+			(entry) => entry.id === selected_id(),
 		) ?? null,
 )
 
-function filterApps(entries: OpenWithApp[]): OpenWithApp[] {
+function filter_apps(entries: open_with_app[]): open_with_app[] {
 	const needle = query().trim().toLowerCase()
 	if (!needle) return entries
 	return entries.filter((entry) =>
@@ -207,12 +204,7 @@ function filterApps(entries: OpenWithApp[]): OpenWithApp[] {
 	)
 }
 
-function iconNameOf(icon: Gio.Icon | null): string {
-	if (icon instanceof Gio.ThemedIcon) return icon.get_names()[0] ?? ""
-	return ""
-}
-
-function toEntry(info: Gio.AppInfo): OpenWithApp {
+function to_entry(info: Gio.AppInfo): open_with_app {
 	return {
 		id: info.get_id() ?? info.get_name() ?? "unknown",
 		name: info.get_name() ?? "Unknown",
@@ -222,7 +214,7 @@ function toEntry(info: Gio.AppInfo): OpenWithApp {
 	}
 }
 
-function contentTypeOf(path: string): string {
+function content_type_of(path: string): string {
 	const queried = attempt(() =>
 		Gio.File.new_for_path(path)
 			.query_info(
@@ -236,20 +228,19 @@ function contentTypeOf(path: string): string {
 	return Gio.content_type_guess(path, null)[0] ?? "application/octet-stream"
 }
 
-function AppRow({ entry }: { entry: OpenWithApp }) {
-	const selected = selectedId.as((id) => id === entry.id)
-	const iconName = iconNameOf(entry.icon)
+function AppRow({ entry }: { entry: open_with_app }) {
+	const selected = selected_id.as((id) => id === entry.id)
 	return (
 		<button
 			class={selected.as((active) => `app-option${active ? " selected" : ""}`)}
-			onClicked={() => setSelectedId(entry.id)}
+			onClicked={() => set_selected_id(entry.id)}
 		>
 			<box orientation={HORIZONTAL}>
 				{entry.icon ? (
 					<image gicon={entry.icon} pixelSize={32} />
 				) : (
 					<image
-						iconName={iconName || "application-x-executable-symbolic"}
+						iconName="application-x-executable-symbolic"
 						pixelSize={32}
 						useFallback
 					/>
@@ -266,9 +257,9 @@ function AppRow({ entry }: { entry: OpenWithApp }) {
 }
 
 function confirm() {
-	const entry = selectedApp.peek()
+	const entry = selected_app.peek()
 	if (!entry) return
-	const target = Gio.File.new_for_path(filePath.peek())
+	const target = Gio.File.new_for_path(file_path.peek())
 	const launched = attempt(() => entry.app.launch([target], null))
 	if (!launched.ok || !launched.value) {
 		console.error(
@@ -277,13 +268,16 @@ function confirm() {
 		)
 		return
 	}
-	attempt(() => entry.app.set_as_last_used_for_type(contentType.peek()))
-	if (alwaysUse.peek()) setAsDefault(entry)
+	const last_used = attempt(() => entry.app.set_as_last_used_for_type(content_type.peek()))
+	if (!last_used.ok || !last_used.value)
+		console.error("desktop.openWith: Failed to record last used application",
+			last_used.ok ? "operation returned false" : last_used.err)
+	if (always_use.peek()) set_as_default(entry)
 	hide()
 }
 
-function setAsDefault(entry: OpenWithApp) {
-	const type = contentType.peek()
+function set_as_default(entry: open_with_app) {
+	const type = content_type.peek()
 	const updated = attempt(() => entry.app.set_as_default_for_type(type))
 	if (updated.ok && updated.value) return
 	if (entry.id.endsWith(".desktop")) {
@@ -305,7 +299,7 @@ function hide() {
 	app.get_window("desktop-open-with")?.hide()
 }
 
-function ensureWindow() {
+function ensure_window() {
 	const existing = app.get_window("desktop-open-with")
 	if (existing) return existing
 

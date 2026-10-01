@@ -20,16 +20,30 @@
         "shell/*"
       ],
       "ags": [
-        "node_modules/ags/lib/index.ts"
+        "@girs/ags-types/lib/index.d.ts"
       ],
       "ags/*": [
-        "node_modules/ags/lib/*"
+        "@girs/ags-types/lib/*"
+      ],
+      "gnim": [
+        "@girs/gnim-types/dist/index.d.ts"
+      ],
+      "gnim/*": [
+        "@girs/gnim-types/dist/*"
       ],
       "widget/*": [
         "widget/*"
       ]
     },
     "strict": true,
+    "skipLibCheck": true,
     "target": "ES2020"
-  }
+  },
+  "exclude": [
+    "@girs/astal-3.0.d.ts",
+    "@girs/gdk-3.0.d.ts",
+    "@girs/gdkx11-3.0.d.ts",
+    "@girs/girepository-2.0.d.ts",
+    "@girs/gtk-3.0.d.ts"
+  ]
 }

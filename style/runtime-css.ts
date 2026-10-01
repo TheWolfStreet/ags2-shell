@@ -1,185 +1,182 @@
-// Converts saved appearance settings into CSS variables and widget styles.
 import Pango from "gi://Pango"
 
-import { readValue } from "$lib/ui"
-import options, { Opt } from "$shell/options"
+import { read_value } from "$lib/ui"
+import options, { type Opt } from "$shell/options"
 
 const { FontDescription, SCALE } = Pango
 
-function pickThemeValue<T>(isDarkMode: boolean, darkValue: Opt<T> | T, lightValue: Opt<T> | T): T {
-	return readValue(isDarkMode ? darkValue : lightValue)
+function pick_theme_value<T>(is_dark_mode: boolean, dark_value: Opt<T> | T, light_value: Opt<T> | T): T {
+	return read_value(is_dark_mode ? dark_value : light_value)
 }
 
-function calculateNeumorphicEffects(enabled: boolean, isDarkMode: boolean, fgColor: string, scale: number) {
+function calculate_neumorphic_effects(enabled: boolean, is_dark_mode: boolean, fg_color: string, scale: number) {
 	if (!enabled) {
 		const transparent = "0 0 0 0 transparent"
 		return {
-			buttonHighlight: transparent,
-			buttonShadow: transparent,
-			buttonHoverHighlight: transparent,
-			buttonHoverShadow: transparent,
-			buttonActiveHighlight: transparent,
-			buttonActiveShadow: transparent,
-			widgetHighlight: transparent,
-			widgetShadow: transparent,
-			troughInset: transparent,
-			progressHighlight: transparent,
-			progressShadow: transparent,
-			sliderHighlight: transparent,
+			button_highlight: transparent,
+			button_shadow: transparent,
+			button_hover_highlight: transparent,
+			button_hover_shadow: transparent,
+			button_active_highlight: transparent,
+			button_active_shadow: transparent,
+			widget_highlight: transparent,
+			widget_shadow: transparent,
+			trough_inset: transparent,
+			progress_highlight: transparent,
+			progress_shadow: transparent,
+			slider_highlight: transparent,
 		}
 	}
 
-	const highlightColor = isDarkMode ? "white" : fgColor
-	const shadowBaseColor = isDarkMode ? "black" : fgColor
+	const highlight_color = is_dark_mode ? "white" : fg_color
+	const shadow_base_color = is_dark_mode ? "black" : fg_color
 	const px = (value: number) => `${value * scale}px`
 
 	return {
-		buttonHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 15 : 10}%, transparent)`,
-		buttonShadow: `0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)`,
-		buttonHoverHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)`,
-		buttonHoverShadow: `0 ${px(1)} ${px(3)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 25 : 18}%, transparent)`,
-		buttonActiveHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, white 35%, transparent)`,
-		buttonActiveShadow: `0 ${px(1)} ${px(3)} 0 color-mix(in srgb, black 35%, transparent)`,
-		widgetHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} 12%, transparent)`,
-		widgetShadow: `0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 17 : 12}%, transparent)`,
-		troughInset: `inset 0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 15 : 10}%, transparent), inset 0 ${px(-1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 5 : 4}%, transparent)`,
-		progressHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 20 : 14}%, transparent)`,
-		progressShadow: `0 ${px(1)} ${px(1)} 0 color-mix(in srgb, ${shadowBaseColor} ${isDarkMode ? 20 : 14}%, transparent)`,
-		sliderHighlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlightColor} ${isDarkMode ? 30 : 22}%, transparent)`,
+		button_highlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlight_color} ${is_dark_mode ? 15 : 10}%, transparent)`,
+		button_shadow: `0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadow_base_color} ${is_dark_mode ? 20 : 14}%, transparent)`,
+		button_hover_highlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlight_color} ${is_dark_mode ? 20 : 14}%, transparent)`,
+		button_hover_shadow: `0 ${px(1)} ${px(3)} 0 color-mix(in srgb, ${shadow_base_color} ${is_dark_mode ? 25 : 18}%, transparent)`,
+		button_active_highlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, white 35%, transparent)`,
+		button_active_shadow: `0 ${px(1)} ${px(3)} 0 color-mix(in srgb, black 35%, transparent)`,
+		widget_highlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlight_color} 12%, transparent)`,
+		widget_shadow: `0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadow_base_color} ${is_dark_mode ? 17 : 12}%, transparent)`,
+		trough_inset: `inset 0 ${px(1)} ${px(2)} 0 color-mix(in srgb, ${shadow_base_color} ${is_dark_mode ? 15 : 10}%, transparent), inset 0 ${px(-1)} 0 0 color-mix(in srgb, ${highlight_color} ${is_dark_mode ? 5 : 4}%, transparent)`,
+		progress_highlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlight_color} ${is_dark_mode ? 20 : 14}%, transparent)`,
+		progress_shadow: `0 ${px(1)} ${px(1)} 0 color-mix(in srgb, ${shadow_base_color} ${is_dark_mode ? 20 : 14}%, transparent)`,
+		slider_highlight: `inset 0 ${px(1)} 0 0 color-mix(in srgb, ${highlight_color} ${is_dark_mode ? 30 : 22}%, transparent)`,
 	}
 }
 
-type NeumorphicEffects = ReturnType<typeof calculateNeumorphicEffects>
+type NeumorphicEffects = ReturnType<typeof calculate_neumorphic_effects>
 
-export type Palette = {
+type Palette = {
 	bg: string
 	fg: string
-	widgetBg: string
-	hoverBg: string
+	widget_bg: string
+	hover_bg: string
 	border: string
-	popoverBorder: string
-	primaryBg: string
-	primaryFg: string
-	errorBg: string
-	activeGradient: string
+	popover_border: string
+	primary_bg: string
+	primary_fg: string
+	error_bg: string
+	active_gradient: string
 	shadow: string
 	shades: {
 		headerbar: string
-		headerbarDarker: string
+		headerbar_darker: string
 		sidebar: string
-		secondarySidebar: string
-		scrollbarOutline: string
+		secondary_sidebar: string
+		scrollbar_outline: string
 		shade: string
 	}
 }
 
-export type LayoutVars = {
+type LayoutVars = {
 	padding: number
 	spacing: number
 	radius: number
-	transitionDuration: number
-	borderWidth: number
-	fontSize: number
-	iconSize: number
+	transition_duration: number
+	border_width: number
+	font_size: number
+	icon_size: number
 	scale: number
-	fontName: string
-	screenCornerRadius: number
+	font_name: string
+	screen_corner_radius: number
 }
 
-function colorMix(color: string, opacityPercent: number): string {
-	return `color-mix(in srgb, ${color} ${opacityPercent}%, transparent)`
+function color_mix(color: string, opacity_percent: number): string {
+	return `color-mix(in srgb, ${color} ${opacity_percent}%, transparent)`
 }
 
-function darkenHexColor(hexColor: string): string {
-	const hexMatch = hexColor.match(/^#([0-9a-f]{6})$/i)
-	if (!hexMatch) return hexColor
+function darken_hex_color(hex_color: string): string {
+	const hex_match = hex_color.match(/^#([0-9a-f]{6})$/i)
+	if (!hex_match) return hex_color
 
-	const hex = hexMatch[1]
+	const hex = hex_match[1]
 	const r = parseInt(hex.substring(0, 2), 16)
 	const g = parseInt(hex.substring(2, 4), 16)
 	const b = parseInt(hex.substring(4, 6), 16)
 	const darken = (channel: number) => Math.round(channel * 0.96)
-	const toHex = (channel: number) => channel.toString(16).padStart(2, "0")
+	const to_hex = (channel: number) => channel.toString(16).padStart(2, "0")
 
-	return `#${[r, g, b].map(darken).map(toHex).join("")}`
+	return `#${[r, g, b].map(darken).map(to_hex).join("")}`
 }
 
-function shadowColor(enabled: boolean, isDarkMode: boolean): string {
+function shadow_color(enabled: boolean, is_dark_mode: boolean): string {
 	if (!enabled)
 		return "transparent"
 
-	return isDarkMode ? "rgba(0, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.4)"
+	return is_dark_mode ? "rgba(0, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.4)"
 }
 
-function computePalette(isDarkMode: boolean): Palette {
+function compute_palette(is_dark_mode: boolean): Palette {
 	const theme = options.theme
 	const opacity = theme.opacity.peek()
-	const effectiveOpacity = isDarkMode ? opacity : opacity / 2
-	const baseBg = pickThemeValue(isDarkMode, theme.dark.bg, theme.light.bg)
+	const effective_opacity = is_dark_mode ? opacity : opacity / 2
+	const base_bg = pick_theme_value(is_dark_mode, theme.dark.bg, theme.light.bg)
 	const bg = opacity > 0
-		? colorMix(baseBg, Math.round((1 - effectiveOpacity / 100) * 100))
-		: baseBg
-	const primaryBg = pickThemeValue(isDarkMode, theme.dark.primary.bg, theme.light.primary.bg)
-	const primaryFg = pickThemeValue(isDarkMode, theme.dark.primary.fg, theme.light.primary.fg)
-	const widgetBase = pickThemeValue(isDarkMode, theme.dark.widget, theme.light.widget)
-	const widgetOpacity = theme.widget.opacity.peek()
-	const borderBase = pickThemeValue(isDarkMode, theme.dark.border, theme.light.border)
-	const borderOpacity = theme.border.opacity.peek()
-	const fg = pickThemeValue(isDarkMode, theme.dark.fg, theme.light.fg)
+		? color_mix(base_bg, Math.round((1 - effective_opacity / 100) * 100))
+		: base_bg
+	const primary_bg = pick_theme_value(is_dark_mode, theme.dark.primary.bg, theme.light.primary.bg)
+	const primary_fg = pick_theme_value(is_dark_mode, theme.dark.primary.fg, theme.light.primary.fg)
+	const widget_base = pick_theme_value(is_dark_mode, theme.dark.widget, theme.light.widget)
+	const widget_opacity = theme.widget.opacity.peek()
+	const border_base = pick_theme_value(is_dark_mode, theme.dark.border, theme.light.border)
+	const border_opacity = theme.border.opacity.peek()
+	const fg = pick_theme_value(is_dark_mode, theme.dark.fg, theme.light.fg)
 
 	return {
 		bg,
 		fg,
-		widgetBg: colorMix(widgetBase, 100 - widgetOpacity),
-		hoverBg: colorMix(widgetBase, 100 - (widgetOpacity * 0.9)),
-		border: colorMix(borderBase, 100 - borderOpacity),
-		popoverBorder: colorMix(borderBase, 100 - Math.max(borderOpacity - 1, 0)),
-		primaryBg,
-		primaryFg,
-		errorBg: pickThemeValue(isDarkMode, theme.dark.error.bg, theme.light.error.bg),
-		activeGradient: `linear-gradient(to right, ${primaryBg}, ${darkenHexColor(primaryBg)})`,
-		shadow: shadowColor(theme.shadows.peek(), isDarkMode),
+		widget_bg: color_mix(widget_base, 100 - widget_opacity),
+		hover_bg: color_mix(widget_base, 100 - widget_opacity * 0.9),
+		border: color_mix(border_base, 100 - border_opacity),
+		popover_border: color_mix(border_base, 100 - Math.max(border_opacity - 1, 0)),
+		primary_bg: primary_bg,
+		primary_fg: primary_fg,
+		error_bg: pick_theme_value(is_dark_mode, theme.dark.error.bg, theme.light.error.bg),
+		active_gradient: `linear-gradient(to right, ${primary_bg}, ${darken_hex_color(primary_bg)})`,
+		shadow: shadow_color(theme.shadows.peek(), is_dark_mode),
 		shades: {
-			headerbar: colorMix(fg, 12),
-			headerbarDarker: colorMix(fg, 18),
-			sidebar: colorMix(fg, 10),
-			secondarySidebar: colorMix(fg, 8),
-			scrollbarOutline: colorMix(fg, 30),
-			shade: colorMix(fg, 15),
+			headerbar: color_mix(fg, 12),
+			headerbar_darker: color_mix(fg, 18),
+			sidebar: color_mix(fg, 10),
+			secondary_sidebar: color_mix(fg, 8),
+			scrollbar_outline: color_mix(fg, 30),
+			shade: color_mix(fg, 15),
 		},
 	}
 }
 
-function computeLayout(): LayoutVars {
+function compute_layout(): LayoutVars {
 	const theme = options.theme
 	const scale = Math.max(0.1, options.scale.peek() / 100)
 	const radius = theme.roundness.peek() * scale
-	const fontDesc = FontDescription.from_string(String(options.font.peek()))
-	const baseFontSize = Math.round(fontDesc.get_size() / SCALE) || 11
+	const font_desc = FontDescription.from_string(String(options.font.peek()))
+	const base_font_size = Math.round(font_desc.get_size() / SCALE) || 11
 
 	return {
 		padding: theme.padding.peek() * scale,
 		spacing: theme.spacing.peek() * scale,
 		radius,
-		transitionDuration: options.transition.duration.peek(),
-		borderWidth: theme.border.width.peek() * scale,
-		fontSize: Math.max(1, Math.round(baseFontSize * scale)),
-		iconSize: Math.max(8, Math.round(16 * scale)),
+		transition_duration: options.transition.duration.peek(),
+		border_width: theme.border.width.peek() * scale,
+		font_size: Math.max(1, Math.round(base_font_size * scale)),
+		icon_size: Math.max(8, Math.round(16 * scale)),
 		scale,
-		fontName: fontDesc.get_family() || "Sans",
-		screenCornerRadius: radius * options.hyprland.gaps.peek() * options.bar.corners.peek() * 0.01,
+		font_name: font_desc.get_family() || "Sans",
+		screen_corner_radius: radius * options.hyprland.gaps.peek() * options.bar.corners.peek() * 0.01,
 	}
 }
 
-function buildGtkColorDefinitions(p: Palette): string {
-	const shadowColorRgba = p.shadow !== "transparent" ? p.shadow : "rgba(0, 0, 0, 0.6)"
-
+function build_gtk_color_definitions(p: Palette): string {
 	return [
 		`@define-color window_bg_color ${p.bg};`,
 		`@define-color window_fg_color ${p.fg};`,
 		`@define-color view_bg_color ${p.bg};`,
 		`@define-color view_fg_color ${p.fg};`,
-		`@define-color card_bg_color ${p.widgetBg};`,
+		`@define-color card_bg_color ${p.widget_bg};`,
 		`@define-color card_fg_color ${p.fg};`,
 		`@define-color dialog_bg_color ${p.bg};`,
 		`@define-color dialog_fg_color ${p.fg};`,
@@ -191,85 +188,85 @@ function buildGtkColorDefinitions(p: Palette): string {
 		`@define-color headerbar_border_color ${p.border};`,
 		`@define-color headerbar_backdrop_color ${p.bg};`,
 		`@define-color headerbar_shade_color ${p.shades.headerbar};`,
-		`@define-color headerbar_darker_shade_color ${p.shades.headerbarDarker};`,
+		`@define-color headerbar_darker_shade_color ${p.shades.headerbar_darker};`,
 		"",
-		`@define-color sidebar_bg_color ${p.widgetBg};`,
+		`@define-color sidebar_bg_color ${p.widget_bg};`,
 		`@define-color sidebar_fg_color ${p.fg};`,
-		`@define-color sidebar_backdrop_color ${p.widgetBg};`,
+		`@define-color sidebar_backdrop_color ${p.widget_bg};`,
 		`@define-color sidebar_shade_color ${p.shades.sidebar};`,
 		`@define-color sidebar_border_color ${p.border};`,
 		"",
 		`@define-color secondary_sidebar_bg_color ${p.bg};`,
 		`@define-color secondary_sidebar_fg_color ${p.fg};`,
 		`@define-color secondary_sidebar_backdrop_color ${p.bg};`,
-		`@define-color secondary_sidebar_shade_color ${p.shades.secondarySidebar};`,
+		`@define-color secondary_sidebar_shade_color ${p.shades.secondary_sidebar};`,
 		`@define-color secondary_sidebar_border_color ${p.border};`,
 		"",
-		`@define-color accent_bg_color ${p.primaryBg};`,
-		`@define-color accent_fg_color ${p.primaryFg};`,
-		`@define-color accent_color ${p.primaryBg};`,
+		`@define-color accent_bg_color ${p.primary_bg};`,
+		`@define-color accent_fg_color ${p.primary_fg};`,
+		`@define-color accent_color ${p.primary_bg};`,
 		"",
-		`@define-color scrollbar_outline_color ${p.shades.scrollbarOutline};`,
+		`@define-color scrollbar_outline_color ${p.shades.scrollbar_outline};`,
 		`@define-color shade_color ${p.shades.shade};`,
-		`@define-color shadow_color ${shadowColorRgba};`,
+		`@define-color shadow_color ${p.shadow};`,
 	].join("\n")
 }
 
-function buildCustomProperties(p: Palette, layout: LayoutVars, neu: NeumorphicEffects): string {
+function build_custom_properties(p: Palette, layout: LayoutVars, neu: NeumorphicEffects): string {
 	return [
 		`--bg: ${p.bg};`,
 		`--fg: ${p.fg};`,
-		`--primary-bg: ${p.primaryBg};`,
-		`--primary-fg: ${p.primaryFg};`,
-		`--error-bg: ${p.errorBg};`,
+		`--primary-bg: ${p.primary_bg};`,
+		`--primary-fg: ${p.primary_fg};`,
+		`--error-bg: ${p.error_bg};`,
 		`--padding: ${layout.padding}pt;`,
 		`--spacing: ${layout.spacing}pt;`,
 		`--radius: ${layout.radius}px;`,
-		`--transition: ${layout.transitionDuration}ms;`,
-		`--border-width: ${layout.borderWidth}px;`,
-		`--font-size: ${layout.fontSize}pt;`,
-		`--icon-size: ${layout.iconSize}px;`,
+		`--transition: ${layout.transition_duration}ms;`,
+		`--border-width: ${layout.border_width}px;`,
+		`--font-size: ${layout.font_size}pt;`,
+		`--icon-size: ${layout.icon_size}px;`,
 		`--scale: ${layout.scale};`,
-		`--font-name: "${layout.fontName}";`,
-		`--screen-corner-radius: ${layout.screenCornerRadius}px;`,
+		`--font-name: "${layout.font_name}";`,
+		`--screen-corner-radius: ${layout.screen_corner_radius}px;`,
 		`--popover-padding: ${layout.padding * 1.6}pt;`,
 		`--popover-radius: ${layout.radius * 2}px;`,
 		`--ui-padding: ${layout.padding}pt;`,
 		`--ui-spacing: ${layout.spacing}pt;`,
 		`--ui-radius: ${layout.radius}px;`,
-		`--ui-border-width: ${layout.borderWidth}px;`,
-		`--ui-font-size: ${layout.fontSize}pt;`,
-		`--ui-icon-size: ${layout.iconSize}px;`,
+		`--ui-border-width: ${layout.border_width}px;`,
+		`--ui-font-size: ${layout.font_size}pt;`,
+		`--ui-icon-size: ${layout.icon_size}px;`,
 		`--ui-popover-padding: ${layout.padding * 1.6}pt;`,
 		`--ui-popover-radius: ${layout.radius * 2}px;`,
 		`--shadow-color: ${p.shadow};`,
-		`--active-gradient: ${p.activeGradient};`,
-		`--widget-bg: ${p.widgetBg};`,
-		`--hover-bg: ${p.hoverBg};`,
+		`--active-gradient: ${p.active_gradient};`,
+		`--widget-bg: ${p.widget_bg};`,
+		`--hover-bg: ${p.hover_bg};`,
 		`--border-color: ${p.border};`,
-		`--popover-border-color: ${p.popoverBorder};`,
-		`--neu-button-highlight: ${neu.buttonHighlight};`,
-		`--neu-button-shadow: ${neu.buttonShadow};`,
-		`--neu-button-hover-highlight: ${neu.buttonHoverHighlight};`,
-		`--neu-button-hover-shadow: ${neu.buttonHoverShadow};`,
-		`--neu-button-active-highlight: ${neu.buttonActiveHighlight};`,
-		`--neu-button-active-shadow: ${neu.buttonActiveShadow};`,
-		`--neu-widget-highlight: ${neu.widgetHighlight};`,
-		`--neu-widget-shadow: ${neu.widgetShadow};`,
-		`--neu-trough-inset: ${neu.troughInset};`,
-		`--neu-progress-highlight: ${neu.progressHighlight};`,
-		`--neu-progress-shadow: ${neu.progressShadow};`,
-		`--neu-slider-highlight: ${neu.sliderHighlight};`,
+		`--popover-border-color: ${p.popover_border};`,
+		`--neu-button-highlight: ${neu.button_highlight};`,
+		`--neu-button-shadow: ${neu.button_shadow};`,
+		`--neu-button-hover-highlight: ${neu.button_hover_highlight};`,
+		`--neu-button-hover-shadow: ${neu.button_hover_shadow};`,
+		`--neu-button-active-highlight: ${neu.button_active_highlight};`,
+		`--neu-button-active-shadow: ${neu.button_active_shadow};`,
+		`--neu-widget-highlight: ${neu.widget_highlight};`,
+		`--neu-widget-shadow: ${neu.widget_shadow};`,
+		`--neu-trough-inset: ${neu.trough_inset};`,
+		`--neu-progress-highlight: ${neu.progress_highlight};`,
+		`--neu-progress-shadow: ${neu.progress_shadow};`,
+		`--neu-slider-highlight: ${neu.slider_highlight};`,
 	].join("\n")
 }
 
-export function buildRuntimeCss(): string {
-	const isDarkMode = options.theme.scheme.peek().includes("dark")
-	const palette = computePalette(isDarkMode)
-	const layout = computeLayout()
-	const neu = calculateNeumorphicEffects(options.theme.neumorphic.peek(), isDarkMode, palette.fg, layout.scale)
-	const definitions = buildGtkColorDefinitions(palette)
-	const properties = buildCustomProperties(palette, layout, neu)
+export function build_runtime_css(): string {
+	const is_dark_mode = options.theme.scheme.peek() === "dark"
+	const palette = compute_palette(is_dark_mode)
+	const layout = compute_layout()
+	const neu = calculate_neumorphic_effects(options.theme.neumorphic.peek() && options.theme.shadows.peek(), is_dark_mode, palette.fg, layout.scale)
+	const definitions = build_gtk_color_definitions(palette)
+	const properties = build_custom_properties(palette, layout, neu)
 
 	return `${definitions}\n\n* {\n${properties}\n}\n`
 }

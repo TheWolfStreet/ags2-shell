@@ -1,9 +1,7 @@
 @girs/
 .config/ags/@girs/
 node_modules/
+package-lock.json
 result
-.ags-build.scss
-.sass-cache/
 style/widgets.scss
-style/compile/.scss-hash
 style/compile/main.css
