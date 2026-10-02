@@ -13,12 +13,12 @@ const signature_cache = new Map<string, { value: string | null, size: number | n
 const square_cache = new Map<string, Gdk.Texture>()
 const accessor_cache = new Map<string, Entry>()
 const pending: Array<() => void> = []
-const http_jobs = new Map<string, Array<{ key: string, size: number, entry: Entry }>>()
+const http_jobs = new Map<string, Array<{ key: string, size: number, fit: "square" | "contain", entry: Entry }>>()
 const cache_dir = `${env.paths.cache.base}/artwork`
 const max_bytes = 8 * 1024 * 1024
 const max_local_bytes = 64 * 1024 * 1024
 const max_dimension = 8192
-const max_pixels = 32 * 1024 * 1024
+const max_pixels = 40_000_000
 const max_size = 512
 const max_pending = 64
 const max_active = 4
@@ -100,6 +100,10 @@ function square_texture(pixbuf: GdkPixbuf.Pixbuf, size: number): Gdk.Texture {
 	return Texture.new_for_pixbuf(square)
 }
 
+function fitted_texture(pixbuf: GdkPixbuf.Pixbuf, size: number, fit: "square" | "contain") {
+	return fit === "square" ? square_texture(pixbuf, size) : Texture.new_for_pixbuf(pixbuf)
+}
+
 function remember_square(key: string, texture: Gdk.Texture) {
 	if (square_cache.has(key)) square_cache.delete(key)
 	square_cache.set(key, texture)
@@ -107,7 +111,8 @@ function remember_square(key: string, texture: Gdk.Texture) {
 }
 
 export function texture_from_file_square_contain(file_path: string, size: number): Gdk.Texture | null {
-	if (!Number.isInteger(size) || size < 1 || size > max_size) return null
+	if (!Number.isInteger(size) || size < 1) return null
+	size = Math.min(size, max_size)
 	const signature = file_signature(file_path, true)
 	if (!signature.value || !signature.size) return null
 	const key = `${file_path}:${size}:${signature.value}`
@@ -126,7 +131,7 @@ function is_inline_image_data(uri: string): boolean {
 	return uri.startsWith("data:image/") || uri.includes("iVBORw0KGgo") || uri.includes("/9j/")
 }
 
-function inline_texture(uri: string, size: number) {
+function inline_texture(uri: string, size: number, fit: "square" | "contain") {
 	const encoded = uri.startsWith("data:") ? uri.slice(uri.indexOf(",") + 1) : uri
 	if (encoded.length > max_bytes * 4 / 3 + 4) throw new Error("Inline artwork exceeds 8 MiB")
 	if (uri.startsWith("data:") && !uri.slice(0, uri.indexOf(",")).includes(";base64"))
@@ -149,7 +154,7 @@ function inline_texture(uri: string, size: number) {
 	if (invalid) throw new Error("Invalid or oversized inline image dimensions")
 	const pixbuf = loader.get_pixbuf()
 	if (!pixbuf) throw new Error("Failed to decode inline image")
-	return square_texture(pixbuf, size)
+	return fitted_texture(pixbuf, size, fit)
 }
 
 function prune_disk() {
@@ -203,7 +208,7 @@ function deliver(key: string, entry: Entry, texture: Gdk.Texture | null, error?:
 	else if (accessor_cache.get(key) === entry) accessor_cache.delete(key)
 }
 
-function load_local(path: string, size: number, key: string, entry: Entry, revision: string) {
+function load_local(path: string, size: number, fit: "square" | "contain", key: string, entry: Entry, revision: string) {
 	const file = Gio.File.new_for_path(path)
 	const dimensions = attempt(() => GdkPixbuf.Pixbuf.get_file_info(path))
 	if (!dimensions.ok || !dimensions.value[0] || !valid_dimensions(dimensions.value[1], dimensions.value[2])) {
@@ -220,7 +225,7 @@ function load_local(path: string, size: number, key: string, entry: Entry, revis
 		}
 		const stream = stream_result.value
 		const decoded = attempt(() => GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(stream, size, size, true, null, (_source, pixbuf_result) => {
-			const image = attempt(() => square_texture(GdkPixbuf.Pixbuf.new_from_stream_finish(pixbuf_result), size))
+			const image = attempt(() => fitted_texture(GdkPixbuf.Pixbuf.new_from_stream_finish(pixbuf_result), size, fit))
 			const closed = attempt(() => stream.close(null))
 			if (!closed.ok) console.error(`textures: Failed to close ${path}`, closed.err)
 			if (file_signature(path, true).value === revision)
@@ -299,8 +304,8 @@ function complete_http(uri: string, path: string | null, error?: unknown) {
 	const subscribers = http_jobs.get(uri) ?? []
 	http_jobs.delete(uri)
 	let invalid = false
-	for (const { key, size, entry } of subscribers) {
-		const decoded = path ? attempt(() => square_texture(file_pixbuf(path, size, size), size)) : null
+	for (const { key, size, fit, entry } of subscribers) {
+		const decoded = path ? attempt(() => fitted_texture(file_pixbuf(path, size, size), size, fit)) : null
 		if (decoded && !decoded.ok) invalid = true
 		deliver(key, entry, decoded?.ok ? decoded.value : null, decoded && !decoded.ok ? decoded.err : error)
 	}
@@ -311,9 +316,10 @@ function complete_http(uri: string, path: string | null, error?: unknown) {
 	finished()
 }
 
-export function create_square_texture_accessor(uri: string, size: number): Accessor<Gdk.Texture | null> {
+export function create_texture_accessor(uri: string, size: number, fit: "square" | "contain" = "square"): Accessor<Gdk.Texture | null> {
 	const empty = () => createState<Gdk.Texture | null>(null)[0]
-	if (!uri || !Number.isInteger(size) || size < 1 || size > max_size) return empty()
+	if (!uri || !Number.isInteger(size) || size < 1) return empty()
+	size = Math.min(size, max_size)
 	const kind = classify_image_uri(uri)
 	if (kind === "unknown") return empty()
 	if ((kind === "data" && uri.length > max_bytes * 4 / 3 + 128) ||
@@ -332,7 +338,7 @@ export function create_square_texture_accessor(uri: string, size: number): Acces
 	if (path && !revision) return empty()
 	const identifier = kind === "data"
 		? GLib.compute_checksum_for_string(GLib.ChecksumType.SHA1, uri, -1) : uri
-	const key = `${size}:${identifier}:${revision ?? ""}`
+	const key = `${fit}:${size}:${identifier}:${revision ?? ""}`
 	const now = GLib.get_monotonic_time()
 	const cached = accessor_cache.get(key)
 	if (cached && (kind !== "http" || now - cached.created <= 60_000_000)) return cached.texture
@@ -348,17 +354,17 @@ export function create_square_texture_accessor(uri: string, size: number): Acces
 		const subscribers = http_jobs.get(uri)
 		if (subscribers) {
 			if (subscribers.length >= 128) deliver(key, entry, null, new Error("Artwork subscriber queue full"))
-			else subscribers.push({ key, size, entry })
+			else subscribers.push({ key, size, fit, entry })
 		}
 		else {
-			http_jobs.set(uri, [{ key, size, entry }])
+			http_jobs.set(uri, [{ key, size, fit, entry }])
 			if (!enqueue(() => load_http(uri))) {
 				http_jobs.delete(uri)
 				deliver(key, entry, null, new Error("Artwork queue full"))
 			}
 		}
 	} else if (path) {
-		if (!enqueue(() => load_local(path, size, key, entry, revision!)))
+		if (!enqueue(() => load_local(path, size, fit, key, entry, revision!)))
 			deliver(key, entry, null, new Error("Artwork queue full"))
 	} else {
 		if (inline_bytes_queued + uri.length > 16 * 1024 * 1024) {
@@ -367,7 +373,7 @@ export function create_square_texture_accessor(uri: string, size: number): Acces
 		}
 		inline_bytes_queued += uri.length
 		if (!enqueue(() => {
-			const result = attempt(() => inline_texture(uri, size))
+			const result = attempt(() => inline_texture(uri, size, fit))
 			deliver(key, entry, result.ok ? result.value : null, result.ok ? undefined : result.err)
 			inline_bytes_queued -= uri.length
 			finished()
@@ -378,6 +384,8 @@ export function create_square_texture_accessor(uri: string, size: number): Acces
 	}
 	return texture
 }
+
+export const create_square_texture_accessor = create_texture_accessor
 
 let hidden_drag_texture: Gdk.Texture | null = null
 

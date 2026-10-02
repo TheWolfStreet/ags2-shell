@@ -214,7 +214,7 @@ function valid_leaf(value: unknown, initial: unknown, path: string, constraints:
 	if (typeof initial === "string") {
 		if (typeof value !== "string" || value.length > 4096) return false
 		if (initial.startsWith("#")) return /^#[0-9a-f]{6}$/i.test(value)
-		if (path === "font") return /^[^\n\r\\";{}]+\s+(?:[1-9]|[1-6][0-9]|7[0-2])(?:\.\d+)?$/.test(value)
+		if (path === "font") return /^[^\n\r\\";{}]+\s+[1-9]\d*(?:\.\d+)?$/.test(value)
 		return !/[\x00-\x1f]/.test(value)
 	}
 	if (typeof initial === "number") {
@@ -338,7 +338,7 @@ const constraints = {
 	"launcher.position": option_values.launcher_position,
 	"launcher.margin": { min: 0, max: 1000, integer: true },
 	"launcher.scale": { min: 50, max: 200, integer: true },
-	"launcher.apps.max": { min: 1, max: 9, integer: true },
+	"launcher.apps.max": { min: 0, max: Infinity, integer: true },
 	"favorites.location": option_values.favorites_location,
 	"overview.scale": { min: 50, max: 200, integer: true },
 	"overview.workspaces": { min: 0, max: 16, integer: true },

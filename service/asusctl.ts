@@ -131,6 +131,9 @@ class Asusctl extends GObject.Object {
 	#installed: boolean
 	#option_disposers: Array<() => void>
 	#monitor_update_sequence: number
+	#observed_sequence = 0
+	#observed_panel: monitor_configuration | undefined
+	#policy_sequence = 0
 	#profile_write: Promise<void> = Promise.resolve()
 	#profile_revision = 0
 	#refresh_rates: number[] = []
@@ -149,13 +152,15 @@ class Asusctl extends GObject.Object {
 		if (this.#installed) {
 			void this.refresh().then((result) => {
 				if (!result.ok) console.error("asusctl.initialize:", result.err)
+				else void this.#update_monitor_configuration()
 			})
 			this.#option_disposers.push(
 				options.asus.ac_hz.subscribe(() => void this.#update_monitor_configuration()),
 				options.asus.bat_hz.subscribe(() => void this.#update_monitor_configuration()),
 			)
 			for (const signal of ["monitor-added", "monitor-removed", "config-reloaded"]) {
-				this.#monitor_handlers.push(hyprland.connect(signal, () => void this.#update_monitor_configuration()))
+				this.#monitor_handlers.push(hyprland.connect(signal, () =>
+					void this.#update_monitor_configuration({ apply_policy: false })))
 			}
 		}
 	}
@@ -212,11 +217,12 @@ class Asusctl extends GObject.Object {
 		return completed.ok ? response : completed
 	}
 
-	async #update_monitor_configuration() {
+	async #update_monitor_configuration({ apply_policy = true }: { apply_policy?: boolean } = {}) {
 		if (!this.#available) return
 		const sequence = ++this.#monitor_update_sequence
+		const policy_sequence = apply_policy ? ++this.#policy_sequence : this.#policy_sequence
 		const output = await run_command(["hyprctl", "monitors", "all", "-j"])
-		if (sequence !== this.#monitor_update_sequence) return
+		if (sequence !== this.#monitor_update_sequence && !apply_policy) return
 		if (!output.ok) {
 			console.error(
 				"asusctl.updateMonitorConfiguration: Failed to read monitors",
@@ -237,13 +243,21 @@ class Asusctl extends GObject.Object {
 		if (!Array.isArray(parsed)) return
 
 		const panel = select_panel(parsed.filter(is_monitor_configuration))
-		const panel_modes = panel && !panel.disabled ? get_panel_modes(panel) : []
-		const available_refresh_rates = unique_refresh_rates(panel_modes)
-		if (available_refresh_rates.join(",") !== this.#refresh_rates.join(",")) {
-			this.#refresh_rates = available_refresh_rates
-			this.notify("refresh-rates")
+		if (sequence === this.#monitor_update_sequence) {
+			this.#observed_panel = panel
+			this.#observed_sequence = sequence
+			const observed_modes = panel && !panel.disabled ? get_panel_modes(panel) : []
+			const available_refresh_rates = unique_refresh_rates(observed_modes)
+			if (available_refresh_rates.join(",") !== this.#refresh_rates.join(",")) {
+				this.#refresh_rates = available_refresh_rates
+				this.notify("refresh-rates")
+			}
 		}
-		if (!panel || panel.disabled || available_refresh_rates.length === 0) return
+		if (!apply_policy || policy_sequence !== this.#policy_sequence) return
+		const policy_panel = this.#observed_sequence > sequence ? this.#observed_panel : panel
+		const panel_modes = policy_panel && !policy_panel.disabled ? get_panel_modes(policy_panel) : []
+		const available_refresh_rates = unique_refresh_rates(panel_modes)
+		if (!policy_panel || policy_panel.disabled || available_refresh_rates.length === 0) return
 		const ac_hz = normalize_refresh_rate(
 			options.asus.ac_hz.peek(),
 			available_refresh_rates,
@@ -255,15 +269,15 @@ class Asusctl extends GObject.Object {
 
 		if (ac_hz !== options.asus.ac_hz.peek()) options.asus.ac_hz.set(ac_hz)
 		if (bat_hz !== options.asus.bat_hz.peek()) options.asus.bat_hz.set(bat_hz)
-		if (sequence !== this.#monitor_update_sequence) return
+		if (policy_sequence !== this.#policy_sequence) return
 
 		const preferred_refresh_rate = this.#profile === "Quiet" ? bat_hz : ac_hz
 		const refresh_rate = resolve_refresh_rate(panel_modes, preferred_refresh_rate)
-		if (Math.abs(panel.refreshRate - refresh_rate) < 0.1) return
+		if (Math.abs(policy_panel.refreshRate - refresh_rate) < 0.1) return
 		const response = await attempt_async(() => hyprland.message_async(
-			format_monitor_command(panel, { refresh_rate: refresh_rate }),
+			format_monitor_command(policy_panel, { refresh_rate: refresh_rate }),
 		))
-		if (sequence !== this.#monitor_update_sequence) return
+		if (policy_sequence !== this.#policy_sequence) return
 		if (!response.ok || response.value !== "ok")
 			console.error("asusctl.monitor: Failed to apply refresh rate", response.ok ? response.value : response.err)
 	}
@@ -307,7 +321,6 @@ class Asusctl extends GObject.Object {
 			}
 		}
 
-		void this.#update_monitor_configuration()
 		return ok(undefined)
 	}
 

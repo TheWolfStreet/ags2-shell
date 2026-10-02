@@ -29,12 +29,18 @@ test("bottom display numbering matches shortcut order", () => {
 	])
 })
 
-test("zero and limited result counts remain bounded", () => {
+test("zero preserves the legacy nine-result fallback and explicit counts are honored", () => {
 	const index = [
 		{ app: "one", name: "app one" },
 		{ app: "two", name: "app two" },
 	]
-	assert.deepEqual(rank_apps(index, "app", 0), [])
+	assert.deepEqual(rank_apps(index, "app", 0), ["one", "two"])
 	assert.deepEqual(rank_apps(index, "app", 1), ["one"])
 	assert.deepEqual(rank_apps(index, "  ", 9), [])
+	const catalog = Array.from({ length: 20 }, (_, index) => ({ app: index, name: `app ${String(index).padStart(2, "0")}` }))
+	assert.equal(rank_apps(catalog, "app", 0).length, 9)
+	assert.equal(rank_apps(catalog, "app", 15).length, 15)
+	assert.equal(rank_apps(catalog, "app", 100).length, catalog.length)
+	assert.deepEqual(rank_apps(catalog, "app", -1), [])
+	assert.deepEqual(rank_apps(catalog, "app", Number.POSITIVE_INFINITY), [])
 })

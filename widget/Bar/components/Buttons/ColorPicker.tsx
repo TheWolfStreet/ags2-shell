@@ -22,7 +22,7 @@ const color_history_file = `${env.paths.cache.base}/colors.json`
 function wl_copy(data: string) {
 	return new Promise<void>((resolve, reject) => {
 		const process = Gio.Subprocess.new(
-			["wl-copy"],
+			["setsid", "wl-copy"],
 			Gio.SubprocessFlags.STDIN_PIPE,
 		)
 		const cancellable = new Gio.Cancellable()
@@ -46,7 +46,7 @@ function wl_copy(data: string) {
 }
 
 function color_limit() {
-	return Math.max(0, Math.min(50, Math.floor(options.colorpicker.maxColors.peek())))
+	return options.colorpicker.maxColors.peek()
 }
 
 function load_color_history() {

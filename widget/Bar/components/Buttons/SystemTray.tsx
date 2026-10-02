@@ -72,9 +72,7 @@ export function SystemTray() {
 							halign={Gtk.Align.CENTER}
 							$={(self) => popover.set_parent(self)}
 							tooltipText={createBinding(item, "tooltipText")}
-							onClicked={() => item.get_is_menu() ? open_menu() : request(
-								"org.kde.StatusNotifierItem", "Activate", new GLib.Variant("(ii)", [0, 0]),
-							)}
+							onClicked={open_menu}
 						>
 							<Gtk.GestureClick button={Gdk.BUTTON_SECONDARY} onPressed={open_menu} />
 							<image gicon={createBinding(item, "gicon")} useFallback />

@@ -1,10 +1,13 @@
 import { createState } from "ags"
 
 import Gio from "gi://Gio"
+import GioUnix from "gi://GioUnix"
 import GLib from "gi://GLib"
 
-import { attempt, log_error } from "$lib/result"
+import { hyprland } from "$lib/hyprland"
+import { attempt, err, log_error, ok, type Result } from "$lib/result"
 import { debounce } from "$lib/time"
+import { get_client_workspace_id, move_client_to_workspace_silent } from "$lib/windowing"
 
 const trash_uri = "trash:///"
 const refresh_debounce_ms = 120
@@ -62,10 +65,36 @@ function release_trash_watcher() {
 }
 
 export function open_trash() {
-	const result = attempt(() => {
-		if (!Gio.app_info_launch_default_for_uri(trash_uri, null))
-			throw new Error("No application could open Trash")
+	void open_or_focus_trash().then((result) => {
+		log_error(result, "dock.trash.open: Failed to open or focus trash")
 	})
+}
 
-	log_error(result, "dock.trash.open: Failed to open trash")
+async function open_or_focus_trash(): Promise<Result<void>> {
+	const found = attempt(() => {
+		const app = Gio.AppInfo.get_default_for_type("inode/directory", false)
+		const app_id = app?.get_id()
+		const id = app_id?.replace(/\.desktop$/i, "").toLowerCase()
+		const wm_class = app_id
+			? GioUnix.DesktopAppInfo.new(app_id)?.get_startup_wm_class()?.toLowerCase()
+			: null
+		const executable = app?.get_executable()?.split("/").pop()?.toLowerCase()
+		const identities = [id, wm_class, executable].filter((value) => !!value)
+		return identities.length ? hyprland.clients.find((client) =>
+			client.get_title() === "Trash" &&
+			identities.includes(client.get_class()?.toLowerCase())) : undefined
+	})
+	const workspace_id = hyprland.focusedWorkspace?.id
+	if (found.ok && found.value && workspace_id != null) {
+		const client = found.value
+		if (get_client_workspace_id(client) !== workspace_id) {
+			const moved = await move_client_to_workspace_silent(workspace_id, client)
+			if (!moved.ok) return moved
+		}
+		return attempt(() => { client.focus() })
+	}
+
+	const launched = attempt(() => Gio.app_info_launch_default_for_uri(trash_uri, null))
+	if (!launched.ok) return launched
+	return launched.value ? ok(undefined) : err(new Error("No application could open Trash"))
 }

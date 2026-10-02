@@ -135,7 +135,7 @@ class Brightness extends GObject.Object {
 			result,
 			"brightness.init: Failed to initialize brightness service",
 		)
-		if (this.#display_device) this.#initialized = true
+		if (this.#display_device || this.#keyboard_device) this.#initialized = true
 		if (GLib.find_program_in_path("ddcutil") !== null) {
 			this.#external_discovery_idle = idle(() => {
 				this.#external_discovery_idle = null
@@ -333,10 +333,6 @@ class Brightness extends GObject.Object {
 				this.#display_value = normalized
 				this.notify("display")
 			}
-		}
-		if (previously_available && [...next.values()].some((display) => display.applied !== Math.round(this.#display_value * 100))) {
-			this.#queued_display_target = Math.round(this.#display_value * 100)
-			this.#display_write.call()
 		}
 	}
 

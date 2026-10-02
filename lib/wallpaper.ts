@@ -25,6 +25,18 @@ let signature_error: string | null = null
 let monitor: Gio.FileMonitor | null = null
 let poll_timer: Timer | null = null
 
+function update_polling() {
+	if (!monitor || GLib.file_test(wallpaper_path, GLib.FileTest.IS_SYMLINK)) {
+		poll_timer ??= interval(1000, () => {
+			refresh_wallpaper.call()
+			update_polling()
+		})
+	} else {
+		poll_timer?.cancel()
+		poll_timer = null
+	}
+}
+
 function file_signature(): Result<string | null> {
 	const result = attempt(() => {
 		const info = Gio.File.new_for_path(wallpaper_path).query_info(
@@ -74,13 +86,15 @@ const watched = attempt(() =>
 if (watched.ok) {
 	monitor = watched.value
 	monitor.connect("changed", (_monitor, file, other) => {
-		if (file.get_path() === wallpaper_path || other?.get_path() === wallpaper_path)
+		if (file.get_path() === wallpaper_path || other?.get_path() === wallpaper_path) {
 			refresh_wallpaper.call()
+			update_polling()
+		}
 	})
 } else {
 	console.error("wallpaper: Failed to monitor wallpaper directory", watched.err)
-	poll_timer = interval(1000, () => refresh_wallpaper.call())
 }
+update_polling()
 
 app.connect("shutdown", () => {
 	generation++
@@ -146,6 +160,7 @@ export function clear_wallpaper(): Result<void> {
 		)
 		if (!replaced) throw new Error("Failed to clear wallpaper")
 		refresh_wallpaper.call()
+		update_polling()
 	})
 	if (!result.ok) console.error("wallpaper.clear: Failed to clear wallpaper", result.err)
 	return result
@@ -187,6 +202,7 @@ export async function set_wallpaper(path: string): Promise<Result<void>> {
 			throw new Error("Failed to replace wallpaper")
 		moved = true
 		refresh_wallpaper.call()
+		update_polling()
 	})
 	if (temporary && created && !moved) {
 		const removed = attempt(() => {

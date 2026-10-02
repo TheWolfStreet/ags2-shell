@@ -419,7 +419,7 @@ const Shell = () =>
 					type="enum"
 					enums={option_values.favorites_location}
 				/>
-				<Row opt={launcher.apps.max} title="Max Items" min={1} max={9} />
+				<Row opt={launcher.apps.max} title="Max Items" min={0} max={9} />
 				<Row opt={bar.launcher.icon} title="Icon" />
 			</Group>
 

@@ -29,19 +29,23 @@ const { createState, createComputed } = gnim.namespace
 const files = new Map()
 const reads = []
 const decodes = []
+const decode_bounds = []
+const file_decode_bounds = []
 const downloads = []
+const created = []
 const cache = new Map()
 let closed = 0
 let dimensions = [8, 8]
+let image_dimensions = [8, 8]
 
 const pixbuf = {
-	get_width: () => 8,
-	get_height: () => 8,
+	get_width: () => image_dimensions[0],
+	get_height: () => image_dimensions[1],
 	scale_simple: () => ({ copy_area() {} }),
 }
 const mocks = {
 	ags: { createState },
-	gdk: { Gdk: { Texture: { new_for_pixbuf: () => ({ image: true }) },
+	gdk: { Gdk: { Texture: { new_for_pixbuf: value => { created.push(value); return { image: true } } },
 		MemoryTexture: { new: () => ({}) }, MemoryFormat: { R8G8B8A8: 0 } } },
 	glib: {
 		Error: class extends Error {}, get_monotonic_time: () => 0,
@@ -84,10 +88,16 @@ const mocks = {
 		InterpType: { BILINEAR: 0 }, Colorspace: { RGB: 0 },
 		Pixbuf: {
 			get_file_info: () => [{}, ...dimensions],
-			new_from_file_at_scale: () => pixbuf,
-			new_from_stream_at_scale_async: (_stream, _width, _height, _aspect, _cancel, callback) => decodes.push(callback),
+			new_from_file_at_scale: (_path, width, height) => {
+				file_decode_bounds.push([width, height])
+				return pixbuf
+			},
+			new_from_stream_at_scale_async: (_stream, width, height, _aspect, _cancel, callback) => {
+				decode_bounds.push([width, height])
+				decodes.push(callback)
+			},
 			new_from_stream_finish: () => pixbuf,
-			new: () => ({ fill() {}, get_width: () => 8, get_height: () => 8 }),
+			new: (_space, _alpha, _bits, width, height) => ({ fill() {}, get_width: () => width, get_height: () => height }),
 		},
 	},
 	env: { paths: { cache: { base: "/mock-cache" } } },
@@ -115,9 +125,107 @@ registerHooks({
 	},
 })
 
-const { create_square_texture_accessor } = await import("../../lib/textures.ts")
+const { create_square_texture_accessor, create_texture_accessor, texture_from_file_square_contain } = await import("../../lib/textures.ts")
+
+test("direct square textures also clamp before decoding and caching", () => {
+	files.set("/mock/direct.png", { size: 100 })
+	const oversized = texture_from_file_square_contain("/mock/direct.png", 520)
+	assert.deepEqual(file_decode_bounds.at(-1), [512, 512])
+	assert.equal(texture_from_file_square_contain("/mock/direct.png", 512), oversized)
+	assert.equal(texture_from_file_square_contain("/mock/direct.png", 0), null)
+})
+
+test("overscale requests share the bounded decode and cache entry", () => {
+	files.set("/mock/zoom.png", { size: 100 })
+	const initial = reads.length
+	const zoomed = create_texture_accessor("/mock/zoom.png", 520, "contain")
+	const maximum = create_texture_accessor("/mock/zoom.png", 512, "contain")
+	assert.equal(zoomed, maximum)
+	assert.equal(reads.length, initial + 1)
+	reads.shift().callback(null, {})
+	assert.deepEqual(decode_bounds.at(-1), [512, 512])
+	decodes.shift()(null, {})
+	assert.deepEqual(zoomed(), { image: true })
+	assert.deepEqual(create_texture_accessor("/mock/zoom.png", 520, "contain")(), { image: true })
+	assert.equal(reads.length, initial)
+	assert.equal(create_texture_accessor("/mock/zoom.png", 0, "contain")(), null)
+})
+
+test("an accepted 6000x6000 wallpaper decodes as a thumbnail but 6400x6400 is rejected", () => {
+	files.set("/mock/wallpaper.png", { size: 64 * 1024 * 1024 })
+	const initial = reads.length
+	const previous = console.error
+	console.error = () => {}
+	try {
+		dimensions = [6000, 6000]
+		const preview = create_square_texture_accessor("/mock/wallpaper.png", 520)
+		assert.equal(reads.length, initial + 1)
+		reads.shift().callback(null, {})
+		assert.deepEqual(decode_bounds.at(-1), [512, 512])
+		decodes.shift()(null, {})
+		assert.deepEqual(preview(), { image: true })
+		dimensions = [6400, 6400]
+		files.set("/mock/too-many-pixels.png", { size: 100 })
+		assert.equal(create_square_texture_accessor("/mock/too-many-pixels.png", 32)(), null)
+		assert.equal(reads.length, initial)
+	} finally {
+		dimensions = [8, 8]
+		console.error = previous
+	}
+})
+
+test("HTTP requests above 512 share the same bounded subscriber", () => {
+	const uri = "https://example.invalid/overscale.png"
+	const zoomed = create_texture_accessor(uri, 520, "contain")
+	const maximum = create_texture_accessor(uri, 512, "contain")
+	assert.equal(zoomed, maximum)
+	assert.equal(downloads.length, 1)
+	cache.set("/mock-cache/artwork/.temporary", { size: 100 })
+	downloads.shift()(null, {})
+	assert.deepEqual(zoomed(), { image: true })
+})
+
+test("notification-style preview keeps landscape dimensions without square padding", () => {
+	files.set("/mock/landscape.png", { size: 100 })
+	image_dimensions = [80, 45]
+	try {
+		const preview = create_texture_accessor("/mock/landscape.png", 80, "contain")
+		const square = create_square_texture_accessor("/mock/landscape.png", 80)
+		assert.notEqual(preview, square)
+		assert.equal(decodes.length, 0)
+		reads.shift().callback(null, {})
+		decodes.shift()(null, {})
+		assert.equal(created.at(-1), pixbuf)
+		assert.deepEqual([created.at(-1).get_width(), created.at(-1).get_height()], [80, 45])
+		assert.deepEqual(preview(), { image: true })
+		reads.shift().callback(null, {})
+		decodes.shift()(null, {})
+		assert.deepEqual([created.at(-1).get_width(), created.at(-1).get_height()], [80, 80])
+	} finally {
+		image_dimensions = [8, 8]
+	}
+})
+
+test("portrait preview keeps its aspect and HTTP fit variants share the download", () => {
+	const uri = "https://example.invalid/portrait.png"
+	image_dimensions = [130, 260]
+	try {
+		const preview = create_texture_accessor(uri, 260, "contain")
+		const square = create_square_texture_accessor(uri, 260)
+		assert.equal(downloads.length, 1)
+		cache.set("/mock-cache/artwork/.temporary", { size: 100 })
+		downloads.shift()(null, {})
+		assert.deepEqual(preview(), { image: true })
+		assert.deepEqual(square(), { image: true })
+		assert.deepEqual(created.slice(-2).map(value => [value.get_width(), value.get_height()]),
+			[[130, 260], [260, 260]])
+	} finally {
+		image_dimensions = [8, 8]
+	}
+})
 
 test("file URI decoding and revision keys prevent stale async delivery", () => {
+	const initial_closed = closed
 	files.set("/mock/a b.png", { size: 100, usec: 1 })
 	const old = create_square_texture_accessor("file:///mock/a%20b.png", 32)
 	assert.equal(reads.at(-1).path, "/mock/a b.png")
@@ -127,11 +235,11 @@ test("file URI decoding and revision keys prevent stale async delivery", () => {
 	reads.shift().callback(null, {})
 	decodes.shift()(null, {})
 	assert.equal(old(), null)
-	assert.equal(closed, 1)
+	assert.equal(closed, initial_closed + 1)
 	reads.shift().callback(null, {})
 	decodes.shift()(null, {})
 	assert.deepEqual(fresh(), { image: true })
-	assert.equal(closed, 2)
+	assert.equal(closed, initial_closed + 2)
 })
 
 test("HTTP requests for different sizes share one download", () => {

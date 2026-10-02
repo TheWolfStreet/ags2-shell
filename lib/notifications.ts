@@ -1,3 +1,4 @@
+import { createState } from "ags"
 import { execAsync } from "ags/process"
 import app from "$lib/app"
 import { timeout, type Timer } from "$lib/time"
@@ -21,8 +22,11 @@ const URGENCY_LEVEL: Record<NotificationUrgency, number> = {
 }
 const DBUS_TIMEOUT_MS = 5000
 const ATTACH_TIMEOUT_MS = 2000
+const OWN_ACTION_PREFIX = "ags2-shell:"
 
 const active = new Map<number, () => void>()
+const bound_keys = new Set<string>()
+const [bound_revision, set_bound_revision] = createState(0)
 let shutting_down = false
 app.connect("shutdown", () => {
 	shutting_down = true
@@ -66,6 +70,10 @@ function watch_actions(id: number, actions: Map<string, NotificationAction>): Pr
 		const cleanup = (reason?: unknown) => {
 			if (closed) return
 			closed = true
+			if (notification) {
+				for (const key of actions.keys()) bound_keys.delete(key)
+				set_bound_revision((revision) => revision + 1)
+			}
 			pending_timer?.cancel()
 			pending_timer = null
 			if (notified_handler) notification_daemon.disconnect(notified_handler)
@@ -93,6 +101,8 @@ function watch_actions(id: number, actions: Map<string, NotificationAction>): Pr
 					return
 				}
 				notification = current
+				for (const key of actions.keys()) bound_keys.add(key)
+				set_bound_revision((revision) => revision + 1)
 				invoked_handler = current.connect("invoked", (_notification, action_id: string) => {
 					if (active.get(id) !== cleanup || notification_daemon.get_notification(id) !== current) return
 					const action = actions.get(action_id)
@@ -128,6 +138,11 @@ function watch_actions(id: number, actions: Map<string, NotificationAction>): Pr
 		})
 		attach()
 	})
+}
+
+export function notification_action_available(key: string): boolean {
+	bound_revision()
+	return !key.startsWith(OWN_ACTION_PREFIX) || bound_keys.has(key)
 }
 
 export async function notify(options: {
@@ -169,7 +184,6 @@ export async function notify(options: {
 		}
 		if (preview_image) hints["image-path"] = new GLib.Variant("s", preview_image)
 		if (actions.length) {
-			hints.transient = new GLib.Variant("b", true)
 			hints.resident = new GLib.Variant("b", true)
 		}
 
@@ -178,7 +192,7 @@ export async function notify(options: {
 		for (const action of actions) {
 			if (!action.label.trim() || !action.argv.length || !action.argv[0])
 				throw new Error("Notification actions require a label and a program")
-			const key = GLib.uuid_string_random()
+			const key = `${OWN_ACTION_PREFIX}${GLib.uuid_string_random()}`
 			allowed.set(key, { label: action.label, argv: [...action.argv] })
 			action_list.push(key, action.label)
 		}

@@ -29,15 +29,14 @@
   }
 
   box.content {
-    box.image-preview {
-      min-height: calc(75px * var(--scale, 1));
-      min-width: calc(75px * var(--scale, 1));
+    picture.preview {
+      border-radius: calc(var(--radius) * 0.8);
       margin-right: var(--spacing);
     }
 
-    picture.preview {
-      border-radius: calc(var(--radius) * 0.8);
-
+    &.history picture.preview {
+      margin-right: 0;
+      margin-top: var(--spacing);
     }
 
     label.summary {

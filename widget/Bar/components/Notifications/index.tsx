@@ -18,8 +18,9 @@ import Pango from "gi://Pango"
 import { PanelButton } from "../PanelButton"
 
 import icons, { substitute_icon_name } from "$lib/icons"
-import { classify_image_uri, create_square_texture_accessor } from "$lib/textures"
-import { notification_daemon } from "$lib/notifications"
+import env from "$lib/env"
+import { classify_image_uri, create_texture_accessor } from "$lib/textures"
+import { notification_action_available, notification_daemon } from "$lib/notifications"
 import { notification_manager } from "$service/notifications"
 import { create_entry_lifecycle, type entry_lifecycle } from "./EntryLifecycle"
 
@@ -88,9 +89,6 @@ export namespace Notifications {
 		return <NotificationList class={class_name} persistent />
 	}
 
-	const preview_size = options.scale.as((scale) =>
-		Math.round((75 * scale) / 100),
-	)
 	const popup_width = options.scale.as((scale) =>
 		Math.round((350 * scale) / 100),
 	)
@@ -102,6 +100,7 @@ export namespace Notifications {
 	type notification_props = {
 		entry: AstalNotifd.Notification
 		state: entry_lifecycle
+		persistent: boolean
 		transition_type: transition_type
 	}
 
@@ -124,6 +123,7 @@ export namespace Notifications {
 	type content_props = {
 		notification: AstalNotifd.Notification
 		image_path: string | null
+		persistent: boolean
 	}
 
 	type actions_props = {
@@ -259,53 +259,69 @@ export namespace Notifications {
 		)
 	}
 
-	function Content({ notification, image_path }: content_props) {
+	function Content({ notification, image_path, persistent }: content_props) {
+		const body = body_text(notification.body)
+		const preview_size = options.scale.as((scale) =>
+			Math.round(((persistent ? 260 : 75) * scale) / 100))
+		const preview_height = options.scale.as((scale) =>
+			Math.round(((persistent ? 160 : 75) * scale) / 100))
 		const preview_texture = image_path
-			? createComputed(() => create_square_texture_accessor(image_path, preview_size()))
+			? createComputed(() => create_texture_accessor(image_path, preview_size(), "contain"))
 			: null
 		const preview_paintable = preview_texture
 			? createComputed(() => preview_texture()())
 			: null
+		const preview_dimensions = preview_paintable
+			? createComputed(() => {
+				const texture = preview_paintable()
+				if (!texture) return { width: preview_size(), height: preview_height() }
+				const ratio = Math.min(preview_size() / texture.get_width(),
+					preview_height() / texture.get_height())
+				return {
+					width: Math.max(1, Math.round(texture.get_width() * ratio)),
+					height: Math.max(1, Math.round(texture.get_height() * ratio)),
+				}
+			}) : null
+		const preview = preview_paintable && (
+			<Gtk.Picture
+				class="preview"
+				tooltipText={image_path ?? undefined}
+				widthRequest={preview_dimensions!.as(({ width }) => width)}
+				heightRequest={preview_dimensions!.as(({ height }) => height)}
+				halign={START}
+				valign={CENTER}
+				visible={preview_paintable.as((texture) => texture !== null)}
+				paintable={preview_paintable as unknown as Accessor<Gdk.Paintable>}
+				canShrink
+			/>
+		)
 
 		return (
-			<box class="content">
-				{preview_paintable && (
-					<box
-						class="image-preview"
-						widthRequest={preview_size}
-						heightRequest={preview_size}
-					>
-						<Gtk.Picture
-							class="preview"
-							widthRequest={preview_size}
-							heightRequest={preview_size}
-							halign={CENTER}
-							valign={CENTER}
-							paintable={preview_paintable as unknown as Accessor<Gdk.Paintable>}
-							canShrink
-						/>
-					</box>
-				)}
+			<box class={`content${persistent ? " history" : ""}`} orientation={persistent ? VERTICAL : HORIZONTAL}>
+				{!persistent && preview}
 				<box orientation={VERTICAL}>
 					<label
 						class="summary"
 						wrap
-						wrapMode={WORD}
+						wrapMode={WORD_CHAR}
 						maxWidthChars={28}
 						halign={START}
+						tooltipText={notification.summary}
 						label={notification.summary}
 					/>
-					{notification.body && (
+					{body && (
 						<label
 							class="body"
 							wrap
-							wrapMode={WORD}
+							wrapMode={WORD_CHAR}
 							maxWidthChars={28}
 							halign={START}
-						label={body_text(notification.body)}
+							tooltipText={body}
+							label={body}
 						/>
 					)}
 				</box>
+				{persistent && preview}
 			</box>
 		)
 	}
@@ -315,13 +331,20 @@ export namespace Notifications {
 
 		return (
 			<revealer
-				revealChild={show_actions}
+				revealChild={createComputed(() => show_actions() && actions.some(({ id }) => notification_action_available(id)))}
 				transitionDuration={options.transition.duration}
 				transitionType={SWING_DOWN}
 			>
 				<box class="actions horizontal">
 					{actions.map(({ label, id }) => (
-						<button hexpand label={label} onClicked={() => on_action_click(id)} />
+						<button
+							hexpand
+							label={label}
+							visible={createComputed(() => notification_action_available(id))}
+							onClicked={() => {
+								if (notification_action_available(id)) on_action_click(id)
+							}}
+						/>
 					))}
 				</box>
 			</revealer>
@@ -331,6 +354,7 @@ export namespace Notifications {
 	function Notification({
 		entry: notification,
 		state,
+		persistent,
 		transition_type,
 	}: notification_props) {
 		const [show_actions, set_show_actions] = createState(false)
@@ -352,7 +376,14 @@ export namespace Notifications {
 			notification.get_desktop_entry() ||
 			"Notification"
 		).toUpperCase()
-		const valid_actions = notification
+		let saved_path = ""
+		if (notification.get_app_name() === "Screenshot" && notification.summary === "Screenshot taken")
+			saved_path = `${env.paths.home}/Pictures/Screenshots/`
+		else if (notification.get_app_name() === "Recorder" && notification.summary === "Recording saved")
+			saved_path = `${env.paths.home}/Videos/Screencasting/`
+		const archived_capture = persistent && notification.time < notification_manager.session_start &&
+			!!saved_path && (notification.body.startsWith(saved_path) || image_value?.startsWith(saved_path) === true)
+		const valid_actions = archived_capture ? [] : notification
 			.get_actions()
 			.filter((a) => a.label?.trim())
 			.map((a) => ({ label: a.label!, id: a.id }))
@@ -389,7 +420,7 @@ export namespace Notifications {
 						show_actions={show_actions}
 						on_dismiss={state.dismiss}
 					/>
-					<Content notification={notification} image_path={image_path} />
+					<Content notification={notification} image_path={image_path} persistent={persistent} />
 					<Actions
 						actions={valid_actions}
 						show_actions={show_actions}
@@ -461,6 +492,7 @@ export namespace Notifications {
 					<Notification
 						entry={notification}
 						state={state}
+						persistent={persistent}
 						transition_type={transition_type}
 					/>
 				) as Gtk.Widget
@@ -526,11 +558,6 @@ export namespace Notifications {
 				entry.state.close()
 			},
 		)
-		const dnd_handler = persistent ? 0 : notification_daemon.connect("notify::dont-disturb", () => {
-			if (!notification_manager.do_not_disturb) return
-			for (const entry of entries) entry.state.close()
-		})
-
 		const blacklist_unsubscribe = options.notifications.blacklist.subscribe(() => {
 			for (const entry of [...entries])
 				if (notification_manager.is_blacklisted(entry.notification))
@@ -545,7 +572,6 @@ export namespace Notifications {
 		onCleanup(() => {
 			notification_daemon.disconnect(notified_handler)
 			notification_daemon.disconnect(resolved_handler)
-			if (dnd_handler) notification_daemon.disconnect(dnd_handler)
 			blacklist_unsubscribe()
 			for (const entry of entries.splice(0)) entry.dispose()
 			on_count_changed?.(0)
@@ -555,8 +581,8 @@ export namespace Notifications {
 	}
 
 	const { START, CENTER, END } = Gtk.Align
-	const { VERTICAL } = Gtk.Orientation
-	const { WORD } = Gtk.WrapMode
+	const { VERTICAL, HORIZONTAL } = Gtk.Orientation
+	const { WORD_CHAR } = Gtk.WrapMode
 	const { SLIDE_DOWN, SLIDE_UP, SWING_RIGHT, SWING_DOWN } =
 		Gtk.RevealerTransitionType
 	const { EllipsizeMode } = Pango

@@ -173,9 +173,9 @@ function start_hyprland_appearance_sync() {
 }
 
 const SAMPLE_SIZE = 96
-const MAX_WALLPAPER_BYTES = 32 * 1024 * 1024
+const MAX_WALLPAPER_BYTES = 64 * 1024 * 1024
 const MAX_WALLPAPER_DIMENSION = 8192
-const MAX_WALLPAPER_PIXELS = 32 * 1024 * 1024
+const MAX_WALLPAPER_PIXELS = 40_000_000
 const WALLPAPER_THEME_DELAY_MS = 180
 let last_wallpaper_revision = -1
 

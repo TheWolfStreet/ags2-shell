@@ -183,6 +183,8 @@ Use `ags request --instance ags2-shell <request>` for actions:
 | `screenshot`              | Capture the focused monitor                                      |
 | `screenshot-area`         | Select and capture an area                                       |
 
+The date menu stays on the bar's top or bottom edge. Its clock and calendar determine the popup size; notification history receives an equally sized half and scrolls without enlarging the popup.
+
 ## Other Linux Distributions
 
 On other distributions, ags2-shell installs as two AGS-bundled GJS launchers and a compiled stylesheet. It uses GTK4, GTK4 Layer Shell, GVfs metadata support, libportal, host runtime commands, and the IO, Astal4, Apps, Battery, Bluetooth, Hyprland, MPRIS, Network, Notifd, PowerProfiles, Tray, and WirePlumber Astal libraries. GVfs is required to mark generated desktop launchers as trusted.
@@ -252,7 +254,7 @@ Use the Settings window to change shell options. Changes are saved automatically
 | Screenshots          | `~/Pictures/Screenshots/`                         |
 | Recordings           | `~/Videos/Screencasting/`                         |
 
-Artwork loading allows four concurrent jobs and 64 queued jobs. Downloads and inline images are limited to 8 MiB, local preview files to 64 MiB, and decoded artwork to 8192 pixels per side and 32 million pixels. The downloaded-art cache is bounded to 128 files and 64 MiB.
+Artwork loading allows four concurrent jobs and 64 queued jobs. Downloads and inline images are limited to 8 MiB, local preview files to 64 MiB, and decoded artwork to 8192 pixels per side and 40 million pixels. The downloaded-art cache is bounded to 128 files and 64 MiB.
 
 There is currently no declarative Nix option interface for shell settings. Removing `options.json` restores defaults on the next start.
 

@@ -113,7 +113,7 @@ class ScreenCaptureService extends GObject.Object {
 
 			const copied = await attempt_async(() => new Promise<void>((resolve, reject) => {
 				const process = Gio.Subprocess.new([
-					"bash", "-c", `wl-copy --type image/png < ${GLib.shell_quote(screenshot_file)}`,
+					"bash", "-c", `setsid wl-copy --type image/png < ${GLib.shell_quote(screenshot_file)}`,
 				], Gio.SubprocessFlags.NONE)
 				const deadline = timeout(5000, () => process.force_exit())
 				process.wait_check_async(null, (_source, response) => {
@@ -130,7 +130,7 @@ class ScreenCaptureService extends GObject.Object {
 				app_icon: icons.fallback.image,
 				app_name: "Screenshot",
 				summary: "Screenshot taken",
-				body: screenshot_file,
+				body: "Saved to Pictures/Screenshots",
 				preview_image: screenshot_file,
 				actions: [
 					{ label: "Show in Files", argv: ["xdg-open", screenshots_directory] },

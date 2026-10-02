@@ -1,13 +1,16 @@
 import app from "$lib/app"
 import { Astal, Gtk } from "ags/gtk4"
+import GObject from "ags/gobject"
 import { createBinding, createComputed, createState, onCleanup } from "ags"
 import { createPoll } from "ags/time"
 import { readFile } from "ags/file"
 
 import GLib from "gi://GLib"
+import Graphene from "gi://Graphene"
+import Gsk from "gi://Gsk"
 
 import { Placeholder } from "widget/shared/Placeholder"
-import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { create_popup_position, PopupWindow } from "widget/shared/PopupWindow"
 import { Notifications } from "../Notifications"
 import { PanelButton } from "../PanelButton"
 
@@ -16,7 +19,52 @@ import icons from "$lib/icons"
 import { on_window_toggle } from "$lib/windowing"
 import { attempt, log_error } from "$lib/result"
 
-import options, { Opt } from "$shell/options"
+import options from "$shell/options"
+
+class DateMenuColumns extends Gtk.Widget {
+	declare notifications: Gtk.Widget
+	declare separator: Gtk.Widget
+	declare date: Gtk.Widget
+
+	set_columns(notifications: Gtk.Widget, separator: Gtk.Widget, date: Gtk.Widget) {
+		this.notifications = notifications
+		this.separator = separator
+		this.date = date
+		notifications.set_parent(this)
+		separator.set_parent(this)
+		date.set_parent(this)
+		this.connect("notify::parent", () => {
+			if (!this.get_parent())
+				while (this.get_first_child()) this.get_first_child()!.unparent()
+		})
+	}
+
+	override vfunc_measure(orientation: Gtk.Orientation, for_size: number): [number, number, number, number] {
+		if (orientation === Gtk.Orientation.HORIZONTAL) {
+			const [minimum, natural] = this.date.measure(orientation, for_size)
+			const [separator_minimum, separator_natural] = this.separator.measure(orientation, for_size)
+			return [2 * minimum + separator_minimum, 2 * natural + separator_natural, -1, -1]
+		}
+		const [, separator_width] = this.separator.measure(Gtk.Orientation.HORIZONTAL, -1)
+		const date_width = for_size < 0 ? -1 : Math.max(0, Math.floor((for_size - separator_width) / 2))
+		const [minimum, natural] = this.date.measure(orientation, date_width)
+		return [minimum, natural, -1, -1]
+	}
+
+	override vfunc_size_allocate(width: number, height: number, baseline: number) {
+		const [, separator_width] = this.separator.measure(Gtk.Orientation.HORIZONTAL, -1)
+		const side = Math.max(0, Math.floor((width - separator_width) / 2))
+		this.notifications.measure(Gtk.Orientation.HORIZONTAL, height)
+		this.notifications.measure(Gtk.Orientation.VERTICAL, side)
+		this.notifications.allocate(side, height, baseline, null)
+		this.separator.allocate(width - 2 * side, height, baseline,
+			Gsk.Transform.new().translate(new Graphene.Point({ x: side, y: 0 })))
+		this.date.allocate(side, height, baseline,
+			Gsk.Transform.new().translate(new Graphene.Point({ x: width - side, y: 0 })))
+	}
+}
+
+const RegisteredDateMenuColumns = GObject.registerClass(DateMenuColumns)
 
 export namespace DateMenu {
 	export function Button() {
@@ -39,15 +87,23 @@ export namespace DateMenu {
 				name="datemenu"
 				application={app}
 				exclusivity={EXCLUSIVE}
-				layout={options.datemenu.position as Opt<Position>}
+				layout={create_popup_position(options.bar.position, options.datemenu.position)}
 			>
-				<centerbox class="datemenu horizontal">
-					<NotifyColumn $type="start" />
-					<Gtk.Separator $type="center" orientation={VERTICAL} />
-					<DateColumn $type="end" />
-				</centerbox>
+				<box class="datemenu horizontal">
+					<Columns />
+				</box>
 			</PopupWindow>
 		) as Gtk.Window
+	}
+
+	function Columns() {
+		const columns = new RegisteredDateMenuColumns()
+		columns.set_columns(
+			<NotifyColumn /> as Gtk.Widget,
+			<Gtk.Separator orientation={VERTICAL} /> as Gtk.Widget,
+			<DateColumn /> as Gtk.Widget,
+		)
+		return columns
 	}
 
 	const notification_list = createBinding(notification_manager, "notifications")
@@ -92,7 +148,7 @@ export namespace DateMenu {
 		return (
 			<box class="notifications" orientation={VERTICAL} vexpand>
 				<Header />
-				<Gtk.ScrolledWindow class="notification-scrollable" hscrollbarPolicy={NEVER}>
+				<Gtk.ScrolledWindow class="notification-scrollable" hscrollbarPolicy={AUTOMATIC}>
 					<box vexpand orientation={VERTICAL}>
 						<Notifications.Stack class="notification-list vertical" />
 						<revealer revealChild={no_notifications} transitionDuration={options.transition.duration}>
@@ -150,7 +206,7 @@ export namespace DateMenu {
 
 
 	const { CENTER } = Gtk.Align
-	const { NEVER } = Gtk.PolicyType
+	const { AUTOMATIC } = Gtk.PolicyType
 	const { EXCLUSIVE } = Astal.Exclusivity
 	const { VERTICAL } = Gtk.Orientation
 }

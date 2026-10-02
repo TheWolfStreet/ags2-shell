@@ -308,12 +308,25 @@ function normalize_known_positions(
 	files: DesktopFile[],
 ): desktop_layout {
 	let next = layout
-	for (const [id, metrics] of Object.entries(grid_metrics.peek()))
+	for (const [id, metrics] of Object.entries(grid_metrics.peek())) {
+		const previous_columns = next.columns[id]
+		if (previous_columns && previous_columns !== metrics.columns) {
+			const owned = files_on_monitor(next, files, id)
+			const expanded = expand_grid_metrics(metrics, owned.length)
+			const remapped = remap_slots_across_columns(
+				positions_of(next, id), previous_columns, metrics.columns,
+				expanded.rows * expanded.columns,
+			)
+			next = set_positions(next, id, remapped)
+		}
+		next = set_column_count(next, id, metrics.columns)
 		next = normalize_owned_positions(next, id, files, metrics)
+	}
 	return next
 }
 
 let reload_sequence = 0
+let has_loaded_files = false
 async function reload_desktop_files(preferred_monitor_id?: string): Promise<void> {
 	const sequence = ++reload_sequence
 	const result = await load_desktop_files()
@@ -330,6 +343,7 @@ async function reload_desktop_files(preferred_monitor_id?: string): Promise<void
 		sync_paths(current, files, preferred),
 		files,
 	)
+	has_loaded_files = true
 	update_layout(next)
 	set_desktop_files(files)
 	const valid = new Set(files.map((file) => file.path))
@@ -429,6 +443,8 @@ export function get_desktop_grid(monitor_id: string): DesktopGridData {
 		base_metrics,
 		owned_files.length + projected_files.length,
 	)
+	if (!has_loaded_files)
+		return { id, metrics, files: owned_files, positions: saved_positions }
 	const owned_positions = reconcile_grid_positions(
 		owned_files,
 		saved_positions,
@@ -479,6 +495,10 @@ export function resize_desktop_grid(
 	metrics: GridMetrics,
 ): void {
 	const id = normalize_monitor_id(monitor_id)
+	if (!has_loaded_files) {
+		set_grid_metrics({ ...grid_metrics.peek(), [id]: metrics })
+		return
+	}
 	let layout = desktop_layout.peek()
 	const previous_columns = layout.columns[id]
 	if (previous_columns && previous_columns !== metrics.columns) {

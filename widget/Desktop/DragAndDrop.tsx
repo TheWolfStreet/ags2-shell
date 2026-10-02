@@ -136,9 +136,10 @@ function create_preview(
 function drop_action(drop: Gdk.Drop, control_held: boolean): Gdk.DragAction {
 	const actions = drop.get_actions()
 	const internal = active_drag.peek().paths.length > 0
-	if (internal && !control_held && (actions & DragAction.MOVE)) return DragAction.MOVE
-	if (actions & DragAction.COPY) return DragAction.COPY
+	if (internal && (actions & DragAction.MOVE)) return DragAction.MOVE
+	if (control_held && (actions & DragAction.COPY)) return DragAction.COPY
 	if (actions & DragAction.MOVE) return DragAction.MOVE
+	if (actions & DragAction.COPY) return DragAction.COPY
 	return 0
 }
 

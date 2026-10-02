@@ -322,6 +322,10 @@ export namespace Overview {
 						Math.round((16 * scale) / 100),
 					)}
 				/>
+				<Gtk.GestureClick button={Gdk.BUTTON_MIDDLE} onPressed={(self) => {
+					client.kill()
+					self.reset()
+				}} />
 				<Gtk.DragSource
 					actions={MOVE}
 					content={content_provider}

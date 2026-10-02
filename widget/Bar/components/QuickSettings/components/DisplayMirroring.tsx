@@ -130,12 +130,7 @@ export namespace DisplayMirroring {
 				if (!target) return
 				let command: string
 				if (target.mirrorOf && target.mirrorOf !== "none") {
-					const saved = original.get(target.name)
-					if (!saved) {
-						console.error(`DisplayMirroring: Original configuration for ${target.name} is unavailable`)
-						return
-					}
-					command = format_monitor_command(saved, { mirror: "none" })
+					command = format_monitor_command(original.get(target.name) ?? target, { mirror: "none" })
 				} else {
 					const source = source_monitor(current.value, target.name)
 				if (!source || !current.value.some((item) => item.name === source && !item.disabled)) {
@@ -156,9 +151,7 @@ export namespace DisplayMirroring {
 				pending = false
 			}
 		}
-		return <button onClicked={() => void click()}
-			sensitive={!mirrored || original.has(monitor.name)}
-			tooltipText={mirrored && !original.has(monitor.name) ? "Original display configuration is unavailable; restore it in Hyprland settings" : ""}>
+		return <button onClicked={() => void click()}>
 			<box class="mirror-item horizontal">
 				<image iconName={icons.ui.projector} pixelSize={options.scale.as((scale) => Math.round(16 * scale / 100))} />
 				<label label={`${monitor.model} (${monitor.name}) ${mirrored ? "(Mirrored)" : ""}`} />

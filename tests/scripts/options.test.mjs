@@ -97,6 +97,63 @@ test("loading valid options does not write the store", async () => {
 	assert.equal(writes.length, 0)
 })
 
+test("persisted font sizes and legacy launcher counts stay unchanged", async () => {
+	for (const max of [0, 20]) {
+		const { options, flush, writes } = await load_options({ font: "Sans 80", launcher: { apps: { max } } })
+		assert.equal(options.font.peek(), "Sans 80")
+		assert.equal(options.launcher.apps.max.peek(), max)
+		assert.equal((await flush()).ok, true)
+		assert.equal(writes.length, 0)
+	}
+})
+
+test("font and launcher validation reject malformed values without imposing legacy caps", async () => {
+	const { options, flush, writes } = await load_options({})
+	assert.equal(options.font.set("Sans 120.5").ok, true)
+	assert.equal(options.font.set('Sans"; color: red 80').ok, false)
+	assert.equal(options.font.set("Sans 0").ok, false)
+	for (const value of [Infinity, -1, 1.5])
+		assert.equal(options.launcher.apps.max.set(value).ok, false)
+	assert.equal(options.launcher.apps.max.set(20).ok, true)
+	assert.equal((await flush()).ok, true)
+	assert.equal(writes[0].font, "Sans 120.5")
+	assert.equal(writes[0].launcher.apps.max, 20)
+})
+
+test("invalid persisted launcher count is removed while valid font is retained", async () => {
+	const { options, flush, writes } = await load_options('{"font":"Sans 80","launcher":{"apps":{"max":1e400}}}')
+	assert.equal(options.font.peek(), "Sans 80")
+	assert.equal(options.launcher.apps.max.peek(), 6)
+	assert.equal((await flush()).ok, true)
+	assert.equal(writes.length, 1)
+	assert.equal(writes[0].font, "Sans 80")
+	assert.equal("max" in writes[0].launcher.apps, false)
+})
+
+test("launcher and color history limits retain valid bounds and reject invalid data", async () => {
+	const { options, flush, writes } = await load_options({ launcher: { apps: { max: 0 } }, colorpicker: { maxColors: 100 } })
+	assert.equal(options.launcher.apps.max.peek(), 0)
+	assert.equal(options.colorpicker.maxColors.peek(), 100)
+	assert.equal(options.colorpicker.maxColors.set(128).ok, true)
+	assert.equal(options.colorpicker.maxColors.set(129).ok, false)
+	assert.equal(options.launcher.apps.max.set(-1).ok, false)
+	assert.equal(options.launcher.apps.max.set(Infinity).ok, false)
+	assert.equal(options.notifications.blacklist.set(new Uint8Array([1, 2])).ok, false)
+	assert.equal((await flush()).ok, true)
+	assert.equal(writes[0].launcher.apps.max, 0)
+	assert.equal(writes[0].colorpicker.maxColors, 128)
+})
+
+test("negative persisted launcher counts are rejected without changing valid neighbors", async () => {
+	const { options, flush, writes } = await load_options({ launcher: { apps: { max: -2 } }, font: "Sans 80" })
+	assert.equal(options.launcher.apps.max.peek(), 6)
+	assert.equal(options.font.peek(), "Sans 80")
+	assert.equal((await flush()).ok, true)
+	assert.equal(writes.length, 1)
+	assert.equal("max" in writes[0].launcher.apps, false)
+	assert.equal(writes[0].font, "Sans 80")
+})
+
 test("invalid persisted values are removed without replacing valid neighbors", async () => {
 	const { options, flush, writes } = await load_options('{"scale":1e400,"theme":{"scheme":"unknown","dark":{"bg":"red"},"widget":{"opacity":72}},"notifications":{"blacklist":[null,1]}}')
 	assert.equal(options.scale.peek(), 100)

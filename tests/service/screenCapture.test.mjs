@@ -8,11 +8,13 @@ import { SourceTextModule, SyntheticModule } from "node:vm"
 const tsc_path = realpathSync(execFileSync("which", ["tsc"], { encoding: "utf8" }).trim())
 const ts = createRequire(tsc_path)("../lib/node_modules/typescript/lib/typescript.js")
 
-async function service_fixture() {
+async function service_fixture({ copy_successful = true } = {}) {
 	let resolve_pidof
 	let hold_pidof = false
 	const processes = []
 	const commands = []
+	const notifications = []
+	const errors = []
 	const signals = new Map()
 	const imports = {
 		"ags/gobject": {
@@ -46,7 +48,7 @@ async function service_fixture() {
 					communicate_utf8_async(_input, _cancel, callback) { this.communicated = true; this.callback = callback },
 					communicate_utf8_finish() { return [true, "10,20 30x40", ""] },
 					wait_check_async(_cancel, callback) { this.waited = true; queueMicrotask(() => callback(this, {})) },
-					wait_check_finish() { return true },
+					wait_check_finish() { return copy_successful },
 					get_successful() { return true },
 				}
 				processes.push(process)
@@ -58,10 +60,10 @@ async function service_fixture() {
 			ok: value => ({ ok: true, value }), err: err => ({ ok: false, err }),
 			attempt: fn => { try { return { ok: true, value: fn() } } catch (err) { return { ok: false, err } } },
 			attempt_async: async fn => { try { return { ok: true, value: await fn() } } catch (err) { return { ok: false, err } } },
-			log_error: result => result.ok,
+			log_error: (result, message) => { if (!result.ok) errors.push(message); return result.ok },
 		},
 		"$lib/files": { ensure_directory: () => ({ ok: true }) },
-		"$lib/notifications": { notify: async () => ({ ok: true }), notify_missing_programs: () => true },
+		"$lib/notifications": { notify: async value => { notifications.push(value); return { ok: true } }, notify_missing_programs: () => true },
 		"$lib/icons": { default: { fallback: { image: "image", video: "video" } } },
 	}
 	const source = readFileSync(new URL("../../service/screenCapture.ts", import.meta.url), "utf8")
@@ -78,7 +80,7 @@ async function service_fixture() {
 	})
 	await module.evaluate()
 	return {
-		service: module.namespace.screen_capture, processes, commands, signals,
+		service: module.namespace.screen_capture, processes, commands, notifications, errors, signals,
 		hold_query: () => { hold_pidof = true },
 		release_query: () => resolve_pidof(""),
 	}
@@ -155,13 +157,23 @@ test("focused screenshot does not capture when shutdown finishes monitor query",
 	assert.equal((await fixture.service.screenshot()).value, "cancelled")
 })
 
-test("screenshot completion checks clipboard parent exit without waiting for pipe EOF", async () => {
+test("screenshot detaches clipboard provider, checks parent exit, and shows concise notification", async () => {
 	const fixture = await service_fixture()
 	assert.equal((await fixture.service.screenshot()).value, "captured")
 	const copy = fixture.processes[0]
 	assert.equal(copy.args[0], "bash")
-	assert.match(copy.args[2], /^wl-copy --type image\/png </)
+	assert.match(copy.args[2], /^setsid wl-copy --type image\/png </)
+	assert.doesNotMatch(copy.args[2], /setsid -f/)
 	assert.equal(copy.flags, 0)
 	assert.equal(copy.waited, true)
 	assert.equal(copy.communicated, false)
+	assert.equal(fixture.notifications[0].body, "Saved to Pictures/Screenshots")
+	assert.equal(fixture.notifications[0].preview_image, "/test/Pictures/Screenshots/time-uuid.png")
+})
+
+test("failed clipboard provider exit is reported while the saved screenshot remains available", async () => {
+	const fixture = await service_fixture({ copy_successful: false })
+	assert.equal((await fixture.service.screenshot()).value, "captured")
+	assert.deepEqual(fixture.errors, ["screenCapture.screenshot: Saved screenshot but failed to copy it"])
+	assert.equal(fixture.notifications.length, 1)
 })

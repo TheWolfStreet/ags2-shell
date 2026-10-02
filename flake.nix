@@ -106,9 +106,14 @@
         src = ./.;
         nativeBuildInputs = with pkgs; [
           nodejs typescript bash dart-sass diffutils procps util-linux inotify-tools which coreutils
+          gjs xvfb-run gobject-introspection sway-unwrapped wl-clipboard dbus
+          ags.packages.${system}.default
         ];
+        buildInputs = gir_packages ++ [pkgs.gtk4];
         buildPhase = ''
           runHook preBuild
+          export HOME=$TMPDIR
+          export GTK_A11Y=none
           if [ -e node_modules ]; then rm -r node_modules; fi
           mkdir node_modules
           ln -s ${ags.packages.${system}.default.jsPackage} node_modules/ags
@@ -116,7 +121,11 @@
           test -f tests/scripts/options.test.mjs
           test -f tests/scripts/dev.test.mjs
           test -f tests/scripts/style.test.mjs
-          npm test
+          test -f tests/scripts/bundle.test.mjs
+          export BUNDLED_MAIN=${self.packages.${system}.default}/bin/.${pname}-wrapped
+          export BUNDLED_WALLPAPER=${self.packages.${system}.default}/libexec/.${pname}-wallpaper-wrapped
+          export SWAY_HEADLESS_BIN=${pkgs.sway-unwrapped}/bin/sway
+          dbus-run-session --config-file=${pkgs.dbus}/share/dbus-1/session.conf -- npm test
           runHook postBuild
         '';
         installPhase = ''
@@ -210,10 +219,9 @@
             -d "WALLPAPER_BIN='$out/libexec/${pname}-wallpaper'" \
             -d "STYLE_DIR='$out/share/${pname}'"
 
-          replacement="set -eo pipefail; umask 077; file=\$(mktemp \"\''${XDG_RUNTIME_DIR:-/tmp}/ags2-shell.XXXXXXXX\"); trap 'rm -f -- \"\$file\"' EXIT"
           for launcher in $out/bin/${pname} $out/libexec/${pname}-wallpaper; do
             substituteInPlace "$launcher" \
-              --replace-fail 'file="''${XDG_RUNTIME_DIR:-/tmp}/dmFyIF-ags.js"' "$replacement" \
+              --replace-fail 'file="''${XDG_RUNTIME_DIR:-/tmp}/dmFyIF-ags.js"' "set -eo pipefail; umask 077; file=\$(mktemp \"\''${XDG_RUNTIME_DIR:-/tmp}/ags2-shell.XXXXXXXX\"); trap 'rm -f -- \"\$file\"' EXIT" \
               --replace-fail '> $file' '> "$file"' \
               --replace-fail '-m $file $@' '-m "$file" "$@"'
           done

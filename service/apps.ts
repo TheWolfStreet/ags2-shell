@@ -4,8 +4,9 @@ import { idle, timeout, type Timer } from "$lib/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
+import GLib from "gi://GLib"
 
-import { attempt, unwrap_or } from "$lib/result"
+import { attempt } from "$lib/result"
 import { debounce } from "$lib/time"
 
 @register()
@@ -13,7 +14,7 @@ class ApplicationCatalog extends GObject.Object {
 	declare static $gtype: GObject.GType<ApplicationCatalog>
 
 	#favorites: Array<AstalApps.Application>
-	#favorites_snapshot = ""
+	#favorites_snapshot: string | null = null
 	#favorites_read = 0
 	#apps: AstalApps.Apps
 	#app_monitor: Gio.AppInfoMonitor
@@ -35,7 +36,7 @@ class ApplicationCatalog extends GObject.Object {
 			if (this.#refresh_idle) return
 			this.#refresh_idle = idle(() => {
 				this.#refresh_idle = null
-				this.#set_favorites(this.#favorites_snapshot, true)
+				if (this.#favorites_snapshot !== null) this.#set_favorites(this.#favorites_snapshot, true)
 				this.notify("list")
 			})
 		})
@@ -102,24 +103,43 @@ class ApplicationCatalog extends GObject.Object {
 
 	readonly #set_favorites = (raw: string, remap = false) => {
 		if (!remap && raw === this.#favorites_snapshot) return
-		this.#favorites_snapshot = raw
 
 		const result = attempt(() => {
+			const names = GLib.Variant.parse(new GLib.VariantType("as"), raw || "[]", null, null).get_strv()
 			const entries = new Map<string, AstalApps.Application>()
+			const short_entries = new Map<string, AstalApps.Application>()
+			const app_names = new Map<string, AstalApps.Application>()
 			for (const app of this.#apps.list) {
 				const entry = app.get_entry()
-				if (entry) entries.set(entry.toLowerCase(), app)
+				if (entry) {
+					const key = entry.toLowerCase()
+					if (!entries.has(key)) entries.set(key, app)
+					const short_key = key.replace(/\.desktop$/i, "")
+					if (!short_entries.has(short_key)) short_entries.set(short_key, app)
+				}
+				const name = app.get_name().toLowerCase()
+				if (!app_names.has(name)) app_names.set(name, app)
 			}
-			return [...raw.matchAll(/'([^']*)'/g)]
-				.map(([, entry]) => entries.get(entry.toLowerCase()))
-				.filter((app): app is AstalApps.Application => app !== undefined)
+			const favorites: AstalApps.Application[] = []
+			const seen = new Set<string>()
+			for (const name of names) {
+				const key = name.toLowerCase()
+				const app = entries.get(key) ?? short_entries.get(key) ?? app_names.get(key) ?? app_names.get(key.replace(/\.desktop$/i, ""))
+				const entry = app?.get_entry()?.toLowerCase()
+				if (app && entry && !seen.has(entry)) {
+					favorites.push(app)
+					seen.add(entry)
+				}
+			}
+			return favorites
 		})
 
-		this.#favorites = unwrap_or(
-			result,
-			[],
-			"applications.setFavorites: Failed to read favorite apps",
-		)
+		if (!result.ok) {
+			console.error("applications.setFavorites: Failed to read favorite apps", result.err)
+			return
+		}
+		this.#favorites_snapshot = raw
+		this.#favorites = result.value
 
 		this.notify("favorites")
 	}

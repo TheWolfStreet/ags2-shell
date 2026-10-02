@@ -24,7 +24,7 @@ if [[ "$prefix$bindir$libexecdir$datadir" =~ [[:cntrl:]] ]]; then
 fi
 
 cd "$root"
-./style/compile/build.sh
+bash ./style/compile/build.sh
 
 install -Dm644 style/compile/main.css "$appdatadir/style/compile/main.css"
 install -d "$bindir" "$libexecdir"
@@ -42,7 +42,7 @@ ags bundle shell/main.tsx "$stage/main" -g 4 \
   -d "STYLE_DIR=$(js_string "$appdatadir")"
 
 for launcher in "$stage/main" "$stage/wallpaper"; do
-  grep -q '^file=' "$launcher"
+  grep -Fxq 'file="${XDG_RUNTIME_DIR:-/tmp}/dmFyIF-ags.js"' "$launcher"
   grep -q '> \$file$' "$launcher"
   grep -q -- '-m \$file \$@$' "$launcher"
   sed -i \
