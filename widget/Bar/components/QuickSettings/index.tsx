@@ -20,7 +20,7 @@ import { PowerProfiles } from "./components/PowerProfiles"
 
 import env from "$lib/env"
 import icons, { get_brightness_icon } from "$lib/icons"
-import { attempt, attempt_async, unwrap_or } from "$lib/result"
+import { attempt, attempt_async, err, log_error, ok, type Result } from "$lib/result"
 import { texture_from_file_square_contain } from "$lib/textures"
 import { hyprland } from "$lib/hyprland"
 import { notification_daemon } from "$lib/notifications"
@@ -346,46 +346,34 @@ function layout_code(keymap: string): string {
 	return layout_codes[name] || name || "unk"
 }
 
-async function query_keyboard_layout(): Promise<{ keyboard: string, layout: string }> {
+async function query_keyboard_layout(): Promise<Result<string>> {
 	const result = await attempt_async(async () => {
-		const output = (await execAsync(["hyprctl", "devices", "-j"])).trim()
-		if (!output) throw new Error("Empty keyboard list")
-
-		const data = JSON.parse(output) as {
-			keyboards?: Array<{ name?: string; active_keymap?: string; main?: boolean }>
+		const output = await execAsync(["hyprctl", "devices", "-j"])
+		return JSON.parse(output) as {
+			keyboards?: Array<{ active_keymap?: string; main?: boolean }>
 		}
-		const keyboards = Array.isArray(data.keyboards) ? data.keyboards : []
-		for (const keyboard of keyboards) {
-			if (
-				keyboard.main &&
-				typeof keyboard.active_keymap === "string" &&
-				keyboard.active_keymap.length > 0
-			) {
-				return { keyboard: keyboard.name ?? "", layout: layout_code(keyboard.active_keymap) }
-			}
-		}
-		return { keyboard: "", layout: "unk" }
 	})
+	if (!result.ok) return result
 
-	return unwrap_or(result, { keyboard: "", layout: "err" }, "KeyboardLayout: failed to read layout")
+	const keyboards = Array.isArray(result.value?.keyboards) ? result.value.keyboards : []
+	for (const keyboard of keyboards) {
+		if (!keyboard?.main) continue
+		if (typeof keyboard.active_keymap !== "string") return err("Main keyboard has no active keymap")
+		const keymap = keyboard.active_keymap.trim().toLowerCase()
+		if (!keymap || keymap === "error" || keymap === "none") return err(`Invalid main keyboard layout: ${keymap}`)
+		return ok(layout_code(keymap))
+	}
+	return err("No main keyboard layout")
 }
 
 function KeyboardLayout() {
 	if (++keyboard_users === 1) {
 		refresh_keyboard_layout()
-		keyboard_handler = hyprland.connect("keyboard-layout", (source_hyprland, keyboard, layout) => {
-			if (!keyboard_name || keyboard !== keyboard_name) {
-				refresh_keyboard_layout()
-				return
-			}
-			keyboard_revision++
-			set_keyboard_layout(layout_code(layout))
-		})
+		keyboard_handler = hyprland.connect("keyboard-layout", refresh_keyboard_layout)
 	}
 	onCleanup(() => {
 		if (--keyboard_users === 0) {
 			keyboard_revision++
-			keyboard_name = ""
 			hyprland.disconnect(keyboard_handler)
 		}
 	})
@@ -396,14 +384,11 @@ const [keyboard_layout, set_keyboard_layout] = createState("")
 let keyboard_users = 0
 let keyboard_handler = 0
 let keyboard_revision = 0
-let keyboard_name = ""
 function refresh_keyboard_layout() {
 	const revision = ++keyboard_revision
-	void query_keyboard_layout().then((value) => {
-		if (keyboard_users && revision === keyboard_revision) {
-			keyboard_name = value.keyboard
-			set_keyboard_layout(value.layout)
-		}
+	void query_keyboard_layout().then((result) => {
+		if (!keyboard_users || revision !== keyboard_revision) return
+		if (log_error(result, "KeyboardLayout: failed to read layout")) set_keyboard_layout(result.value)
 	})
 }
 
