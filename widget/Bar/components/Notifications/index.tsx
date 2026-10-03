@@ -230,7 +230,8 @@ export namespace Notifications {
 				<image class="app-icon" iconName={app_icon} useFallback />
 				<label
 					class="app-name"
-					halign={START}
+					hexpand
+					xalign={0}
 					maxWidthChars={24}
 					ellipsize={EllipsizeMode.END}
 					label={app_name}
@@ -238,7 +239,6 @@ export namespace Notifications {
 				<label
 					class="time"
 					halign={END}
-					hexpand
 					label={minute_ticker(() => time_ago(notification.time))}
 				/>
 				<revealer
@@ -271,23 +271,19 @@ export namespace Notifications {
 		const preview_paintable = preview_texture
 			? createComputed(() => preview_texture()())
 			: null
-		const preview_dimensions = preview_paintable
+		const fitted_height = preview_paintable
 			? createComputed(() => {
 				const texture = preview_paintable()
-				if (!texture) return { width: preview_size(), height: preview_height() }
+				if (!texture) return preview_height()
 				const ratio = Math.min(preview_size() / texture.get_width(),
 					preview_height() / texture.get_height())
-				return {
-					width: Math.max(1, Math.round(texture.get_width() * ratio)),
-					height: Math.max(1, Math.round(texture.get_height() * ratio)),
-				}
+				return Math.max(1, Math.round(texture.get_height() * ratio))
 			}) : null
 		const preview = preview_paintable && (
 			<Gtk.Picture
 				class="preview"
 				tooltipText={image_path ?? undefined}
-				widthRequest={preview_dimensions!.as(({ width }) => width)}
-				heightRequest={preview_dimensions!.as(({ height }) => height)}
+				heightRequest={fitted_height!}
 				halign={START}
 				valign={CENTER}
 				visible={preview_paintable.as((texture) => texture !== null)}
@@ -299,13 +295,14 @@ export namespace Notifications {
 		return (
 			<box class={`content${persistent ? " history" : ""}`} orientation={persistent ? VERTICAL : HORIZONTAL}>
 				{!persistent && preview}
-				<box orientation={VERTICAL}>
+				<box orientation={VERTICAL} hexpand>
 					<label
 						class="summary"
 						wrap
 						wrapMode={WORD_CHAR}
 						maxWidthChars={28}
-						halign={START}
+						hexpand
+						xalign={0}
 						tooltipText={notification.summary}
 						label={notification.summary}
 					/>
@@ -315,7 +312,8 @@ export namespace Notifications {
 							wrap
 							wrapMode={WORD_CHAR}
 							maxWidthChars={28}
-							halign={START}
+							hexpand
+							xalign={0}
 							tooltipText={body}
 							label={body}
 						/>

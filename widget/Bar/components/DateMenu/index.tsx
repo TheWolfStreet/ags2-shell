@@ -148,7 +148,7 @@ export namespace DateMenu {
 		return (
 			<box class="notifications" orientation={VERTICAL} vexpand>
 				<Header />
-				<Gtk.ScrolledWindow class="notification-scrollable" hscrollbarPolicy={AUTOMATIC}>
+				<Gtk.ScrolledWindow class="notification-scrollable" hscrollbarPolicy={NEVER}>
 					<box vexpand orientation={VERTICAL}>
 						<Notifications.Stack class="notification-list vertical" />
 						<revealer revealChild={no_notifications} transitionDuration={options.transition.duration}>
@@ -206,7 +206,7 @@ export namespace DateMenu {
 
 
 	const { CENTER } = Gtk.Align
-	const { AUTOMATIC } = Gtk.PolicyType
+	const { NEVER } = Gtk.PolicyType
 	const { EXCLUSIVE } = Astal.Exclusivity
 	const { VERTICAL } = Gtk.Orientation
 }

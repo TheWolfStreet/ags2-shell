@@ -112,42 +112,22 @@ export namespace Launcher {
 		)
 		const Results = () => {
 			let box: Gtk.Box
-			let shown: string[] = []
-			let pending: string[] | null = null
-			let updating = false
 			const revealers = new Map<string, Gtk.Revealer>()
 			const entries = createComputed(() => displayed_apps().map(result => result.app.get_entry()))
 
-			const finish = () => {
-				if (updating || !pending) return
-				if ([...revealers.values()].some(row => row.get_reveal_child() === false && row.get_child_revealed() && row.get_mapped())) return
-				const ordered = pending
-				pending = null
+			const update = () => {
+				const ordered = entries.peek()
+				for (const [id, row] of revealers) {
+					if (!ordered.includes(id)) row.set_reveal_child(false)
+				}
 				let previous: Gtk.Revealer | null = null
 				for (const id of ordered) {
 					const row = revealers.get(id)
 					if (!row) continue
 					box.reorder_child_after(row, previous)
 					previous = row
+					row.set_reveal_child(true)
 				}
-				shown = ordered
-				for (const [id, row] of revealers) row.set_reveal_child(ordered.includes(id))
-			}
-
-			const update = () => {
-				const next = entries.peek()
-				updating = true
-				if (shown.some((id, index) => next.includes(id) && next[index] !== id)) {
-					pending = next
-					for (const row of revealers.values()) row.set_reveal_child(false)
-				} else {
-					pending = next
-					for (const [id, row] of revealers) {
-						if (!next.includes(id)) row.set_reveal_child(false)
-					}
-				}
-				updating = false
-				finish()
 			}
 
 			onMount(() => {
@@ -164,11 +144,9 @@ export namespace Launcher {
 							const rank = createComputed(() => displayed_apps().find(result => result.app.get_entry() === id)?.rank)
 							return <AppEntry app={current} rank={rank} launch={launch} register={row => {
 								revealers.set(id, row)
-								const handler = row.connect("notify::child-revealed", finish)
 								const refresh = box && entries.peek().includes(id) ? idle(update) : null
 								onCleanup(() => {
 									refresh?.cancel()
-									row.disconnect(handler)
 									if (revealers.get(id) === row) revealers.delete(id)
 								})
 							}} />

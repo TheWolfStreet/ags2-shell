@@ -63,6 +63,7 @@ async function launcher_fixture(bottom = false) {
 		if (type === "revealer") {
 			let revealed = false
 			let target = false
+			node.reveal_history = []
 			const handlers = new Map()
 			let serial = 0
 			node.connect = (event, callback) => { handlers.set(++serial, { event, callback }); return serial }
@@ -73,6 +74,7 @@ async function launcher_fixture(bottom = false) {
 			node.set_reveal_child = next => {
 				if (target === next) return
 				target = next
+				node.reveal_history.push(next)
 				for (const { event, callback } of handlers.values())
 					if (event === "notify::reveal-child") callback()
 				if (duration.peek() === 0) node.finish()
@@ -207,16 +209,32 @@ test("mapped rows leave, permute, re-enter and preserve desktop identity", async
 	assert.deepEqual([a, c, b].map(f.label), ["󰘳 1", "󰘳 2", "󰘳 3"])
 	f.settle()
 	assert.equal(f.icon(a), "old")
+	const persistent_history = [a, b, c].map(row => row.reveal_history.length)
 	f.query("b")
-	assert.equal(a.get_reveal_child(), false)
-	assert.equal(b.get_reveal_child(), false)
-	assert.deepEqual(f.order().map(row => row.props.name), [])
+	assert.deepEqual(f.order().map(row => row.props.name), ["b.desktop", "a.desktop", "c.desktop"])
+	for (const [index, row] of [a, b, c].entries()) {
+		assert.equal(row.get_reveal_child(), true)
+		assert.equal(row.get_child_revealed(), true)
+		assert.deepEqual(row.reveal_history.slice(persistent_history[index]), [])
+	}
 	f.settle()
 	assert.deepEqual(f.order().map(row => row.props.name), ["b.desktop", "a.desktop", "c.desktop"])
 	assert.deepEqual([b, a, c].map(f.label), ["󰘳 1", "󰘳 2", "󰘳 3"])
 	f.window.props.onKey(null, 1, 0, 8)
 	assert.equal(f.launched[0].get_entry(), "b.desktop")
 	assert.equal(f.rows.size, 3)
+	f.query("ab")
+	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "c.desktop"])
+	assert.equal(b.get_reveal_child(), false)
+	assert.equal(b.get_child_revealed(), true)
+	assert.deepEqual([a, c].map(row => row.reveal_history), [[true], [true]])
+	f.settle()
+	assert.equal(b.get_child_revealed(), false)
+	f.query("b")
+	assert.deepEqual(f.order().map(row => row.props.name), ["b.desktop", "a.desktop", "c.desktop"])
+	assert.equal(b.get_reveal_child(), true)
+	assert.equal(b.get_child_revealed(), false)
+	assert.deepEqual([a, c].map(row => row.reveal_history), [[true], [true]])
 	f.query("zz")
 	assert.equal(f.visible().length, 0)
 	f.cleanup()
@@ -279,6 +297,7 @@ test("zero-duration reshuffling keeps every matching app revealed", async () => 
 	f.query("b")
 	assert.deepEqual(f.order().map(row => row.props.name), ["b.desktop", "a.desktop", "c.desktop"])
 	assert.equal(f.visible().length, 3)
+	assert.deepEqual([...f.rows.values()].map(row => row.reveal_history), [[true], [true], [true]])
 	f.query("ab")
 	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "c.desktop"])
 	f.cleanup()

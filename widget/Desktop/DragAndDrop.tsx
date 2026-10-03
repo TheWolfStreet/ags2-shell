@@ -161,6 +161,8 @@ export function create_desktop_drag_controller(
 	const [hovered, set_hovered] = createState(false)
 	const widgets = new Map<string, Gtk.Widget>()
 	let target_widget: Gtk.Fixed | null = null
+	const unsubscribe_drag = active_drag.subscribe(() => set_hovered(false))
+	onCleanup(unsubscribe_drag)
 
 	function slot_at(x: number, y: number): number {
 		const metrics = grid.peek().metrics
@@ -206,20 +208,24 @@ export function create_desktop_drag_controller(
 		const source = Gtk.DragSource.new()
 		source.set_actions(DragAction.MOVE | DragAction.COPY)
 		source.connect("prepare", (controller, x, y) => {
-			on_begin()
 			const selected = desktop_interaction.selected.peek()
 			const paths = selected.includes(path) ? selected : [path]
+			set_drag_preview(null)
 			controller.set_icon(hidden_drag_icon(), 0, 0)
-			set_drag_preview(create_preview(widgets, paths, path, x, y))
+			const preview = create_preview(widgets, paths, path, x, y)
+			on_begin()
 			drag_session.handled = false
 			drag_session.canceled = false
 			drag_session.hover = null
 			desktop_interaction.select(paths)
 			set_active_drag({ paths, anchor: path, source: grid.peek().id })
+			set_drag_preview(preview)
 			return build_file_content_provider(paths, "cut")
 		})
 		source.connect("drag-cancel", () => {
 			drag_session.canceled = true
+			set_drag_preview(null)
+			set_active_drag({ ...active_drag.peek() })
 			return true
 		})
 		source.connect("drag-end", (source, drag, delete_data) =>
@@ -249,13 +255,16 @@ export function create_desktop_drag_controller(
 			const monitor_id = grid.peek().id
 			if (state.paths.length > 0 && state.source && state.source !== monitor_id)
 				drag_session.hover = { monitor_id: monitor_id, x, y }
-			set_position({ x, y })
-			set_hovered(true)
 			return drop_action(drop, (controller.get_current_event_state() & ModifierType.CONTROL_MASK) !== 0)
 		}
 
 		target.connect("drag-enter", hover)
-		target.connect("drag-motion", hover)
+		target.connect("drag-motion", (controller, drop, x, y) => {
+			const action = hover(controller, drop, x, y)
+			set_position({ x, y })
+			set_hovered(true)
+			return action
+		})
 		target.connect("drag-leave", () => {
 			if (drag_session.hover?.monitor_id === grid.peek().id) drag_session.hover = null
 			set_hovered(false)

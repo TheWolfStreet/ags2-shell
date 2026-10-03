@@ -58,10 +58,12 @@ window.set_child(outer)
 window.present()
 const context = GLib.MainContext.default()
 function flush() { while (context.pending()) context.iteration(false) }
+flush()
 function sizes() {
-    flush()
     const width = outer.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
     const height = outer.measure(Gtk.Orientation.VERTICAL, width)[1]
+    window.set_default_size(width, height)
+    flush()
     outer.allocate(width, height, -1, null)
     flush()
     return { width, height, column_width: columns.get_width(), column_height: columns.get_height(),
