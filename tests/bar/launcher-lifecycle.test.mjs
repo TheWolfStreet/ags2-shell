@@ -15,6 +15,7 @@ async function launcher_fixture(bottom = false) {
 	const timers = []
 	const rows = new Map()
 	const launched = []
+	let result_reparents = 0
 	let window
 	let entry
 	const accessor = (get, subscribe = callback => {
@@ -51,6 +52,12 @@ async function launcher_fixture(bottom = false) {
 		const children = Array.isArray(props.children) ? props.children : [props.children]
 		const node = {
 			type, props, children: children.filter(Boolean).flatMap(child => child.fragment ? child.children : [child]),
+			get_name: () => props.name ?? "",
+			get_first_child() { return this.children[0] ?? null },
+			get_next_sibling() {
+				const siblings = this.parent?.children ?? []
+				return siblings[siblings.indexOf(this) + 1] ?? null
+			},
 			reorder_child_after(child, previous) {
 				const current = this.children.indexOf(child)
 				assert.notEqual(current, -1)
@@ -63,6 +70,8 @@ async function launcher_fixture(bottom = false) {
 		if (type === "revealer") {
 			let revealed = false
 			let target = false
+			node.height = 0
+			node.get_height = () => node.height
 			node.reveal_history = []
 			const handlers = new Map()
 			let serial = 0
@@ -82,6 +91,7 @@ async function launcher_fixture(bottom = false) {
 			node.finish = () => {
 				if (revealed === target) return
 				revealed = target
+				node.height = target ? 64 : 0
 				for (const { event, callback } of handlers.values())
 					if (event === "notify::child-revealed") callback()
 			}
@@ -114,6 +124,7 @@ async function launcher_fixture(bottom = false) {
 					for (const [key, item] of next) items.set(key, item)
 					fragment.children = [...items.values()]
 					if (fragment.parent) {
+						if (fragment.children.some(child => child.type === "revealer")) result_reparents++
 						fragment.parent.children = [...fragment.children]
 						for (const child of fragment.children) child.parent = fragment.parent
 					}
@@ -181,8 +192,10 @@ async function launcher_fixture(bottom = false) {
 	for (const mount of mounts.splice(0)) mount()
 	return {
 		query: value => entry.set_text(value), set_catalog, set_max, set_position, apps,
+		activate: () => entry.props.onActivate(),
 		set_duration,
 		rows, window, launched,
+		result_reparents: () => result_reparents,
 		run_idle: () => {
 			for (const timer of timers.splice(0)) if (!timer.cancelled) timer.callback()
 		},
@@ -190,17 +203,19 @@ async function launcher_fixture(bottom = false) {
 			for (let i = 0; i < 3; i++) for (const row of rows.values()) row.finish()
 		},
 		visible: () => [...rows.values()].filter(row => row.get_reveal_child()),
+		siblings: () => [...rows.values()][0].parent.children.filter(child => child.type === "revealer"),
 		order: () => {
 			const result_box = [...rows.values()][0].parent
 			return result_box.children.filter(child => child.type === "revealer" && child.get_reveal_child())
 			},
 		label: row => row.children[0].children[1].children[0].children[2].props.label.peek(),
+		title: row => row.children[0].children[1].children[0].children[1].children[0].props.label.peek(),
 		icon: row => row.children[0].children[1].children[0].children[0].props.icon.peek(),
 		cleanup: () => { for (const fn of cleanups) fn() },
 	}
 }
 
-test("mapped rows leave, permute, re-enter and preserve desktop identity", async () => {
+test("retained rows never move on rank changes and shortcuts follow visual order", async () => {
 	const f = await launcher_fixture()
 	const [a, b, c] = [...f.rows.values()]
 	assert.equal(f.icon(a), "")
@@ -211,22 +226,25 @@ test("mapped rows leave, permute, re-enter and preserve desktop identity", async
 	assert.equal(f.icon(a), "old")
 	const persistent_history = [a, b, c].map(row => row.reveal_history.length)
 	f.query("b")
-	assert.deepEqual(f.order().map(row => row.props.name), ["b.desktop", "a.desktop", "c.desktop"])
+	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "c.desktop", "b.desktop"])
 	for (const [index, row] of [a, b, c].entries()) {
 		assert.equal(row.get_reveal_child(), true)
 		assert.equal(row.get_child_revealed(), true)
 		assert.deepEqual(row.reveal_history.slice(persistent_history[index]), [])
 	}
 	f.settle()
-	assert.deepEqual(f.order().map(row => row.props.name), ["b.desktop", "a.desktop", "c.desktop"])
-	assert.deepEqual([b, a, c].map(f.label), ["󰘳 1", "󰘳 2", "󰘳 3"])
+	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "c.desktop", "b.desktop"])
+	assert.deepEqual([a, c, b].map(f.label), ["󰘳 1", "󰘳 2", "󰘳 3"])
 	f.window.props.onKey(null, 1, 0, 8)
-	assert.equal(f.launched[0].get_entry(), "b.desktop")
+	assert.equal(f.launched[0].get_entry(), "a.desktop")
+	f.activate()
+	assert.equal(f.launched[1].get_entry(), "a.desktop")
 	assert.equal(f.rows.size, 3)
 	f.query("ab")
 	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "c.desktop"])
 	assert.equal(b.get_reveal_child(), false)
 	assert.equal(b.get_child_revealed(), true)
+	assert.deepEqual(f.siblings().map(row => row.props.name), ["a.desktop", "c.desktop", "b.desktop"])
 	assert.deepEqual([a, c].map(row => row.reveal_history), [[true], [true]])
 	f.settle()
 	assert.equal(b.get_child_revealed(), false)
@@ -255,7 +273,9 @@ test("rapid query cancellation, max changes and catalog replacement keep the que
 	f.settle()
 	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop"])
 	const replacement = f.apps("a.desktop", "Ab", "new")
+	const reparents = f.result_reparents()
 	f.set_catalog([replacement, f.apps("d.desktop", "Ac")])
+	assert.ok(f.result_reparents() > reparents)
 	f.run_idle()
 	f.settle()
 	assert.equal(f.rows.get("a.desktop"), a)
@@ -267,7 +287,7 @@ test("rapid query cancellation, max changes and catalog replacement keep the que
 	assert.equal(f.visible().length, 2)
 	f.set_position("top-center")
 	f.settle()
-	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "d.desktop"])
+	assert.deepEqual(f.order().map(row => row.props.name), ["d.desktop", "a.desktop"])
 	assert.deepEqual(f.order().map(f.label), ["󰘳 1", "󰘳 2"])
 	assert.equal(a.props.transitionType.peek(), 1)
 	f.cleanup()
@@ -295,10 +315,144 @@ test("zero-duration reshuffling keeps every matching app revealed", async () => 
 	f.query("a")
 	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "c.desktop", "b.desktop"])
 	f.query("b")
-	assert.deepEqual(f.order().map(row => row.props.name), ["b.desktop", "a.desktop", "c.desktop"])
+	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "c.desktop", "b.desktop"])
 	assert.equal(f.visible().length, 3)
 	assert.deepEqual([...f.rows.values()].map(row => row.reveal_history), [[true], [true], [true]])
 	f.query("ab")
 	assert.deepEqual(f.order().map(row => row.props.name), ["a.desktop", "c.desktop"])
 	f.cleanup()
+})
+
+test("an interrupted row with positive height reverses without changing siblings", async () => {
+	const f = await launcher_fixture()
+	f.query("a")
+	f.settle()
+	f.query("ab")
+	const b = f.rows.get("b.desktop")
+	b.height = 24
+	f.query("b")
+	assert.deepEqual(f.siblings().map(row => row.props.name), ["a.desktop", "c.desktop", "b.desktop"])
+	assert.equal(b.get_reveal_child(), true)
+	assert.deepEqual(f.order().map(f.label), ["󰘳 1", "󰘳 2", "󰘳 3"])
+	f.query("ab")
+	assert.deepEqual(f.siblings().map(row => row.props.name), ["a.desktop", "c.desktop", "b.desktop"])
+	f.cleanup()
+})
+
+test("catalog metadata and order refresh never reparent established or closing rows", async () => {
+	const f = await launcher_fixture()
+	const [a, b, c] = [...f.rows.values()]
+	f.query("a")
+	f.settle()
+	f.query("ab")
+	const before = f.result_reparents()
+	const order = [a, c, b]
+	const replacements = [f.apps("b.desktop", "Ba", "new-b"),
+		f.apps("c.desktop", "Ab", "new-c"), f.apps("a.desktop", "Ab refreshed", "new-a")]
+	f.set_catalog(replacements)
+	assert.deepEqual(f.siblings().map(row => row.props.name), order.map(row => row.props.name))
+	assert.equal(f.result_reparents(), before)
+	assert.deepEqual(f.siblings(), order)
+	assert.equal(b.get_child_revealed(), true)
+	assert.equal(b.get_reveal_child(), false)
+	assert.equal(f.icon(a), "new-a")
+	assert.equal(f.icon(c), "new-c")
+	assert.equal(f.title(a), "Ab refreshed")
+	assert.deepEqual(f.order().map(f.label), ["󰘳 1", "󰘳 2"])
+	f.run_idle()
+	assert.deepEqual(f.siblings(), order)
+	assert.equal(f.result_reparents(), before)
+	f.set_catalog([...replacements].reverse())
+	assert.deepEqual(f.siblings(), order)
+	assert.equal(f.result_reparents(), before)
+	f.run_idle()
+	assert.deepEqual(f.siblings(), order)
+	f.activate()
+	assert.equal(f.launched[0], replacements[2])
+	f.window.props.onKey(null, 2, 0, 8)
+	assert.equal(f.launched[1], replacements[1])
+	f.cleanup()
+})
+
+test("real Gnim With does not rebuild Results for catalog metadata, but does for orientation", async () => {
+	const source = readFileSync(new URL("../../widget/Bar/components/Launcher/index.tsx", import.meta.url), "utf8")
+	const ast = ts.createSourceFile("index.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+	let initializer
+	function visit(node) {
+		if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name) &&
+			node.name.elements[0]?.getText(ast) === "row_ids") initializer = node.initializer.getText(ast)
+		ts.forEachChild(node, visit)
+	}
+	visit(ast)
+	assert.ok(initializer)
+	assert.match(initializer, /all_apps\.peek\(\)/)
+	const load = name => new SourceTextModule(ts.transpileModule(readFileSync(
+		new URL(`../../node_modules/gnim/dist/jsx/${name}.ts`, import.meta.url), "utf8"), {
+		compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+	}).outputText)
+	const scope = load("scope")
+	const state = load("state")
+	const with_module = load("With")
+	await with_module.link(name => {
+		if (name === "./scope.js") return scope
+		if (name === "./state.js") return state
+		const exports = name === "gi://GObject"
+			? { default: { Object: class { connect() {} disconnect() {} }, TYPE_JSOBJECT: 1 } }
+			: name === "gi://Gio" || name === "gi://GLib" ? { default: {} }
+			: name === "../util.js" ? { camelify: value => value, kebabify: value => value }
+			: name === "./env.js" ? { env: { defaultCleanup() {} } }
+			: name === "./Fragment.js" ? { Fragment: class {
+				children = []
+				append(child) { this.children.push(child) }
+				remove(child) { this.children.splice(this.children.indexOf(child), 1) }
+				[Symbol.iterator]() { return this.children[Symbol.iterator]() }
+			} }
+			: null
+		assert.ok(exports, name)
+		return new SyntheticModule(Object.keys(exports), function () {
+			for (const [key, value] of Object.entries(exports)) this.setExport(key, value)
+		})
+	})
+	await with_module.evaluate()
+	const { createState } = state.namespace
+	const { createRoot } = scope.namespace
+	const { With } = with_module.namespace
+	function construct(expression) {
+		const code = ts.transpileModule(`const [row_ids] = ${expression};`, {
+			compilerOptions: { target: ts.ScriptTarget.ES2022 },
+		}).outputText
+		const make_ids = new Function("createState", "all_apps", `${code}\nreturn row_ids`)
+		const [catalog, set_catalog] = createState([{ get_entry: () => "a.desktop", icon: "old" }])
+		const [orientation, set_orientation] = createState(false)
+		let dispose
+		let fragment
+		const created = []
+		createRoot(cleanup => {
+			dispose = cleanup
+			fragment = With({ value: orientation, children: bottom => {
+				const row = { ids: make_ids(createState, catalog), bottom,
+					icon: () => catalog.peek()[0].icon }
+				created.push(row)
+				return row
+			} })
+		})
+		const original = fragment.children[0]
+		assert.deepEqual(original.ids.peek(), ["a.desktop"])
+		set_catalog([{ get_entry: () => "a.desktop", icon: "new" }])
+		const after_catalog = fragment.children[0]
+		set_orientation(true)
+		const after_orientation = fragment.children[0]
+		assert.equal(after_orientation.bottom, true)
+		assert.notEqual(after_orientation, after_catalog)
+		assert.equal(after_orientation.icon(), "new")
+		dispose()
+		return { original, after_catalog, created }
+	}
+	const stable = construct(initializer)
+	assert.equal(stable.after_catalog, stable.original)
+	assert.equal(stable.after_catalog.icon(), "new")
+	assert.equal(stable.created.length, 2)
+	const tracked = construct(initializer.replace("all_apps.peek()", "all_apps()"))
+	assert.notEqual(tracked.after_catalog, tracked.original)
+	assert.equal(tracked.created.length, 3)
 })

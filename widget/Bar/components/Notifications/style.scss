@@ -63,7 +63,7 @@
 
   button.close-button {
     padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
-    margin-left: calc(var(--spacing) / 2);
+    margin-left: calc(var(--padding) + 1px);
   }
 }
 
@@ -75,5 +75,8 @@ window.notifications {
     border-radius: var(--radius);
     margin-bottom: 0;
 
+    button.close-button {
+      margin-left: calc(var(--popover-padding) + 1px);
+    }
   }
 }

@@ -59,14 +59,21 @@ export namespace Notifications {
 				exclusivity={NORMAL}
 				anchor={anchor}
 			>
-				<NotificationList
-					class="notifications-stack"
-					persistent={false}
-					on_count_changed={set_popup_count}
-					transition_type={options.notifications.position.as((position) =>
-						position.startsWith("bottom") ? SLIDE_UP : SLIDE_DOWN,
-					)}
-				/>
+				<scrolledwindow
+					widthRequest={popup_width}
+					hscrollbarPolicy={EXTERNAL}
+					vscrollbarPolicy={AUTOMATIC}
+					propagateNaturalHeight
+				>
+					<NotificationList
+						class="notifications-stack"
+						persistent={false}
+						on_count_changed={set_popup_count}
+						transition_type={options.notifications.position.as((position) =>
+							position.startsWith("bottom") ? SLIDE_UP : SLIDE_DOWN,
+						)}
+					/>
+				</scrolledwindow>
 			</window>
 		)
 	}
@@ -128,6 +135,7 @@ export namespace Notifications {
 
 	type actions_props = {
 		actions: Array<{ label: string; id: string }>
+		persistent: boolean
 		show_actions: Accessor<boolean>
 		on_action_click: (action_id: string) => void
 	}
@@ -324,8 +332,9 @@ export namespace Notifications {
 		)
 	}
 
-	function Actions({ actions, show_actions, on_action_click }: actions_props) {
+	function Actions({ actions, persistent, show_actions, on_action_click }: actions_props) {
 		if (actions.length === 0) return <box visible={false} />
+		const vertical = !persistent && actions.length > 3
 
 		return (
 			<revealer
@@ -333,16 +342,18 @@ export namespace Notifications {
 				transitionDuration={options.transition.duration}
 				transitionType={SWING_DOWN}
 			>
-				<box class="actions horizontal">
+				<box class={`actions ${vertical ? "vertical" : "horizontal"}`} orientation={vertical ? VERTICAL : HORIZONTAL}>
 					{actions.map(({ label, id }) => (
 						<button
 							hexpand
-							label={label}
+							label={persistent ? label : undefined}
 							visible={createComputed(() => notification_action_available(id))}
 							onClicked={() => {
 								if (notification_action_available(id)) on_action_click(id)
 							}}
-						/>
+						>
+							{!persistent && <label label={label} wrap wrapMode={WORD_CHAR} xalign={CENTER} />}
+						</button>
 					))}
 				</box>
 			</revealer>
@@ -421,6 +432,7 @@ export namespace Notifications {
 					<Content notification={notification} image_path={image_path} persistent={persistent} />
 					<Actions
 						actions={valid_actions}
+						persistent={persistent}
 						show_actions={show_actions}
 						on_action_click={state.on_action_click}
 					/>
@@ -581,6 +593,7 @@ export namespace Notifications {
 	const { START, CENTER, END } = Gtk.Align
 	const { VERTICAL, HORIZONTAL } = Gtk.Orientation
 	const { WORD_CHAR } = Gtk.WrapMode
+	const { EXTERNAL, AUTOMATIC } = Gtk.PolicyType
 	const { SLIDE_DOWN, SLIDE_UP, SWING_RIGHT, SWING_DOWN } =
 		Gtk.RevealerTransitionType
 	const { EllipsizeMode } = Pango

@@ -70,6 +70,7 @@ export namespace Launcher {
 		})
 		const displayed_apps = createComputed(() => display_apps(ranked_apps(), is_on_bottom()))
 		const app_by_entry = createComputed(() => new Map(all_apps().map(candidate => [candidate.get_entry(), candidate])))
+		const [visual_entries, set_visual_entries] = createState<string[]>([])
 		const show_favorites = createComputed(() => !text() &&
 			["launcher", "both"].includes(options.favorites.location()))
 		const not_found = createComputed(() => !!text().trim() && !ranked_apps().length)
@@ -101,7 +102,10 @@ export namespace Launcher {
 				placeholderText="Search"
 				primaryIconName="system-search-symbolic"
 				onNotifyText={(self) => set_text(self.get_text())}
-				onActivate={() => launch(ranked_apps.peek()[0])}
+				onActivate={() => {
+					const first = visual_entries.peek()[0]
+					if (first) launch(app_by_entry.peek().get(first))
+				}}
 			/>
 		)
 		const NotFound = () => (
@@ -113,40 +117,70 @@ export namespace Launcher {
 		const Results = () => {
 			let box: Gtk.Box
 			const revealers = new Map<string, Gtk.Revealer>()
+			const [row_ids, set_row_ids] = createState(all_apps.peek().map(candidate => candidate.get_entry()))
 			const entries = createComputed(() => displayed_apps().map(result => result.app.get_entry()))
 
 			const update = () => {
 				const ordered = entries.peek()
-				for (const [id, row] of revealers) {
-					if (!ordered.includes(id)) row.set_reveal_child(false)
-				}
 				let previous: Gtk.Revealer | null = null
 				for (const id of ordered) {
 					const row = revealers.get(id)
 					if (!row) continue
-					box.reorder_child_after(row, previous)
+					if (!row.get_reveal_child() && !row.get_child_revealed() && row.get_height() === 0)
+						box.reorder_child_after(row, previous)
 					previous = row
-					row.set_reveal_child(true)
 				}
+				for (const [id, row] of revealers) row.set_reveal_child(ordered.includes(id))
+				const wanted = new Set(ordered)
+				const visual: string[] = []
+				for (let row = box.get_first_child(); row; row = row.get_next_sibling()) {
+					const id = row.get_name()
+					if (wanted.has(id)) visual.push(id)
+				}
+				const current = visual_entries.peek()
+				if (visual.length !== current.length || visual.some((id, index) => id !== current[index]))
+					set_visual_entries(visual)
 			}
 
 			onMount(() => {
+				let refresh: ReturnType<typeof idle> | null = null
 				const unsub = entries.subscribe(update)
+				const unsub_catalog = all_apps.subscribe(() => {
+					const next = all_apps.peek().map(candidate => candidate.get_entry())
+					const wanted = new Set(next)
+					const current = row_ids.peek()
+					if (next.length !== current.length || current.some(id => !wanted.has(id))) {
+						const ids: string[] = []
+						for (let row = box.get_first_child(); row; row = row.get_next_sibling()) {
+							const id = row.get_name()
+							if (wanted.delete(id)) ids.push(id)
+						}
+						for (const id of next) if (wanted.delete(id)) ids.push(id)
+						set_row_ids(ids)
+					}
+					refresh?.cancel()
+					refresh = idle(update)
+				})
 				update()
-				onCleanup(unsub)
+				onCleanup(() => {
+					unsub()
+					unsub_catalog()
+					refresh?.cancel()
+				})
 			})
 			return (
 				<box orientation={VERTICAL} $={self => { box = self }}>
-					<For each={all_apps} id={candidate => candidate.get_entry()}>
-						{candidate => {
-							const id = candidate.get_entry()
+					<For each={row_ids}>
+						{id => {
+							const candidate = app_by_entry.peek().get(id)!
 							const current = app_by_entry.as(apps => apps.get(id) ?? candidate)
-							const rank = createComputed(() => displayed_apps().find(result => result.app.get_entry() === id)?.rank)
+							const rank = createComputed(() => {
+								const index = visual_entries().indexOf(id)
+								return index < 0 ? undefined : index
+							})
 							return <AppEntry app={current} rank={rank} launch={launch} register={row => {
 								revealers.set(id, row)
-								const refresh = box && entries.peek().includes(id) ? idle(update) : null
 								onCleanup(() => {
-									refresh?.cancel()
 									if (revealers.get(id) === row) revealers.delete(id)
 								})
 							}} />
@@ -189,7 +223,7 @@ export namespace Launcher {
 					if ((mod & ALT_MASK) !== ALT_MASK) return
 					const rank = digit_keys.indexOf(keyval as typeof digit_keys[number])
 					if (rank < 0) return
-					if (displayed_apps.peek().length) launch(displayed_apps.peek()[rank]?.app)
+					if (visual_entries.peek().length) launch(app_by_entry.peek().get(visual_entries.peek()[rank]))
 					else if (show_favorites.peek()) launch(favorites.peek()[rank])
 				}}
 				$={(self) => { window = self }}

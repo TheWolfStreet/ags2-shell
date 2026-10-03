@@ -12,7 +12,7 @@ import {
 	focused_window_client,
 	focus_client_and_toggle_fullscreen,
 } from "$lib/windowing"
-import { launch_app } from "$lib/apps"
+import { launch_app, match_client_app } from "$lib/apps"
 import { applications } from "$service/apps"
 import options from "$shell/options"
 import { ApplicationIcon } from "widget/shared/ApplicationIcon"
@@ -35,36 +35,6 @@ type dock_item =
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { CENTER } = Gtk.Align
 
-const generic_match_tokens = new Set([
-	"app",
-	"apps",
-	"application",
-	"bin",
-	"com",
-	"desktop",
-	"exe",
-	"flatpak",
-	"io",
-	"linux",
-	"local",
-	"net",
-	"opt",
-	"org",
-	"snap",
-	"usr",
-])
-
-function lookup_tokens(value: string | null | undefined) {
-	const normalized = value?.trim().toLowerCase()
-	if (!normalized) return []
-
-	const tokens = new Set<string>([normalized])
-	for (const token of normalized.split(/[ .:_-]+/g)) {
-		if (token.length >= 3 && !generic_match_tokens.has(token)) tokens.add(token)
-	}
-	return [...tokens]
-}
-
 export function create_dock_items(is_dock_location: Accessor<boolean>) {
 	const running_clients = create_window_client_list(options.bar.taskbar.exclusive)
 	const favorite_apps = createBinding(applications, "favorites")
@@ -74,27 +44,25 @@ export function create_dock_items(is_dock_location: Accessor<boolean>) {
 	return createComputed((): dock_item[] => {
 		const running = is_dock_location() ? running_clients() : []
 		const groups = new Map<string, AstalHyprland.Client[]>()
+		const matched_apps = new Map<string, AstalApps.Application | null | undefined>()
+		const catalog = all_apps()
 		for (const client of running) {
-			const app_class = client.get_class()
+			const app_class = createBinding(client, "class")()
+			const initial_class = createBinding(client, "initialClass")()
+			const title = createBinding(client, "title")()
+			const initial_title = createBinding(client, "initialTitle")()
 			const group = groups.get(app_class)
 			if (group) group.push(client)
 			else groups.set(app_class, [client])
-		}
-		const app_for_class = (app_class: string) => {
-			const exact = all_apps().find((app) =>
-				app.get_wm_class()?.toLowerCase() === app_class.toLowerCase() ||
-				app.get_entry()?.replace(/\.desktop$/i, "").toLowerCase() === app_class.toLowerCase())
-			if (exact) return exact
-			const class_tokens = new Set(lookup_tokens(app_class))
-			return all_apps().find((app) => {
-				const app_tokens = [
-					...lookup_tokens(app.get_wm_class()),
-					...lookup_tokens(app.get_name()),
-					...lookup_tokens(app.get_executable()),
-					...lookup_tokens(app.get_entry()),
-				]
-				return app_tokens.some((token) => class_tokens.has(token))
+			const match = match_client_app(catalog, {
+				class: app_class, initialClass: initial_class, title, initialTitle: initial_title,
 			})
+			if (!matched_apps.has(app_class)) matched_apps.set(app_class, match)
+			else {
+				const previous = matched_apps.get(app_class)
+				if (previous !== undefined && (previous?.get_entry() ?? null) !== (match?.get_entry() ?? null))
+					matched_apps.set(app_class, undefined)
+			}
 		}
 
 		const items: dock_item[] = []
@@ -102,19 +70,8 @@ export function create_dock_items(is_dock_location: Accessor<boolean>) {
 
 		if (favorite_location === "dock" || favorite_location === "both") {
 			for (const favorite of favorite_apps()) {
-				const exact_class = [...groups.keys()].find((app_class) =>
-					favorite.get_wm_class()?.toLowerCase() === app_class.toLowerCase() ||
-					favorite.get_entry()?.replace(/\.desktop$/i, "").toLowerCase() === app_class.toLowerCase())
-				const favorite_tokens = new Set([
-				...lookup_tokens(favorite.get_wm_class()),
-					...lookup_tokens(favorite.get_name()),
-					...lookup_tokens(favorite.get_executable()),
-					...lookup_tokens(favorite.get_entry()),
-				])
-				const matching_group = exact_class
-					? [exact_class, groups.get(exact_class)!] as const
-					: [...groups].find(([app_class]) =>
-						lookup_tokens(app_class).some((token) => favorite_tokens.has(token)))
+				const matching_group = [...groups].find(([app_class]) =>
+					matched_apps.get(app_class)?.get_entry() === favorite.get_entry())
 				if (!matching_group) {
 					items.push({ kind: "favorite", app: favorite })
 					continue
@@ -125,7 +82,7 @@ export function create_dock_items(is_dock_location: Accessor<boolean>) {
 					kind: "group",
 					clients,
 					app_class: app_class,
-					icon: favorite.get_icon_name() || undefined,
+					icon: matched_apps.get(app_class)?.get_icon_name() || undefined,
 				})
 				groups.delete(app_class)
 			}
@@ -136,7 +93,7 @@ export function create_dock_items(is_dock_location: Accessor<boolean>) {
 				kind: "group",
 				clients,
 				app_class: app_class,
-				icon: app_for_class(app_class)?.get_icon_name() || undefined,
+				icon: matched_apps.get(app_class)?.get_icon_name() || undefined,
 			})
 
 		if (options.dock.trash()) {
@@ -242,7 +199,7 @@ function GroupedIcon({
 						gesture.reset()
 					}}
 				/>
-				<ApplicationIcon icon={icon_name || app_class} size={icon_size} />
+				<ApplicationIcon icon={icon_name || app_class || "application-x-executable-symbolic"} size={icon_size} />
 			</button>
 			{side === "bottom" ? <box class="window-dots" orientation={HORIZONTAL}
 				halign={CENTER} valign={CENTER}>{make_dots()}</box> : <></>}

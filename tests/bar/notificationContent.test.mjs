@@ -51,7 +51,7 @@ async function render_notification(persistent, actions, details = {}) {
 		},
 		"ags/gtk4": { Astal: { Exclusivity: { NORMAL: 1 }, WindowAnchor: {} }, Gdk: {},
 			Gtk: { Picture: "picture", Align: { START: 1, CENTER: 2, END: 3 },
-				Orientation: { VERTICAL: 1, HORIZONTAL: 2 }, WrapMode: { WORD_CHAR: 1 },
+				Orientation: { VERTICAL: 1, HORIZONTAL: 2 }, WrapMode: { WORD_CHAR: 1 }, PolicyType: { AUTOMATIC: 1, EXTERNAL: 3 },
 				RevealerTransitionType: { SLIDE_DOWN: 1, SLIDE_UP: 2, SWING_RIGHT: 3, SWING_DOWN: 4 },
 				EventControllerMotion: "motion" } },
 		"ags/gtk4/jsx-runtime": { jsx, jsxs: jsx },
@@ -99,7 +99,7 @@ async function render_notification(persistent, actions, details = {}) {
 
 function action_revealer(view) {
 	return view.nodes.find(item => item.type === "revealer" &&
-		item.children.some(child => child.props.class === "actions horizontal"))
+		item.children.some(child => child.props.class?.startsWith("actions ")))
 }
 
 test("history preserves complete text and hides expired own actions without hiding external actions", async () => {
@@ -134,10 +134,33 @@ test("history preserves complete text and hides expired own actions without hidi
 test("DND blocks new popups but does not close an already displayed popup", async () => {
 	const view = await render_notification(false, [{ id: "external-id", label: "External" }])
 	assert.equal(view.nodes.find(item => item.props.class === "body").props.lines, undefined)
+	const viewport = view.nodes.find(item => item.type === "scrolledwindow")
+	assert.equal(viewport.props.widthRequest(), 350)
+	assert.equal(viewport.props.hscrollbarPolicy, 3)
+	assert.equal(viewport.props.vscrollbarPolicy, 1)
+	assert.equal(viewport.props.propagateNaturalHeight, true)
+	assert.equal(viewport.children[0].props.class, "notifications-stack")
 	view.set_dnd(true)
 	assert.equal(view.closed(), 0)
 	view.notify_new()
 	assert.equal(view.mounted(), 1)
+})
+
+test("popup actions wrap long labels and stack only after three; history actions keep their row", async () => {
+	const actions = ["Open", "Reply", "Dismiss", "One more option"].map((label, index) => ({ id: String(index), label }))
+	const popup = await render_notification(false, actions)
+	const row = action_revealer(popup).children[0]
+	assert.equal(row.props.class, "actions vertical")
+	assert.equal(row.props.orientation, 1)
+	assert.equal(row.children[0].props.label, undefined)
+	assert.equal(row.children[0].children[0].props.label, "Open")
+	assert.equal(row.children[0].children[0].props.wrap, true)
+	const history = await render_notification(true, actions)
+	const history_row = action_revealer(history).children[0]
+	assert.equal(history_row.props.class, "actions horizontal")
+	assert.equal(history_row.props.orientation, 2)
+	assert.equal(history_row.children[0].props.label, "Open")
+	assert.equal(history_row.children[0].children.length, 0)
 })
 
 test("archived legacy captures retain their descriptors but never offer stale UUID or command actions", async () => {

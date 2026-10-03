@@ -25,6 +25,8 @@ window#datemenu {
       box.notification {
         @extend .widget;
         padding: var(--padding);
+        margin-left: 1px;
+        margin-right: 1px;
         margin-bottom: var(--spacing);
       }
     }

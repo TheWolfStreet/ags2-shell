@@ -63,9 +63,23 @@ function sizes() {
     const width = outer.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
     const height = outer.measure(Gtk.Orientation.VERTICAL, width)[1]
     window.set_default_size(width, height)
-    flush()
-    outer.allocate(width, height, -1, null)
-    flush()
+    const loop = new GLib.MainLoop(null, false)
+    const deadline = GLib.get_monotonic_time() + 5000000
+    let configured = false
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+        configured = window.get_width() >= width && window.get_height() >= height &&
+            columns.get_width() >= columns.measure(Gtk.Orientation.HORIZONTAL, -1)[0] &&
+            columns.get_height() >= columns.measure(Gtk.Orientation.VERTICAL, columns.get_width())[0]
+        if (configured || GLib.get_monotonic_time() >= deadline) {
+            loop.quit()
+            return GLib.SOURCE_REMOVE
+        }
+        return GLib.SOURCE_CONTINUE
+    })
+    loop.run()
+    if (!configured) throw new Error("Window did not configure to " + width + "x" + height +
+        "; window " + window.get_width() + "x" + window.get_height() +
+        "; outer " + outer.get_width() + "x" + outer.get_height())
     return { width, height, column_width: columns.get_width(), column_height: columns.get_height(),
         left: notifications.get_width(), right: date.get_width(),
         left_height: notifications.get_height(), right_height: date.get_height() }
