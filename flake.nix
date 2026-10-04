@@ -105,7 +105,7 @@
         name = "ags2-shell-tests";
         src = ./.;
         nativeBuildInputs = with pkgs; [
-          nodejs typescript bash dart-sass diffutils procps util-linux inotify-tools which coreutils
+          nodejs typescript bash dart-sass diffutils procps util-linux which coreutils
           gjs xvfb-run gobject-introspection sway-unwrapped wl-clipboard dbus
           ags.packages.${system}.default
         ];

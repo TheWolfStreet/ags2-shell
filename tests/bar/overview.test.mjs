@@ -47,7 +47,6 @@ async function overview_fixture(client = null) {
 			DragSource: "drag-source", Fixed: "fixed" } },
 		"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
 		"ags/gobject": { default: { TYPE_STRING: 1 } },
-		"gi://AstalHyprland": { default: {} },
 		"widget/shared/PopupWindow": { PopupWindow: props => make("popup-window", props) },
 		"../PanelButton": { PanelButton: () => null },
 		"$lib/hyprland": { hyprland },

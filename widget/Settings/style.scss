@@ -99,10 +99,6 @@ window.settings-dialog {
       margin-left: var(--spacing);
     }
 
-    colorswatch {
-      border-radius: calc(var(--radius) / 4);
-    }
-
     picture.preview {
       border-radius: var(--radius);
       min-height: 15em;

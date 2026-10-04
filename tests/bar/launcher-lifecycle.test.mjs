@@ -143,7 +143,6 @@ async function launcher_fixture(bottom = false) {
 			Gdk: { ModifierType: { ALT_MASK: 8 }, ...Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`KEY_${i + 1}`, i + 1])) },
 		},
 		"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
-		"gi://AstalApps": { default: {} },
 		"widget/shared/ApplicationIcon": { ApplicationIcon: props => make("icon", props) },
 		"widget/shared/Placeholder": { Placeholder: props => make("placeholder", props) },
 		"widget/shared/PopupWindow": { PopupWindow: props => {

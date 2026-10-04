@@ -22,10 +22,6 @@ window#bar {
     padding: calc(var(--padding) / 2);
   }
 
-  menubutton {
-    all: unset;
-  }
-
   popover contents {
     box-shadow: 0 0 5px 0 var(--shadow-color);
     margin: max(var(--spacing), 8px);
@@ -36,7 +32,6 @@ window#bar {
     border-radius: calc(var(--popover-radius) / 2);
     padding: calc(var(--padding) / 2);
 
-    modelbutton,
     button.model-item {
       @extend .flat-button;
       padding: calc(var(--padding) * 0.8);
@@ -110,8 +105,7 @@ window#bar {
     }
   }
 
-  button.quicksettings box,
-  box.quicksettings box {
+  button.quicksettings box {
     @include spacing(1.5);
   }
 

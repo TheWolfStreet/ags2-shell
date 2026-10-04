@@ -50,7 +50,6 @@ const targets = new Map<
 		anchor: string,
 		x: number,
 		y: number,
-		root_coordinates?: boolean,
 	) => void
 >()
 const drag_session: { handled: boolean; canceled: boolean; hover: hover | null } = {
@@ -160,7 +159,6 @@ export function create_desktop_drag_controller(
 	const [position, set_position] = createState({ x: 0, y: 0 })
 	const [hovered, set_hovered] = createState(false)
 	const widgets = new Map<string, Gtk.Widget>()
-	let target_widget: Gtk.Fixed | null = null
 	const unsubscribe_drag = active_drag.subscribe(() => set_hovered(false))
 	onCleanup(unsubscribe_drag)
 
@@ -238,10 +236,6 @@ export function create_desktop_drag_controller(
 	}
 
 	function attach_target(widget: Gtk.Fixed) {
-		target_widget = widget
-		onCleanup(() => {
-			if (target_widget === widget) target_widget = null
-		})
 		const target = Gtk.DropTargetAsync.new(
 			Gdk.ContentFormats.new_for_gtype(Gdk.FileList.$gtype)
 				.union(Gdk.ContentFormats.new(["text/uri-list"])),
@@ -313,21 +307,7 @@ export function create_desktop_drag_controller(
 
 	function register_target() {
 		const monitor_id = grid.peek().id
-		targets.set(monitor_id, (paths, anchor, x, y, root_coordinates) => {
-			if (root_coordinates && target_widget) {
-				const root = target_widget.get_root()
-				if (root instanceof Gtk.Widget) {
-					const [translated, content_x, content_y] = root.translate_coordinates(
-						target_widget,
-						x,
-						y,
-					)
-					if (translated) {
-						x = content_x
-						y = content_y
-					}
-				}
-			}
+		targets.set(monitor_id, (paths, anchor, x, y) => {
 			drag_session.handled = true
 			set_drag_preview(null)
 			move(paths, anchor, slot_at(x, y))

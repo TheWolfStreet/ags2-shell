@@ -279,11 +279,10 @@ const save_layout = debounce(500, () => {
 	log_error(result, "desktop.save: Failed to save desktop layout")
 })
 
-function update_layout(next: desktop_layout): boolean {
-	if (next === desktop_layout.peek()) return false
+function update_layout(next: desktop_layout): void {
+	if (next === desktop_layout.peek()) return
 	set_desktop_layout(next)
 	save_layout.call()
-	return true
 }
 
 function normalize_owned_positions(

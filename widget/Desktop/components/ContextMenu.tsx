@@ -116,13 +116,11 @@ function Action({
 	label,
 	shortcut = "",
 	visible = true,
-	sensitive = true,
 	run,
 }: {
 	label: string | Accessor<string>
 	shortcut?: string | Accessor<string>
 	visible?: boolean | Accessor<boolean>
-	sensitive?: boolean | Accessor<boolean>
 	run: () => void | Promise<void>
 }) {
 	return (
@@ -130,7 +128,6 @@ function Action({
 			halign={FILL}
 			hexpand
 			visible={visible}
-			sensitive={sensitive}
 			onClicked={() => {
 				try {
 					const outcome = run()

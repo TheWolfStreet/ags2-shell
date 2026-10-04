@@ -47,7 +47,7 @@ const {
 } = Gdk
 const { FILL, START } = Gtk.Align
 const empty_path_set = new Set<string>()
-const no_layout = (path: string, widget?: Gtk.Widget): void => {}
+const no_layout: (path: string, widget: Gtk.Widget) => void = () => {}
 
 type selection_rectangle = {
 	x: number
@@ -399,9 +399,8 @@ export function DesktopGrid({
 		}
 
 		layout_icon = (path, widget) => {
-			const icon = widget ?? widgets.get(path)
-			const rectangle = icon && slot_rectangles.peek()[path]
-			if (icon && rectangle) place_icon(icon, rectangle)
+			const rectangle = slot_rectangles.peek()[path]
+			if (rectangle) place_icon(widget, rectangle)
 		}
 		const unsubscribe = slot_rectangles.subscribe(apply_all_layouts)
 		apply_all_layouts()

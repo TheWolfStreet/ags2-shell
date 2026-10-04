@@ -15,7 +15,6 @@ async function service_fixture({ copy_successful = true } = {}) {
 	const commands = []
 	const notifications = []
 	const errors = []
-	const signals = new Map()
 	const imports = {
 		"ags/gobject": {
 			default: { Object: class { notify() {} vfunc_finalize() {} } },
@@ -33,7 +32,7 @@ async function service_fixture({ copy_successful = true } = {}) {
 		},
 		"$lib/time": { interval: () => ({ cancel() {} }), timeout: () => ({ cancel() {} }) },
 		"$lib/app": { default: {
-			connect: (name, callback) => { signals.set(name, callback); return 1 }, disconnect() {},
+			connect: () => 1, disconnect() {},
 		} },
 		"gi://GLib": { default: {
 			DateTime: { new_now_local: () => ({ format: () => "time" }) },
@@ -80,7 +79,7 @@ async function service_fixture({ copy_successful = true } = {}) {
 	})
 	await module.evaluate()
 	return {
-		service: module.namespace.screen_capture, processes, commands, notifications, errors, signals,
+		service: module.namespace.screen_capture, processes, commands, notifications, errors,
 		hold_query: () => { hold_pidof = true },
 		release_query: () => resolve_pidof(""),
 	}
