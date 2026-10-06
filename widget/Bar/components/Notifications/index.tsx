@@ -131,11 +131,11 @@ export namespace Notifications {
 		notification: AstalNotifd.Notification
 		image_path: string | null
 		persistent: boolean
+		avatar?: boolean
 	}
 
 	type actions_props = {
 		actions: Array<{ label: string; id: string }>
-		persistent: boolean
 		show_actions: Accessor<boolean>
 		on_action_click: (action_id: string) => void
 	}
@@ -267,12 +267,18 @@ export namespace Notifications {
 		)
 	}
 
-	function Content({ notification, image_path, persistent }: content_props) {
+	function Content({ notification, image_path, persistent, avatar = false }: content_props) {
 		const body = body_text(notification.body)
+		let image_size = persistent ? 260 : 75
+		let image_height = persistent ? 160 : 75
+		if (avatar) {
+			image_size = 48
+			image_height = 48
+		}
 		const preview_size = options.scale.as((scale) =>
-			Math.round(((persistent ? 260 : 75) * scale) / 100))
+			Math.round((image_size * scale) / 100))
 		const preview_height = options.scale.as((scale) =>
-			Math.round(((persistent ? 160 : 75) * scale) / 100))
+			Math.round((image_height * scale) / 100))
 		const preview_texture = image_path
 			? createComputed(() => create_texture_accessor(image_path, preview_size(), "contain"))
 			: null
@@ -289,10 +295,11 @@ export namespace Notifications {
 			}) : null
 		const preview = preview_paintable && (
 			<Gtk.Picture
-				class="preview"
+				class={avatar ? "avatar" : "preview"}
 				tooltipText={image_path ?? undefined}
-				heightRequest={fitted_height!}
-				halign={START}
+				widthRequest={avatar ? preview_size : undefined}
+				heightRequest={avatar ? preview_height : fitted_height!}
+				halign={avatar ? END : START}
 				valign={CENTER}
 				visible={preview_paintable.as((texture) => texture !== null)}
 				paintable={preview_paintable as unknown as Accessor<Gdk.Paintable>}
@@ -301,8 +308,8 @@ export namespace Notifications {
 		)
 
 		return (
-			<box class={`content${persistent ? " history" : ""}`} orientation={persistent ? VERTICAL : HORIZONTAL}>
-				{!persistent && preview}
+			<box class={`content${persistent ? " history" : ""}`} orientation={persistent && !avatar ? VERTICAL : HORIZONTAL}>
+				{!persistent && !avatar && preview}
 				<box orientation={VERTICAL} hexpand>
 					<label
 						class="summary"
@@ -327,14 +334,14 @@ export namespace Notifications {
 						/>
 					)}
 				</box>
-				{persistent && preview}
+				{(persistent || avatar) && preview}
 			</box>
 		)
 	}
 
-	function Actions({ actions, persistent, show_actions, on_action_click }: actions_props) {
+	function Actions({ actions, show_actions, on_action_click }: actions_props) {
 		if (actions.length === 0) return <box visible={false} />
-		const vertical = !persistent && actions.length > 3
+		const vertical = actions.length > 3
 
 		return (
 			<revealer
@@ -346,13 +353,12 @@ export namespace Notifications {
 					{actions.map(({ label, id }) => (
 						<button
 							hexpand
-							label={persistent ? label : undefined}
 							visible={createComputed(() => notification_action_available(id))}
 							onClicked={() => {
 								if (notification_action_available(id)) on_action_click(id)
 							}}
 						>
-							{!persistent && <label label={label} wrap wrapMode={WORD_CHAR} xalign={CENTER} />}
+							<label label={label} wrap wrapMode={WORD_CHAR} xalign={0.5} />
 						</button>
 					))}
 				</box>
@@ -373,6 +379,10 @@ export namespace Notifications {
 			image_value && classify_image_uri(image_value) !== "unknown"
 				? image_value
 				: null
+		const cached_image_prefix = `${GLib.get_user_cache_dir()}/astal/notifd/`
+		const avatar = !!image_path &&
+			image_path.startsWith(cached_image_prefix) && /^\d+\.png$/.test(image_path.slice(cached_image_prefix.length)) &&
+			notification.get_category()?.startsWith("im.") === true
 		const app_icon = substitute_icon_name(
 			notification.get_app_icon() ||
 				(image_value && !image_path ? image_value : "") ||
@@ -429,10 +439,9 @@ export namespace Notifications {
 						show_actions={show_actions}
 						on_dismiss={state.dismiss}
 					/>
-					<Content notification={notification} image_path={image_path} persistent={persistent} />
+					<Content notification={notification} image_path={image_path} persistent={persistent} avatar={avatar} />
 					<Actions
 						actions={valid_actions}
-						persistent={persistent}
 						show_actions={show_actions}
 						on_action_click={state.on_action_click}
 					/>
@@ -592,7 +601,7 @@ export namespace Notifications {
 
 	const { START, CENTER, END } = Gtk.Align
 	const { VERTICAL, HORIZONTAL } = Gtk.Orientation
-	const { WORD_CHAR } = Gtk.WrapMode
+	const { WORD_CHAR } = Pango.WrapMode
 	const { EXTERNAL, AUTOMATIC } = Gtk.PolicyType
 	const { SLIDE_DOWN, SLIDE_UP, SWING_RIGHT, SWING_DOWN } =
 		Gtk.RevealerTransitionType

@@ -23,11 +23,13 @@ async function render_notification(persistent, actions, details = {}) {
 	let mounted = 0
 	const live_keys = new Set(["ags2-shell:live"])
 	const clicks = []
+	const texture_requests = []
 	const notification = {
 		id: 7, time: 1, urgency: 1, body: "First line\nSaved to /home/user/Pictures/very-long-full-original-name.png",
 		summary: "Screenshot with a full descriptive summary", resident: true,
 		get_actions: () => actions, get_image: () => details.image ?? "", get_app_icon: () => "",
 		get_app_name: () => details.app_name ?? "Capture", get_desktop_entry: () => "",
+		get_category: () => "",
 		...details.notification,
 	}
 	let incoming = notification
@@ -51,21 +53,24 @@ async function render_notification(persistent, actions, details = {}) {
 		},
 		"ags/gtk4": { Astal: { Exclusivity: { NORMAL: 1 }, WindowAnchor: {} }, Gdk: {},
 			Gtk: { Picture: "picture", Align: { START: 1, CENTER: 2, END: 3 },
-				Orientation: { VERTICAL: 1, HORIZONTAL: 2 }, WrapMode: { WORD_CHAR: 1 }, PolicyType: { AUTOMATIC: 1, EXTERNAL: 3 },
+				Orientation: { VERTICAL: 1, HORIZONTAL: 2 }, WrapMode: { WORD_CHAR: 3 }, PolicyType: { AUTOMATIC: 1, EXTERNAL: 3 },
 				RevealerTransitionType: { SLIDE_DOWN: 1, SLIDE_UP: 2, SWING_RIGHT: 3, SWING_DOWN: 4 },
 				EventControllerMotion: "motion" } },
 		"ags/gtk4/jsx-runtime": { jsx, jsxs: jsx },
 		"$lib/app": { default: {} }, "ags/time": { createPoll: (_n, _ms, fn) => fn },
 		"$lib/time": { timeout: () => ({ cancel() {} }) },
 		"gi://AstalNotifd": { default: { Urgency: { LOW: 0, CRITICAL: 2 } } },
-		"gi://GLib": { default: { DateTime: { new_now_local: () => ({ to_unix: () => 10 }),
+		"gi://GLib": { default: { get_user_cache_dir: () => "/home/user/.cache", DateTime: { new_now_local: () => ({ to_unix: () => 10 }),
 			new_from_unix_local: time => ({ to_unix: () => time }) } } },
-		"gi://Pango": { default: { EllipsizeMode: { END: 1, NONE: 0 } } },
+		"gi://Pango": { default: { EllipsizeMode: { END: 1, NONE: 0 }, WrapMode: { WORD_CHAR: 2 } } },
 		"../PanelButton": { PanelButton: props => node("panel-button", props) },
 		"$lib/icons": { default: { notifications: { message: "message" }, fallback: { notification: "fallback" }, ui: { close: "close" } },
 			substitute_icon_name: name => name },
 		"$lib/env": { default: { paths: { home: "/home/user" } } },
-		"$lib/textures": { classify_image_uri: () => "file", create_texture_accessor: () => accessor(() => null) },
+		"$lib/textures": { classify_image_uri: () => "file", create_texture_accessor: (...args) => {
+			texture_requests.push(args)
+			return accessor(() => null)
+		} },
 		"$lib/notifications": { notification_daemon: daemon,
 			notification_action_available: key => !key.startsWith("ags2-shell:") || live_keys.has(key) },
 		"$service/notifications": { notification_manager: { notifications: [notification], session_start: details.session_start ?? 0,
@@ -94,12 +99,16 @@ async function render_notification(persistent, actions, details = {}) {
 		typeof item !== "object" ? [] : [item, ...item.children.flatMap(visit)]
 	return { nodes: visit(root), set_dnd: value => { dnd = value; daemon.emit("notify::dont-disturb") },
 		notify_new: () => { incoming = { ...notification, id: 8 }; daemon.emit("notified", 8) },
-		closed: () => closes, mounted: () => mounted, live_keys, clicks }
+		closed: () => closes, mounted: () => mounted, live_keys, clicks, texture_requests }
 }
 
 function action_revealer(view) {
 	return view.nodes.find(item => item.type === "revealer" &&
 		item.children.some(child => child.props.class?.startsWith("actions ")))
+}
+
+function action_buttons(view) {
+	return action_revealer(view)?.children[0].children ?? []
 }
 
 test("history preserves complete text and hides expired own actions without hiding external actions", async () => {
@@ -114,13 +123,14 @@ test("history preserves complete text and hides expired own actions without hidi
 	assert.equal(body.props.lines, undefined)
 	assert.equal(summary.props.label, "Screenshot with a full descriptive summary")
 	assert.equal(body.props.label, "First line\nSaved to /home/user/Pictures/very-long-full-original-name.png")
-	assert.deepEqual(view.nodes.filter(item => item.type === "button" && item.props.label && item.props.visible())
-		.map(item => item.props.label), ["Open", "External"])
-	const expired = view.nodes.find(item => item.type === "button" && item.props.label === "Dead")
+	assert.equal(body.props.wrapMode, 2)
+	const buttons = action_buttons(view)
+	assert.deepEqual(buttons.filter(item => item.props.visible()).map(item => item.children[0].props.label), ["Open", "External"])
+	const expired = buttons.find(item => item.children[0].props.label === "Dead")
 	assert.equal(expired.props.visible(), false)
 	expired.props.onClicked()
 	assert.deepEqual(view.clicks, [])
-	const live = view.nodes.find(item => item.type === "button" && item.props.label === "Open")
+	const live = buttons.find(item => item.children[0].props.label === "Open")
 	view.live_keys.delete("ags2-shell:live")
 	assert.equal(live.props.visible(), false)
 	live.props.onClicked()
@@ -146,7 +156,7 @@ test("DND blocks new popups but does not close an already displayed popup", asyn
 	assert.equal(view.mounted(), 1)
 })
 
-test("popup actions wrap long labels and stack only after three; history actions keep their row", async () => {
+test("popup and history actions wrap labels and stack only after three", async () => {
 	const actions = ["Open", "Reply", "Dismiss", "One more option"].map((label, index) => ({ id: String(index), label }))
 	const popup = await render_notification(false, actions)
 	const row = action_revealer(popup).children[0]
@@ -155,12 +165,18 @@ test("popup actions wrap long labels and stack only after three; history actions
 	assert.equal(row.children[0].props.label, undefined)
 	assert.equal(row.children[0].children[0].props.label, "Open")
 	assert.equal(row.children[0].children[0].props.wrap, true)
+	assert.equal(row.children[0].children[0].props.wrapMode, 2)
+	assert.equal(row.children[0].children[0].props.xalign, 0.5)
 	const history = await render_notification(true, actions)
 	const history_row = action_revealer(history).children[0]
-	assert.equal(history_row.props.class, "actions horizontal")
-	assert.equal(history_row.props.orientation, 2)
-	assert.equal(history_row.children[0].props.label, "Open")
-	assert.equal(history_row.children[0].children.length, 0)
+	assert.equal(history_row.props.class, "actions vertical")
+	assert.equal(history_row.props.orientation, 1)
+	assert.equal(history_row.children[0].children[0].props.label, "Open")
+	assert.equal(history_row.children[0].children[0].props.wrap, true)
+	for (const persistent of [false, true]) {
+		const normal = await render_notification(persistent, actions.slice(0, 3))
+		assert.equal(action_revealer(normal).children[0].props.orientation, 2)
+	}
 })
 
 test("archived legacy captures retain their descriptors but never offer stale UUID or command actions", async () => {
@@ -195,7 +211,7 @@ test("external actions and current capture actions remain available", async () =
 	const actions = [{ id: "foreign-app-key", label: "View" }]
 	const external = await render_notification(true, actions, { app_name: "Other App", image: path,
 		session_start: 100, notification: { summary: "Screenshot taken", body: path } })
-	assert.equal(external.nodes.find(item => item.type === "button" && item.props.label === "View").props.visible(), true)
+	assert.equal(action_buttons(external).find(item => item.children[0].props.label === "View").props.visible(), true)
 	const other_path = await render_notification(true, actions, { app_name: "Screenshot", session_start: 100,
 		notification: { summary: "Screenshot taken", body: "/elsewhere/current.png" } })
 	assert.ok(action_revealer(other_path))
@@ -214,4 +230,56 @@ test("the action row closes after its last live binding expires while hovered", 
 	assert.equal(row.props.revealChild(), false)
 	view.live_keys.add("ags2-shell:live")
 	assert.equal(row.props.revealChild(), true)
+})
+
+test("explicit message-image metadata uses compact right-side avatars independently of sender identity", async () => {
+	const image = "/home/user/.cache/astal/notifd/123456.png"
+	for (const persistent of [false, true]) {
+		for (const [app_name, desktop_entry, category, app_icon] of [
+			["Telegram Desktop", "org.telegram.desktop", "im.received", ""],
+			["Discord", "discord", "im.received", ""],
+			["Signal", "signal-desktop", "im.received", ""],
+			["WhatsApp", "whatsapp", "im.received", ""],
+			["Future Messenger", "unknown.app", "im.received", "brand-icon"],
+			["Unrecognized App", "different.desktop.id", "im.received", ""],
+		]) {
+			const view = await render_notification(persistent, [], { image, app_name, notification: {
+				get_desktop_entry: () => desktop_entry, get_category: () => category, get_app_icon: () => app_icon,
+			} })
+			const content = view.nodes.find(item => item.props.class?.startsWith("content"))
+			assert.equal(content.props.orientation, 2)
+			assert.equal(content.children[0].type, "box")
+			const avatar = content.children[1]
+			assert.equal(avatar.props.class, "avatar", app_name)
+			assert.equal(avatar.props.widthRequest(), 48)
+			assert.equal(avatar.props.heightRequest(), 48)
+			assert.equal(avatar.props.halign, 3)
+			assert.equal(avatar.props.tooltipText, image)
+			avatar.props.paintable()
+			assert.deepEqual(view.texture_requests, [[image, 48, "contain"]])
+		}
+	}
+})
+
+test("explicit attachment paths and cached non-message previews remain attachment images", async () => {
+	for (const details of [
+		{ app_name: "Telegram Desktop", image: "/pictures/attachment.png", notification: {
+			get_desktop_entry: () => "org.telegram.desktop", get_category: () => "im.received" } },
+		{ app_name: "Signal", image: "/pictures/attachment.png", notification: {
+			get_category: () => "im.received" } },
+		{ app_name: "Unrecognized App", image: "/home/user/.cache/astal/notifd/../../attachment.png" },
+		{ app_name: "Transfer", image: "/home/user/.cache/astal/notifd/123456.png", notification: {
+			get_category: () => "transfer.complete" } },
+		{ app_name: "Signal", image: "/home/user/.cache/astal/notifd/123456.png" },
+		{ app_name: "Unrecognized App", image: "/home/user/.cache/astal/notifd/123456.png" },
+		{ app_name: "Screenshot", image: "/home/user/.cache/astal/notifd/123456.png", notification: {
+			get_app_icon: () => "image-x-generic-symbolic" } },
+		{ app_name: "Discord", image: "/home/user/.cache/astal/notifd/123456.png", notification: {
+			get_app_icon: () => "discord", get_desktop_entry: () => "discord" } },
+	]) {
+		const view = await render_notification(true, [], details)
+		const content = view.nodes.find(item => item.props.class === "content history")
+		assert.equal(content.props.orientation, 1)
+		assert.equal(content.children[1].props.class, "preview")
+	}
 })
