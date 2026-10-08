@@ -232,7 +232,7 @@ test("the action row closes after its last live binding expires while hovered", 
 	assert.equal(row.props.revealChild(), true)
 })
 
-test("explicit message-image metadata uses compact right-side avatars independently of sender identity", async () => {
+test("explicit message-image metadata uses compact left-side avatars independently of sender identity", async () => {
 	const image = "/home/user/.cache/astal/notifd/123456.png"
 	for (const persistent of [false, true]) {
 		for (const [app_name, desktop_entry, category, app_icon] of [
@@ -248,12 +248,13 @@ test("explicit message-image metadata uses compact right-side avatars independen
 			} })
 			const content = view.nodes.find(item => item.props.class?.startsWith("content"))
 			assert.equal(content.props.orientation, 2)
-			assert.equal(content.children[0].type, "box")
-			const avatar = content.children[1]
+			assert.equal(content.children.length, 2)
+			assert.equal(content.children[1].type, "box")
+			const avatar = content.children[0]
 			assert.equal(avatar.props.class, "avatar", app_name)
 			assert.equal(avatar.props.widthRequest(), 48)
 			assert.equal(avatar.props.heightRequest(), 48)
-			assert.equal(avatar.props.halign, 3)
+			assert.equal(avatar.props.halign, 1)
 			assert.equal(avatar.props.tooltipText, image)
 			avatar.props.paintable()
 			assert.deepEqual(view.texture_requests, [[image, 48, "contain"]])

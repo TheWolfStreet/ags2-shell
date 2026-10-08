@@ -310,12 +310,12 @@ const avatar_width = outer.measure(HORIZONTAL, -1)[1]
 const avatar_height = outer.measure(VERTICAL, avatar_width)[1]
 outer.allocate(avatar_width, avatar_height, -1, null)
 flush()
-const avatar_text = avatar_content.get_first_child()
-const avatar_picture = avatar_text.get_next_sibling()
+const avatar_picture = avatar_content.get_first_child()
+const avatar_text = avatar_picture.get_next_sibling()
 const avatar_text_bounds = bounds(avatar_text, avatar_card), avatar_bounds = bounds(avatar_picture, avatar_card)
 const avatar_result = { orientation: avatar_content.get_orientation(), class: avatar_picture.get_css_classes(),
     size: [avatar_picture.get_width(), avatar_picture.get_height()], fit: inside_horizontal(avatar_picture, scroll),
-    right: avatar_bounds.x >= avatar_text_bounds.x + avatar_text_bounds.width }
+    left: avatar_bounds.x + avatar_bounds.width <= avatar_text_bounds.x }
 list.remove(avatar_card)
 const popup = new Gtk.Window({ decorated: false, css_classes: ['notifications'] })
 popup.set_name('notifications')
@@ -511,7 +511,7 @@ window.destroy()
 	}
 	assert.ok(history_results[0].viewport < history_results[2].viewport, JSON.stringify(history_results))
 	assert.equal(avatar.orientation, 0)
-	assert.ok(avatar.class.includes("avatar") && avatar.fit && avatar.right, JSON.stringify(avatar))
+	assert.ok(avatar.class.includes("avatar") && avatar.fit && avatar.left, JSON.stringify(avatar))
 	assert.deepEqual(avatar.size, [Math.round(48 * current_scale / 100), Math.round(48 * current_scale / 100)])
 	assert.equal(natural_popups.short.width, Math.round(350 * current_scale / 100), JSON.stringify(natural_popups))
 	assert.deepEqual(natural_popups.compact_actions.content, natural_popups.short.content, JSON.stringify(natural_popups))

@@ -299,7 +299,7 @@ export namespace Notifications {
 				tooltipText={image_path ?? undefined}
 				widthRequest={avatar ? preview_size : undefined}
 				heightRequest={avatar ? preview_height : fitted_height!}
-				halign={avatar ? END : START}
+				halign={START}
 				valign={CENTER}
 				visible={preview_paintable.as((texture) => texture !== null)}
 				paintable={preview_paintable as unknown as Accessor<Gdk.Paintable>}
@@ -309,7 +309,7 @@ export namespace Notifications {
 
 		return (
 			<box class={`content${persistent ? " history" : ""}`} orientation={persistent && !avatar ? VERTICAL : HORIZONTAL}>
-				{!persistent && !avatar && preview}
+				{(!persistent || avatar) && preview}
 				<box orientation={VERTICAL} hexpand>
 					<label
 						class="summary"
@@ -334,7 +334,7 @@ export namespace Notifications {
 						/>
 					)}
 				</box>
-				{(persistent || avatar) && preview}
+				{persistent && !avatar && preview}
 			</box>
 		)
 	}
