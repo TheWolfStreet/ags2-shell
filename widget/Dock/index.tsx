@@ -90,7 +90,9 @@ export namespace Dock {
 
 			const monitor_geometry = geometry()
 			const monitor_length =
-				dock_side() === "left" ? monitor_geometry.height : monitor_geometry.width
+				dock_side() === "left"
+					? monitor_geometry.height
+					: monitor_geometry.width
 			const global_scale_factor = ui_scale()
 			const usable_length = monitor_length * 0.88 - 2
 			const total_spacing = item_count * 11 * global_scale_factor
@@ -139,7 +141,8 @@ export namespace Dock {
 
 		function side_active(side: DockSide) {
 			return createComputed(
-				() => is_dock_location() && dock_items().length > 0 && dock_side() === side,
+				() =>
+					is_dock_location() && dock_items().length > 0 && dock_side() === side,
 			)
 		}
 

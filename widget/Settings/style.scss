@@ -1,108 +1,108 @@
-@use '../../style/base' as *;
+@use "../../style/base" as *;
 
 window.settings-dialog {
-  background-color: var(--bg);
-  color: var(--fg);
+	background-color: var(--bg);
+	color: var(--fg);
 
-  box.header {
-    padding: var(--padding);
+	box.header {
+		padding: var(--padding);
 
-    box.pager {
-      @include spacing;
-      padding: 0 var(--spacing);
+		box.pager {
+			@include spacing;
+			padding: 0 var(--spacing);
 
-      button {
-        padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
+			button {
+				padding: calc(var(--padding) * 0.4) calc(var(--padding) * 0.75);
 
-        > box.horizontal > * {
-          margin: 0 0.15em;
+				> box.horizontal > * {
+					margin: 0 0.15em;
 
-          &:first-child {
-            margin-left: 0;
-          }
+					&:first-child {
+						margin-left: 0;
+					}
 
-          &:last-child {
-            margin-right: 0;
-          }
-        }
+					&:last-child {
+						margin-right: 0;
+					}
+				}
 
-        > box.vertical > * {
-          margin: 0.15em 0;
+				> box.vertical > * {
+					margin: 0.15em 0;
 
-          &:first-child {
-            margin-top: 0;
-          }
+					&:first-child {
+						margin-top: 0;
+					}
 
-          &:last-child {
-            margin-bottom: 0;
-          }
-        }
-      }
-    }
+					&:last-child {
+						margin-bottom: 0;
+					}
+				}
+			}
+		}
 
-    > button.reset {
-      @extend .flat-button;
-      padding: calc(var(--padding) / 2);
-    }
+		> button.reset {
+			@extend .flat-button;
+			padding: calc(var(--padding) / 2);
+		}
 
-    button.close {
-      padding: calc(var(--padding) / 2);
-    }
-  }
+		button.close {
+			padding: calc(var(--padding) / 2);
+		}
+	}
 
-  scrolledwindow.page box.page-content {
-    padding: calc(var(--padding) * 2);
-    padding-top: 0;
-  }
+	scrolledwindow.page box.page-content {
+		padding: calc(var(--padding) * 2);
+		padding-top: 0;
+	}
 
-  box.group {
-    .header {
-      label.title {
-        color: var(--primary-bg);
-        font-weight: bold;
-      }
+	box.group {
+		.header {
+			label.title {
+				color: var(--primary-bg);
+				font-weight: bold;
+			}
 
-      button.reset {
-        @extend .flat-button;
-        padding: calc(var(--padding) / 2);
+			button.reset {
+				@extend .flat-button;
+				padding: calc(var(--padding) / 2);
 
-        &:disabled {
-          color: transparent;
-        }
-      }
-    }
-  }
+				&:disabled {
+					color: transparent;
+				}
+			}
+		}
+	}
 
-  box.row {
-    background-color: var(--widget-bg);
-    padding: var(--padding);
-    border: var(--border);
-    border-top: none;
+	box.row {
+		background-color: var(--widget-bg);
+		padding: var(--padding);
+		border: var(--border);
+		border-top: none;
 
-    &:first-child {
-      border-radius: var(--radius) var(--radius) 0 0;
-      border: var(--border);
-    }
+		&:first-child {
+			border-radius: var(--radius) var(--radius) 0 0;
+			border: var(--border);
+		}
 
-    &:last-child {
-      border-radius: 0 0 var(--radius) var(--radius);
-    }
+		&:last-child {
+			border-radius: 0 0 var(--radius) var(--radius);
+		}
 
-    &:first-child:last-child {
-      border-radius: var(--radius);
-      border: var(--border);
-    }
+		&:first-child:last-child {
+			border-radius: var(--radius);
+			border: var(--border);
+		}
 
-    button.reset {
-      @extend .flat-button;
-      padding: calc(var(--padding) / 2);
-      margin-left: var(--spacing);
-    }
+		button.reset {
+			@extend .flat-button;
+			padding: calc(var(--padding) / 2);
+			margin-left: var(--spacing);
+		}
 
-    picture.preview {
-      border-radius: var(--radius);
-      min-height: 15em;
-      min-width: 15em;
-    }
-  }
+		picture.preview {
+			border-radius: var(--radius);
+			min-height: 15em;
+			min-width: 15em;
+		}
+	}
 }

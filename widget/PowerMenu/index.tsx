@@ -14,9 +14,7 @@ import options from "$shell/options"
 export namespace PowerMenu {
 	export function Button() {
 		return (
-			<PanelButton
-				targetWindow="powermenu"
-			>
+			<PanelButton targetWindow="powermenu">
 				<image iconName={icons.powermenu.shutdown} useFallback />
 			</PanelButton>
 		)
@@ -24,8 +22,12 @@ export namespace PowerMenu {
 
 	export function Window() {
 		return (
-			<PopupWindow name="powermenu" transitionType={CROSSFADE} application={app}>
-				<box class={layout.as(v => `powermenu horizontal ${v}`)}>
+			<PopupWindow
+				name="powermenu"
+				transitionType={CROSSFADE}
+				application={app}
+			>
+				<box class={layout.as((v) => `powermenu horizontal ${v}`)}>
 					<With value={layout}>
 						{(v: string) => {
 							if (v === "line") {
@@ -61,7 +63,8 @@ export namespace PowerMenu {
 
 	export function request_action_confirmation(action: action_type) {
 		const verification = app.get_window("verification")
-		if (!verification || verification.is_visible() || action_pending.peek()) return
+		if (!verification || verification.is_visible() || action_pending.peek())
+			return
 		set_selected_action(action)
 		set_action_error("")
 		verification.show()
@@ -75,20 +78,30 @@ export namespace PowerMenu {
 				transitionType={CROSSFADE}
 				anchor={undefined}
 				application={app}
-				onNotifyVisible={window => {
+				onNotifyVisible={(window) => {
 					if (window.visible) cancel_button?.grab_focus()
 				}}
 			>
 				<box class="verification" orientation={VERTICAL}>
 					<box class="text-box" orientation={VERTICAL}>
-						<label class="title" label={selected_action.as(action => action ? action_titles[action] : "")} />
-						<label class="desc" label={action_error.as((error) => error || "Confirm action")} />
+						<label
+							class="title"
+							label={selected_action.as((action) =>
+								action ? action_titles[action] : "",
+							)}
+						/>
+						<label
+							class="desc"
+							label={action_error.as((error) => error || "Confirm action")}
+						/>
 					</box>
 					<box class="buttons horizontal" valign={END} vexpand homogeneous>
 						<button
 							onClicked={() => app.get_window("verification")?.hide()}
 							sensitive={action_pending.as((pending) => !pending)}
-							$={self => { cancel_button = self }}
+							$={(self) => {
+								cancel_button = self
+							}}
 						>
 							<label label="Cancel" />
 						</button>
@@ -100,10 +113,15 @@ export namespace PowerMenu {
 								set_action_pending(true)
 								app.get_window("verification")?.hide()
 								app.get_window("powermenu")?.hide()
-								const result = await attempt_async(() => execAsync(String(options.powermenu[action].peek())))
+								const result = await attempt_async(() =>
+									execAsync(String(options.powermenu[action].peek())),
+								)
 								set_action_pending(false)
 								if (!result.ok) {
-									console.error(`powermenu.${action}: Failed to run action`, result.err)
+									console.error(
+										`powermenu.${action}: Failed to run action`,
+										result.err,
+									)
 									set_action_error(`Could not ${action}. Check the shell log.`)
 									app.get_window("verification")?.show()
 								}
@@ -127,7 +145,8 @@ export namespace PowerMenu {
 		shutdown: "Shutdown",
 	}
 
-	const [selected_action, set_selected_action] = createState<action_type | null>(null)
+	const [selected_action, set_selected_action] =
+		createState<action_type | null>(null)
 	const [action_pending, set_action_pending] = createState(false)
 	const [action_error, set_action_error] = createState("")
 	let cancel_button: Gtk.Button | null = null
@@ -144,7 +163,9 @@ export namespace PowerMenu {
 					<image
 						iconName={icons.powermenu[action]}
 						useFallback
-						pixelSize={options.scale.as(scale => Math.round(52 * scale / 100))}
+						pixelSize={options.scale.as((scale) =>
+							Math.round((52 * scale) / 100),
+						)}
 					/>
 					<label label={action_titles[action]} visible={labels} />
 				</box>

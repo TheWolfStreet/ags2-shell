@@ -115,8 +115,11 @@ function decode_layout(value: unknown): desktop_layout {
 }
 
 function load_layout(): desktop_layout {
-	if (!GLib.file_test(cache_file, GLib.FileTest.EXISTS)) return decode_layout({})
-	const result = attempt((): unknown => JSON.parse(readFile(cache_file) || "{}"))
+	if (!GLib.file_test(cache_file, GLib.FileTest.EXISTS))
+		return decode_layout({})
+	const result = attempt((): unknown =>
+		JSON.parse(readFile(cache_file) || "{}"),
+	)
 	return decode_layout(
 		unwrap_or(result, {}, "desktop.loadLayout: Failed to load desktop layout"),
 	)
@@ -246,7 +249,8 @@ function rename_placement(
 	new_path: string,
 ): desktop_layout {
 	const placement = layout.placements[old_path]
-	if (!placement || !old_path || !new_path || old_path === new_path) return layout
+	if (!placement || !old_path || !new_path || old_path === new_path)
+		return layout
 	const placements = { ...layout.placements, [new_path]: placement }
 	delete placements[old_path]
 	return { ...layout, placements }
@@ -254,9 +258,9 @@ function rename_placement(
 
 const [desktop_files, set_desktop_files] = createState<DesktopFile[]>([])
 const [desktop_layout, set_desktop_layout] = createState(load_layout())
-const [grid_metrics, set_grid_metrics] = createState<Record<string, GridMetrics>>(
-	{},
-)
+const [grid_metrics, set_grid_metrics] = createState<
+	Record<string, GridMetrics>
+>({})
 const [connected_monitors, set_connected_monitors] = createState<Set<string>>(
 	new Set(),
 )
@@ -271,10 +275,13 @@ const clipboard_handler = clipboard?.connect("changed", () => {
 
 const save_layout = debounce(500, () => {
 	const result = attempt(() => {
-		if (!GLib.file_set_contents(
-			cache_file,
-			JSON.stringify(desktop_layout.peek(), null, 2),
-		)) throw new Error("Layout write returned false")
+		if (
+			!GLib.file_set_contents(
+				cache_file,
+				JSON.stringify(desktop_layout.peek(), null, 2),
+			)
+		)
+			throw new Error("Layout write returned false")
 	})
 	log_error(result, "desktop.save: Failed to save desktop layout")
 })
@@ -313,7 +320,9 @@ function normalize_known_positions(
 			const owned = files_on_monitor(next, files, id)
 			const expanded = expand_grid_metrics(metrics, owned.length)
 			const remapped = remap_slots_across_columns(
-				positions_of(next, id), previous_columns, metrics.columns,
+				positions_of(next, id),
+				previous_columns,
+				metrics.columns,
 				expanded.rows * expanded.columns,
 			)
 			next = set_positions(next, id, remapped)
@@ -326,11 +335,15 @@ function normalize_known_positions(
 
 let reload_sequence = 0
 let has_loaded_files = false
-async function reload_desktop_files(preferred_monitor_id?: string): Promise<void> {
+async function reload_desktop_files(
+	preferred_monitor_id?: string,
+): Promise<void> {
 	const sequence = ++reload_sequence
 	const result = await load_desktop_files()
 	if (sequence !== reload_sequence) return
-	if (!log_error(result, "desktop.loadDesktopFiles: Failed to load desktop files"))
+	if (
+		!log_error(result, "desktop.loadDesktopFiles: Failed to load desktop files")
+	)
 		return
 	const files = result.value
 	const current = desktop_layout.peek()
@@ -348,7 +361,8 @@ async function reload_desktop_files(preferred_monitor_id?: string): Promise<void
 	const valid = new Set(files.map((file) => file.path))
 	set_selected(selected.peek().filter((path) => valid.has(path)))
 	if (pressed.peek() && !valid.has(pressed.peek()!)) set_pressed(null)
-	if (rename_path.peek() && !valid.has(rename_path.peek()!)) set_rename_path(null)
+	if (rename_path.peek() && !valid.has(rename_path.peek()!))
+		set_rename_path(null)
 }
 
 const refresh_desktop_files = debounce(120, reload_desktop_files)
@@ -366,7 +380,9 @@ async function finish_desktop_transfer(
 	monitor_id: string,
 ): Promise<void> {
 	if (created_paths.length > 0)
-		update_layout(assign_paths(desktop_layout.peek(), created_paths, monitor_id))
+		update_layout(
+			assign_paths(desktop_layout.peek(), created_paths, monitor_id),
+		)
 	active_transfers = Math.max(0, active_transfers - 1)
 	if (active_transfers === 0) await reload_desktop_files()
 }
@@ -380,18 +396,28 @@ function watch_desktop_directory(): void {
 		while (parent && !parent.query_exists(null)) parent = parent.get_parent()
 		if (!parent) return
 		const parent_result = attempt(() => {
-			desktop_parent_monitor = parent.monitor_directory(Gio.FileMonitorFlags.NONE, null)
+			desktop_parent_monitor = parent.monitor_directory(
+				Gio.FileMonitorFlags.NONE,
+				null,
+			)
 			desktop_parent_monitor.connect("changed", () => {
-				const directory_exists = Gio.File.new_for_path(DESKTOP_PATH).query_exists(null)
-				if (!directory_exists &&
-					(!direct_parent?.query_exists(null) || parent.equal(direct_parent))) return
+				const directory_exists =
+					Gio.File.new_for_path(DESKTOP_PATH).query_exists(null)
+				if (
+					!directory_exists &&
+					(!direct_parent?.query_exists(null) || parent.equal(direct_parent))
+				)
+					return
 				desktop_parent_monitor?.cancel()
 				desktop_parent_monitor = null
 				watch_desktop_directory()
 				void reload_desktop_files()
 			})
 		})
-		log_error(parent_result, "desktop.watchDesktopDir: Failed to watch desktop parent")
+		log_error(
+			parent_result,
+			"desktop.watchDesktopDir: Failed to watch desktop parent",
+		)
 		return
 	}
 	const result = attempt(() => {
@@ -410,7 +436,10 @@ function watch_desktop_directory(): void {
 			if (active_transfers === 0) refresh_desktop_files.call()
 		})
 	})
-	log_error(result, "desktop.watchDesktopDir: Failed to watch desktop directory")
+	log_error(
+		result,
+		"desktop.watchDesktopDir: Failed to watch desktop directory",
+	)
 }
 
 export function desktop_file_by_path(path: string): DesktopFile | undefined {
@@ -606,10 +635,13 @@ function set_desktop_clipboard(
 	const files = [...new Set(paths)].filter(Boolean)
 	if (files.length === 0) return
 	void write_clipboard_file_payload(operation, files).then((result) => {
-		if (log_error(
-			result,
-			"desktop.setClipboardFiles: Failed to set desktop clipboard",
-		)) update_desktop_clipboard({ operation, files })
+		if (
+			log_error(
+				result,
+				"desktop.setClipboardFiles: Failed to set desktop clipboard",
+			)
+		)
+			update_desktop_clipboard({ operation, files })
 	})
 }
 
@@ -625,9 +657,13 @@ export async function cancel_desktop_cut(): Promise<void> {
 	const original_content = clipboard?.get_content()
 	const current = await read_clipboard_file_payload()
 	const local = desktop_clipboard.peek()
-	if (current?.operation === "cut" && local?.operation === "cut" &&
-		clipboard?.is_local() && original_content === clipboard.get_content() &&
-		current.files.join("\0") === local.files.join("\0")) {
+	if (
+		current?.operation === "cut" &&
+		local?.operation === "cut" &&
+		clipboard?.is_local() &&
+		original_content === clipboard.get_content() &&
+		current.files.join("\0") === local.files.join("\0")
+	) {
 		const result = await clear_clipboard_file_payload()
 		log_error(
 			result,
@@ -653,7 +689,9 @@ export async function paste_desktop_files(monitor_id: string): Promise<void> {
 		})
 		visible_paths = [
 			...result.createdPaths,
-			...result.failures.flatMap((failure) => failure.destination ? [failure.destination] : []),
+			...result.failures.flatMap((failure) =>
+				failure.destination ? [failure.destination] : [],
+			),
 		]
 
 		if (result.failures.length > 0)
@@ -662,11 +700,16 @@ export async function paste_desktop_files(monitor_id: string): Promise<void> {
 				result.failures,
 			)
 		else if (payload.operation === "cut") {
-			if (clipboard?.is_local() &&
+			if (
+				clipboard?.is_local() &&
 				original_content === clipboard.get_content() &&
-				desktop_clipboard.peek()?.files.join("\0") === payload.files.join("\0")) {
+				desktop_clipboard.peek()?.files.join("\0") === payload.files.join("\0")
+			) {
 				const cleared = await clear_clipboard_file_payload()
-				log_error(cleared, "desktop.pasteFiles: Failed to clear moved clipboard files")
+				log_error(
+					cleared,
+					"desktop.pasteFiles: Failed to clear moved clipboard files",
+				)
 			}
 			update_desktop_clipboard(null)
 		}
@@ -683,10 +726,15 @@ export async function import_files_to_desktop(opts: {
 	let visible_paths: string[] = []
 	begin_desktop_transfer()
 	try {
-		const result = await transfer_desktop_files({ paths: opts.paths, operation: opts.operation })
+		const result = await transfer_desktop_files({
+			paths: opts.paths,
+			operation: opts.operation,
+		})
 		visible_paths = [
 			...result.createdPaths,
-			...result.failures.flatMap((failure) => failure.destination ? [failure.destination] : []),
+			...result.failures.flatMap((failure) =>
+				failure.destination ? [failure.destination] : [],
+			),
 		]
 		if (result.failures.length > 0)
 			console.error(
@@ -707,11 +755,13 @@ export async function remove_desktop_files(
 	const result = opts.permanently
 		? await permanently_delete_files(paths)
 		: await trash_files(paths)
-	if (result.failures.length) console.error("desktop.remove: Failed to remove files", result.failures)
+	if (result.failures.length)
+		console.error("desktop.remove: Failed to remove files", result.failures)
 	const removed = new Set(result.removedPaths)
 	set_selected(selected.peek().filter((path) => !removed.has(path)))
 	if (pressed.peek() && removed.has(pressed.peek()!)) set_pressed(null)
-	if (rename_path.peek() && removed.has(rename_path.peek()!)) set_rename_path(null)
+	if (rename_path.peek() && removed.has(rename_path.peek()!))
+		set_rename_path(null)
 	await reload_desktop_files()
 }
 
@@ -738,7 +788,9 @@ export function create_desktop_entry(
 	} else {
 		result = create_desktop_launcher(spec)
 	}
-	if (!log_error(result, `desktop.create: Failed to create desktop ${spec.kind}`))
+	if (
+		!log_error(result, `desktop.create: Failed to create desktop ${spec.kind}`)
+	)
 		return null
 	return remember_created_path(result.value, monitor_id)
 }

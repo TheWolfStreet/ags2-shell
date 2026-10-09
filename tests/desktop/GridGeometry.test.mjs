@@ -14,13 +14,22 @@ test("reconciliation fills available slots without collisions after a resize", (
 		for (let count = 0; count <= 60; count++) {
 			const metrics = expand_grid_metrics({ rows: 2, columns }, count)
 			const capacity = metrics.rows * columns
-			const files = Array.from({ length: count }, (_, index) => ({ path: `file-${index}` }))
-			const old = Object.fromEntries(files.map((file, index) => [file.path, index % 2 ? 0 : capacity + 1]))
+			const files = Array.from({ length: count }, (_value, index) => ({
+				path: `file-${index}`,
+			}))
+			const old = Object.fromEntries(
+				files.map((file, index) => [file.path, index % 2 ? 0 : capacity + 1]),
+			)
 			const positions = reconcile_grid_positions(files, old, capacity, columns)
 			assert.equal(Object.keys(positions).length, count)
 			assert.equal(new Set(Object.values(positions)).size, count)
-			assert.ok(Object.values(positions).every((slot) => slot >= 0 && slot < capacity))
-			assert.deepEqual(reconcile_grid_positions(files, positions, capacity, columns), positions)
+			assert.ok(
+				Object.values(positions).every((slot) => slot >= 0 && slot < capacity),
+			)
+			assert.deepEqual(
+				reconcile_grid_positions(files, positions, capacity, columns),
+				positions,
+			)
 		}
 	}
 })
@@ -44,5 +53,8 @@ test("single-icon moves swap with occupants without losing either position", () 
 	)
 	assert.deepEqual(positions, { one: 1, two: 0 })
 	const remapped = remap_slots_across_columns(positions, 2, 1, 2)
-	assert.deepEqual(reconcile_grid_positions(files, remapped, 2, 1), { one: 0, two: 1 })
+	assert.deepEqual(reconcile_grid_positions(files, remapped, 2, 1), {
+		one: 0,
+		two: 1,
+	})
 })

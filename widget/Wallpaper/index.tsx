@@ -142,8 +142,7 @@ function paint(
 	if (active_gifs.has(key)) return play_gif(key, picture)
 	const animated = attempt(() => {
 		const animation = GdkPixbuf.PixbufAnimation.new_from_file(path)
-		if (!animation.is_static_image())
-			return play_gif(key, picture, animation)
+		if (!animation.is_static_image()) return play_gif(key, picture, animation)
 		const image = animation.get_static_image()
 		if (!image) throw new Error("Wallpaper decoder returned no image")
 		const texture = Gdk.Texture.new_for_pixbuf(image)
@@ -188,7 +187,11 @@ function setup_crossfade_stack(
 	const unsubscribe = wallpaper_revision.subscribe(() => {
 		const next: 0 | 1 = slot === 0 ? 1 : 0
 		stop_animation()
-		stop_animation = paint(wallpaper_path, wallpaper_revision.peek(), pictures[next])
+		stop_animation = paint(
+			wallpaper_path,
+			wallpaper_revision.peek(),
+			pictures[next],
+		)
 		transition_timer?.cancel()
 		transition_timer = idle(() => {
 			transition_timer = null

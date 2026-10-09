@@ -20,77 +20,127 @@ async function load_options(initial, on_write) {
 			this.get = get
 			this.subscribe = subscribe
 		}
-		call_value() { return this.get() }
-		peek() { return this.get() }
+		call_value() {
+			return this.get()
+		}
+		peek() {
+			return this.get()
+		}
 	}
 
 	function createState(initial_value) {
 		let value = initial_value
 		const subscribers = new Set()
-		return [new Accessor(() => value, (callback) => {
-			subscribers.add(callback)
-			return () => subscribers.delete(callback)
-		}), (next) => {
-			if (Object.is(value, next)) return
-			value = next
-			for (const subscriber of [...subscribers]) subscriber()
-		}]
+		return [
+			new Accessor(
+				() => value,
+				(callback) => {
+					subscribers.add(callback)
+					return () => subscribers.delete(callback)
+				},
+			),
+			(next) => {
+				if (Object.is(value, next)) return
+				value = next
+				for (const subscriber of [...subscribers]) subscriber()
+			},
+		]
 	}
 
 	function attempt(fn) {
-		try { return { ok: true, value: fn() } }
-		catch (err) { return { ok: false, err } }
+		try {
+			return { ok: true, value: fn() }
+		} catch (err) {
+			return { ok: false, err }
+		}
 	}
 
 	const modules = {
 		ags: { Accessor, createState },
 		"ags/file": {
 			readFile: () => file,
-			writeFileAsync: async (path, content) => {
+			writeFileAsync: async (_path, content) => {
 				await on_write?.()
 				file = content
 				writes.push(JSON.parse(content))
 			},
 		},
-		"ags/gtk4": { Gtk: { IconTheme: class { has_icon() { return false } } } },
+		"ags/gtk4": {
+			Gtk: {
+				IconTheme: class {
+					has_icon() {
+						return false
+					}
+				},
+			},
+		},
 		"$lib/app": { default: { iconTheme: "default" } },
 		"$lib/icons": { default: { ui: { search: "search" } } },
-		"$lib/env": { default: { paths: { cache: { base: "/cache" } }, distro: {} } },
-		"$lib/files": { ensure_file() { return { ok: true, value: undefined } } },
+		"$lib/env": {
+			default: { paths: { cache: { base: "/cache" } }, distro: {} },
+		},
+		"$lib/files": {
+			ensure_file() {
+				return { ok: true, value: undefined }
+			},
+		},
 		"$lib/result": {
 			attempt,
 			attempt_async: async (fn) => {
-				try { return { ok: true, value: await fn() } }
-				catch (err) { return { ok: false, err } }
+				try {
+					return { ok: true, value: await fn() }
+				} catch (err) {
+					return { ok: false, err }
+				}
 			},
 			err: (err) => ({ ok: false, err }),
 			ok: (value) => ({ ok: true, value }),
 			log_error: (result) => result.ok,
 		},
-		"$lib/time": { debounce: () => {
-			let pending = false
-			return {
-				get pending() { return pending },
-				call() { pending = true },
-				cancel() { pending = false },
-			}
-		} },
+		"$lib/time": {
+			debounce: () => {
+				let pending = false
+				return {
+					get pending() {
+						return pending
+					},
+					call() {
+						pending = true
+					},
+					cancel() {
+						pending = false
+					},
+				}
+			},
+		},
 	}
 
 	const entry = new SourceTextModule(source, { context })
 	await entry.link((name) => {
 		const exports = modules[name]
 		if (!exports) throw new Error(`Unknown module: ${name}`)
-		return new SyntheticModule(Object.keys(exports), function () {
-			for (const [key, value] of Object.entries(exports)) this.setExport(key, value)
-		}, { context })
+		return new SyntheticModule(
+			Object.keys(exports),
+			function () {
+				for (const [key, value] of Object.entries(exports))
+					this.setExport(key, value)
+			},
+			{ context },
+		)
 	})
 	await entry.evaluate()
-	return { options: entry.namespace.default, flush: entry.namespace.flush_options, writes }
+	return {
+		options: entry.namespace.default,
+		flush: entry.namespace.flush_options,
+		writes,
+	}
 }
 
 test("loading valid options does not write the store", async () => {
-	const { options, flush, writes } = await load_options({ scale: 120, theme: { scheme: "light" } })
+	const { options, flush, writes } = await load_options({
+		scale: 120,
+		theme: { scheme: "light" },
+	})
 	assert.equal(options.scale.peek(), 120)
 	assert.equal(options.theme.scheme.peek(), "light")
 	assert.equal((await flush()).ok, true)
@@ -99,7 +149,10 @@ test("loading valid options does not write the store", async () => {
 
 test("persisted font sizes and legacy launcher counts stay unchanged", async () => {
 	for (const max of [0, 20]) {
-		const { options, flush, writes } = await load_options({ font: "Sans 80", launcher: { apps: { max } } })
+		const { options, flush, writes } = await load_options({
+			font: "Sans 80",
+			launcher: { apps: { max } },
+		})
 		assert.equal(options.font.peek(), "Sans 80")
 		assert.equal(options.launcher.apps.max.peek(), max)
 		assert.equal((await flush()).ok, true)
@@ -121,7 +174,9 @@ test("font and launcher validation reject malformed values without imposing lega
 })
 
 test("invalid persisted launcher count is removed while valid font is retained", async () => {
-	const { options, flush, writes } = await load_options('{"font":"Sans 80","launcher":{"apps":{"max":1e400}}}')
+	const { options, flush, writes } = await load_options(
+		'{"font":"Sans 80","launcher":{"apps":{"max":1e400}}}',
+	)
 	assert.equal(options.font.peek(), "Sans 80")
 	assert.equal(options.launcher.apps.max.peek(), 6)
 	assert.equal((await flush()).ok, true)
@@ -131,21 +186,30 @@ test("invalid persisted launcher count is removed while valid font is retained",
 })
 
 test("launcher and color history limits retain valid bounds and reject invalid data", async () => {
-	const { options, flush, writes } = await load_options({ launcher: { apps: { max: 0 } }, colorpicker: { maxColors: 100 } })
+	const { options, flush, writes } = await load_options({
+		launcher: { apps: { max: 0 } },
+		colorpicker: { maxColors: 100 },
+	})
 	assert.equal(options.launcher.apps.max.peek(), 0)
 	assert.equal(options.colorpicker.maxColors.peek(), 100)
 	assert.equal(options.colorpicker.maxColors.set(128).ok, true)
 	assert.equal(options.colorpicker.maxColors.set(129).ok, false)
 	assert.equal(options.launcher.apps.max.set(-1).ok, false)
 	assert.equal(options.launcher.apps.max.set(Infinity).ok, false)
-	assert.equal(options.notifications.blacklist.set(new Uint8Array([1, 2])).ok, false)
+	assert.equal(
+		options.notifications.blacklist.set(new Uint8Array([1, 2])).ok,
+		false,
+	)
 	assert.equal((await flush()).ok, true)
 	assert.equal(writes[0].launcher.apps.max, 0)
 	assert.equal(writes[0].colorpicker.maxColors, 128)
 })
 
 test("negative persisted launcher counts are rejected without changing valid neighbors", async () => {
-	const { options, flush, writes } = await load_options({ launcher: { apps: { max: -2 } }, font: "Sans 80" })
+	const { options, flush, writes } = await load_options({
+		launcher: { apps: { max: -2 } },
+		font: "Sans 80",
+	})
 	assert.equal(options.launcher.apps.max.peek(), 6)
 	assert.equal(options.font.peek(), "Sans 80")
 	assert.equal((await flush()).ok, true)
@@ -155,7 +219,9 @@ test("negative persisted launcher counts are rejected without changing valid nei
 })
 
 test("invalid persisted values are removed without replacing valid neighbors", async () => {
-	const { options, flush, writes } = await load_options('{"scale":1e400,"theme":{"scheme":"unknown","dark":{"bg":"red"},"widget":{"opacity":72}},"notifications":{"blacklist":[null,1]}}')
+	const { options, flush, writes } = await load_options(
+		'{"scale":1e400,"theme":{"scheme":"unknown","dark":{"bg":"red"},"widget":{"opacity":72}},"notifications":{"blacklist":[null,1]}}',
+	)
 	assert.equal(options.scale.peek(), 100)
 	assert.equal(options.theme.scheme.peek(), "dark")
 	assert.equal(options.theme.dark.bg.peek(), "#171717")
@@ -198,14 +264,20 @@ test("array defaults compare by contents and remain immutable", async () => {
 	assert.equal(opt.peek(), opt.get_default())
 	assert.equal(Object.isFrozen(opt.peek()), true)
 	assert.equal((await flush()).ok, true)
-	assert.equal("notifications" in writes[0] && "blacklist" in writes[0].notifications, false)
+	assert.equal(
+		"notifications" in writes[0] && "blacklist" in writes[0].notifications,
+		false,
+	)
 })
 
 test("stored arrays equal to defaults do not appear changed or get rewritten", async () => {
 	const { options, flush, writes } = await load_options({
 		notifications: { blacklist: ["Spotify", "com.spotify.Client"] },
 	})
-	assert.equal(options.notifications.blacklist.peek(), options.notifications.blacklist.get_default())
+	assert.equal(
+		options.notifications.blacklist.peek(),
+		options.notifications.blacklist.get_default(),
+	)
 	assert.equal((await flush()).ok, true)
 	assert.equal(writes.length, 0)
 })
@@ -229,7 +301,10 @@ test("flush waits for queued writes and saves the latest state last", async () =
 	let started = 0
 	const { options, flush, writes } = await load_options({}, () => {
 		started++
-		if (started === 1) return new Promise((resolve) => { release_first = resolve })
+		if (started === 1)
+			return new Promise((resolve) => {
+				release_first = resolve
+			})
 	})
 	options.scale.set(120)
 	const first = flush()
@@ -241,7 +316,10 @@ test("flush waits for queued writes and saves the latest state last", async () =
 	assert.equal((await first).ok, true)
 	assert.equal((await second).ok, true)
 	assert.equal(started, 2)
-	assert.deepEqual(writes.map((value) => value.scale), [120, 140])
+	assert.deepEqual(
+		writes.map((value) => value.scale),
+		[120, 140],
+	)
 })
 
 test("a failed save reports its reason and a later edit retries", async () => {

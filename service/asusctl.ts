@@ -4,7 +4,10 @@ import { hyprland } from "$lib/hyprland"
 import GLib from "gi://GLib"
 import { attempt, attempt_async, err, ok, type Result } from "$lib/result"
 import options from "$shell/options"
-import { format_monitor_command, type monitor_settings } from "./monitorConfiguration"
+import {
+	format_monitor_command,
+	type monitor_settings,
+} from "./monitorConfiguration"
 import { run_command } from "./commands"
 
 type monitor_configuration = monitor_settings & {
@@ -88,12 +91,17 @@ function normalize_refresh_rate(value: number, available: number[]): number {
 	return nearest_value(available, value)
 }
 
-function resolve_refresh_rate(modes: monitor_mode[], preferred: number): number {
+function resolve_refresh_rate(
+	modes: monitor_mode[],
+	preferred: number,
+): number {
 	const available = modes.map((mode) => mode.refresh_rate)
 	return nearest_value(available, preferred)
 }
 
-function is_monitor_configuration(value: unknown): value is monitor_configuration {
+function is_monitor_configuration(
+	value: unknown,
+): value is monitor_configuration {
 	if (!is_record(value)) return false
 
 	return (
@@ -103,11 +111,17 @@ function is_monitor_configuration(value: unknown): value is monitor_configuratio
 		value.width > 0 &&
 		typeof value.height === "number" &&
 		value.height > 0 &&
-		typeof value.x === "number" && Number.isFinite(value.x) &&
-		typeof value.y === "number" && Number.isFinite(value.y) &&
-		typeof value.scale === "number" && value.scale > 0 && Number.isFinite(value.scale) &&
-		typeof value.refreshRate === "number" && Number.isFinite(value.refreshRate) &&
-		typeof value.transform === "number" && Number.isInteger(value.transform) &&
+		typeof value.x === "number" &&
+		Number.isFinite(value.x) &&
+		typeof value.y === "number" &&
+		Number.isFinite(value.y) &&
+		typeof value.scale === "number" &&
+		value.scale > 0 &&
+		Number.isFinite(value.scale) &&
+		typeof value.refreshRate === "number" &&
+		Number.isFinite(value.refreshRate) &&
+		typeof value.transform === "number" &&
+		Number.isInteger(value.transform) &&
 		(value.availableModes === undefined ||
 			(Array.isArray(value.availableModes) &&
 				value.availableModes.every((mode) => typeof mode === "string")))
@@ -155,12 +169,25 @@ class Asusctl extends GObject.Object {
 				else void this.#update_monitor_configuration()
 			})
 			this.#option_disposers.push(
-				options.asus.ac_hz.subscribe(() => void this.#update_monitor_configuration()),
-				options.asus.bat_hz.subscribe(() => void this.#update_monitor_configuration()),
+				options.asus.ac_hz.subscribe(
+					() => void this.#update_monitor_configuration(),
+				),
+				options.asus.bat_hz.subscribe(
+					() => void this.#update_monitor_configuration(),
+				),
 			)
-			for (const signal of ["monitor-added", "monitor-removed", "config-reloaded"]) {
-				this.#monitor_handlers.push(hyprland.connect(signal, () =>
-					void this.#update_monitor_configuration({ apply_policy: false })))
+			for (const signal of [
+				"monitor-added",
+				"monitor-removed",
+				"config-reloaded",
+			]) {
+				this.#monitor_handlers.push(
+					hyprland.connect(
+						signal,
+						() =>
+							void this.#update_monitor_configuration({ apply_policy: false }),
+					),
+				)
 			}
 		}
 	}
@@ -202,7 +229,12 @@ class Asusctl extends GObject.Object {
 		this.#profile_revision++
 		let response: Result<void> = ok(undefined)
 		const write = this.#profile_write.then(async () => {
-			const result = await run_command(["asusctl", "profile", "set", parsed.value])
+			const result = await run_command([
+				"asusctl",
+				"profile",
+				"set",
+				parsed.value,
+			])
 			if (!result.ok) {
 				response = result
 				return
@@ -212,15 +244,22 @@ class Asusctl extends GObject.Object {
 			this.notify("profile")
 			await this.#update_monitor_configuration()
 		})
-		this.#profile_write = write.then(() => undefined, () => undefined)
+		this.#profile_write = write.then(
+			() => undefined,
+			() => undefined,
+		)
 		const completed = await attempt_async(() => write)
 		return completed.ok ? response : completed
 	}
 
-	async #update_monitor_configuration({ apply_policy = true }: { apply_policy?: boolean } = {}) {
+	async #update_monitor_configuration({
+		apply_policy = true,
+	}: { apply_policy?: boolean } = {}) {
 		if (!this.#available) return
 		const sequence = ++this.#monitor_update_sequence
-		const policy_sequence = apply_policy ? ++this.#policy_sequence : this.#policy_sequence
+		const policy_sequence = apply_policy
+			? ++this.#policy_sequence
+			: this.#policy_sequence
 		const output = await run_command(["hyprctl", "monitors", "all", "-j"])
 		if (sequence !== this.#monitor_update_sequence && !apply_policy) return
 		if (!output.ok) {
@@ -246,7 +285,8 @@ class Asusctl extends GObject.Object {
 		if (sequence === this.#monitor_update_sequence) {
 			this.#observed_panel = panel
 			this.#observed_sequence = sequence
-			const observed_modes = panel && !panel.disabled ? get_panel_modes(panel) : []
+			const observed_modes =
+				panel && !panel.disabled ? get_panel_modes(panel) : []
 			const available_refresh_rates = unique_refresh_rates(observed_modes)
 			if (available_refresh_rates.join(",") !== this.#refresh_rates.join(",")) {
 				this.#refresh_rates = available_refresh_rates
@@ -254,10 +294,19 @@ class Asusctl extends GObject.Object {
 			}
 		}
 		if (!apply_policy || policy_sequence !== this.#policy_sequence) return
-		const policy_panel = this.#observed_sequence > sequence ? this.#observed_panel : panel
-		const panel_modes = policy_panel && !policy_panel.disabled ? get_panel_modes(policy_panel) : []
+		const policy_panel =
+			this.#observed_sequence > sequence ? this.#observed_panel : panel
+		const panel_modes =
+			policy_panel && !policy_panel.disabled
+				? get_panel_modes(policy_panel)
+				: []
 		const available_refresh_rates = unique_refresh_rates(panel_modes)
-		if (!policy_panel || policy_panel.disabled || available_refresh_rates.length === 0) return
+		if (
+			!policy_panel ||
+			policy_panel.disabled ||
+			available_refresh_rates.length === 0
+		)
+			return
 		const ac_hz = normalize_refresh_rate(
 			options.asus.ac_hz.peek(),
 			available_refresh_rates,
@@ -272,14 +321,22 @@ class Asusctl extends GObject.Object {
 		if (policy_sequence !== this.#policy_sequence) return
 
 		const preferred_refresh_rate = this.#profile === "Quiet" ? bat_hz : ac_hz
-		const refresh_rate = resolve_refresh_rate(panel_modes, preferred_refresh_rate)
+		const refresh_rate = resolve_refresh_rate(
+			panel_modes,
+			preferred_refresh_rate,
+		)
 		if (Math.abs(policy_panel.refreshRate - refresh_rate) < 0.1) return
-		const response = await attempt_async(() => hyprland.message_async(
-			format_monitor_command(policy_panel, { refresh_rate: refresh_rate }),
-		))
+		const response = await attempt_async(() =>
+			hyprland.message_async(
+				format_monitor_command(policy_panel, { refresh_rate: refresh_rate }),
+			),
+		)
 		if (policy_sequence !== this.#policy_sequence) return
 		if (!response.ok || response.value !== "ok")
-			console.error("asusctl.monitor: Failed to apply refresh rate", response.ok ? response.value : response.err)
+			console.error(
+				"asusctl.monitor: Failed to apply refresh rate",
+				response.ok ? response.value : response.err,
+			)
 	}
 
 	async refresh(): Promise<Result<void>> {
@@ -299,7 +356,10 @@ class Asusctl extends GObject.Object {
 		}
 		this.#set_available(true)
 
-		if (revision === this.#profile_revision && this.#profile !== profile.value) {
+		if (
+			revision === this.#profile_revision &&
+			this.#profile !== profile.value
+		) {
 			this.#profile = profile.value
 			this.notify("profile")
 		}
@@ -307,7 +367,10 @@ class Asusctl extends GObject.Object {
 		if (GLib.find_program_in_path("supergfxctl") !== null) {
 			const mode_output = await run_command(["supergfxctl", "-g"])
 			if (!mode_output.ok) {
-				console.error("asusctl.initialize: Failed to read mode", mode_output.err)
+				console.error(
+					"asusctl.initialize: Failed to read mode",
+					mode_output.err,
+				)
 			} else {
 				const mode = parse_mode(mode_output.value)
 				if (!mode.ok) {

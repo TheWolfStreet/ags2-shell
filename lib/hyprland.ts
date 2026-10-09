@@ -1,4 +1,3 @@
-
 import Hyprland from "gi://AstalHyprland"
 import GLib from "gi://GLib"
 
@@ -21,7 +20,11 @@ function create_hyprland() {
 		critical,
 		ignore_known_warnings,
 	)
-	const default_handler = GLib.log_set_handler("", critical, ignore_known_warnings)
+	const default_handler = GLib.log_set_handler(
+		"",
+		critical,
+		ignore_known_warnings,
+	)
 
 	try {
 		return Hyprland.get_default()

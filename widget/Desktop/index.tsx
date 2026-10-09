@@ -118,7 +118,8 @@ export namespace Desktop {
 		function report_monitors(): void {
 			const connected = hypr_monitors.peek() ?? []
 			const live = new Set(connected.map((item) => item.name))
-			const ids = app.get_monitors()
+			const ids = app
+				.get_monitors()
 				.filter((item) => {
 					const connector = item.get_connector()
 					return connector === null || live.has(connector)
@@ -130,14 +131,17 @@ export namespace Desktop {
 		report_grid()
 		report_monitors()
 		const monitor_model = Gdk.Display.get_default()?.get_monitors()
-		const monitor_handler = monitor_model?.connect("items-changed", report_monitors)
+		const monitor_handler = monitor_model?.connect(
+			"items-changed",
+			report_monitors,
+		)
 		const unsubscribers = [
 			grid_metrics.subscribe(report_grid),
 			id.subscribe(report_grid),
 			hypr_monitors.subscribe(report_monitors),
 		]
 		const drag = create_desktop_drag_controller(grid)
-		const client_added = hyprland.connect("client-added", (self, client) => {
+		const client_added = hyprland.connect("client-added", (_self, client) => {
 			idle(() => {
 				if (!window?.is_active) return
 				const cursor = hyprland.cursorPosition
@@ -151,7 +155,8 @@ export namespace Desktop {
 			})
 		})
 		onCleanup(() => {
-			if (monitor_model && monitor_handler) monitor_model.disconnect(monitor_handler)
+			if (monitor_model && monitor_handler)
+				monitor_model.disconnect(monitor_handler)
 			unsubscribers.forEach((unsubscribe) => unsubscribe())
 			hyprland.disconnect(client_added)
 			schedule_monitor_window_release(window)

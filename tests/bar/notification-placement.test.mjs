@@ -1,127 +1,298 @@
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+	existsSync,
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	readdirSync,
+	realpathSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 
 const root = new URL("../../", import.meta.url)
-const sway = process.env.SWAY_HEADLESS_BIN || spawnSync("which", ["sway-unwrapped"], { encoding: "utf8" }).stdout?.trim()
-const available = command => spawnSync("which", [command], { stdio: "ignore" }).status === 0
-const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+const sway =
+	process.env.SWAY_HEADLESS_BIN ||
+	spawnSync("which", ["sway-unwrapped"], { encoding: "utf8" }).stdout?.trim()
+const available = (command) =>
+	spawnSync("which", [command], { stdio: "ignore" }).status === 0
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function stop(child) {
 	if (!child?.pid) return
-	try { process.kill(-child.pid, "SIGTERM") } catch (error) { if (error.code !== "ESRCH") throw error }
+	try {
+		process.kill(-child.pid, "SIGTERM")
+	} catch (error) {
+		if (error.code !== "ESRCH") throw error
+	}
 	if (child.exitCode === null && child.signalCode === null)
 		await Promise.race([once(child, "exit").catch(() => {}), wait(1000)])
-	try { process.kill(-child.pid, "SIGKILL") } catch (error) { if (error.code !== "ESRCH") throw error }
+	try {
+		process.kill(-child.pid, "SIGKILL")
+	} catch (error) {
+		if (error.code !== "ESRCH") throw error
+	}
 }
 
-test("real top-right notification surface contains wrapped text, actions and delayed preview", {
-	timeout: 60_000,
-}, async t => {
-	if (!sway || !available("ags") || !available("sass") || !available("tsc"))
-		return t.skip("AGS, Sass, TypeScript and headless Sway are required")
-	const dir = mkdtempSync(join(tmpdir(), "ags-notification-placement-"))
-	try {
-		const tsc = realpathSync(spawnSync("which", ["tsc"], { encoding: "utf8" }).stdout.trim())
-		const ts = createRequire(tsc)("../lib/node_modules/typescript/lib/typescript.js")
-		const source = readFileSync(new URL("../../widget/Bar/components/Notifications/index.tsx", import.meta.url), "utf8")
-		const ast = ts.createSourceFile("Notifications.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-		const namespace = ast.statements.find(node => ts.isModuleDeclaration(node) && node.name.text === "Notifications")
-		assert.ok(namespace, "production Notifications namespace must be present")
-		const lifecycle_source = readFileSync(new URL("../../widget/Bar/components/Notifications/EntryLifecycle.ts", import.meta.url), "utf8")
-		const lifecycle_ast = ts.createSourceFile("EntryLifecycle.ts", lifecycle_source, ts.ScriptTarget.Latest, true)
-		const lifecycle = lifecycle_ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === "create_entry_lifecycle")
-		assert.ok(lifecycle, "production entry lifecycle must be present")
-		const entry = join(dir, "fixture.tsx")
-		writeFileSync(entry, fixture.replace("INJECT_PRODUCTION", lifecycle.getText(lifecycle_ast) + "\n" + namespace.getText(ast)))
-		const css = spawnSync("sass", ["--stdin", "--load-path=.", "--style=expanded", "--quiet", "--no-source-map"], {
-			cwd: root, encoding: "utf8",
-			input: '@use "style/base"; @use "widget/Bar/components/Notifications/style" as *;',
-		})
-		assert.equal(css.status, 0, css.stderr)
-		const css_path = join(dir, "fixture.css")
-		writeFileSync(css_path, css.stdout)
-		const bundle_path = join(dir, "fixture")
-		const bus_config = join(dir, "dbus.conf")
-		writeFileSync(bus_config, '<busconfig><type>session</type><listen>unix:tmpdir=/tmp</listen>' +
-			'<auth>EXTERNAL</auth><policy context="default"><allow send_destination="*"/>' +
-			'<allow receive_sender="*"/><allow own="*"/></policy></busconfig>')
-		const bundle = spawnSync("ags", ["bundle", entry, bundle_path, "-g", "4", "-r", new URL("../../", import.meta.url).pathname], {
-			cwd: root, encoding: "utf8", timeout: 20_000,
-		})
-		assert.equal(bundle.status, 0, bundle.stderr + bundle.stdout)
-		const schema_dirs = ["AstalNotifd-0.1.typelib", "Gtk-4.0.typelib", "GDesktopEnums-3.0.typelib"].map(name => {
-			const typelib_dir = process.env.GI_TYPELIB_PATH?.split(":").find(path => existsSync(join(path, name)))
-			assert.ok(typelib_dir, `${name} is required for the native fixture`)
-			const schemas = join(typelib_dir, "../../share/gsettings-schemas")
-			const dirs = readdirSync(schemas).map(child => join(schemas, child))
-				.filter(path => existsSync(join(path, "glib-2.0/schemas/gschemas.compiled")))
-			assert.equal(dirs.length, 1, `compiled schemas for ${name} must be available`)
-			return dirs[0]
-		})
+test(
+	"real top-right notification surface contains wrapped text, actions and delayed preview",
+	{
+		timeout: 60_000,
+	},
+	async (t) => {
+		if (!sway || !available("ags") || !available("sass") || !available("tsc"))
+			return t.skip("AGS, Sass, TypeScript and headless Sway are required")
+		const dir = mkdtempSync(join(tmpdir(), "ags-notification-placement-"))
+		try {
+			const tsc = realpathSync(
+				spawnSync("which", ["tsc"], { encoding: "utf8" }).stdout.trim(),
+			)
+			const ts = createRequire(tsc)(
+				"../lib/node_modules/typescript/lib/typescript.js",
+			)
+			const source = readFileSync(
+				new URL(
+					"../../widget/Bar/components/Notifications/index.tsx",
+					import.meta.url,
+				),
+				"utf8",
+			)
+			const ast = ts.createSourceFile(
+				"Notifications.tsx",
+				source,
+				ts.ScriptTarget.Latest,
+				true,
+				ts.ScriptKind.TSX,
+			)
+			const namespace = ast.statements.find(
+				(node) =>
+					ts.isModuleDeclaration(node) && node.name.text === "Notifications",
+			)
+			assert.ok(namespace, "production Notifications namespace must be present")
+			const lifecycle_source = readFileSync(
+				new URL(
+					"../../widget/Bar/components/Notifications/EntryLifecycle.ts",
+					import.meta.url,
+				),
+				"utf8",
+			)
+			const lifecycle_ast = ts.createSourceFile(
+				"EntryLifecycle.ts",
+				lifecycle_source,
+				ts.ScriptTarget.Latest,
+				true,
+			)
+			const lifecycle = lifecycle_ast.statements.find(
+				(node) =>
+					ts.isFunctionDeclaration(node) &&
+					node.name.text === "create_entry_lifecycle",
+			)
+			assert.ok(lifecycle, "production entry lifecycle must be present")
+			const entry = join(dir, "fixture.tsx")
+			writeFileSync(
+				entry,
+				fixture.replace(
+					"INJECT_PRODUCTION",
+					lifecycle.getText(lifecycle_ast) + "\n" + namespace.getText(ast),
+				),
+			)
+			const css = spawnSync(
+				"sass",
+				[
+					"--stdin",
+					"--load-path=.",
+					"--style=expanded",
+					"--quiet",
+					"--no-source-map",
+				],
+				{
+					cwd: root,
+					encoding: "utf8",
+					input:
+						'@use "style/base"; @use "widget/Bar/components/Notifications/style" as *;',
+				},
+			)
+			assert.equal(css.status, 0, css.stderr)
+			const css_path = join(dir, "fixture.css")
+			writeFileSync(css_path, css.stdout)
+			const bundle_path = join(dir, "fixture")
+			const bus_config = join(dir, "dbus.conf")
+			writeFileSync(
+				bus_config,
+				"<busconfig><type>session</type><listen>unix:tmpdir=/tmp</listen>" +
+					'<auth>EXTERNAL</auth><policy context="default"><allow send_destination="*"/>' +
+					'<allow receive_sender="*"/><allow own="*"/></policy></busconfig>',
+			)
+			const bundle = spawnSync(
+				"ags",
+				[
+					"bundle",
+					entry,
+					bundle_path,
+					"-g",
+					"4",
+					"-r",
+					new URL("../../", import.meta.url).pathname,
+				],
+				{
+					cwd: root,
+					encoding: "utf8",
+					timeout: 20_000,
+				},
+			)
+			assert.equal(bundle.status, 0, bundle.stderr + bundle.stdout)
+			const schema_dirs = [
+				"AstalNotifd-0.1.typelib",
+				"Gtk-4.0.typelib",
+				"GDesktopEnums-3.0.typelib",
+			].map((name) => {
+				const typelib_dir = process.env.GI_TYPELIB_PATH?.split(":").find(
+					(path) => existsSync(join(path, name)),
+				)
+				assert.ok(typelib_dir, `${name} is required for the native fixture`)
+				const schemas = join(typelib_dir, "../../share/gsettings-schemas")
+				const dirs = readdirSync(schemas)
+					.map((child) => join(schemas, child))
+					.filter((path) =>
+						existsSync(join(path, "glib-2.0/schemas/gschemas.compiled")),
+					)
+				assert.equal(
+					dirs.length,
+					1,
+					`compiled schemas for ${name} must be available`,
+				)
+				return dirs[0]
+			})
 
-		for (const scale of [100, 150]) {
-			const runtime = join(dir, `runtime-${scale}`)
-			const home = join(dir, `home-${scale}`)
-			mkdirSync(runtime, { mode: 0o700 })
-			mkdirSync(home, { mode: 0o700 })
-			const config = join(dir, `sway-${scale}.conf`)
-			writeFileSync(config, "output HEADLESS-1 resolution 960x600\n")
-			const env = { ...process.env, XDG_RUNTIME_DIR: runtime, HOME: home,
-				XDG_CONFIG_HOME: join(home, "config"), XDG_CACHE_HOME: join(home, "cache"),
-				XDG_DATA_HOME: join(home, "data"), XDG_STATE_HOME: join(home, "state"),
-				WLR_BACKENDS: "headless", WLR_RENDERER: "pixman", WLR_LIBINPUT_NO_DEVICES: "1",
-				GDK_BACKEND: "wayland", GSK_RENDERER: "cairo", GDK_DISABLE: "vulkan", GTK_A11Y: "none",
-				GSETTINGS_BACKEND: "memory", XDG_DATA_DIRS: [...schema_dirs, process.env.XDG_DATA_DIRS].filter(Boolean).join(":"),
-				FIXTURE_CSS: css_path, FIXTURE_SCALE: String(scale) }
-			delete env.GSETTINGS_SCHEMA_DIR
-			for (const key of ["WAYLAND_DISPLAY", "WAYLAND_SOCKET", "SWAYSOCK", "HYPRLAND_INSTANCE_SIGNATURE",
-				"DISPLAY", "DBUS_SESSION_BUS_ADDRESS"]) delete env[key]
-			let compositor, application, sway_log = "", app_log = ""
-			try {
-				compositor = spawn(sway, ["-c", config], { env, detached: true, stdio: ["ignore", "pipe", "pipe"] })
-				for (const stream of [compositor.stdout, compositor.stderr])
-					stream.on("data", chunk => { sway_log = (sway_log + chunk).slice(-8192) })
-				const deadline = Date.now() + 6000
-				let socket
-				while (!socket && Date.now() < deadline && compositor.exitCode === null) {
-					socket = readdirSync(runtime).find(name => /^wayland-\d+$/.test(name) && statSync(join(runtime, name)).isSocket())
-					if (!socket) await wait(50)
+			for (const scale of [100, 150]) {
+				const runtime = join(dir, `runtime-${scale}`)
+				const home = join(dir, `home-${scale}`)
+				mkdirSync(runtime, { mode: 0o700 })
+				mkdirSync(home, { mode: 0o700 })
+				const config = join(dir, `sway-${scale}.conf`)
+				writeFileSync(config, "output HEADLESS-1 resolution 960x600\n")
+				const env = {
+					...process.env,
+					XDG_RUNTIME_DIR: runtime,
+					HOME: home,
+					XDG_CONFIG_HOME: join(home, "config"),
+					XDG_CACHE_HOME: join(home, "cache"),
+					XDG_DATA_HOME: join(home, "data"),
+					XDG_STATE_HOME: join(home, "state"),
+					WLR_BACKENDS: "headless",
+					WLR_RENDERER: "pixman",
+					WLR_LIBINPUT_NO_DEVICES: "1",
+					GDK_BACKEND: "wayland",
+					GSK_RENDERER: "cairo",
+					GDK_DISABLE: "vulkan",
+					GTK_A11Y: "none",
+					GSETTINGS_BACKEND: "memory",
+					XDG_DATA_DIRS: [...schema_dirs, process.env.XDG_DATA_DIRS]
+						.filter(Boolean)
+						.join(":"),
+					FIXTURE_CSS: css_path,
+					FIXTURE_SCALE: String(scale),
 				}
-				assert.ok(socket, `private Sway did not start: ${sway_log}`)
-				application = spawn("dbus-run-session", ["--config-file=" + bus_config, "--", bundle_path], {
-					cwd: root, env: { ...env, WAYLAND_DISPLAY: socket }, detached: true,
-					stdio: ["ignore", "pipe", "pipe"],
-				})
-				for (const stream of [application.stdout, application.stderr])
-					stream.on("data", chunk => { app_log = (app_log + chunk).slice(-16384) })
-				let timer
-				let result
+				delete env.GSETTINGS_SCHEMA_DIR
+				for (const key of [
+					"WAYLAND_DISPLAY",
+					"WAYLAND_SOCKET",
+					"SWAYSOCK",
+					"HYPRLAND_INSTANCE_SIGNATURE",
+					"DISPLAY",
+					"DBUS_SESSION_BUS_ADDRESS",
+				])
+					delete env[key]
+				let compositor,
+					application,
+					sway_log = "",
+					app_log = ""
 				try {
-					result = await Promise.race([
+					compositor = spawn(sway, ["-c", config], {
+						env,
+						detached: true,
+						stdio: ["ignore", "pipe", "pipe"],
+					})
+					for (const stream of [compositor.stdout, compositor.stderr])
+						stream.on("data", (chunk) => {
+							sway_log = (sway_log + chunk).slice(-8192)
+						})
+					const deadline = Date.now() + 6000
+					let socket
+					while (
+						!socket &&
+						Date.now() < deadline &&
+						compositor.exitCode === null
+					) {
+						socket = readdirSync(runtime).find(
+							(name) =>
+								/^wayland-\d+$/.test(name) &&
+								statSync(join(runtime, name)).isSocket(),
+						)
+						if (!socket) await wait(50)
+					}
+					assert.ok(socket, `private Sway did not start: ${sway_log}`)
+					application = spawn(
+						"dbus-run-session",
+						["--config-file=" + bus_config, "--", bundle_path],
+						{
+							cwd: root,
+							env: { ...env, WAYLAND_DISPLAY: socket },
+							detached: true,
+							stdio: ["ignore", "pipe", "pipe"],
+						},
+					)
+					for (const stream of [application.stdout, application.stderr])
+						stream.on("data", (chunk) => {
+							app_log = (app_log + chunk).slice(-16384)
+						})
+					let timer
+					let result
+					try {
+						result = await Promise.race([
 							once(application, "close"),
-						new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(
-							`fixture timed out at ${scale}%: ${app_log}`)), 12_000) }),
-					])
-				} finally { clearTimeout(timer) }
-				const [code, signal] = result
-				assert.equal(code, 0, `fixture exited ${signal ?? code} at ${scale}%: ${app_log}`)
-				assert.match(app_log, new RegExp(`PLACEMENT_OK ${scale}\\b`), app_log)
-				assert.doesNotMatch(app_log, /(?:Gjs|Gtk|GLib-GObject)-CRITICAL/, app_log)
-			} finally {
-				await stop(application)
-				await stop(compositor)
+							new Promise((_resolve, reject) => {
+								timer = setTimeout(
+									() =>
+										reject(
+											new Error(`fixture timed out at ${scale}%: ${app_log}`),
+										),
+									12_000,
+								)
+							}),
+						])
+					} finally {
+						clearTimeout(timer)
+					}
+					const [code, signal] = result
+					assert.equal(
+						code,
+						0,
+						`fixture exited ${signal ?? code} at ${scale}%: ${app_log}`,
+					)
+					assert.match(app_log, new RegExp(`PLACEMENT_OK ${scale}\\b`), app_log)
+					assert.doesNotMatch(
+						app_log,
+						/(?:Gjs|Gtk|GLib-GObject)-CRITICAL/,
+						app_log,
+					)
+				} finally {
+					await stop(application)
+					await stop(compositor)
+				}
 			}
+		} finally {
+			rmSync(dir, { recursive: true, force: true })
 		}
-	} finally {
-		rmSync(dir, { recursive: true, force: true })
-	}
-})
+	},
+)
 
 const fixture = `
 import { createBinding, createComputed, createRoot, createState, onCleanup } from "ags"

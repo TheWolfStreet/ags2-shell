@@ -61,7 +61,9 @@ window#wifi-auth {
 }
 
 window#quicksettings {
-	button.arrow image { transition: transform var(--transition); }
+	button.arrow image {
+		transition: transform var(--transition);
+	}
 	.quicksettings {
 		@extend .floating;
 		@include spacing;

@@ -9,7 +9,7 @@ function render_icon(icon: string, size: number) {
 		const texture = create_square_texture_accessor(icon, size)
 		return (
 			<Gtk.Picture
-				paintable={texture.as(value => value as Gdk.Paintable)}
+				paintable={texture.as((value) => value as Gdk.Paintable)}
 				widthRequest={size}
 				heightRequest={size}
 				halign={Gtk.Align.CENTER}
@@ -52,13 +52,13 @@ export function ApplicationIcon({
 	return (
 		<box
 			class="application-icon"
-			widthRequest={values.as(value => value.size)}
-			heightRequest={values.as(value => value.size)}
+			widthRequest={values.as((value) => value.size)}
+			heightRequest={values.as((value) => value.size)}
 			halign={halign}
 			valign={valign}
 		>
 			<With value={values}>
-				{value => render_icon(value.icon, value.size)}
+				{(value) => render_icon(value.icon, value.size)}
 			</With>
 		</box>
 	)

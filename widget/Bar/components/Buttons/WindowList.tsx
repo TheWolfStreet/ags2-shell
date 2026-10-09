@@ -19,9 +19,7 @@ export function WindowList() {
 	const clients = create_window_client_list(options.bar.taskbar.exclusive)
 	return (
 		<box class="tasks horizontal">
-			<For each={clients}>
-				{client => <TaskEntry client={client} />}
-			</For>
+			<For each={clients}>{(client) => <TaskEntry client={client} />}</For>
 		</box>
 	)
 }
@@ -32,28 +30,45 @@ function TaskEntry({ client }: { client: AstalHyprland.Client }) {
 	const title = createBinding(client, "title")
 	const initial_title = createBinding(client, "initialTitle")
 	const catalog = createBinding(applications, "list")
-	const icon = createComputed(() => match_client_app(catalog(), {
-		class: class_name(), initialClass: initial_class(), title: title(), initialTitle: initial_title(),
-	})?.get_icon_name() || class_name() || "application-x-executable-symbolic")
-	const icon_size = createComputed(() => Math.max(8, Math.round(16 * ui_scale())))
-	const focused = focused_window_client.as(value => {
+	const icon = createComputed(
+		() =>
+			match_client_app(catalog(), {
+				class: class_name(),
+				initialClass: initial_class(),
+				title: title(),
+				initialTitle: initial_title(),
+			})?.get_icon_name() ||
+			class_name() ||
+			"application-x-executable-symbolic",
+	)
+	const icon_size = createComputed(() =>
+		Math.max(8, Math.round(16 * ui_scale())),
+	)
+	const focused = focused_window_client.as((value) => {
 		return value?.address === client.address
 	})
 
 	return (
-		<button class="task" tooltipText={create_client_title_accessor(client)} valign={Gtk.Align.CENTER}
-			onClicked={() => client.focus()}>
+		<button
+			class="task"
+			tooltipText={create_client_title_accessor(client)}
+			valign={Gtk.Align.CENTER}
+			onClicked={() => client.focus()}
+		>
 			<Gtk.GestureClick
 				button={Gdk.BUTTON_SECONDARY}
-				onPressed={self => {
+				onPressed={(self) => {
 					focus_client_and_toggle_fullscreen(client)
 					self.reset()
 				}}
 			/>
-			<Gtk.GestureClick button={Gdk.BUTTON_MIDDLE} onPressed={self => {
-				client.kill()
-				self.reset()
-			}} />
+			<Gtk.GestureClick
+				button={Gdk.BUTTON_MIDDLE}
+				onPressed={(self) => {
+					client.kill()
+					self.reset()
+				}}
+			/>
 			<overlay>
 				<ApplicationIcon icon={icon} size={icon_size} />
 				<box

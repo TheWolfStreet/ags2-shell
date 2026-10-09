@@ -13,7 +13,14 @@ import AstalHyprland from "gi://AstalHyprland"
 import giCairo from "cairo"
 
 import { hyprland } from "$lib/hyprland"
-import { attempt, attempt_async, err, log_error, ok, type Result } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type Result,
+} from "$lib/result"
 
 const { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_MIDDLE } = Gdk
 
@@ -32,7 +39,7 @@ export function on_window_toggle(
 	name: string,
 	callback: (window: Gtk.Window) => void,
 ) {
-	const handler = app.connect("window-toggled", (_, window: Gtk.Window) => {
+	const handler = app.connect("window-toggled", (_app, window: Gtk.Window) => {
 		if (window.name === name) callback(window)
 	})
 
@@ -195,9 +202,12 @@ async function dispatch_client(message: string): Promise<Result<void>> {
 		: err(new Error(`Hyprland rejected ${message}: ${response.value}`))
 }
 
-export async function focus_client_and_toggle_fullscreen(client: AstalHyprland.Client): Promise<Result<void>> {
+export async function focus_client_and_toggle_fullscreen(
+	client: AstalHyprland.Client,
+): Promise<Result<void>> {
 	const focused = attempt(() => client.focus())
-	if (!log_error(focused, "windowing.fullscreen: Failed to focus client")) return focused
+	if (!log_error(focused, "windowing.fullscreen: Failed to focus client"))
+		return focused
 	const result = await dispatch_client("dispatch fullscreen")
 	log_error(result, "windowing.fullscreen: Failed to toggle fullscreen")
 	return result
@@ -226,7 +236,9 @@ export async function move_client_to_workspace_silent(
 		log_error(invalid, "windowing.move: Failed to move client")
 		return invalid
 	}
-	const result = await dispatch_client(`dispatch movetoworkspacesilent ${workspace_id},address:${address}`)
+	const result = await dispatch_client(
+		`dispatch movetoworkspacesilent ${workspace_id},address:${address}`,
+	)
 	log_error(result, "windowing.move: Failed to move client")
 	return result
 }
@@ -244,7 +256,9 @@ export function dispatch_client_button_action(
 	if (button === BUTTON_MIDDLE) actions.middle()
 }
 
-export function create_window_client_list(exclusive_workspace: Accessor<boolean>) {
+export function create_window_client_list(
+	exclusive_workspace: Accessor<boolean>,
+) {
 	install_placement_tracker()
 	const clients = createBinding(hyprland, "clients")
 	const focused_workspace_id = createBinding(hyprland, "focusedWorkspace").as(

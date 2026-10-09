@@ -1,11 +1,11 @@
-@use '../../style/base' as *;
+@use "../../style/base" as *;
 
 window#state-display box.state-display {
-  @extend .floating;
-  padding: calc(var(--padding) * 2.25);
+	@extend .floating;
+	padding: calc(var(--padding) * 2.25);
 
-  image {
-    padding: var(--popover-padding);
-    color: color-mix(in srgb, var(--fg) 90%, transparent);
-  }
+	image {
+		padding: var(--popover-padding);
+		color: color-mix(in srgb, var(--fg) 90%, transparent);
+	}
 }

@@ -8,7 +8,12 @@ import Graphene from "gi://Graphene"
 
 import { hidden_drag_icon } from "$lib/textures"
 import options from "$shell/options"
-import { build_file_content_provider, paths_from_uris, read_file_text, split_payload_lines } from "./FileOperations"
+import {
+	build_file_content_provider,
+	paths_from_uris,
+	read_file_text,
+	split_payload_lines,
+} from "./FileOperations"
 import {
 	desktop_interaction,
 	import_files_to_desktop,
@@ -45,14 +50,13 @@ const [active_drag, set_active_drag] = createState<drag_state>(empty_drag)
 const [drag_preview, set_drag_preview] = createState<drag_preview | null>(null)
 const targets = new Map<
 	string,
-	(
-		paths: string[],
-		anchor: string,
-		x: number,
-		y: number,
-	) => void
+	(paths: string[], anchor: string, x: number, y: number) => void
 >()
-const drag_session: { handled: boolean; canceled: boolean; hover: hover | null } = {
+const drag_session: {
+	handled: boolean
+	canceled: boolean
+	hover: hover | null
+} = {
 	handled: false,
 	canceled: false,
 	hover: null,
@@ -135,8 +139,8 @@ function create_preview(
 function drop_action(drop: Gdk.Drop, control_held: boolean): Gdk.DragAction {
 	const actions = drop.get_actions()
 	const internal = active_drag.peek().paths.length > 0
-	if (internal && (actions & DragAction.MOVE)) return DragAction.MOVE
-	if (control_held && (actions & DragAction.COPY)) return DragAction.COPY
+	if (internal && actions & DragAction.MOVE) return DragAction.MOVE
+	if (control_held && actions & DragAction.COPY) return DragAction.COPY
 	if (actions & DragAction.MOVE) return DragAction.MOVE
 	if (actions & DragAction.COPY) return DragAction.COPY
 	return 0
@@ -176,7 +180,8 @@ export function create_desktop_drag_controller(
 		const hover = drag_session.hover
 		const hovered_another_monitor =
 			delete_data &&
-			!drag_session.handled && !drag_session.canceled &&
+			!drag_session.handled &&
+			!drag_session.canceled &&
 			snapshot.paths.length > 0 &&
 			snapshot.source !== null &&
 			hover !== null &&
@@ -201,7 +206,11 @@ export function create_desktop_drag_controller(
 		desktop_interaction.redraw()
 	}
 
-	function attach_source(widget: Gtk.Widget, path: string, on_begin: () => void) {
+	function attach_source(
+		widget: Gtk.Widget,
+		path: string,
+		on_begin: () => void,
+	) {
 		widgets.set(path, widget)
 		const source = Gtk.DragSource.new()
 		source.set_actions(DragAction.MOVE | DragAction.COPY)
@@ -226,7 +235,7 @@ export function create_desktop_drag_controller(
 			set_active_drag({ ...active_drag.peek() })
 			return true
 		})
-		source.connect("drag-end", (source, drag, delete_data) =>
+		source.connect("drag-end", (_source, _drag, delete_data) =>
 			finish(active_drag.peek(), delete_data),
 		)
 		widget.add_controller(source)
@@ -237,19 +246,33 @@ export function create_desktop_drag_controller(
 
 	function attach_target(widget: Gtk.Fixed) {
 		const target = Gtk.DropTargetAsync.new(
-			Gdk.ContentFormats.new_for_gtype(Gdk.FileList.$gtype)
-				.union(Gdk.ContentFormats.new(["text/uri-list"])),
-			DragAction.MOVE | DragAction.COPY)
-		target.connect("accept", (controller, drop) =>
-			drop.get_formats().contain_gtype(Gdk.FileList.$gtype) ||
-			drop.get_formats().contain_mime_type("text/uri-list"))
+			Gdk.ContentFormats.new_for_gtype(Gdk.FileList.$gtype).union(
+				Gdk.ContentFormats.new(["text/uri-list"]),
+			),
+			DragAction.MOVE | DragAction.COPY,
+		)
+		target.connect(
+			"accept",
+			(_controller, drop) =>
+				drop.get_formats().contain_gtype(Gdk.FileList.$gtype) ||
+				drop.get_formats().contain_mime_type("text/uri-list"),
+		)
 
-		const hover = (controller: Gtk.DropTargetAsync, drop: Gdk.Drop, x: number, y: number) => {
+		const hover = (
+			controller: Gtk.DropTargetAsync,
+			drop: Gdk.Drop,
+			x: number,
+			y: number,
+		) => {
 			const state = active_drag.peek()
 			const monitor_id = grid.peek().id
 			if (state.paths.length > 0 && state.source && state.source !== monitor_id)
 				drag_session.hover = { monitor_id: monitor_id, x, y }
-			return drop_action(drop, (controller.get_current_event_state() & ModifierType.CONTROL_MASK) !== 0)
+			return drop_action(
+				drop,
+				(controller.get_current_event_state() & ModifierType.CONTROL_MASK) !==
+					0,
+			)
 		}
 
 		target.connect("drag-enter", hover)
@@ -260,32 +283,50 @@ export function create_desktop_drag_controller(
 			return action
 		})
 		target.connect("drag-leave", () => {
-			if (drag_session.hover?.monitor_id === grid.peek().id) drag_session.hover = null
+			if (drag_session.hover?.monitor_id === grid.peek().id)
+				drag_session.hover = null
 			set_hovered(false)
 		})
 		target.connect("drop", (controller, drop, x, y) => {
-			const action = drop_action(drop,
-				(controller.get_current_event_state() & ModifierType.CONTROL_MASK) !== 0)
+			const action = drop_action(
+				drop,
+				(controller.get_current_event_state() & ModifierType.CONTROL_MASK) !==
+					0,
+			)
 			if (!action) return false
 			void (async () => {
 				const cancellable = new Gio.Cancellable()
 				const deadline = timeout(30_000, () => cancellable.cancel())
 				try {
-					const [stream] = await drop.read_async(["text/uri-list"], GLib.PRIORITY_DEFAULT, cancellable)
+					const [stream] = await drop.read_async(
+						["text/uri-list"],
+						GLib.PRIORITY_DEFAULT,
+						cancellable,
+					)
 					if (!stream) throw new Error("Drop provided no file URI list")
 					const text = await read_file_text(stream, cancellable)
-					const paths = [...new Set(paths_from_uris(
-						split_payload_lines(text).filter((line) => !line.startsWith("#"))))]
+					const paths = [
+						...new Set(
+							paths_from_uris(
+								split_payload_lines(text).filter(
+									(line) => !line.startsWith("#"),
+								),
+							),
+						),
+					]
 					if (!paths.length) throw new Error("Drop contains no local files")
 					const state = active_drag.peek()
-					const internal = paths.every((path) =>
-						state.paths.includes(path) && !!monitor_of_desktop_path(path))
+					const internal = paths.every(
+						(path) =>
+							state.paths.includes(path) && !!monitor_of_desktop_path(path),
+					)
 					if (internal && action === DragAction.MOVE) {
 						drag_session.handled = true
 						move(state.paths, state.anchor ?? paths[0], slot_at(x, y))
 					} else {
 						const result = await import_files_to_desktop({
-							paths, to: grid.peek().id,
+							paths,
+							to: grid.peek().id,
 							operation: action === DragAction.COPY ? "copy" : "move",
 						})
 						if (result.failures.length || !result.createdPaths.length)

@@ -3,7 +3,8 @@ import upstream_app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 import GObject, { register } from "ags/gobject"
 
-const UpstreamApplication = upstream_app.constructor as new () => typeof upstream_app & GObject.Object
+const UpstreamApplication =
+	upstream_app.constructor as new () => typeof upstream_app & GObject.Object
 
 @register()
 class ShellApplication extends UpstreamApplication {
@@ -18,7 +19,7 @@ class ShellApplication extends UpstreamApplication {
 	private async finish_quit(code: number): Promise<void> {
 		let handler = 0
 		try {
-			if (this.before_quit && !await this.before_quit()) {
+			if (this.before_quit && !(await this.before_quit())) {
 				this.#quit_pending = null
 				return
 			}

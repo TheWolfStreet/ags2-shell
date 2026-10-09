@@ -20,7 +20,10 @@ import { PanelButton } from "../PanelButton"
 import icons, { substitute_icon_name } from "$lib/icons"
 import env from "$lib/env"
 import { classify_image_uri, create_texture_accessor } from "$lib/textures"
-import { notification_action_available, notification_daemon } from "$lib/notifications"
+import {
+	notification_action_available,
+	notification_daemon,
+} from "$lib/notifications"
 import { notification_manager } from "$service/notifications"
 import { create_entry_lifecycle, type entry_lifecycle } from "./EntryLifecycle"
 
@@ -85,7 +88,9 @@ export namespace Notifications {
 		let index = 0
 		const dismiss_next = () => {
 			const notification = all[index++]
-			if (notification_daemon.get_notification(notification.id) === notification)
+			if (
+				notification_daemon.get_notification(notification.id) === notification
+			)
 				notification.dismiss()
 			if (index < all.length) timeout(50, dismiss_next)
 		}
@@ -267,7 +272,12 @@ export namespace Notifications {
 		)
 	}
 
-	function Content({ notification, image_path, persistent, avatar = false }: content_props) {
+	function Content({
+		notification,
+		image_path,
+		persistent,
+		avatar = false,
+	}: content_props) {
 		const body = body_text(notification.body)
 		let image_size = persistent ? 260 : 75
 		let image_height = persistent ? 160 : 75
@@ -276,23 +286,30 @@ export namespace Notifications {
 			image_height = 48
 		}
 		const preview_size = options.scale.as((scale) =>
-			Math.round((image_size * scale) / 100))
+			Math.round((image_size * scale) / 100),
+		)
 		const preview_height = options.scale.as((scale) =>
-			Math.round((image_height * scale) / 100))
+			Math.round((image_height * scale) / 100),
+		)
 		const preview_texture = image_path
-			? createComputed(() => create_texture_accessor(image_path, preview_size(), "contain"))
+			? createComputed(() =>
+					create_texture_accessor(image_path, preview_size(), "contain"),
+				)
 			: null
 		const preview_paintable = preview_texture
 			? createComputed(() => preview_texture()())
 			: null
 		const fitted_height = preview_paintable
 			? createComputed(() => {
-				const texture = preview_paintable()
-				if (!texture) return preview_height()
-				const ratio = Math.min(preview_size() / texture.get_width(),
-					preview_height() / texture.get_height())
-				return Math.max(1, Math.round(texture.get_height() * ratio))
-			}) : null
+					const texture = preview_paintable()
+					if (!texture) return preview_height()
+					const ratio = Math.min(
+						preview_size() / texture.get_width(),
+						preview_height() / texture.get_height(),
+					)
+					return Math.max(1, Math.round(texture.get_height() * ratio))
+				})
+			: null
 		const preview = preview_paintable && (
 			<Gtk.Picture
 				class={avatar ? "avatar" : "preview"}
@@ -308,7 +325,10 @@ export namespace Notifications {
 		)
 
 		return (
-			<box class={`content${persistent ? " history" : ""}`} orientation={persistent && !avatar ? VERTICAL : HORIZONTAL}>
+			<box
+				class={`content${persistent ? " history" : ""}`}
+				orientation={persistent && !avatar ? VERTICAL : HORIZONTAL}
+			>
 				{(!persistent || avatar) && preview}
 				<box orientation={VERTICAL} hexpand>
 					<label
@@ -345,11 +365,18 @@ export namespace Notifications {
 
 		return (
 			<revealer
-				revealChild={createComputed(() => show_actions() && actions.some(({ id }) => notification_action_available(id)))}
+				revealChild={createComputed(
+					() =>
+						show_actions() &&
+						actions.some(({ id }) => notification_action_available(id)),
+				)}
 				transitionDuration={options.transition.duration}
 				transitionType={SWING_DOWN}
 			>
-				<box class={`actions ${vertical ? "vertical" : "horizontal"}`} orientation={vertical ? VERTICAL : HORIZONTAL}>
+				<box
+					class={`actions ${vertical ? "vertical" : "horizontal"}`}
+					orientation={vertical ? VERTICAL : HORIZONTAL}
+				>
 					{actions.map(({ label, id }) => (
 						<button
 							hexpand
@@ -380,8 +407,10 @@ export namespace Notifications {
 				? image_value
 				: null
 		const cached_image_prefix = `${GLib.get_user_cache_dir()}/astal/notifd/`
-		const avatar = !!image_path &&
-			image_path.startsWith(cached_image_prefix) && /^\d+\.png$/.test(image_path.slice(cached_image_prefix.length)) &&
+		const avatar =
+			!!image_path &&
+			image_path.startsWith(cached_image_prefix) &&
+			/^\d+\.png$/.test(image_path.slice(cached_image_prefix.length)) &&
 			notification.get_category()?.startsWith("im.") === true
 		const app_icon = substitute_icon_name(
 			notification.get_app_icon() ||
@@ -396,16 +425,28 @@ export namespace Notifications {
 			"Notification"
 		).toUpperCase()
 		let saved_path = ""
-		if (notification.get_app_name() === "Screenshot" && notification.summary === "Screenshot taken")
+		if (
+			notification.get_app_name() === "Screenshot" &&
+			notification.summary === "Screenshot taken"
+		)
 			saved_path = `${env.paths.home}/Pictures/Screenshots/`
-		else if (notification.get_app_name() === "Recorder" && notification.summary === "Recording saved")
+		else if (
+			notification.get_app_name() === "Recorder" &&
+			notification.summary === "Recording saved"
+		)
 			saved_path = `${env.paths.home}/Videos/Screencasting/`
-		const archived_capture = persistent && notification.time < notification_manager.session_start &&
-			!!saved_path && (notification.body.startsWith(saved_path) || image_value?.startsWith(saved_path) === true)
-		const valid_actions = archived_capture ? [] : notification
-			.get_actions()
-			.filter((a) => a.label?.trim())
-			.map((a) => ({ label: a.label!, id: a.id }))
+		const archived_capture =
+			persistent &&
+			notification.time < notification_manager.session_start &&
+			!!saved_path &&
+			(notification.body.startsWith(saved_path) ||
+				image_value?.startsWith(saved_path) === true)
+		const valid_actions = archived_capture
+			? []
+			: notification
+					.get_actions()
+					.filter((a) => a.label?.trim())
+					.map((a) => ({ label: a.label!, id: a.id }))
 
 		return (
 			<revealer
@@ -439,7 +480,12 @@ export namespace Notifications {
 						show_actions={show_actions}
 						on_dismiss={state.dismiss}
 					/>
-					<Content notification={notification} image_path={image_path} persistent={persistent} avatar={avatar} />
+					<Content
+						notification={notification}
+						image_path={image_path}
+						persistent={persistent}
+						avatar={avatar}
+					/>
 					<Actions
 						actions={valid_actions}
 						show_actions={show_actions}
@@ -477,19 +523,27 @@ export namespace Notifications {
 			entries.splice(index, 1)
 			entry.dispose()
 			on_count_changed?.(entries.length)
-			if (entry.next && notification_daemon.get_notification(entry.next.id) === entry.next)
+			if (
+				entry.next &&
+				notification_daemon.get_notification(entry.next.id) === entry.next
+			)
 				show(entry.next)
 			if (persistent) reconcile()
 		}
 
 		function reconcile() {
 			if (!persistent) return
-			const desired = notification_daemon.get_notifications()
+			const desired = notification_daemon
+				.get_notifications()
 				.filter(accepts)
 				.sort((left, right) => right.time - left.time)
 				.slice(0, list_limit)
 			for (const entry of [...entries])
-				if (!desired.some((notification) => notification.id === entry.notification.id))
+				if (
+					!desired.some(
+						(notification) => notification.id === entry.notification.id,
+					)
+				)
 					entry.state.close()
 			for (const notification of desired) show(notification)
 		}
@@ -559,7 +613,7 @@ export namespace Notifications {
 
 		const notified_handler = notification_daemon.connect(
 			"notified",
-			(_, id: number) => {
+			(_daemon, id: number) => {
 				const notification = notification_daemon.get_notification(id)
 				if (notification) show(notification)
 			},
@@ -567,7 +621,7 @@ export namespace Notifications {
 
 		const resolved_handler = notification_daemon.connect(
 			"resolved",
-			(_, id: number) => {
+			(_daemon, id: number) => {
 				const entry = entries.find((other) => other.notification.id === id)
 				if (!entry) {
 					reconcile()
@@ -577,16 +631,20 @@ export namespace Notifications {
 				entry.state.close()
 			},
 		)
-		const blacklist_unsubscribe = options.notifications.blacklist.subscribe(() => {
-			for (const entry of [...entries])
-				if (notification_manager.is_blacklisted(entry.notification))
-					entry.state.close()
-			reconcile()
-		})
+		const blacklist_unsubscribe = options.notifications.blacklist.subscribe(
+			() => {
+				for (const entry of [...entries])
+					if (notification_manager.is_blacklisted(entry.notification))
+						entry.state.close()
+				reconcile()
+			},
+		)
 
 		if (persistent) reconcile()
-		else for (const notification of notification_daemon.get_notifications())
-			if (notification.time >= notification_manager.session_start) show(notification)
+		else
+			for (const notification of notification_daemon.get_notifications())
+				if (notification.time >= notification_manager.session_start)
+					show(notification)
 
 		onCleanup(() => {
 			notification_daemon.disconnect(notified_handler)

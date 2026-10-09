@@ -69,10 +69,11 @@
 
     gir_dirs = let
       deps_of = pkg: [(pkg.dev or pkg)] ++ map deps_of (pkg.propagatedBuildInputs or []);
-    in pkgs.symlinkJoin {
-      name = "ags2-shell-gir-dirs";
-      paths = pkgs.lib.flatten (map deps_of (gir_packages ++ [pkgs.gtk4 pkgs.libsoup_3 pkgs.libadwaita pkgs.gobject-introspection.dev]));
-    };
+    in
+      pkgs.symlinkJoin {
+        name = "ags2-shell-gir-dirs";
+        paths = pkgs.lib.flatten (map deps_of (gir_packages ++ [pkgs.gtk4 pkgs.libsoup_3 pkgs.libadwaita pkgs.gobject-introspection.dev]));
+      };
 
     runtime_programs = with pkgs; [
       bash
@@ -101,12 +102,38 @@
   in {
     checks.${system} = {
       package = self.packages.${system}.default;
+      formatting = pkgs.stdenvNoCC.mkDerivation {
+        name = "ags2-shell-formatting";
+        src = ./.;
+        nativeBuildInputs = with pkgs; [nodejs prettier alejandra shfmt shellcheck];
+        buildPhase = ''
+          npm run format:check
+          npm run lint:shell
+        '';
+        installPhase = ''
+          mkdir -p $out
+          touch $out/passed
+        '';
+      };
       tests = pkgs.stdenvNoCC.mkDerivation {
         name = "ags2-shell-tests";
         src = ./.;
         nativeBuildInputs = with pkgs; [
-          nodejs typescript bash dart-sass diffutils procps util-linux which coreutils
-          gjs xvfb-run gobject-introspection sway-unwrapped wl-clipboard dbus
+          nodejs
+          typescript
+          bash
+          dart-sass
+          diffutils
+          procps
+          util-linux
+          which
+          coreutils
+          gjs
+          xvfb-run
+          gobject-introspection
+          sway-unwrapped
+          wl-clipboard
+          dbus
           ags.packages.${system}.default
         ];
         buildInputs = gir_packages ++ [pkgs.gtk4];
@@ -156,7 +183,12 @@
         name = "ags2-shell-verification";
         src = ./.;
         nativeBuildInputs = with pkgs; [
-          nodejs typescript gjs gobject-introspection bash coreutils
+          nodejs
+          typescript
+          gjs
+          gobject-introspection
+          bash
+          coreutils
         ];
         buildInputs = gir_packages ++ [pkgs.gtk4 pkgs.libsoup_3 pkgs.libadwaita];
         buildPhase = ''
@@ -255,6 +287,10 @@
             pkgs.nodejs
             pkgs.typescript
             pkgs.vtsls
+            pkgs.prettier
+            pkgs.alejandra
+            pkgs.shfmt
+            pkgs.shellcheck
             pkgs.inotify-tools
           ];
 

@@ -3,7 +3,7 @@ const substitutes = {
 	"audio-card-analog-usb": "audio-speakers-symbolic",
 	"audio-card-analog-pci": "audio-card-symbolic",
 	"audio-card-analog": "audio-card-symbolic",
-	"Playback": "sound-wave-alt-symbolic",
+	Playback: "sound-wave-alt-symbolic",
 }
 
 const icon_list = {
@@ -114,12 +114,19 @@ const icon_list = {
 	},
 }
 
-export function substitute_icon_name(name: string, fallback = "image-missing-symbolic"): string {
-	if (Object.hasOwn(substitutes, name)) return substitutes[name as keyof typeof substitutes]
+export function substitute_icon_name(
+	name: string,
+	fallback = "image-missing-symbolic",
+): string {
+	if (Object.hasOwn(substitutes, name))
+		return substitutes[name as keyof typeof substitutes]
 	return name || fallback
 }
 
-export function get_brightness_icon(percent: number, type: "screen" | "keyboard" = "screen"): string {
+export function get_brightness_icon(
+	percent: number,
+	type: "screen" | "keyboard" = "screen",
+): string {
 	if (type === "keyboard") {
 		const icons = icon_list.brightness.keyboard
 		if (percent === 0) return icons.off

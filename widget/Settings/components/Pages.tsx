@@ -1,4 +1,3 @@
-
 import { Gdk, Gtk } from "ags/gtk4"
 import { Accessor, createBinding, createComputed } from "ags"
 
@@ -60,15 +59,20 @@ function Page({ name, iconName: icon_name, children = [] }: PageProps) {
 
 function WallpaperChooser() {
 	const is_set = wallpaper_revision.as(() => {
-		const size = attempt(() => Gio.File.new_for_path(wallpaper_path)
-			.query_info("standard::size", Gio.FileQueryInfoFlags.NONE, null).get_size())
+		const size = attempt(() =>
+			Gio.File.new_for_path(wallpaper_path)
+				.query_info("standard::size", Gio.FileQueryInfoFlags.NONE, null)
+				.get_size(),
+		)
 		return size.ok && size.value > 0
 	})
 	const preview_texture = createComputed(() => {
 		wallpaper_revision()
 		return create_square_texture_accessor(wallpaper_path, 256)
 	})
-	const preview = createComputed(() => preview_texture()() ?? hidden_drag_icon())
+	const preview = createComputed(
+		() => preview_texture()() ?? hidden_drag_icon(),
+	)
 	let dialog: Gtk.FileDialog
 	let dialog_open = false
 
@@ -87,7 +91,7 @@ function WallpaperChooser() {
 			if (file_exists(wallpaper_path))
 				dialog.set_initial_file(Gio.File.new_for_path(wallpaper_path))
 
-			dialog.open(null, null, (_, result) => {
+			dialog.open(null, null, (_source, result) => {
 				dialog_open = false
 				if (!result) return
 
@@ -95,12 +99,21 @@ function WallpaperChooser() {
 					() => dialog.open_finish(result)?.get_path() ?? null,
 				)
 				if (outcome.ok) {
-					if (outcome.value) void set_wallpaper(outcome.value).then((saved) => {
-						if (!saved.ok) {
-							console.error("wallpaper.dialog: Failed to set wallpaper", saved.err)
-							void notify({ app_name: "Wallpaper", summary: "Could not set wallpaper", body: String(saved.err), urgency: "critical" })
-						}
-					})
+					if (outcome.value)
+						void set_wallpaper(outcome.value).then((saved) => {
+							if (!saved.ok) {
+								console.error(
+									"wallpaper.dialog: Failed to set wallpaper",
+									saved.err,
+								)
+								void notify({
+									app_name: "Wallpaper",
+									summary: "Could not set wallpaper",
+									body: String(saved.err),
+									urgency: "critical",
+								})
+							}
+						})
 					return
 				}
 

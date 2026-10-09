@@ -63,7 +63,10 @@ function RecordingIndicator() {
 			class="recorder"
 			visible={createBinding(screen_capture, "recording")}
 			onClicked={() => {
-				log_error(screen_capture.stop_recording(), "bar.recording: Failed to stop recording")
+				log_error(
+					screen_capture.stop_recording(),
+					"bar.recording: Failed to stop recording",
+				)
 			}}
 		>
 			<box class="horizontal">
@@ -128,7 +131,8 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 
 	onCleanup(() => {
 		position_timer?.cancel()
-		if (layout_surface && layout_handler) layout_surface.disconnect(layout_handler)
+		if (layout_surface && layout_handler)
+			layout_surface.disconnect(layout_handler)
 		if (bar_window && realize_handler) bar_window.disconnect(realize_handler)
 		schedule_monitor_window_release(bar_window)
 		reposition_unsubscribe()
@@ -141,7 +145,8 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 				const hook_surface = () => {
 					const surface = self.get_surface()
 					if (!surface || surface === layout_surface) return
-					if (layout_surface && layout_handler) layout_surface.disconnect(layout_handler)
+					if (layout_surface && layout_handler)
+						layout_surface.disconnect(layout_handler)
 					layout_surface = surface
 					layout_handler = surface.connect("layout", sync_panel_area)
 					sync_panel_area()
@@ -159,8 +164,14 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 			})}
 			application={app}
 		>
-			<box orientation={VERTICAL} valign={is_top.as((top) => (top ? START : END))}>
-				<ScreenCorner class={corner_class("bottom-center")} visible={show_bottom} />
+			<box
+				orientation={VERTICAL}
+				valign={is_top.as((top) => (top ? START : END))}
+			>
+				<ScreenCorner
+					class={corner_class("bottom-center")}
+					visible={show_bottom}
+				/>
 				<box
 					class="panel"
 					$={(self) => {

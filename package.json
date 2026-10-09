@@ -1,13 +1,16 @@
 {
-  "type": "module",
-  "scripts": {
-    "types": "ags types -d . -u",
-    "typecheck": "bash scripts/typecheck.sh",
-    "test": "node --experimental-vm-modules --test 'tests/**/*.test.mjs'"
-  },
-  "prettier": {
-    "semi": false,
-    "useTabs": true,
-    "tabWidth": 2
-  }
+	"type": "module",
+	"scripts": {
+		"types": "ags types -d . -u",
+		"typecheck": "bash scripts/typecheck.sh",
+		"format": "prettier --write --ignore-unknown --ignore-path .gitignore . && alejandra flake.nix && shfmt -w -i 2 dev.sh scripts/*.sh style/compile/build.sh",
+		"format:check": "prettier --check --ignore-unknown --ignore-path .gitignore . && alejandra --check flake.nix && shfmt -d -i 2 dev.sh scripts/*.sh style/compile/build.sh",
+		"lint:shell": "shellcheck dev.sh scripts/*.sh style/compile/build.sh",
+		"test": "node --experimental-vm-modules --test 'tests/**/*.test.mjs'"
+	},
+	"prettier": {
+		"semi": false,
+		"useTabs": true,
+		"tabWidth": 2
+	}
 }

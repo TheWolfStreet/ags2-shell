@@ -59,15 +59,23 @@ export namespace Bluetooth {
 			const owned = owned_discovery
 			owned_discovery = null
 			if (owned)
-				log_error(attempt(() => owned.stop_discovery()), "bluetooth.discovery: Failed to stop scan")
+				log_error(
+					attempt(() => owned.stop_discovery()),
+					"bluetooth.discovery: Failed to stop scan",
+				)
 		}
 		const unsubscribe_opened = quick_settings_submenu.opened.subscribe(() => {
-			if (quick_settings_submenu.opened.peek() !== "bluetooth-selector") stop_owned_discovery()
+			if (quick_settings_submenu.opened.peek() !== "bluetooth-selector")
+				stop_owned_discovery()
 		})
 		const unsubscribe_window = on_window_toggle("quicksettings", (window) => {
 			if (!window.visible) stop_owned_discovery()
 		})
-		onCleanup(() => { unsubscribe_opened(); unsubscribe_window(); stop_owned_discovery() })
+		onCleanup(() => {
+			unsubscribe_opened()
+			unsubscribe_window()
+			stop_owned_discovery()
+		})
 		const devices = createBinding(bluetooth, "devices").as((d) =>
 			(d ?? []).slice().sort((a, b) => {
 				const a_name = a.name && a.name.trim() !== ""
@@ -89,7 +97,8 @@ export namespace Bluetooth {
 							const discovering = createBinding(adapter, "discovering")
 
 							const on_toggle_discover = () => {
-								if (owned_discovery && owned_discovery !== adapter) stop_owned_discovery()
+								if (owned_discovery && owned_discovery !== adapter)
+									stop_owned_discovery()
 								const result = attempt(() => {
 									if (discovering.peek()) {
 										adapter.stop_discovery()
@@ -100,7 +109,10 @@ export namespace Bluetooth {
 										owned_discovery = adapter
 									}
 								})
-								log_error(result, "bluetooth.discovery: Failed to change scan state")
+								log_error(
+									result,
+									"bluetooth.discovery: Failed to change scan state",
+								)
 							}
 
 							return (
@@ -158,12 +170,19 @@ export namespace Bluetooth {
 								<Gtk.Separator />
 								<SettingsButton
 									callback={() =>
-										void attempt_async(() => execAsync([
-											"env",
-											"XDG_CURRENT_DESKTOP=GNOME",
-											"gnome-control-center",
-											"bluetooth",
-										])).then((result) => log_error(result, "bluetooth.settings: Failed to open settings"))
+										void attempt_async(() =>
+											execAsync([
+												"env",
+												"XDG_CURRENT_DESKTOP=GNOME",
+												"gnome-control-center",
+												"bluetooth",
+											]),
+										).then((result) =>
+											log_error(
+												result,
+												"bluetooth.settings: Failed to open settings",
+											),
+										)
 									}
 								/>
 							</box>
@@ -209,7 +228,7 @@ export namespace Bluetooth {
 
 		return (
 			<button
-				class={connected.as((value) => value ? "active" : "")}
+				class={connected.as((value) => (value ? "active" : ""))}
 				tooltipText={createBinding(device, "paired").as((p) =>
 					p ? "Right-click to unpair" : "",
 				)}
@@ -221,23 +240,41 @@ export namespace Bluetooth {
 						switch (m_btn) {
 							case BUTTON_PRIMARY: {
 								if (device.get_connected()) {
-									log_error(attempt(() => device.disconnect_device((source_device, result) => {
-										log_error(attempt(() => device.disconnect_device_finish(result)), "bluetooth.device: Failed to disconnect")
-									})), "bluetooth.device: Failed to start disconnect")
+									log_error(
+										attempt(() =>
+											device.disconnect_device((_source_device, result) => {
+												log_error(
+													attempt(() =>
+														device.disconnect_device_finish(result),
+													),
+													"bluetooth.device: Failed to disconnect",
+												)
+											}),
+										),
+										"bluetooth.device: Failed to start disconnect",
+									)
 								} else {
-									log_error(attempt(() => device.connect_device((source_device, result) => {
-										log_error(attempt(() => device.connect_device_finish(result)), "bluetooth.device: Failed to connect")
-									})), "bluetooth.device: Failed to start connection")
+									log_error(
+										attempt(() =>
+											device.connect_device((_source_device, result) => {
+												log_error(
+													attempt(() => device.connect_device_finish(result)),
+													"bluetooth.device: Failed to connect",
+												)
+											}),
+										),
+										"bluetooth.device: Failed to start connection",
+									)
 								}
 								break
 							}
 							case BUTTON_SECONDARY:
 								if (device.paired && notify_missing_programs("bluetoothctl")) {
-									void attempt_async(() => execAsync([
-										"bluetoothctl",
-										"remove",
-										device.get_address(),
-									])).then((result) => log_error(result, "bluetooth.device: Failed to unpair"))
+									void attempt_async(() =>
+										execAsync(["bluetoothctl", "remove", device.get_address()]),
+									).then((result) =>
+										log_error(result, "bluetooth.device: Failed to unpair"),
+									)
 								}
 								break
 						}
@@ -265,6 +302,9 @@ export namespace Bluetooth {
 	function set_bluetooth_powered(on: boolean) {
 		const adapter = bluetooth.get_adapter()
 		if (!adapter) return
-		log_error(attempt(() => adapter.set_powered(on)), "bluetooth.power: Failed to change power")
+		log_error(
+			attempt(() => adapter.set_powered(on)),
+			"bluetooth.power: Failed to change power",
+		)
 	}
 }

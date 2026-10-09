@@ -10,8 +10,15 @@ export function ensure_directory(path: string): Result<void> {
 	const file = Gio.File.new_for_path(path)
 	const created = attempt(() => file.make_directory_with_parents(null))
 	if (created.ok) return ok(undefined)
-	if (created.err instanceof GLib.Error && created.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.EXISTS)) {
-		const kind = attempt(() => file.query_info("standard::type", Gio.FileQueryInfoFlags.NONE, null).get_file_type())
+	if (
+		created.err instanceof GLib.Error &&
+		created.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.EXISTS)
+	) {
+		const kind = attempt(() =>
+			file
+				.query_info("standard::type", Gio.FileQueryInfoFlags.NONE, null)
+				.get_file_type(),
+		)
 		if (!kind.ok) return kind
 		if (kind.value === Gio.FileType.DIRECTORY) return ok(undefined)
 		return err(new Error(`Not a directory: ${path}`))
@@ -28,8 +35,15 @@ export function ensure_file(path: string): Result<void> {
 	}
 	const created = attempt(() => file.create(Gio.FileCreateFlags.PRIVATE, null))
 	if (!created.ok) {
-		if (created.err instanceof GLib.Error && created.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.EXISTS)) {
-			const kind = attempt(() => file.query_info("standard::type", Gio.FileQueryInfoFlags.NONE, null).get_file_type())
+		if (
+			created.err instanceof GLib.Error &&
+			created.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.EXISTS)
+		) {
+			const kind = attempt(() =>
+				file
+					.query_info("standard::type", Gio.FileQueryInfoFlags.NONE, null)
+					.get_file_type(),
+			)
 			if (!kind.ok) return kind
 			if (kind.value === Gio.FileType.REGULAR) return ok(undefined)
 			return err(new Error(`Not a regular file: ${path}`))
@@ -38,5 +52,7 @@ export function ensure_file(path: string): Result<void> {
 	}
 	const closed = attempt(() => created.value.close(null))
 	if (!closed.ok) return closed
-	return closed.value ? ok(undefined) : err(new Error(`Could not close created file: ${path}`))
+	return closed.value
+		? ok(undefined)
+		: err(new Error(`Could not close created file: ${path}`))
 }

@@ -35,8 +35,8 @@ class NotificationManager extends GObject.Object {
 			notification_daemon.connect("notified", () => this.#on_store_changed()),
 			notification_daemon.connect("resolved", () => this.#on_store_changed()),
 		)
-		this.#unsubscribe_blacklist = options.notifications.blacklist.subscribe(() =>
-			this.notify("notifications"),
+		this.#unsubscribe_blacklist = options.notifications.blacklist.subscribe(
+			() => this.notify("notifications"),
 		)
 		this.#schedule_prune()
 		this.#owner_warning_timer = timeout(5000, () => {
@@ -60,14 +60,22 @@ class NotificationManager extends GObject.Object {
 				Gio.DBusCallFlags.NONE,
 				1000,
 				null,
-				(source, response) => {
-					const owner = attempt(() => connection.call_finish(response).recursiveUnpack() as [string])
+				(_connection, response) => {
+					const owner = attempt(
+						() =>
+							connection.call_finish(response).recursiveUnpack() as [string],
+					)
 					if (!owner.ok) {
-						console.debug("notifications: could not verify daemon bus ownership", owner.err)
+						console.debug(
+							"notifications: could not verify daemon bus ownership",
+							owner.err,
+						)
 						return
 					}
 					if (owner.value[0] !== connection.get_unique_name())
-						console.warn(`notifications: org.freedesktop.Notifications is owned by ${owner.value[0]}, not this shell (${connection.get_unique_name()})`)
+						console.warn(
+							`notifications: org.freedesktop.Notifications is owned by ${owner.value[0]}, not this shell (${connection.get_unique_name()})`,
+						)
 				},
 			)
 		})
@@ -125,7 +133,9 @@ class NotificationManager extends GObject.Object {
 	}
 
 	#prune(): void {
-		const all = notification_daemon.get_notifications().filter((notification) => !notification.transient)
+		const all = notification_daemon
+			.get_notifications()
+			.filter((notification) => !notification.transient)
 		if (all.length <= (this.#pruning ? persist_keep : persist_trigger)) {
 			this.#pruning = false
 			return
@@ -146,7 +156,8 @@ class NotificationManager extends GObject.Object {
 		this.#owner_warning_timer?.cancel()
 		if (this.#coalesce_source_id !== null)
 			GLib.Source.remove(this.#coalesce_source_id)
-		if (this.#prune_source_id !== null) GLib.Source.remove(this.#prune_source_id)
+		if (this.#prune_source_id !== null)
+			GLib.Source.remove(this.#prune_source_id)
 		for (const handler of this.#store_handlers)
 			notification_daemon.disconnect(handler)
 		this.#store_handlers = []

@@ -10,10 +10,13 @@ export type monitor_settings = {
 	mirrorOf?: string | null
 }
 
-export function format_monitor_command(monitor: monitor_settings, change: {
-	refresh_rate?: number
-	mirror?: string
-} = {}): string {
+export function format_monitor_command(
+	monitor: monitor_settings,
+	change: {
+		refresh_rate?: number
+		mirror?: string
+	} = {},
+): string {
 	const refresh_rate = change.refresh_rate ?? monitor.refreshRate
 	const mirror = change.mirror ?? monitor.mirrorOf
 	const transform = monitor.transform ? `,transform,${monitor.transform}` : ""

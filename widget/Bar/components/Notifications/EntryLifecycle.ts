@@ -69,7 +69,10 @@ export function create_entry_lifecycle({
 		on_action_click(action_id: string) {
 			if (is_current()) {
 				const result = attempt(() => notification.invoke(action_id))
-				log_error(result, "notifications.action: Failed to invoke notification action")
+				log_error(
+					result,
+					"notifications.action: Failed to invoke notification action",
+				)
 			}
 			if (!persistent || !notification.resident) close()
 		},

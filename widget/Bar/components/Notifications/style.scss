@@ -1,87 +1,86 @@
-@use '../../../../style/base' as *;
+@use "../../../../style/base" as *;
 
 .notification {
-  &.critical {
-    box-shadow: inset 0 0 0.5em 0 var(--error-bg);
-  }
+	&.critical {
+		box-shadow: inset 0 0 0.5em 0 var(--error-bg);
+	}
 
-  box.header {
-    margin-bottom: calc(var(--spacing) / 2);
+	box.header {
+		margin-bottom: calc(var(--spacing) / 2);
 
-    label.time {
-      color: color-mix(in srgb, var(--fg) 80%, transparent);
-    }
+		label.time {
+			color: color-mix(in srgb, var(--fg) 80%, transparent);
+		}
 
-    image.app-icon {
-      border-radius: calc(var(--radius) * 0.8);
-      margin-right: calc(var(--spacing) / 2);
-      min-height: 1.5em;
-      min-width: 1.5em;
+		image.app-icon {
+			border-radius: calc(var(--radius) * 0.8);
+			margin-right: calc(var(--spacing) / 2);
+			min-height: 1.5em;
+			min-width: 1.5em;
+		}
 
-    }
+		label.app-name {
+			margin-right: var(--spacing);
+			letter-spacing: -0.5pt;
+			font-size: 0.9em;
+			color: var(--fg);
+		}
+	}
 
-    label.app-name {
-      margin-right: var(--spacing);
-      letter-spacing: -0.50pt;
-      font-size: 0.9em;
-      color: var(--fg);
-    }
-  }
+	box.content {
+		picture.avatar {
+			border-radius: calc(var(--radius) * 0.8);
+			margin-right: var(--spacing);
+		}
 
-  box.content {
-    picture.avatar {
-      border-radius: calc(var(--radius) * 0.8);
-      margin-right: var(--spacing);
-    }
+		picture.preview {
+			border-radius: calc(var(--radius) * 0.8);
+			margin-right: var(--spacing);
+		}
 
-    picture.preview {
-      border-radius: calc(var(--radius) * 0.8);
-      margin-right: var(--spacing);
-    }
+		&.history picture.preview {
+			margin-right: 0;
+			margin-top: var(--spacing);
+		}
 
-    &.history picture.preview {
-      margin-right: 0;
-      margin-top: var(--spacing);
-    }
+		label.summary {
+			margin-right: var(--spacing);
+			color: var(--fg);
+			font-weight: bold;
+		}
 
-    label.summary {
-      margin-right: var(--spacing);
-      color: var(--fg);
-      font-weight: bold;
-    }
+		label.body {
+			color: color-mix(in srgb, var(--fg) 80%, transparent);
+		}
+	}
 
-    label.body {
-      color: color-mix(in srgb, var(--fg) 80%, transparent);
-    }
-  }
+	box.actions {
+		@include spacing(0.8);
+		margin-top: var(--spacing);
 
-  box.actions {
-    @include spacing(0.8);
-    margin-top: var(--spacing);
+		button {
+			border-radius: calc(var(--radius) * 0.8);
+			font-size: 1.2em;
+			padding: calc(var(--padding) * 0.7);
+		}
+	}
 
-    button {
-      border-radius: calc(var(--radius) * 0.8);
-      font-size: 1.2em;
-      padding: calc(var(--padding) * 0.7);
-    }
-  }
-
-  button.close-button {
-    padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
-    margin-left: calc(var(--padding) + 1px);
-  }
+	button.close-button {
+		padding: calc(var(--padding) * 0.3) calc(var(--padding) * 0.3);
+		margin-left: calc(var(--padding) + 1px);
+	}
 }
 
 window.notifications {
-  all: unset;
+	all: unset;
 
-  box.notification {
-    @extend .floating;
-    border-radius: var(--radius);
-    margin-bottom: 0;
+	box.notification {
+		@extend .floating;
+		border-radius: var(--radius);
+		margin-bottom: 0;
 
-    button.close-button {
-      margin-left: calc(var(--popover-padding) + 1px);
-    }
-  }
+		button.close-button {
+			margin-left: calc(var(--popover-padding) + 1px);
+		}
+	}
 }

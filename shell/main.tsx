@@ -55,7 +55,10 @@ app.before_quit = async () => {
 	quitting = true
 	try {
 		const options = await flush_options()
-		if (!log_error(options, "shell.quit: Failed to flush options") && !startup_failed)
+		if (
+			!log_error(options, "shell.quit: Failed to flush options") &&
+			!startup_failed
+		)
 			return false
 		const recording = await screen_capture.shutdown()
 		log_error(recording, "shell.quit: Failed to stop recorder")
@@ -108,9 +111,10 @@ function start_wallpaper() {
 
 	try {
 		const process = subprocess(command, print, (error) =>
-			console.error("wallpaper: Child stderr:", error))
+			console.error("wallpaper: Child stderr:", error),
+		)
 		wallpaper_child = process
-		process.connect("exit", (source, code, signaled) => {
+		process.connect("exit", (_process, code, signaled) => {
 			if (wallpaper_child !== process) return
 			wallpaper_child = null
 			if (stopping) return
@@ -128,7 +132,7 @@ function start_wallpaper() {
 app.start({
 	instanceName: env.appName,
 	async main() {
-		const started = await start_shell()
+		const started = start_shell()
 		if (!log_error(started, "shell.startup: Failed to initialize")) {
 			startup_failed = true
 			app.quit()
@@ -154,7 +158,8 @@ app.start({
 					})
 					.map((monitor) => {
 						const geometry = monitor.get_geometry()
-						const key = monitor.get_connector() ?? `mon-${geometry.x}x${geometry.y}`
+						const key =
+							monitor.get_connector() ?? `mon-${geometry.x}x${geometry.y}`
 						return [key, monitor] as const
 					}),
 			)
@@ -193,7 +198,10 @@ app.start({
 			}
 		}
 
-		const monitor_handler = app.connect("notify::monitors", sync_monitor_windows)
+		const monitor_handler = app.connect(
+			"notify::monitors",
+			sync_monitor_windows,
+		)
 		const hypr_monitor_added_handler = hyprland.connect(
 			"monitor-added",
 			sync_monitor_windows,
@@ -243,7 +251,11 @@ app.start({
 			wallpaper_restart = null
 			const child = wallpaper_child
 			wallpaper_child = null
-			if (child) log_error(attempt(() => child.kill()), "wallpaper: Failed to stop child")
+			if (child)
+				log_error(
+					attempt(() => child.kill()),
+					"wallpaper: Failed to stop child",
+				)
 			for (const dispose of deferred_roots.splice(0)) dispose()
 		})
 		ready = true
@@ -279,14 +291,18 @@ app.start({
 				void toggle_recording("area").then(res)
 				return
 			case "screenshot":
-				void screen_capture.screenshot({ scope: "focused" }).then((result) =>
-					res(result.ok ? result.value : `Screenshot failed: ${result.err}`),
-				)
+				void screen_capture
+					.screenshot({ scope: "focused" })
+					.then((result) =>
+						res(result.ok ? result.value : `Screenshot failed: ${result.err}`),
+					)
 				return
 			case "screenshot-area":
-				void screen_capture.screenshot({ scope: "area" }).then((result) =>
-					res(result.ok ? result.value : `Screenshot failed: ${result.err}`),
-				)
+				void screen_capture
+					.screenshot({ scope: "area" })
+					.then((result) =>
+						res(result.ok ? result.value : `Screenshot failed: ${result.err}`),
+					)
 				return
 			default:
 				res(`Unknown request: ${request}`)

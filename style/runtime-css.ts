@@ -5,11 +5,20 @@ import options, { type Opt } from "$shell/options"
 
 const { FontDescription, SCALE } = Pango
 
-function pick_theme_value<T>(is_dark_mode: boolean, dark_value: Opt<T> | T, light_value: Opt<T> | T): T {
+function pick_theme_value<T>(
+	is_dark_mode: boolean,
+	dark_value: Opt<T> | T,
+	light_value: Opt<T> | T,
+): T {
 	return read_value(is_dark_mode ? dark_value : light_value)
 }
 
-function calculate_neumorphic_effects(enabled: boolean, is_dark_mode: boolean, fg_color: string, scale: number) {
+function calculate_neumorphic_effects(
+	enabled: boolean,
+	is_dark_mode: boolean,
+	fg_color: string,
+	scale: number,
+) {
 	if (!enabled) {
 		const transparent = "0 0 0 0 transparent"
 		return {
@@ -104,8 +113,7 @@ function darken_hex_color(hex_color: string): string {
 }
 
 function shadow_color(enabled: boolean, is_dark_mode: boolean): string {
-	if (!enabled)
-		return "transparent"
+	if (!enabled) return "transparent"
 
 	return is_dark_mode ? "rgba(0, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.4)"
 }
@@ -115,14 +123,31 @@ function compute_palette(is_dark_mode: boolean): Palette {
 	const opacity = theme.opacity.peek()
 	const effective_opacity = is_dark_mode ? opacity : opacity / 2
 	const base_bg = pick_theme_value(is_dark_mode, theme.dark.bg, theme.light.bg)
-	const bg = opacity > 0
-		? color_mix(base_bg, Math.round((1 - effective_opacity / 100) * 100))
-		: base_bg
-	const primary_bg = pick_theme_value(is_dark_mode, theme.dark.primary.bg, theme.light.primary.bg)
-	const primary_fg = pick_theme_value(is_dark_mode, theme.dark.primary.fg, theme.light.primary.fg)
-	const widget_base = pick_theme_value(is_dark_mode, theme.dark.widget, theme.light.widget)
+	const bg =
+		opacity > 0
+			? color_mix(base_bg, Math.round((1 - effective_opacity / 100) * 100))
+			: base_bg
+	const primary_bg = pick_theme_value(
+		is_dark_mode,
+		theme.dark.primary.bg,
+		theme.light.primary.bg,
+	)
+	const primary_fg = pick_theme_value(
+		is_dark_mode,
+		theme.dark.primary.fg,
+		theme.light.primary.fg,
+	)
+	const widget_base = pick_theme_value(
+		is_dark_mode,
+		theme.dark.widget,
+		theme.light.widget,
+	)
 	const widget_opacity = theme.widget.opacity.peek()
-	const border_base = pick_theme_value(is_dark_mode, theme.dark.border, theme.light.border)
+	const border_base = pick_theme_value(
+		is_dark_mode,
+		theme.dark.border,
+		theme.light.border,
+	)
 	const border_opacity = theme.border.opacity.peek()
 	const fg = pick_theme_value(is_dark_mode, theme.dark.fg, theme.light.fg)
 
@@ -132,10 +157,17 @@ function compute_palette(is_dark_mode: boolean): Palette {
 		widget_bg: color_mix(widget_base, 100 - widget_opacity),
 		hover_bg: color_mix(widget_base, 100 - widget_opacity * 0.9),
 		border: color_mix(border_base, 100 - border_opacity),
-		popover_border: color_mix(border_base, 100 - Math.max(border_opacity - 1, 0)),
+		popover_border: color_mix(
+			border_base,
+			100 - Math.max(border_opacity - 1, 0),
+		),
 		primary_bg: primary_bg,
 		primary_fg: primary_fg,
-		error_bg: pick_theme_value(is_dark_mode, theme.dark.error.bg, theme.light.error.bg),
+		error_bg: pick_theme_value(
+			is_dark_mode,
+			theme.dark.error.bg,
+			theme.light.error.bg,
+		),
 		active_gradient: `linear-gradient(to right, ${primary_bg}, ${darken_hex_color(primary_bg)})`,
 		shadow: shadow_color(theme.shadows.peek(), is_dark_mode),
 		shades: {
@@ -166,7 +198,8 @@ function compute_layout(): LayoutVars {
 		icon_size: Math.max(8, Math.round(16 * scale)),
 		scale,
 		font_name: font_desc.get_family() || "Sans",
-		screen_corner_radius: radius * options.hyprland.gaps.peek() * options.bar.corners.peek() * 0.01,
+		screen_corner_radius:
+			radius * options.hyprland.gaps.peek() * options.bar.corners.peek() * 0.01,
 	}
 }
 
@@ -212,7 +245,11 @@ function build_gtk_color_definitions(p: Palette): string {
 	].join("\n")
 }
 
-function build_custom_properties(p: Palette, layout: LayoutVars, neu: NeumorphicEffects): string {
+function build_custom_properties(
+	p: Palette,
+	layout: LayoutVars,
+	neu: NeumorphicEffects,
+): string {
 	return [
 		`--bg: ${p.bg};`,
 		`--fg: ${p.fg};`,
@@ -264,7 +301,12 @@ export function build_runtime_css(): string {
 	const is_dark_mode = options.theme.scheme.peek() === "dark"
 	const palette = compute_palette(is_dark_mode)
 	const layout = compute_layout()
-	const neu = calculate_neumorphic_effects(options.theme.neumorphic.peek() && options.theme.shadows.peek(), is_dark_mode, palette.fg, layout.scale)
+	const neu = calculate_neumorphic_effects(
+		options.theme.neumorphic.peek() && options.theme.shadows.peek(),
+		is_dark_mode,
+		palette.fg,
+		layout.scale,
+	)
 	const definitions = build_gtk_color_definitions(palette)
 	const properties = build_custom_properties(palette, layout, neu)
 

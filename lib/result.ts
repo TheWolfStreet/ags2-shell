@@ -1,5 +1,5 @@
-export type Ok<T> = { ok: true, value: T }
-export type Result<T> = Ok<T> | { ok: false, err: unknown }
+export type Ok<T> = { ok: true; value: T }
+export type Result<T> = Ok<T> | { ok: false; err: unknown }
 
 export function ok<T>(value: T): Result<T> {
 	return { ok: true, value }
@@ -17,7 +17,9 @@ export function attempt<T>(fn: () => T): Result<T> {
 	}
 }
 
-export async function attempt_async<T>(fn: () => Promise<T>): Promise<Result<T>> {
+export async function attempt_async<T>(
+	fn: () => Promise<T>,
+): Promise<Result<T>> {
 	try {
 		return ok(await fn())
 	} catch (error) {

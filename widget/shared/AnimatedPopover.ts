@@ -13,7 +13,10 @@ class AnimatedPopoverImpl extends Gtk.Popover {
 
 	override vfunc_hide() {
 		const revealer = this.revealer
-		if (revealer && (revealer.get_reveal_child() || revealer.get_child_revealed())) {
+		if (
+			revealer &&
+			(revealer.get_reveal_child() || revealer.get_child_revealed())
+		) {
 			revealer.set_reveal_child(false)
 			return
 		}
@@ -34,14 +37,13 @@ export function create_animated_popover(
 	const popover = new AnimatedPopover() as AnimatedPopoverImpl
 	popover.set_has_arrow(false)
 	popover.set_position(position)
-	if (add_menu_class)
-		popover.add_css_class("menu")
+	if (add_menu_class) popover.add_css_class("menu")
 
 	const revealer = new Gtk.Revealer({
 		transitionType: Gtk.RevealerTransitionType.SLIDE_DOWN,
 		transitionDuration: options.transition.duration.peek(),
 	})
-	const handler = revealer.connect("notify::child-revealed", self => {
+	const handler = revealer.connect("notify::child-revealed", (self) => {
 		if (!self.get_child_revealed() && !self.get_reveal_child())
 			popover.perform_hide()
 	})

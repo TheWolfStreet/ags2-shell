@@ -1,104 +1,104 @@
-@use '../../../../style/base' as *;
+@use "../../../../style/base" as *;
 
 window#datemenu {
-  box.datemenu {
-    @extend .floating;
+	box.datemenu {
+		@extend .floating;
 
-    box.notifications {
-      box.notifications-header {
-        margin-bottom: calc(var(--padding) * 1.5);
-        margin-right: calc(var(--padding) * 1.5);
+		box.notifications {
+			box.notifications-header {
+				margin-bottom: calc(var(--padding) * 1.5);
+				margin-right: calc(var(--padding) * 1.5);
 
-        button {
-          padding: calc(var(--padding) * 0.7) var(--padding);
+				button {
+					padding: calc(var(--padding) * 0.7) var(--padding);
 
-          box {
-            @include spacing(0.5);
-          }
-        }
-      }
+					box {
+						@include spacing(0.5);
+					}
+				}
+			}
 
-      scrolledwindow.notification-scrollable {
-        margin-right: calc(var(--padding) * 1.5);
-      }
+			scrolledwindow.notification-scrollable {
+				margin-right: calc(var(--padding) * 1.5);
+			}
 
-      box.notification {
-        @extend .widget;
-        padding: var(--padding);
-        margin-left: 1px;
-        margin-right: 1px;
-        margin-bottom: var(--spacing);
-      }
-    }
+			box.notification {
+				@extend .widget;
+				padding: var(--padding);
+				margin-left: 1px;
+				margin-right: 1px;
+				margin-bottom: var(--spacing);
+			}
+		}
 
-    separator {
-      background-color: var(--popover-border-color);
-      border-radius: var(--radius);
-      margin-right: calc(var(--padding) * 1.5);
-    }
+		separator {
+			background-color: var(--popover-border-color);
+			border-radius: var(--radius);
+			margin-right: calc(var(--padding) * 1.5);
+		}
 
-    box.clock-box {
-      label.clock {
-        font-size: 5em;
-      }
+		box.clock-box {
+			label.clock {
+				font-size: 5em;
+			}
 
-      label.uptime {
-        color: color-mix(in srgb, var(--fg) 80%, transparent);
-        margin-bottom: calc(var(--padding) * 2);
-      }
-    }
+			label.uptime {
+				color: color-mix(in srgb, var(--fg) 80%, transparent);
+				margin-bottom: calc(var(--padding) * 2);
+			}
+		}
 
-    box.calendar {
-      @extend .widget;
-      padding: var(--padding) var(--padding) 0;
+		box.calendar {
+			@extend .widget;
+			padding: var(--padding) var(--padding) 0;
 
-      calendar {
-        all: unset;
-        font-size: 1.1em;
-        padding: 0.3em;
+			calendar {
+				all: unset;
+				font-size: 1.1em;
+				padding: 0.3em;
 
-        &:focus {
-          outline: none;
-        }
+				&:focus {
+					outline: none;
+				}
 
-        button {
-          @extend .flat-button;
-          padding: calc(var(--padding) / 2);
-        }
+				button {
+					@extend .flat-button;
+					padding: calc(var(--padding) / 2);
+				}
 
-        label {
-          &:focus {
-            outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-            outline-offset: -1px;
-            border-radius: calc(var(--radius) * 0.6);
-          }
+				label {
+					&:focus {
+						outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+						outline-offset: -1px;
+						border-radius: calc(var(--radius) * 0.6);
+					}
 
-          &:selected {
-            background-color: var(--primary-bg);
-            border-radius: calc(var(--radius) * 0.6);
+					&:selected {
+						background-color: var(--primary-bg);
+						border-radius: calc(var(--radius) * 0.6);
 
-            &:focus {
-              outline: calc(var(--border-width) / 2) solid var(--primary-fg);
-              outline-offset: -1px;
-            }
-          }
-        }
+						&:focus {
+							outline: calc(var(--border-width) / 2) solid var(--primary-fg);
+							outline-offset: -1px;
+						}
+					}
+				}
 
-        header {
-          background-color: transparent;
-          border: none;
-          color: color-mix(in srgb, var(--fg) 50%, transparent);
-        }
+				header {
+					background-color: transparent;
+					border: none;
+					color: color-mix(in srgb, var(--fg) 50%, transparent);
+				}
 
-        label.day-name {
-          background-color: transparent;
-          color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
-        }
+				label.day-name {
+					background-color: transparent;
+					color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
+				}
 
-        label.other-month {
-          color: color-mix(in srgb, var(--fg) 10%, transparent);
-        }
-      }
-    }
-  }
+				label.other-month {
+					color: color-mix(in srgb, var(--fg) 10%, transparent);
+				}
+			}
+		}
+	}
 }

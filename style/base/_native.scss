@@ -1,73 +1,89 @@
 dialog,
 .dialog {
-  background-color: var(--bg);
-  color: var(--fg);
+	background-color: var(--bg);
+	color: var(--fg);
 
-  headerbar {
-    background-color: var(--bg);
-    color: var(--fg);
-    border-bottom: var(--border);
-  }
+	headerbar {
+		background-color: var(--bg);
+		color: var(--fg);
+		border-bottom: var(--border);
+	}
 
-  row:selected,
-  .view:selected,
-  list row:selected {
-    background-color: var(--primary-bg);
-    color: var(--primary-fg);
-  }
+	row:selected,
+	.view:selected,
+	list row:selected {
+		background-color: var(--primary-bg);
+		color: var(--primary-fg);
+	}
 
-  entry.search + menubutton > button.image-button.toggle {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  }
+	entry.search + menubutton > button.image-button.toggle {
+		border-top-left-radius: 0;
+		border-bottom-left-radius: 0;
+	}
 
-  searchentry,
-  entry.search {
-    &:not(:only-child) {
-      border-right: none;
-      border-top-right-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-  }
+	searchentry,
+	entry.search {
+		&:not(:only-child) {
+			border-right: none;
+			border-top-right-radius: 0;
+			border-bottom-right-radius: 0;
+		}
+	}
 }
 
 scrolledwindow {
-  viewport {
-    all: unset;
-  }
+	viewport {
+		all: unset;
+	}
 
-  undershoot.top {
-    background: linear-gradient(to bottom, var(--bg), transparent, transparent, transparent, transparent, transparent);
-  }
+	undershoot.top {
+		background: linear-gradient(
+			to bottom,
+			var(--bg),
+			transparent,
+			transparent,
+			transparent,
+			transparent,
+			transparent
+		);
+	}
 
-  undershoot.bottom {
-    background: linear-gradient(to top, var(--bg), transparent, transparent, transparent, transparent, transparent);
-  }
+	undershoot.bottom {
+		background: linear-gradient(
+			to top,
+			var(--bg),
+			transparent,
+			transparent,
+			transparent,
+			transparent,
+			transparent
+		);
+	}
 
-  scrollbar,
-  scrollbar * {
-    all: unset;
-  }
+	scrollbar,
+	scrollbar * {
+		all: unset;
+	}
 
-  scrollbar.vertical {
-    transition: var(--transition);
-    background-color: color-mix(in srgb, var(--bg) 30%, transparent);
+	scrollbar.vertical {
+		transition: var(--transition);
+		background-color: color-mix(in srgb, var(--bg) 30%, transparent);
 
-    &:hover {
-      background-color: color-mix(in srgb, var(--bg) 70%, transparent);
+		&:hover {
+			background-color: color-mix(in srgb, var(--bg) 70%, transparent);
 
-      slider {
-        background-color: color-mix(in srgb, var(--fg) 70%, transparent);
-        min-width: 0.6em;
-      }
-    }
+			slider {
+				background-color: color-mix(in srgb, var(--fg) 70%, transparent);
+				min-width: 0.6em;
+			}
+		}
 
-    slider {
-      background-color: color-mix(in srgb, var(--fg) 50%, transparent);
-      border-radius: var(--radius);
-      min-width: 0.4em;
-      min-height: 2em;
-      transition: var(--transition);
-    }
-  }
+		slider {
+			background-color: color-mix(in srgb, var(--fg) 50%, transparent);
+			border-radius: var(--radius);
+			min-width: 0.4em;
+			min-height: 2em;
+			transition: var(--transition);
+		}
+	}
 }

@@ -48,7 +48,9 @@ export namespace DesktopLauncherCreator {
 			(reason) => reason || "Create the launcher on the desktop",
 		)
 		const volume_monitor = Gio.VolumeMonitor.get()
-		const [volume_options, set_volume_options] = createState<volume_option[]>([])
+		const [volume_options, set_volume_options] = createState<volume_option[]>(
+			[],
+		)
 		const [mounting_volume, set_mounting_volume] = createState("")
 		function sync_volumes() {
 			set_volume_options(
@@ -91,7 +93,10 @@ export namespace DesktopLauncherCreator {
 		const all_applications = createBinding(applications, "list")
 		const application_model = Gio.ListStore.new(AstalApps.Application.$gtype)
 		let application_query = ""
-		const application_search_index = new WeakMap<AstalApps.Application, string>()
+		const application_search_index = new WeakMap<
+			AstalApps.Application,
+			string
+		>()
 		const catalog_sorter = Gtk.CustomSorter.new((left, right) => {
 			const left_application = left as unknown as AstalApps.Application
 			const right_application = right as unknown as AstalApps.Application
@@ -177,7 +182,7 @@ export namespace DesktopLauncherCreator {
 		let pending_icon_model: Gtk.FilterListModel | null = null
 		let pending_icon_handler = 0
 
-		icon_factory.connect("setup", (factory, object) => {
+		icon_factory.connect("setup", (_factory, object) => {
 			const item = object as Gtk.ListItem
 			const image = new Gtk.Image({ pixelSize: 32 })
 			const label = new Gtk.Label({ ellipsize: 3 })
@@ -191,7 +196,7 @@ export namespace DesktopLauncherCreator {
 			item.set_child(cell)
 			icon_cells.set(item, { image, label })
 		})
-		icon_factory.connect("bind", (factory, object) => {
+		icon_factory.connect("bind", (_factory, object) => {
 			const item = object as Gtk.ListItem
 			const value = item.get_item()
 			const cell = icon_cells.get(item)
@@ -244,7 +249,8 @@ export namespace DesktopLauncherCreator {
 		}
 		function cancel_pending_icon_filter() {
 			if (!pending_icon_model) return
-			if (pending_icon_handler) pending_icon_model.disconnect(pending_icon_handler)
+			if (pending_icon_handler)
+				pending_icon_model.disconnect(pending_icon_handler)
 			pending_icon_model.set_model(null)
 			pending_icon_model = null
 			pending_icon_handler = 0
@@ -323,9 +329,12 @@ export namespace DesktopLauncherCreator {
 			(path) => path.trim().split("/").pop() || "Choose",
 		)
 		const directory_target = createComputed(
-			() => target_kind() === "location" || command_targets_directory(command()),
+			() =>
+				target_kind() === "location" || command_targets_directory(command()),
 		)
-		const show_application_options = directory_target.as((directory) => !directory)
+		const show_application_options = directory_target.as(
+			(directory) => !directory,
+		)
 		const has_application_options = createBinding(
 			filtered_applications,
 			"nItems",
@@ -333,7 +342,9 @@ export namespace DesktopLauncherCreator {
 		const show_application_empty = has_application_options.as(
 			(has_options) => !has_options,
 		)
-		const has_volume_options = volume_options.as((options) => options.length > 0)
+		const has_volume_options = volume_options.as(
+			(options) => options.length > 0,
+		)
 		const header_title = page.as((current) => {
 			if (current === "applications") return "Choose a Target"
 			if (current === "locations") return "Choose a Folder or Disk"
@@ -424,7 +435,7 @@ export namespace DesktopLauncherCreator {
 			})
 		}
 
-		application_factory.connect("setup", (factory, object) => {
+		application_factory.connect("setup", (_factory, object) => {
 			const item = object as Gtk.ListItem
 			const cell = create_application_cell()
 			item.set_activatable(false)
@@ -432,7 +443,7 @@ export namespace DesktopLauncherCreator {
 			item.set_child(cell.widget)
 			application_cells.set(item, cell)
 		})
-		application_factory.connect("bind", (factory, object) => {
+		application_factory.connect("bind", (_factory, object) => {
 			const item = object as Gtk.ListItem
 			const application = item.get_item()
 			const cell = application_cells.get(item)
@@ -443,11 +454,11 @@ export namespace DesktopLauncherCreator {
 				application_selection.get_n_items(),
 			)
 		})
-		application_factory.connect("unbind", (factory, object) => {
+		application_factory.connect("unbind", (_factory, object) => {
 			const item = object as Gtk.ListItem
 			application_cells.get(item)?.clear()
 		})
-		application_factory.connect("teardown", (factory, object) => {
+		application_factory.connect("teardown", (_factory, object) => {
 			const item = object as Gtk.ListItem
 			const cell = application_cells.get(item)
 			if (!cell) return
@@ -480,7 +491,7 @@ export namespace DesktopLauncherCreator {
 						singleClickActivate
 						$={(self) => {
 							set_grid(self)
-							self.connect("activate", (grid, position) => {
+							self.connect("activate", (_grid, position) => {
 								const value = selection.get_item(position)
 								if (!(value instanceof Gtk.StringObject)) return
 								set_icon(value.get_string())
@@ -545,7 +556,7 @@ export namespace DesktopLauncherCreator {
 					Gio.MountMountFlags.NONE,
 					operation,
 					null,
-					(volume, result) => {
+					(_volume, result) => {
 						try {
 							if (!option.volume.mount_finish(result))
 								throw new Error("Mount returned false")
@@ -925,7 +936,9 @@ export namespace DesktopLauncherCreator {
 						/>
 						<IconResultsGrid
 							selection={icon_filtered_selection}
-							visible={icon_results_page.as((current) => current === "filtered")}
+							visible={icon_results_page.as(
+								(current) => current === "filtered",
+							)}
 							set_grid={(grid) => (icon_filtered_grid = grid)}
 						/>
 						<Placeholder
@@ -1173,25 +1186,21 @@ function choose_file(
 		dialog.set_filters(filters)
 		dialog.set_default_filter(filter)
 	}
-	dialog.open(
-		parent,
-		null,
-		(source, result) => {
-			try {
-				const path = dialog.open_finish(result)?.get_path()
-				if (session !== creator_session) return
-				if (!path) {
-					console.error(`desktop.launcherChooser: ${title} has no local path`)
-					return
-				}
-				on_selected(path)
-			} catch (error) {
-				if (session !== creator_session) return
-				if (is_dialog_dismissed(error)) return
-				console.error(`desktop.launcherChooser: ${title} failed`, error)
+	dialog.open(parent, null, (_source, result) => {
+		try {
+			const path = dialog.open_finish(result)?.get_path()
+			if (session !== creator_session) return
+			if (!path) {
+				console.error(`desktop.launcherChooser: ${title} has no local path`)
+				return
 			}
-		},
-	)
+			on_selected(path)
+		} catch (error) {
+			if (session !== creator_session) return
+			if (is_dialog_dismissed(error)) return
+			console.error(`desktop.launcherChooser: ${title} failed`, error)
+		}
+	})
 }
 
 function choose_directory(
@@ -1202,26 +1211,22 @@ function choose_directory(
 	const dialog = new Gtk.FileDialog({ title, modal: true })
 	const parent = app.get_window("desktop-launcher-creator")
 	if (!parent) return
-	dialog.select_folder(
-		parent,
-		null,
-		(source, result) => {
-			try {
-				const path = dialog.select_folder_finish(result)?.get_path()
-				if (session !== creator_session) return
-				if (!path) {
-					console.error("desktop.launcherChooser: Folder has no local path")
-					return
-				}
-				on_selected(path)
-			} catch (error) {
-				if (session !== creator_session) return
-				if (is_dialog_dismissed(error)) return
-				console.error(
-					"desktop.launcherChooser: Directory selection failed",
-					error,
-				)
+	dialog.select_folder(parent, null, (_source, result) => {
+		try {
+			const path = dialog.select_folder_finish(result)?.get_path()
+			if (session !== creator_session) return
+			if (!path) {
+				console.error("desktop.launcherChooser: Folder has no local path")
+				return
 			}
-		},
-	)
+			on_selected(path)
+		} catch (error) {
+			if (session !== creator_session) return
+			if (is_dialog_dismissed(error)) return
+			console.error(
+				"desktop.launcherChooser: Directory selection failed",
+				error,
+			)
+		}
+	})
 }

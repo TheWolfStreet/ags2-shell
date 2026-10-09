@@ -1,6 +1,12 @@
 import assert from "node:assert/strict"
 import { execFileSync, spawnSync } from "node:child_process"
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import {
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -8,13 +14,24 @@ import test from "node:test"
 import { fileURLToPath } from "node:url"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 
-const tsc_path = realpathSync(execFileSync("which", ["tsc"], { encoding: "utf8" }).trim())
-const ts = createRequire(tsc_path)("../lib/node_modules/typescript/lib/typescript.js")
-const source = readFileSync(new URL("../../widget/Desktop/DragAndDrop.tsx", import.meta.url), "utf8")
-const compiled = ts.transpileModule(source, { compilerOptions: {
-	module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022,
-	jsx: ts.JsxEmit.ReactJSX, jsxImportSource: "ags/gtk4",
-} }).outputText
+const tsc_path = realpathSync(
+	execFileSync("which", ["tsc"], { encoding: "utf8" }).trim(),
+)
+const ts = createRequire(tsc_path)(
+	"../lib/node_modules/typescript/lib/typescript.js",
+)
+const source = readFileSync(
+	new URL("../../widget/Desktop/DragAndDrop.tsx", import.meta.url),
+	"utf8",
+)
+const compiled = ts.transpileModule(source, {
+	compilerOptions: {
+		module: ts.ModuleKind.ESNext,
+		target: ts.ScriptTarget.ES2022,
+		jsx: ts.JsxEmit.ReactJSX,
+		jsxImportSource: "ags/gtk4",
+	},
+}).outputText
 
 async function fixture() {
 	const events = []
@@ -25,19 +42,22 @@ async function fixture() {
 	const moves = []
 	let dragging_css = false
 	let selected = ["/desktop/a", "/desktop/b"]
-	const state = initial => {
+	const state = (initial) => {
 		let value = initial
 		const subscribers = new Set()
-		return [Object.assign(() => value, {
-			peek: () => value,
-			subscribe(callback) {
-				subscribers.add(callback)
-				return () => subscribers.delete(callback)
+		return [
+			Object.assign(() => value, {
+				peek: () => value,
+				subscribe(callback) {
+					subscribers.add(callback)
+					return () => subscribers.delete(callback)
+				},
+			}),
+			(next) => {
+				value = next
+				for (const callback of [...subscribers]) callback()
 			},
-		}), next => {
-			value = next
-			for (const callback of [...subscribers]) callback()
-		}]
+		]
 	}
 	class Picture {
 		constructor(props) {
@@ -48,10 +68,14 @@ async function fixture() {
 			this.is_visible = value
 			events.push(["visible", value])
 		}
-		get visible() { return this.is_visible }
+		get visible() {
+			return this.is_visible
+		}
 	}
 	class Fixed {
-		constructor() { this.handlers = new Map() }
+		constructor() {
+			this.handlers = new Map()
+		}
 		put(picture, x, y) {
 			this.picture = picture
 			this.coordinates = [x, y]
@@ -62,85 +86,156 @@ async function fixture() {
 			this.coordinates = [x, y]
 			events.push(["move", x, y])
 		}
-		add_controller(controller) { this.controllers ??= []; this.controllers.push(controller) }
+		add_controller(controller) {
+			this.controllers ??= []
+			this.controllers.push(controller)
+		}
 	}
 	const make_controller = () => ({
 		handlers: new Map(),
-		connect(name, callback) { this.handlers.set(name, callback) },
-		fire(name, ...args) { return this.handlers.get(name)(this, ...args) },
+		connect(name, callback) {
+			this.handlers.set(name, callback)
+		},
+		fire(name, ...args) {
+			return this.handlers.get(name)(this, ...args)
+		},
 		set_actions() {},
-		set_icon(...args) { this.icon = args; events.push(["native-icon"]) },
+		set_icon(...args) {
+			this.icon = args
+			events.push(["native-icon"])
+		},
 		get_current_event_state: () => 0,
 	})
 	const gtk = {
-		Widget: class {}, Fixed, Picture,
+		Widget: class {},
+		Fixed,
+		Picture,
 		DragSource: { new: () => make_controller() },
 		DropTargetAsync: { new: () => make_controller() },
-		WidgetPaintable: { new: widget => ({ get_current_image: () => ({
-			get_intrinsic_width: () => widget.get_width(),
-			get_intrinsic_height: () => widget.get_height(),
-			snapshot: () => { events.push(["snapshot"]); snapshots.push({ dragging_css }) },
-		}) }) },
+		WidgetPaintable: {
+			new: (widget) => ({
+				get_current_image: () => ({
+					get_intrinsic_width: () => widget.get_width(),
+					get_intrinsic_height: () => widget.get_height(),
+					snapshot: () => {
+						events.push(["snapshot"])
+						snapshots.push({ dragging_css })
+					},
+				}),
+			}),
+		},
 		Snapshot: class {
 			push_opacity() {}
 			save() {}
 			translate() {}
 			restore() {}
 			pop() {}
-			to_paintable() { return { preview: true } }
+			to_paintable() {
+				return { preview: true }
+			}
 		},
 	}
 	const imports = {
-		ags: { createState: state, onCleanup: callback => cleanups.push(callback) },
-		"ags/gtk4": { Gtk: gtk, Gdk: {
-			DragAction: { MOVE: 1, COPY: 2 }, ModifierType: { CONTROL_MASK: 4 },
-			ContentFormats: { new_for_gtype: () => ({ union: () => ({}) }), new: () => ({}) },
-			FileList: { $gtype: 1 },
-		} },
-		"ags/gtk4/jsx-runtime": { jsx: (type, props) => {
-			const fixed = new type()
-			props.$(fixed)
-			return fixed
-		} },
+		ags: {
+			createState: state,
+			onCleanup: (callback) => cleanups.push(callback),
+		},
+		"ags/gtk4": {
+			Gtk: gtk,
+			Gdk: {
+				DragAction: { MOVE: 1, COPY: 2 },
+				ModifierType: { CONTROL_MASK: 4 },
+				ContentFormats: {
+					new_for_gtype: () => ({ union: () => ({}) }),
+					new: () => ({}),
+				},
+				FileList: { $gtype: 1 },
+			},
+		},
+		"ags/gtk4/jsx-runtime": {
+			jsx: (type, props) => {
+				const fixed = new type()
+				props.$(fixed)
+				return fixed
+			},
+		},
 		"$lib/time": { timeout: () => ({ cancel() {} }) },
 		"gi://Gio": { default: { Cancellable: class {} } },
 		"gi://GLib": { default: { PRIORITY_DEFAULT: 0 } },
 		"gi://Graphene": { default: { Point: class {}, Size: class {} } },
 		"$lib/textures": { hidden_drag_icon: () => icon },
 		"$shell/options": { default: { desktop: { enabled: () => true } } },
-		"./FileOperations": { build_file_content_provider: paths => paths,
-			paths_from_uris: () => [], read_file_text: () => "", split_payload_lines: () => [] },
-		"./Desktop": { desktop_interaction: {
-			selected: { peek: () => selected },
-			select: paths => { selected = paths }, press() {}, redraw() {},
-		}, import_files_to_desktop: () => {}, monitor_of_desktop_path: () => null,
-			move_desktop_files: move => moves.push(move) },
+		"./FileOperations": {
+			build_file_content_provider: (paths) => paths,
+			paths_from_uris: () => [],
+			read_file_text: () => "",
+			split_payload_lines: () => [],
+		},
+		"./Desktop": {
+			desktop_interaction: {
+				selected: { peek: () => selected },
+				select: (paths) => {
+					selected = paths
+				},
+				press() {},
+				redraw() {},
+			},
+			import_files_to_desktop: () => {},
+			monitor_of_desktop_path: () => null,
+			move_desktop_files: (move) => moves.push(move),
+		},
 		"./GridGeometry": { nearest_slot_index_for_point: (x, y) => [x, y] },
 	}
 	const module = new SourceTextModule(compiled)
-	await module.link(name => {
+	await module.link((name) => {
 		assert.ok(imports[name], name)
 		return new SyntheticModule(Object.keys(imports[name]), function () {
-			for (const [key, value] of Object.entries(imports[name])) this.setExport(key, value)
+			for (const [key, value] of Object.entries(imports[name]))
+				this.setExport(key, value)
 		})
 	})
 	await module.evaluate()
-	const add_monitor = id => {
-		const drag = module.namespace.create_desktop_drag_controller({ peek: () => ({ id, metrics: {} }), subscribe: () => () => {} })
+	const add_monitor = (id) => {
+		const drag = module.namespace.create_desktop_drag_controller({
+			peek: () => ({ id, metrics: {} }),
+			subscribe: () => () => {},
+		})
 		const target = new Fixed()
 		drag.attach_target(target)
 		const layer = module.namespace.DragLayer({ drag })
 		const widget = {
-			translate_coordinates: (anchor, x, y) => [true, anchor === widget ? 0 : 50, 0],
-			get_width: () => 40, get_height: () => 30,
-			add_controller: controller => controllers.push(controller),
+			translate_coordinates: (anchor, _x, _y) => [
+				true,
+				anchor === widget ? 0 : 50,
+				0,
+			],
+			get_width: () => 40,
+			get_height: () => 30,
+			add_controller: (controller) => controllers.push(controller),
 		}
-		drag.attach_source(widget, "/desktop/a", () => { dragging_css = true })
-		return { drag, layer, source: controllers.at(-1), target: target.controllers[0] }
+		drag.attach_source(widget, "/desktop/a", () => {
+			dragging_css = true
+		})
+		return {
+			drag,
+			layer,
+			source: controllers.at(-1),
+			target: target.controllers[0],
+		}
 	}
 	const drop = { get_actions: () => 3 }
-	return { add_monitor, events, snapshots, moves, icon, drop, cleanups,
-		set_dragging_css: value => { dragging_css = value } }
+	return {
+		add_monitor,
+		events,
+		snapshots,
+		moves,
+		icon,
+		drop,
+		cleanups,
+		set_dragging_css: (value) => {
+			dragging_css = value
+		},
+	}
 }
 
 test("prepare snapshots before drag CSS, hides the native icon and waits for motion", async () => {
@@ -148,17 +243,25 @@ test("prepare snapshots before drag CSS, hides the native icon and waits for mot
 	const a = f.add_monitor("a")
 	a.drag.track(400, 250)
 	a.source.fire("prepare", 11, 7)
-	assert.deepEqual(f.snapshots.map(item => item.dragging_css), [false])
+	assert.deepEqual(
+		f.snapshots.map((item) => item.dragging_css),
+		[false],
+	)
 	assert.deepEqual(a.source.icon, [f.icon, 0, 0])
-	assert.ok(f.events.findIndex(([event]) => event === "native-icon") <
-		f.events.findIndex(([event]) => event === "snapshot"))
+	assert.ok(
+		f.events.findIndex(([event]) => event === "native-icon") <
+			f.events.findIndex(([event]) => event === "snapshot"),
+	)
 	assert.equal(a.layer.picture.visible, false)
 	assert.equal(a.target.fire("drag-enter", f.drop, 0, 0), 1)
 	assert.equal(a.layer.picture.visible, false)
 	assert.equal(a.target.fire("drag-motion", f.drop, 210, 120), 1)
 	assert.deepEqual(a.layer.coordinates, [199, 113])
 	assert.equal(a.layer.picture.visible, true)
-	assert.deepEqual(f.events.slice(-2), [["move", 199, 113], ["visible", true]])
+	assert.deepEqual(f.events.slice(-2), [
+		["move", 199, 113],
+		["visible", true],
+	])
 	for (const cleanup of f.cleanups) cleanup()
 })
 
@@ -223,26 +326,50 @@ test("enter retains cross-monitor fallback coordinates without showing the ghost
 	assert.equal(b.target.fire("drag-enter", f.drop, 72, 38), 1)
 	assert.equal(b.layer.picture.visible, false)
 	a.source.fire("drag-end", {}, true)
-	assert.deepEqual(f.moves, [{ to: "b", paths: ["/desktop/a", "/desktop/b"],
-		slot: [72, 38], anchor: "/desktop/a" }])
+	assert.deepEqual(f.moves, [
+		{
+			to: "b",
+			paths: ["/desktop/a", "/desktop/b"],
+			slot: [72, 38],
+			anchor: "/desktop/a",
+		},
+	])
 })
 
 function available(command) {
-	try { execFileSync("which", [command], { stdio: "ignore" }); return true }
-	catch { return false }
+	try {
+		execFileSync("which", [command], { stdio: "ignore" })
+		return true
+	} catch {
+		return false
+	}
 }
 
-test("native DragLayer first painted frame has no origin ghost and motion uses scrolled content bounds", {
-	skip: !available("gjs") || !available("xvfb-run") || !available("ags"),
-}, () => {
-	const ast = ts.createSourceFile("DragAndDrop.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-	const layer = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "DragLayer")
-	assert.ok(layer)
-	const stage = mkdtempSync(join(tmpdir(), "ags-drag-preview-"))
-	try {
-		const entry = join(stage, "drag-preview.tsx")
-		const output = join(stage, "drag-preview")
-		writeFileSync(entry, `import { createRoot, createState, onCleanup } from "ags"
+test(
+	"native DragLayer first painted frame has no origin ghost and motion uses scrolled content bounds",
+	{
+		skip: !available("gjs") || !available("xvfb-run") || !available("ags"),
+	},
+	() => {
+		const ast = ts.createSourceFile(
+			"DragAndDrop.tsx",
+			source,
+			ts.ScriptTarget.Latest,
+			true,
+			ts.ScriptKind.TSX,
+		)
+		const layer = ast.statements.find(
+			(node) =>
+				ts.isFunctionDeclaration(node) && node.name?.text === "DragLayer",
+		)
+		assert.ok(layer)
+		const stage = mkdtempSync(join(tmpdir(), "ags-drag-preview-"))
+		try {
+			const entry = join(stage, "drag-preview.tsx")
+			const output = join(stage, "drag-preview")
+			writeFileSync(
+				entry,
+				`import { createRoot, createState, onCleanup } from "ags"
 import { Gtk, Gdk } from "ags/gtk4"
 import GLib from "gi://GLib"
 import Gsk from "gi://Gsk"
@@ -342,32 +469,41 @@ const zero = { visible: picture.get_visible(), content: bounds(picture, content)
 print(JSON.stringify({ prepare, enter, motion, end, restart, zero, sources_before, sources_after }))
 window.destroy()
 dispose()
-`)
-		const root = fileURLToPath(new URL("../../", import.meta.url))
-		const bundle = spawnSync("ags", ["bundle", entry, output, "-g", "4", "-r", root], {
-			encoding: "utf8", timeout: 60000,
-		})
-		assert.equal(bundle.status, 0, bundle.stderr || bundle.stdout)
-		const run = spawnSync("xvfb-run", ["-a", output], {
-			encoding: "utf8", timeout: 30000, env: { ...process.env, GTK_A11Y: "none", XDG_RUNTIME_DIR: stage },
-		})
-		assert.equal(run.status, 0, run.stderr || run.error?.message)
-		assert.doesNotMatch(run.stderr, /Gtk-(?:WARNING|CRITICAL)|Gjs-CRITICAL/)
-		const report = JSON.parse(run.stdout.trim())
-		assert.deepEqual(report.prepare, { visible: false, nodes: 0 })
-		assert.deepEqual(report.enter, { visible: false, nodes: 0 })
-		assert.equal(report.motion.visible, true)
-		assert.ok(report.motion.nodes > 0, JSON.stringify(report))
-		assert.deepEqual(report.motion.content.slice(0, 2), [199, 113])
-		assert.deepEqual(report.motion.window.slice(0, 2), [119, 53])
-		assert.deepEqual(report.motion.adjustment, [80, 60])
-		assert.deepEqual(report.sources_after, report.sources_before)
-		assert.deepEqual(report.end, { visible: false, nodes: 0 })
-		assert.deepEqual(report.restart, { visible: false, nodes: 0 })
-		assert.equal(report.zero.visible, true)
-		assert.deepEqual(report.zero.content.slice(0, 2), [-11, -7])
-		console.log(JSON.stringify(report))
-	} finally {
-		rmSync(stage, { recursive: true, force: true })
-	}
-})
+`,
+			)
+			const root = fileURLToPath(new URL("../../", import.meta.url))
+			const bundle = spawnSync(
+				"ags",
+				["bundle", entry, output, "-g", "4", "-r", root],
+				{
+					encoding: "utf8",
+					timeout: 60000,
+				},
+			)
+			assert.equal(bundle.status, 0, bundle.stderr || bundle.stdout)
+			const run = spawnSync("xvfb-run", ["-a", output], {
+				encoding: "utf8",
+				timeout: 30000,
+				env: { ...process.env, GTK_A11Y: "none", XDG_RUNTIME_DIR: stage },
+			})
+			assert.equal(run.status, 0, run.stderr || run.error?.message)
+			assert.doesNotMatch(run.stderr, /Gtk-(?:WARNING|CRITICAL)|Gjs-CRITICAL/)
+			const report = JSON.parse(run.stdout.trim())
+			assert.deepEqual(report.prepare, { visible: false, nodes: 0 })
+			assert.deepEqual(report.enter, { visible: false, nodes: 0 })
+			assert.equal(report.motion.visible, true)
+			assert.ok(report.motion.nodes > 0, JSON.stringify(report))
+			assert.deepEqual(report.motion.content.slice(0, 2), [199, 113])
+			assert.deepEqual(report.motion.window.slice(0, 2), [119, 53])
+			assert.deepEqual(report.motion.adjustment, [80, 60])
+			assert.deepEqual(report.sources_after, report.sources_before)
+			assert.deepEqual(report.end, { visible: false, nodes: 0 })
+			assert.deepEqual(report.restart, { visible: false, nodes: 0 })
+			assert.equal(report.zero.visible, true)
+			assert.deepEqual(report.zero.content.slice(0, 2), [-11, -7])
+			console.log(JSON.stringify(report))
+		} finally {
+			rmSync(stage, { recursive: true, force: true })
+		}
+	},
+)

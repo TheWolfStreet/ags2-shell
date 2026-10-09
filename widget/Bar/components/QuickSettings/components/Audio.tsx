@@ -15,7 +15,10 @@ import { attempt_async, log_error } from "$lib/result"
 const audio = AstalWp.get_default()
 async function open_audio_settings() {
 	if (!notify_missing_programs("pavucontrol")) return
-	log_error(await attempt_async(() => execAsync(["pavucontrol"])), "audio.settings: Failed to open pavucontrol")
+	log_error(
+		await attempt_async(() => execAsync(["pavucontrol"])),
+		"audio.settings: Failed to open pavucontrol",
+	)
 }
 
 export namespace Audio {
@@ -34,9 +37,7 @@ export namespace Audio {
 						</For>
 					</box>
 					<Gtk.Separator />
-					<SettingsButton
-						callback={() => void open_audio_settings()}
-					/>
+					<SettingsButton callback={() => void open_audio_settings()} />
 				</box>
 			</Menu>
 		)
@@ -65,9 +66,7 @@ export namespace Audio {
 						</For>
 					</box>
 					<Gtk.Separator />
-					<SettingsButton
-						callback={() => void open_audio_settings()}
-					/>
+					<SettingsButton callback={() => void open_audio_settings()} />
 				</box>
 			</Menu>
 		)
@@ -107,8 +106,11 @@ export namespace Audio {
 		export function Volume() {
 			const speaker = createBinding(audio, "defaultSpeaker")
 
-			const has_audio_speaker = createBinding(audio, "nodes").as((audio_nodes) =>
-				(audio_nodes ?? []).some((node) => node.get_media_class() === AUDIO_SINK),
+			const has_audio_speaker = createBinding(audio, "nodes").as(
+				(audio_nodes) =>
+					(audio_nodes ?? []).some(
+						(node) => node.get_media_class() === AUDIO_SINK,
+					),
 			)
 
 			const has_audio_stream = createBinding(audio, "nodes").as((audio_nodes) =>
@@ -237,7 +239,9 @@ export namespace Audio {
 						iconName={createBinding(endpoint, "icon").as((icon) =>
 							substitute_icon_name(icon),
 						)}
-						tooltipText={createBinding(endpoint, "name").as((name) => name ?? "")}
+						tooltipText={createBinding(endpoint, "name").as(
+							(name) => name ?? "",
+						)}
 						useFallback
 					/>
 					<label

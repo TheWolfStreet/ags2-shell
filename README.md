@@ -244,15 +244,15 @@ The selected wallpaper is validated before atomically replacing `~/.config/backg
 
 Use the Settings window to change shell options. Changes are saved automatically.
 
-| State                | Location                                          |
-| -------------------- | ------------------------------------------------- |
-| Shell options        | `$XDG_CACHE_HOME/ags2-shell/options.json`         |
-| Desktop icon layout  | `$XDG_CACHE_HOME/ags2-shell/desktop-layout.json`  |
-| Color-picker history | `$XDG_CACHE_HOME/ags2-shell/colors.json`          |
-| Artwork cache        | `$XDG_CACHE_HOME/ags2-shell/artwork/`              |
-| Wallpaper            | `~/.config/background`                            |
-| Screenshots          | `~/Pictures/Screenshots/`                         |
-| Recordings           | `~/Videos/Screencasting/`                         |
+| State                | Location                                         |
+| -------------------- | ------------------------------------------------ |
+| Shell options        | `$XDG_CACHE_HOME/ags2-shell/options.json`        |
+| Desktop icon layout  | `$XDG_CACHE_HOME/ags2-shell/desktop-layout.json` |
+| Color-picker history | `$XDG_CACHE_HOME/ags2-shell/colors.json`         |
+| Artwork cache        | `$XDG_CACHE_HOME/ags2-shell/artwork/`            |
+| Wallpaper            | `~/.config/background`                           |
+| Screenshots          | `~/Pictures/Screenshots/`                        |
+| Recordings           | `~/Videos/Screencasting/`                        |
 
 Artwork loading allows four concurrent jobs and 64 queued jobs. Downloads and inline images are limited to 8 MiB, local preview files to 64 MiB, and decoded artwork to 8192 pixels per side and 40 million pixels. The downloaded-art cache is bounded to 128 files and 64 MiB.
 
@@ -279,9 +279,11 @@ nix flake check
 
 While adding new, untracked source files, use `nix build path:. --no-link` and `nix flake check path:.` to include them without staging. The normal Git-backed flake includes only tracked files; add new source files to Git before using it for releases.
 
-Tests live in `tests/`, grouped by subsystem. `npm test` runs its `*.test.mjs` suites; the native GJS smoke check and TypeScript contract test also live there. The flake check builds the package, runs Node tests and an isolated native GJS smoke check, and separately generates GIR declarations from pinned inputs for a strict typecheck. It does not depend on host `@girs/` or `node_modules/` artifacts.
+Tests live in `tests/`, grouped by subsystem. `npm test` runs its `*.test.mjs` suites; the native GJS smoke check and TypeScript contract test also live there. The flake check verifies formatting and shell lint, builds the package, runs Node tests and an isolated native GJS smoke check, and separately generates GIR declarations from pinned inputs for a strict typecheck. It does not depend on host `@girs/` or `node_modules/` artifacts.
 
 In `nix develop`, run `npm run types` once to generate local GIR declarations and link the AGS/Gnim versions supplied by that shell, then run `npm run typecheck` and `npm test`. This project does not use `npm install` or a portable npm lock: AGS owns the local links. `types` writes `@girs/`, `node_modules/`, and may update `tsconfig.json`; `typecheck` generates ignored AGS/Gnim declarations in `@girs/` before checking application source without emitting application files. The generated AGS declaration restores the `Gtk.Window` argument lost when TypeScript emits its private `window-toggled` method. TypeScript excludes generated GTK3 declarations from the GTK4 project. `skipLibCheck` tolerates generated declaration errors but does not suppress errors in application source. The declaration step uses `--noCheck` only for the linked dependencies, not for the application.
+
+The development shell provides `vtsls`, Prettier, Alejandra, shfmt, and ShellCheck. Run `npm run format` to format maintained source, `npm run format:check` to verify it, and `npm run lint:shell` to check shell scripts. Generated declarations, compiled CSS, and dependencies are excluded. Typechecking rejects unused locals and parameters; prefix required but ignored callback slots with `_` rather than changing their positional meaning.
 
 ## Troubleshooting
 

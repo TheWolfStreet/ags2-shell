@@ -1,6 +1,14 @@
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
-import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+	copyFileSync,
+	existsSync,
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
@@ -16,8 +24,14 @@ function fixture() {
 	mkdirSync(join(root, "style/compile"), { recursive: true })
 	mkdirSync(join(root, "widget"))
 	copyFileSync(source, join(root, "dev.sh"))
-	writeFileSync(join(root, "style/compile/build.sh"), `#!${bash_path}\nexit 0\n`, { mode: 0o755 })
-	writeFileSync(join(root, "bin/ags"), `#!${bash_path}
+	writeFileSync(
+		join(root, "style/compile/build.sh"),
+		`#!${bash_path}\nexit 0\n`,
+		{ mode: 0o755 },
+	)
+	writeFileSync(
+		join(root, "bin/ags"),
+		`#!${bash_path}
 case "$1" in
   list)
     if [[ -f $TEST_STATE/owner ]]; then printf 'ags2-shell\n'; fi
@@ -39,22 +53,40 @@ case "$1" in
     fi
     ;;
 esac
-`, { mode: 0o755 })
-	writeFileSync(join(root, "bin/busctl"), `#!${bash_path}
+`,
+		{ mode: 0o755 },
+	)
+	writeFileSync(
+		join(root, "bin/busctl"),
+		`#!${bash_path}
 if [[ -f $TEST_STATE/owner && ! -f $TEST_STATE/no_owner ]]; then
   printf 'u %s\n' "$(<"$TEST_STATE/owner")"
 else
   exit 1
 fi
-`, { mode: 0o755 })
-	writeFileSync(join(root, "bin/inotifywait"), `#!${bash_path}
+`,
+		{ mode: 0o755 },
+	)
+	writeFileSync(
+		join(root, "bin/inotifywait"),
+		`#!${bash_path}
 for arg in "$@"; do
   if [[ $arg == *scss* ]]; then exec sleep 60; fi
 done
 until [[ -f $TEST_STATE/trigger ]]; do sleep 0.02; done
 rm -f "$TEST_STATE/trigger"
-`, { mode: 0o755 })
-	return { root, state, env: { ...process.env, TEST_STATE: state, PATH: `${join(root, "bin")}:${process.env.PATH}` } }
+`,
+		{ mode: 0o755 },
+	)
+	return {
+		root,
+		state,
+		env: {
+			...process.env,
+			TEST_STATE: state,
+			PATH: `${join(root, "bin")}:${process.env.PATH}`,
+		},
+	}
 }
 
 async function until(check) {
@@ -66,8 +98,12 @@ async function until(check) {
 }
 
 function alive(pid) {
-	try { process.kill(pid, 0); return true }
-	catch { return false }
+	try {
+		process.kill(pid, 0)
+		return true
+	} catch {
+		return false
+	}
 }
 
 async function stopped(child) {
@@ -78,10 +114,18 @@ async function stopped(child) {
 async function verify_reload(no_owner) {
 	const { root, state, env } = fixture()
 	if (no_owner) writeFileSync(join(state, "no_owner"), "")
-	const dev = spawn("bash", [join(root, "dev.sh")], { cwd: root, env, stdio: ["ignore", "pipe", "pipe"] })
+	const dev = spawn("bash", [join(root, "dev.sh")], {
+		cwd: root,
+		env,
+		stdio: ["ignore", "pipe", "pipe"],
+	})
 	let output = ""
-	dev.stdout.on("data", (chunk) => { output += chunk })
-	dev.stderr.on("data", (chunk) => { output += chunk })
+	dev.stdout.on("data", (chunk) => {
+		output += chunk
+	})
+	dev.stderr.on("data", (chunk) => {
+		output += chunk
+	})
 	let group = 0
 	let second = 0
 	try {
@@ -92,8 +136,9 @@ async function verify_reload(no_owner) {
 		group = Number(readFileSync(join(state, "group"), "utf8"))
 		writeFileSync(join(state, "trigger"), "")
 		await until(() => {
-			try { return Number(readFileSync(join(state, "owner"), "utf8")) !== first }
-			catch (error) {
+			try {
+				return Number(readFileSync(join(state, "owner"), "utf8")) !== first
+			} catch (error) {
 				if (error.code === "ENOENT") return false
 				throw error
 			}
@@ -104,11 +149,19 @@ async function verify_reload(no_owner) {
 	} finally {
 		dev.kill("SIGTERM")
 		try {
-			await Promise.race([stopped(dev), new Promise((resolve) => setTimeout(resolve, 1000))])
+			await Promise.race([
+				stopped(dev),
+				new Promise((resolve) => setTimeout(resolve, 1000)),
+			])
 			const latest_group = existsSync(join(state, "group"))
-				? Number(readFileSync(join(state, "group"), "utf8")) : 0
+				? Number(readFileSync(join(state, "group"), "utf8"))
+				: 0
 			for (const owned_group of new Set([group, latest_group])) {
-				if (owned_group) { try { process.kill(-owned_group, "SIGKILL") } catch {} }
+				if (owned_group) {
+					try {
+						process.kill(-owned_group, "SIGKILL")
+					} catch {}
+				}
 			}
 			if (dev.exitCode === null && dev.signalCode === null) dev.kill("SIGKILL")
 			await stopped(dev)
@@ -130,10 +183,14 @@ test("unavailable D-Bus ownership falls back to its own process group", async ()
 test("an acknowledged quit that cannot finish preserves the running instance", async () => {
 	const { root, state, env } = fixture()
 	const dev = spawn("bash", [join(root, "dev.sh")], {
-		cwd: root, env: { ...env, HOLD_QUIT: "1" }, stdio: ["ignore", "pipe", "pipe"],
+		cwd: root,
+		env: { ...env, HOLD_QUIT: "1" },
+		stdio: ["ignore", "pipe", "pipe"],
 	})
 	let output = ""
-	dev.stderr.on("data", (chunk) => { output += chunk })
+	dev.stderr.on("data", (chunk) => {
+		output += chunk
+	})
 	let group = 0
 	try {
 		await until(() => existsSync(join(state, "owner")))
@@ -145,7 +202,11 @@ test("an acknowledged quit that cannot finish preserves the running instance", a
 		assert.match(output, /preserving its running process/)
 	} finally {
 		dev.kill("SIGTERM")
-		if (group) { try { process.kill(-group, "SIGKILL") } catch {} }
+		if (group) {
+			try {
+				process.kill(-group, "SIGKILL")
+			} catch {}
+		}
 		await stopped(dev)
 		rmSync(root, { recursive: true, force: true })
 	}
@@ -155,7 +216,11 @@ test("an unrelated registered instance is never requested or signaled", async ()
 	const { root, state, env } = fixture()
 	const foreign = spawn("sleep", ["20"], { detached: true, stdio: "ignore" })
 	writeFileSync(join(state, "owner"), String(foreign.pid))
-	const dev = spawn("bash", [join(root, "dev.sh")], { cwd: root, env, stdio: "ignore" })
+	const dev = spawn("bash", [join(root, "dev.sh")], {
+		cwd: root,
+		env,
+		stdio: "ignore",
+	})
 	try {
 		await stopped(dev)
 		assert.equal(alive(foreign.pid), true)

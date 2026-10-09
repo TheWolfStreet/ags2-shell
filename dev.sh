@@ -10,7 +10,7 @@ ts_watch_pid=
 owns_instance() {
   local response kind pid group
   response=$(busctl --user --timeout=1s call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus GetConnectionUnixProcessID s "io.Astal.$instance_name" 2>/dev/null) || return 1
-  read -r kind pid <<< "$response"
+  read -r kind pid <<<"$response"
   [[ $kind == u && $pid =~ ^[0-9]+$ ]] || return 1
   group=$(ps -o pgid= -p "$pid" 2>/dev/null) || return 1
   group=${group//[[:space:]]/}
@@ -36,7 +36,7 @@ stop_ags() {
         ags_pid=
         return 1
       fi
-      for attempt in {1..20}; do
+      for ((attempt = 0; attempt < 20; attempt++)); do
         group_alive || break
         sleep 0.1
       done
@@ -45,7 +45,7 @@ stop_ags() {
   if group_alive; then
     printf 'Stopping unresponsive development shell process group %s\n' "$ags_pid" >&2
     kill -TERM -- "-$ags_pid" 2>/dev/null || true
-    for attempt in {1..20}; do
+    for ((attempt = 0; attempt < 20; attempt++)); do
       group_alive || break
       sleep 0.1
     done
@@ -76,21 +76,27 @@ build_once=false
 shell_args=()
 for arg in "$@"; do
   case $arg in
-    -h|--help)
-      printf 'Usage: %s [--build-once] [AGS options...]\n' "${0##*/}"
-      exit 0
-      ;;
-    -b|--build-once) build_once=true ;;
-    *) shell_args+=("$arg") ;;
+  -h | --help)
+    printf 'Usage: %s [--build-once] [AGS options...]\n' "${0##*/}"
+    exit 0
+    ;;
+  -b | --build-once) build_once=true ;;
+  *) shell_args+=("$arg") ;;
   esac
 done
 
 for program in sass find sort mktemp cmp; do
-  command -v "$program" >/dev/null || { printf 'Missing command: %s\n' "$program" >&2; exit 1; }
+  command -v "$program" >/dev/null || {
+    printf 'Missing command: %s\n' "$program" >&2
+    exit 1
+  }
 done
 if ! $build_once; then
   for program in ags inotifywait pkill setsid busctl ps; do
-    command -v "$program" >/dev/null || { printf 'Missing command: %s\n' "$program" >&2; exit 1; }
+    command -v "$program" >/dev/null || {
+      printf 'Missing command: %s\n' "$program" >&2
+      exit 1
+    }
   done
 fi
 
@@ -118,7 +124,7 @@ while true; do
     printf 'Could not check running AGS instances\n' >&2
     exit 1
   fi
-  if grep -Fxq "$instance_name" <<< "$instances"; then
+  if grep -Fxq "$instance_name" <<<"$instances"; then
     printf 'AGS instance %s is already running; refusing to replace it\n' "$instance_name" >&2
     exit 1
   fi

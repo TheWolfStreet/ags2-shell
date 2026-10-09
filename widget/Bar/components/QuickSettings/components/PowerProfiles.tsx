@@ -1,6 +1,14 @@
 import app from "$lib/app"
 import { Gtk } from "ags/gtk4"
-import { Accessor, Node, With, createBinding, createComputed, createState, onCleanup } from "ags"
+import {
+	Accessor,
+	Node,
+	With,
+	createBinding,
+	createComputed,
+	createState,
+	onCleanup,
+} from "ags"
 
 import AstalPowerProfiles from "gi://AstalPowerProfiles"
 import Gio from "gi://Gio"
@@ -43,7 +51,9 @@ export namespace PowerProfiles {
 			return (
 				<image
 					iconName={mode_icon}
-					visible={createComputed(() => asus_available() && mode() !== "Hybrid")}
+					visible={createComputed(
+						() => asus_available() && mode() !== "Hybrid",
+					)}
 					useFallback
 				/>
 			)
@@ -91,19 +101,26 @@ export namespace PowerProfiles {
 
 	const asus_provider: profile_provider = {
 		active: createBinding(asusctl, "profile"),
-		select: (profile) => void asusctl.set_profile(profile).then((result) => {
-			if (!result.ok) console.error("powerProfiles.select:", result.err)
-		}),
+		select: (profile) =>
+			void asusctl.set_profile(profile).then((result) => {
+				if (!result.ok) console.error("powerProfiles.select:", result.err)
+			}),
 		profiles: () => asusctl.profiles,
 		icon: (p) => get_mapped_icon(icons.asusctl.profile as icon_map, p),
 		label: (p) => p,
 		extra_settings: () => (
-			<SettingsButton callback={() => {
-				if (notify_missing_programs("rog-control-center"))
-					void launch_program(["rog-control-center"]).then(result => {
-						if (!result.ok) console.error("powerProfiles: Could not open settings", result.err)
-					})
-			}} />
+			<SettingsButton
+				callback={() => {
+					if (notify_missing_programs("rog-control-center"))
+						void launch_program(["rog-control-center"]).then((result) => {
+							if (!result.ok)
+								console.error(
+									"powerProfiles: Could not open settings",
+									result.err,
+								)
+						})
+				}}
+			/>
 		),
 		toggle_defaults: () => ["Quiet", "Balanced"],
 	}
@@ -121,23 +138,32 @@ export namespace PowerProfiles {
 			if (!power_profiles) return undefined
 			if (!power_profiles.get_version()) return undefined
 			const profiles = () => {
-				const available = attempt(() => power_profiles.get_profiles().map((item) => item.profile))
-				if (!available.ok) console.error("powerProfiles.profiles:", available.err)
+				const available = attempt(() =>
+					power_profiles.get_profiles().map((item) => item.profile),
+				)
+				if (!available.ok)
+					console.error("powerProfiles.profiles:", available.err)
 				return available.ok ? available.value : []
 			}
 			return {
 				active: createBinding(power_profiles, "activeProfile"),
 				profiles,
 				select: (profile) => {
-					const result = attempt(() => power_profiles.set_active_profile(profile))
+					const result = attempt(() =>
+						power_profiles.set_active_profile(profile),
+					)
 					if (!result.ok) console.error("powerProfiles.select:", result.err)
 				},
 				icon: (p) => get_mapped_icon(icons.powerprofile as icon_map, p),
 				label: (p) => prettify(p),
 				toggle_defaults: () => {
 					const available = profiles()
-					const off = available.includes("balanced") ? "balanced" : available[0] ?? "balanced"
-					const on = available.includes("power-saver") ? "power-saver" : available.find((profile) => profile !== off) ?? off
+					const off = available.includes("balanced")
+						? "balanced"
+						: (available[0] ?? "balanced")
+					const on = available.includes("power-saver")
+						? "power-saver"
+						: (available.find((profile) => profile !== off) ?? off)
 					return [on, off]
 				},
 			}
@@ -155,7 +181,11 @@ export namespace PowerProfiles {
 				name="profile-selector"
 				iconName={active.as((p) => provider.icon(p))}
 				label={active.as((p) => provider.label(p))}
-				onToggle={on === off ? undefined : () => provider.select(active.peek() === off ? on : off)}
+				onToggle={
+					on === off
+						? undefined
+						: () => provider.select(active.peek() === off ? on : off)
+				}
 				connection={active.as((p) => p !== off)}
 			/>
 		)
@@ -217,27 +247,40 @@ export namespace PowerProfiles {
 	}
 
 	const asus_available = createBinding(asusctl, "available")
-	const [power_profile_service, set_power_profile_service] = createState<AstalPowerProfiles.PowerProfiles | null>(null)
+	const [power_profile_service, set_power_profile_service] =
+		createState<AstalPowerProfiles.PowerProfiles | null>(null)
 	const [power_revision, set_power_revision] = createState(0)
 	let power_handlers: number[] = []
-	const watch = Gio.bus_watch_name(Gio.BusType.SYSTEM, "org.freedesktop.UPower.PowerProfiles", Gio.BusNameWatcherFlags.NONE,
+	const watch = Gio.bus_watch_name(
+		Gio.BusType.SYSTEM,
+		"org.freedesktop.UPower.PowerProfiles",
+		Gio.BusNameWatcherFlags.NONE,
 		() => {
 			const created = attempt(() => new AstalPowerProfiles.PowerProfiles())
-			if (!created.ok) { console.error("powerProfiles.connect:", created.err); return }
+			if (!created.ok) {
+				console.error("powerProfiles.connect:", created.err)
+				return
+			}
 			const current = created.value
 			if (!attempt(() => current.get_version()).ok) return
 			power_handlers = [
-				current.connect("notify::version", () => set_power_revision((revision) => revision + 1)),
-				current.connect("notify::profiles", () => set_power_revision((revision) => revision + 1)),
+				current.connect("notify::version", () =>
+					set_power_revision((revision) => revision + 1),
+				),
+				current.connect("notify::profiles", () =>
+					set_power_revision((revision) => revision + 1),
+				),
 			]
 			set_power_profile_service(current)
 		},
 		() => {
 			const current = power_profile_service.peek()
-			if (current) for (const handler of power_handlers) current.disconnect(handler)
+			if (current)
+				for (const handler of power_handlers) current.disconnect(handler)
 			power_handlers = []
 			set_power_profile_service(null)
-		})
+		},
+	)
 	app.connect("shutdown", () => Gio.bus_unwatch_name(watch))
 	const provider = createComputed(() => {
 		if (asus_available()) return asus_provider

@@ -7,30 +7,46 @@ import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
 async function load() {
 	const sources = new Map()
 	let next = 1
-	const add = (priority, delay, callback) => {
+	const add = (_priority, delay, callback) => {
 		if (!callback) callback = delay
 		const id = next++
 		sources.set(id, callback)
 		return id
 	}
 	const glib = {
-		PRIORITY_DEFAULT: 0, PRIORITY_DEFAULT_IDLE: 0,
-		SOURCE_REMOVE: false, SOURCE_CONTINUE: true,
-		timeout_add: add, idle_add: add,
-		Source: { remove: id => assert.ok(sources.delete(id)) },
+		PRIORITY_DEFAULT: 0,
+		PRIORITY_DEFAULT_IDLE: 0,
+		SOURCE_REMOVE: false,
+		SOURCE_CONTINUE: true,
+		timeout_add: add,
+		idle_add: add,
+		Source: { remove: (id) => assert.ok(sources.delete(id)) },
 	}
 	const context = createContext({ console, Promise })
-	const source = stripTypeScriptTypes(readFileSync(new URL("../../lib/time.ts", import.meta.url), "utf8"))
+	const source = stripTypeScriptTypes(
+		readFileSync(new URL("../../lib/time.ts", import.meta.url), "utf8"),
+	)
 	const module = new SourceTextModule(source, { context })
-	await module.link(() => new SyntheticModule(["default"], function () {
-		this.setExport("default", glib)
-	}, { context }))
+	await module.link(
+		() =>
+			new SyntheticModule(
+				["default"],
+				function () {
+					this.setExport("default", glib)
+				},
+				{ context },
+			),
+	)
 	await module.evaluate()
-	return { module: module.namespace, sources, tick(id) {
-		const callback = sources.get(id)
-		assert.ok(callback)
-		if (!callback()) sources.delete(id)
-	} }
+	return {
+		module: module.namespace,
+		sources,
+		tick(id) {
+			const callback = sources.get(id)
+			assert.ok(callback)
+			if (!callback()) sources.delete(id)
+		},
+	}
 }
 
 test("canceling an interval removes both immediate and repeating sources", async () => {
@@ -68,7 +84,9 @@ test("completed one-shots can be canceled without removing stale source IDs", as
 test("debounce runs only the latest request and flush cancels delayed work", async () => {
 	const { module, sources, tick } = await load()
 	const calls = []
-	const delayed = module.debounce(100, value => { calls.push(value) })
+	const delayed = module.debounce(100, (value) => {
+		calls.push(value)
+	})
 	delayed.call(1)
 	delayed.call(2)
 	assert.equal(sources.size, 1)

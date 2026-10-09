@@ -22,7 +22,7 @@ const env = {
 	},
 	init: (): Result<void> => {
 		return ensure_directory(env.paths.cache.base)
-	}
+	},
 }
 
 export default env

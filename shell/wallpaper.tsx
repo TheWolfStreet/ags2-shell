@@ -13,22 +13,37 @@ import { Wallpaper } from "widget/Wallpaper"
 
 function monitor_key(monitor: Gdk.Monitor, index: number) {
 	const geometry = monitor.get_geometry()
-	return monitor.get_connector() ?? `${index}:${monitor.get_description() ?? "unknown"}:${geometry.x}x${geometry.y}`
+	return (
+		monitor.get_connector() ??
+		`${index}:${monitor.get_description() ?? "unknown"}:${geometry.x}x${geometry.y}`
+	)
 }
 
 function start_wallpaper_windows() {
-	const active = new Map<string, { monitor: Gdk.Monitor, retarget: (monitor: Gdk.Monitor) => void, dispose: () => void }>()
+	const active = new Map<
+		string,
+		{
+			monitor: Gdk.Monitor
+			retarget: (monitor: Gdk.Monitor) => void
+			dispose: () => void
+		}
+	>()
 	let stopped = false
 
 	const sync = () => {
 		if (stopped) return
-		const live_connectors = new Set(hyprland.monitors.map(monitor => monitor.name))
-		const current = new Map(app.get_monitors()
-			.filter(monitor => {
-				const connector = monitor.get_connector()
-				return connector == null || live_connectors.has(connector)
-			})
-			.map((monitor, index) => [monitor_key(monitor, index), monitor]))
+		const live_connectors = new Set(
+			hyprland.monitors.map((monitor) => monitor.name),
+		)
+		const current = new Map(
+			app
+				.get_monitors()
+				.filter((monitor) => {
+					const connector = monitor.get_connector()
+					return connector == null || live_connectors.has(connector)
+				})
+				.map((monitor, index) => [monitor_key(monitor, index), monitor]),
+		)
 
 		for (const [key, slot] of active) {
 			const monitor = current.get(key)
@@ -44,7 +59,7 @@ function start_wallpaper_windows() {
 		for (const [key, monitor] of current) {
 			if (active.has(key)) continue
 			let retarget: (monitor: Gdk.Monitor) => void = () => {}
-			const dispose = createRoot(dispose => {
+			const dispose = createRoot((dispose) => {
 				retarget = Wallpaper.Window({ gdkmonitor: monitor }).retarget
 				return dispose
 			})
@@ -67,14 +82,16 @@ function start_wallpaper_windows() {
 }
 
 const parent_pid = programArgs
-	.find(arg => arg.startsWith("--parent-pid="))
+	.find((arg) => arg.startsWith("--parent-pid="))
 	?.slice("--parent-pid=".length)
 
 app.start({
 	instanceName: `${env.appName}-wallpaper-${parent_pid ?? GLib.uuid_string_random()}`,
 	main() {
 		const initialized = env.init()
-		if (!log_error(initialized, "wallpaper: Failed to initialize environment")) {
+		if (
+			!log_error(initialized, "wallpaper: Failed to initialize environment")
+		) {
 			app.quit()
 			return
 		}
@@ -83,7 +100,8 @@ app.start({
 
 		if (parent_pid) {
 			const watchdog = interval(1000, () => {
-				if (!GLib.file_test(`/proc/${parent_pid}`, GLib.FileTest.EXISTS)) app.quit()
+				if (!GLib.file_test(`/proc/${parent_pid}`, GLib.FileTest.EXISTS))
+					app.quit()
 			})
 			app.connect("shutdown", () => watchdog.cancel())
 		}

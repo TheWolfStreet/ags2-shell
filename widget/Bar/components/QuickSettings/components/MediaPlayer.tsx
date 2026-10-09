@@ -18,7 +18,7 @@ const { VERTICAL } = Gtk.Orientation
 const { COVER } = Gtk.ContentFit
 const duration_cache = new Map<string, number>()
 const duration_cache_limit = 64
-const cover_size = options.scale.as(scale => Math.round(100 * scale / 100))
+const cover_size = options.scale.as((scale) => Math.round((100 * scale) / 100))
 
 function remember_duration(track: string, duration: number) {
 	if (duration_cache.has(track)) duration_cache.delete(track)
@@ -40,23 +40,34 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const { PLAYLIST, TRACK, NONE } = AstalMpris.Loop
 	const { ON, OFF } = AstalMpris.Shuffle
 
-	const title = createBinding(player, "title").as(title => title || "Untitled")
-	const artist = createBinding(player, "artist").as(artist => artist || "Unknown Artist")
+	const title = createBinding(player, "title").as(
+		(title) => title || "Untitled",
+	)
+	const artist = createBinding(player, "artist").as(
+		(artist) => artist || "Unknown Artist",
+	)
 	const cover_art = createBinding(player, "coverArt")
 	const art_url = createBinding(player, "artUrl")
 	const cover_uri = createComputed(() => art_url() || cover_art() || "")
-	const selected_cover = createComputed(() => create_square_texture_accessor(cover_uri(), cover_size()))
+	const selected_cover = createComputed(() =>
+		create_square_texture_accessor(cover_uri(), cover_size()),
+	)
 	const cover_texture = createComputed(() => selected_cover()())
-	const has_cover_art = cover_texture.as(texture => texture !== null)
+	const has_cover_art = cover_texture.as((texture) => texture !== null)
 	const text_max_width = 20
-	const player_icon = createBinding(player, "entry").as(entry => entry || "audio-x-generic-symbolic")
+	const player_icon = createBinding(player, "entry").as(
+		(entry) => entry || "audio-x-generic-symbolic",
+	)
 	const position = createBinding(player, "position")
 	const reported_length = createBinding(player, "length")
 	const metadata = createBinding(player, "metadata")
 	const track_id = createBinding(player, "trackid")
-	const track_key = createComputed(() => `${track_id()}|${title()}|${art_url()}`)
+	const track_key = createComputed(
+		() => `${track_id()}|${title()}|${art_url()}`,
+	)
 	let current_track = track_key.peek()
-	let known_length = duration_cache.get(current_track) ?? Math.max(0, player.length)
+	let known_length =
+		duration_cache.get(current_track) ?? Math.max(0, player.length)
 	const length = createComputed(() => {
 		const next_track = track_key()
 		if (next_track !== current_track) {
@@ -83,9 +94,13 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const can_seek = createBinding(player, "canSeek")
 
 	const remaining = createComputed(() => Math.max(0, length() - position()))
-	const [pending_position, set_pending_position] = createState<number | null>(null)
-	const displayed_position = createComputed(() => pending_position() ?? normalized_position())
-	const seek = debounce<[number]>(60, value => {
+	const [pending_position, set_pending_position] = createState<number | null>(
+		null,
+	)
+	const displayed_position = createComputed(
+		() => pending_position() ?? normalized_position(),
+	)
+	const seek = debounce<[number]>(60, (value) => {
 		const duration = length.peek()
 		if (duration > 0) player.position = value * duration
 	})
@@ -112,30 +127,48 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 		settle_timer?.cancel()
 	})
 
-	const play_icon = playback_status.as(status => status === PLAYING ? icons.mpris.playing : icons.mpris.paused)
-	const loop_descriptor = loop_status.as(status => {
+	const play_icon = playback_status.as((status) =>
+		status === PLAYING ? icons.mpris.playing : icons.mpris.paused,
+	)
+	const loop_descriptor = loop_status.as((status) => {
 		switch (status) {
-			case NONE: return { icon: icons.mpris.loop.none, tooltip: "Loop: Disabled" }
-			case TRACK: return { icon: icons.mpris.loop.track, tooltip: "Loop: Track" }
-			case PLAYLIST: return { icon: icons.mpris.loop.playlist, tooltip: "Loop: Playlist" }
-			default: return { icon: icons.mpris.loop.none, tooltip: "Loop: Disabled" }
+			case NONE:
+				return { icon: icons.mpris.loop.none, tooltip: "Loop: Disabled" }
+			case TRACK:
+				return { icon: icons.mpris.loop.track, tooltip: "Loop: Track" }
+			case PLAYLIST:
+				return { icon: icons.mpris.loop.playlist, tooltip: "Loop: Playlist" }
+			default:
+				return { icon: icons.mpris.loop.none, tooltip: "Loop: Disabled" }
 		}
 	})
 
 	function cycle_loop() {
 		switch (player.loopStatus) {
-			case NONE: player.set_loop_status(PLAYLIST); break
-			case PLAYLIST: player.set_loop_status(TRACK); break
-			case TRACK: player.set_loop_status(NONE); break
-			default: break
+			case NONE:
+				player.set_loop_status(PLAYLIST)
+				break
+			case PLAYLIST:
+				player.set_loop_status(TRACK)
+				break
+			case TRACK:
+				player.set_loop_status(NONE)
+				break
+			default:
+				break
 		}
 	}
 
 	function cycle_shuffle() {
 		switch (player.shuffleStatus) {
-			case OFF: player.set_shuffle_status(ON); break
-			case ON: player.set_shuffle_status(OFF); break
-			default: break
+			case OFF:
+				player.set_shuffle_status(ON)
+				break
+			case ON:
+				player.set_shuffle_status(OFF)
+				break
+			default:
+				break
 		}
 	}
 	return (
@@ -147,7 +180,7 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 				heightRequest={cover_size}
 				halign={CENTER}
 				valign={CENTER}
-				paintable={cover_texture.as(texture => texture as Gdk.Paintable)}
+				paintable={cover_texture.as((texture) => texture as Gdk.Paintable)}
 				contentFit={COVER}
 				canShrink
 			/>
@@ -157,7 +190,8 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 					<label
 						label={title}
 						halign={START}
-						wrap hexpand
+						wrap
+						hexpand
 						ellipsize={Pango.EllipsizeMode.END}
 						lines={2}
 						maxWidthChars={text_max_width}
@@ -169,14 +203,19 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 					label={artist}
 					halign={START}
 					valign={START}
-					wrap vexpand
+					wrap
+					vexpand
 					ellipsize={Pango.EllipsizeMode.END}
 					lines={3}
 					maxWidthChars={text_max_width}
 				/>
 				<slider
-					tooltipText={length.as(duration => duration > 0 ? `Duration: ${format_clock(duration)}` : "Duration unavailable")}
-					visible={length.as(duration => duration > 0)}
+					tooltipText={length.as((duration) =>
+						duration > 0
+							? `Duration: ${format_clock(duration)}`
+							: "Duration unavailable",
+					)}
+					visible={length.as((duration) => duration > 0)}
 					sensitive={createComputed(() => can_seek() && length() > 0)}
 					onChangeValue={({ value }) => {
 						set_pending_position(value)
@@ -191,39 +230,62 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 						hexpand
 						class="position"
 						halign={START}
-						visible={length.as(duration => duration > 0)}
+						visible={length.as((duration) => duration > 0)}
 						label={position.as(format_clock)}
 					/>
 					<box hexpand halign={CENTER}>
 						<button
-							class={shuffle_status.as(status => status === ON ? "active" : "")}
+							class={shuffle_status.as((status) =>
+								status === ON ? "active" : "",
+							)}
 							onClicked={cycle_shuffle}
-							visible={shuffle_status.as(status => status != AstalMpris.Shuffle.UNSUPPORTED)}>
+							visible={shuffle_status.as(
+								(status) => status != AstalMpris.Shuffle.UNSUPPORTED,
+							)}
+						>
 							<image iconName={icons.mpris.shuffle} useFallback />
 						</button>
-						<button onClicked={() => player.previous()} visible={can_go_previous}>
+						<button
+							onClicked={() => player.previous()}
+							visible={can_go_previous}
+						>
 							<image iconName={icons.mpris.prev} useFallback />
 						</button>
-						<button class="play-pause" onClicked={() => player.play_pause()} visible={can_control}>
+						<button
+							class="play-pause"
+							onClicked={() => player.play_pause()}
+							visible={can_control}
+						>
 							<image iconName={play_icon} useFallback />
 						</button>
 						<button onClicked={() => player.next()} visible={can_go_next}>
 							<image iconName={icons.mpris.next} useFallback />
 						</button>
 						<button
-							class={loop_status.as(status => status !== NONE && status !== AstalMpris.Loop.UNSUPPORTED ? "active" : "")}
-							tooltipText={loop_descriptor.as(descriptor => descriptor.tooltip)}
+							class={loop_status.as((status) =>
+								status !== NONE && status !== AstalMpris.Loop.UNSUPPORTED
+									? "active"
+									: "",
+							)}
+							tooltipText={loop_descriptor.as(
+								(descriptor) => descriptor.tooltip,
+							)}
 							onClicked={cycle_loop}
-							visible={loop_status.as(status => status != AstalMpris.Loop.UNSUPPORTED)}
+							visible={loop_status.as(
+								(status) => status != AstalMpris.Loop.UNSUPPORTED,
+							)}
 						>
-							<image iconName={loop_descriptor.as(descriptor => descriptor.icon)} useFallback />
+							<image
+								iconName={loop_descriptor.as((descriptor) => descriptor.icon)}
+								useFallback
+							/>
 						</button>
 					</box>
 					<label
 						class="length"
 						hexpand
 						halign={END}
-						visible={length.as(duration => duration > 0)}
+						visible={length.as((duration) => duration > 0)}
 						label={remaining.as(format_clock)}
 					/>
 				</box>

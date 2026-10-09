@@ -133,7 +133,8 @@ function Action({
 					const outcome = run()
 					if (outcome instanceof Promise)
 						void outcome.catch((error) =>
-							console.error("desktop.menu: Action failed", error))
+							console.error("desktop.menu: Action failed", error),
+						)
 				} catch (error) {
 					console.error("desktop.menu: Action failed", error)
 				} finally {
@@ -306,7 +307,7 @@ export function DesktopContextMenu({
 			css="background: transparent;"
 		>
 			<Gtk.EventControllerKey
-				onKeyPressed={(unused, key) => {
+				onKeyPressed={(_unused, key) => {
 					if (key === KEY_Shift_L || key === KEY_Shift_R) {
 						desktop_context_menu.set_shift_held(true)
 						return false
@@ -317,7 +318,7 @@ export function DesktopContextMenu({
 					}
 					return false
 				}}
-				onKeyReleased={(unused, key) => {
+				onKeyReleased={(_unused, key) => {
 					if (key === KEY_Shift_L || key === KEY_Shift_R)
 						desktop_context_menu.set_shift_held(false)
 					return false
@@ -328,7 +329,7 @@ export function DesktopContextMenu({
 				onLeave={desktop_context_menu.leave_menu}
 			/>
 			<Gtk.GestureClick
-				onPressed={(controller, count, x, y) => {
+				onPressed={(controller, _count, x, y) => {
 					const widget = controller.get_widget()
 					if (!content || !widget) {
 						desktop_context_menu.hide()

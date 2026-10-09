@@ -36,7 +36,8 @@ class ApplicationCatalog extends GObject.Object {
 			if (this.#refresh_idle) return
 			this.#refresh_idle = idle(() => {
 				this.#refresh_idle = null
-				if (this.#favorites_snapshot !== null) this.#set_favorites(this.#favorites_snapshot, true)
+				if (this.#favorites_snapshot !== null)
+					this.#set_favorites(this.#favorites_snapshot, true)
 				this.notify("list")
 			})
 		})
@@ -45,24 +46,28 @@ class ApplicationCatalog extends GObject.Object {
 	}
 
 	#watch_favorites() {
-		const watched = attempt(() => subprocess(
-			["dconf", "watch", "/org/gnome/shell/favorite-apps"],
-			() => {
-				this.#watch_failures = 0
-				this.#favorites_refresh.call()
-			},
-			(error) => console.error("applications.favoritesWatch:", error),
-		))
+		const watched = attempt(() =>
+			subprocess(
+				["dconf", "watch", "/org/gnome/shell/favorite-apps"],
+				() => {
+					this.#watch_failures = 0
+					this.#favorites_refresh.call()
+				},
+				(error) => console.error("applications.favoritesWatch:", error),
+			),
+		)
 		if (!watched.ok) {
 			console.error("applications.favoritesWatch:", watched.err)
 			this.#retry_watch()
 			return
 		}
 		this.#favorites_watcher = watched.value
-		watched.value.connect("exit", (source_process, code, signaled) => {
+		watched.value.connect("exit", (_process, code, signaled) => {
 			if (this.#finished) return
 			this.#favorites_watcher = null
-			console.error(`applications.favoritesWatch: dconf watch exited with ${signaled ? "signal" : "status"} ${code}`)
+			console.error(
+				`applications.favoritesWatch: dconf watch exited with ${signaled ? "signal" : "status"} ${code}`,
+			)
 			this.#retry_watch()
 		})
 	}
@@ -105,7 +110,12 @@ class ApplicationCatalog extends GObject.Object {
 		if (!remap && raw === this.#favorites_snapshot) return
 
 		const result = attempt(() => {
-			const names = GLib.Variant.parse(new GLib.VariantType("as"), raw || "[]", null, null).get_strv()
+			const names = GLib.Variant.parse(
+				new GLib.VariantType("as"),
+				raw || "[]",
+				null,
+				null,
+			).get_strv()
 			const entries = new Map<string, AstalApps.Application>()
 			const short_entries = new Map<string, AstalApps.Application>()
 			const app_names = new Map<string, AstalApps.Application>()
@@ -124,7 +134,11 @@ class ApplicationCatalog extends GObject.Object {
 			const seen = new Set<string>()
 			for (const name of names) {
 				const key = name.toLowerCase()
-				const app = entries.get(key) ?? short_entries.get(key) ?? app_names.get(key) ?? app_names.get(key.replace(/\.desktop$/i, ""))
+				const app =
+					entries.get(key) ??
+					short_entries.get(key) ??
+					app_names.get(key) ??
+					app_names.get(key.replace(/\.desktop$/i, ""))
 				const entry = app?.get_entry()?.toLowerCase()
 				if (app && entry && !seen.has(entry)) {
 					favorites.push(app)
@@ -135,7 +149,10 @@ class ApplicationCatalog extends GObject.Object {
 		})
 
 		if (!result.ok) {
-			console.error("applications.setFavorites: Failed to read favorite apps", result.err)
+			console.error(
+				"applications.setFavorites: Failed to read favorite apps",
+				result.err,
+			)
 			return
 		}
 		this.#favorites_snapshot = raw

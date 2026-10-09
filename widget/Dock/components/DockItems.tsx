@@ -36,7 +36,9 @@ const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { CENTER } = Gtk.Align
 
 export function create_dock_items(is_dock_location: Accessor<boolean>) {
-	const running_clients = create_window_client_list(options.bar.taskbar.exclusive)
+	const running_clients = create_window_client_list(
+		options.bar.taskbar.exclusive,
+	)
 	const favorite_apps = createBinding(applications, "favorites")
 	const all_apps = createBinding(applications, "list")
 	let previous_items: dock_item[] = []
@@ -44,7 +46,10 @@ export function create_dock_items(is_dock_location: Accessor<boolean>) {
 	return createComputed((): dock_item[] => {
 		const running = is_dock_location() ? running_clients() : []
 		const groups = new Map<string, AstalHyprland.Client[]>()
-		const matched_apps = new Map<string, AstalApps.Application | null | undefined>()
+		const matched_apps = new Map<
+			string,
+			AstalApps.Application | null | undefined
+		>()
 		const catalog = all_apps()
 		for (const client of running) {
 			const app_class = createBinding(client, "class")()
@@ -55,12 +60,18 @@ export function create_dock_items(is_dock_location: Accessor<boolean>) {
 			if (group) group.push(client)
 			else groups.set(app_class, [client])
 			const match = match_client_app(catalog, {
-				class: app_class, initialClass: initial_class, title, initialTitle: initial_title,
+				class: app_class,
+				initialClass: initial_class,
+				title,
+				initialTitle: initial_title,
 			})
 			if (!matched_apps.has(app_class)) matched_apps.set(app_class, match)
 			else {
 				const previous = matched_apps.get(app_class)
-				if (previous !== undefined && (previous?.get_entry() ?? null) !== (match?.get_entry() ?? null))
+				if (
+					previous !== undefined &&
+					(previous?.get_entry() ?? null) !== (match?.get_entry() ?? null)
+				)
 					matched_apps.set(app_class, undefined)
 			}
 		}
@@ -70,8 +81,10 @@ export function create_dock_items(is_dock_location: Accessor<boolean>) {
 
 		if (favorite_location === "dock" || favorite_location === "both") {
 			for (const favorite of favorite_apps()) {
-				const matching_group = [...groups].find(([app_class]) =>
-					matched_apps.get(app_class)?.get_entry() === favorite.get_entry())
+				const matching_group = [...groups].find(
+					([app_class]) =>
+						matched_apps.get(app_class)?.get_entry() === favorite.get_entry(),
+				)
 				if (!matching_group) {
 					items.push({ kind: "favorite", app: favorite })
 					continue
@@ -104,11 +117,20 @@ export function create_dock_items(is_dock_location: Accessor<boolean>) {
 		const stable_items = items.map((item, index) => {
 			const previous = previous_items[index]
 			if (!previous || previous.kind !== item.kind) return item
-			if (item.kind === "group" && previous.kind === "group" &&
-				item.app_class === previous.app_class && item.icon === previous.icon &&
+			if (
+				item.kind === "group" &&
+				previous.kind === "group" &&
+				item.app_class === previous.app_class &&
+				item.icon === previous.icon &&
 				item.clients.length === previous.clients.length &&
-				item.clients.every((client, i) => client === previous.clients[i])) return previous
-			if (item.kind === "favorite" && previous.kind === "favorite" && item.app === previous.app)
+				item.clients.every((client, i) => client === previous.clients[i])
+			)
+				return previous
+			if (
+				item.kind === "favorite" &&
+				previous.kind === "favorite" &&
+				item.app === previous.app
+			)
 				return previous
 			if (item.kind === "separator" || item.kind === "trash") return previous
 			return item
@@ -185,8 +207,18 @@ function GroupedIcon({
 
 	return (
 		<DockIconBox side={side}>
-			{side === "left" ? <box class="window-dots" orientation={VERTICAL}
-				halign={CENTER} valign={CENTER}>{make_dots()}</box> : <></>}
+			{side === "left" ? (
+				<box
+					class="window-dots"
+					orientation={VERTICAL}
+					halign={CENTER}
+					valign={CENTER}
+				>
+					{make_dots()}
+				</box>
+			) : (
+				<></>
+			)}
 			<button class="app-button" tooltipText={tooltip_text} canFocus={false}>
 				<Gtk.GestureClick
 					button={0}
@@ -199,10 +231,23 @@ function GroupedIcon({
 						gesture.reset()
 					}}
 				/>
-				<ApplicationIcon icon={icon_name || app_class || "application-x-executable-symbolic"} size={icon_size} />
+				<ApplicationIcon
+					icon={icon_name || app_class || "application-x-executable-symbolic"}
+					size={icon_size}
+				/>
 			</button>
-			{side === "bottom" ? <box class="window-dots" orientation={HORIZONTAL}
-				halign={CENTER} valign={CENTER}>{make_dots()}</box> : <></>}
+			{side === "bottom" ? (
+				<box
+					class="window-dots"
+					orientation={HORIZONTAL}
+					halign={CENTER}
+					valign={CENTER}
+				>
+					{make_dots()}
+				</box>
+			) : (
+				<></>
+			)}
 		</DockIconBox>
 	)
 }
@@ -227,8 +272,9 @@ function FavoriteIcon({
 				canFocus={false}
 				onClicked={() => {
 					set_launching(true)
-					void launch_app(favorite).then(result => {
-						if (!result.ok) console.error("dock: Could not launch application", result.err)
+					void launch_app(favorite).then((result) => {
+						if (!result.ok)
+							console.error("dock: Could not launch application", result.err)
 					})
 					timeout(250, () => set_launching(false))
 				}}

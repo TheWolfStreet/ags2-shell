@@ -2,7 +2,12 @@ import GLib from "gi://GLib"
 
 export type Timer = { cancel(): void }
 
-function schedule(ms: number, callback: () => unknown, repeat: boolean, immediate = false): Timer {
+function schedule(
+	ms: number,
+	callback: () => unknown,
+	repeat: boolean,
+	immediate = false,
+): Timer {
 	let source = 0
 	let first = 0
 	let cancelled = false
@@ -11,7 +16,9 @@ function schedule(ms: number, callback: () => unknown, repeat: boolean, immediat
 		try {
 			const result = callback()
 			if (result instanceof Promise)
-				void result.catch(error => console.error("timer: Callback failed", error))
+				void result.catch((error) =>
+					console.error("timer: Callback failed", error),
+				)
 		} catch (error) {
 			console.error("timer: Callback failed", error)
 		}
@@ -21,13 +28,16 @@ function schedule(ms: number, callback: () => unknown, repeat: boolean, immediat
 		invoke()
 		return repeat && !cancelled ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE
 	}
-	if (ms === 0 && !repeat) source = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, dispatch)
-	else source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(1, ms), dispatch)
-	if (immediate) first = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-		first = 0
-		invoke()
-		return GLib.SOURCE_REMOVE
-	})
+	if (ms === 0 && !repeat)
+		source = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, dispatch)
+	else
+		source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(1, ms), dispatch)
+	if (immediate)
+		first = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+			first = 0
+			invoke()
+			return GLib.SOURCE_REMOVE
+		})
 	return {
 		cancel() {
 			if (cancelled) return
@@ -52,10 +62,15 @@ export function interval(ms: number, callback: () => unknown): Timer {
 	return schedule(ms, callback, true, true)
 }
 
-export function debounce<Args extends unknown[]>(ms: number, fn: (...args: Args) => void | Promise<void>) {
+export function debounce<Args extends unknown[]>(
+	ms: number,
+	fn: (...args: Args) => void | Promise<void>,
+) {
 	let timer: Timer | null = null
 	return {
-		get pending() { return timer !== null },
+		get pending() {
+			return timer !== null
+		},
 		call(...args: Args) {
 			timer?.cancel()
 			timer = timeout(ms, () => {

@@ -20,7 +20,14 @@ import { PowerProfiles } from "./components/PowerProfiles"
 
 import env from "$lib/env"
 import icons, { get_brightness_icon } from "$lib/icons"
-import { attempt, attempt_async, err, log_error, ok, type Result } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type Result,
+} from "$lib/result"
 import { texture_from_file_square_contain } from "$lib/textures"
 import { hyprland } from "$lib/hyprland"
 import { notification_daemon } from "$lib/notifications"
@@ -33,7 +40,7 @@ const media = AstalMpris.get_default()
 
 export namespace QuickSettings {
 	export function Button() {
-		const handle_scroll = (controller: unknown, dx: number, dy: number) => {
+		const handle_scroll = (_controller: unknown, _dx: number, dy: number) => {
 			const speaker = audio?.get_default_speaker()
 			if (speaker) {
 				const current = speaker.get_volume() ?? 0
@@ -110,8 +117,14 @@ export namespace QuickSettings {
 							avatar_size.peek(),
 						) as Gdk.Paintable
 					}
-					const monitored = attempt(() => monitorFile(env.paths.avatar, refresh))
-					if (!monitored.ok) console.error("quicksettings.avatar: Failed to watch avatar", monitored.err)
+					const monitored = attempt(() =>
+						monitorFile(env.paths.avatar, refresh),
+					)
+					if (!monitored.ok)
+						console.error(
+							"quicksettings.avatar: Failed to watch avatar",
+							monitored.err,
+						)
 					const unsubscribe = avatar_size.subscribe(refresh)
 					refresh()
 					onCleanup(() => {
@@ -144,16 +157,21 @@ export namespace QuickSettings {
 		const [monitors, set_monitors] = createState(app.get_monitors())
 		let geometry_handlers: Array<[Gdk.Monitor, number]> = []
 		const refresh_monitors = () => {
-			for (const [monitor, handler] of geometry_handlers) monitor.disconnect(handler)
+			for (const [monitor, handler] of geometry_handlers)
+				monitor.disconnect(handler)
 			const current = app.get_monitors()
-			geometry_handlers = current.map((monitor) => [monitor, monitor.connect("notify::geometry", () => set_monitors([...current]))])
+			geometry_handlers = current.map((monitor) => [
+				monitor,
+				monitor.connect("notify::geometry", () => set_monitors([...current])),
+			])
 			set_monitors(current)
 		}
 		const monitors_handler = app.connect("notify::monitors", refresh_monitors)
 		refresh_monitors()
 		onCleanup(() => {
 			app.disconnect(monitors_handler)
-			for (const [monitor, handler] of geometry_handlers) monitor.disconnect(handler)
+			for (const [monitor, handler] of geometry_handlers)
+				monitor.disconnect(handler)
 		})
 		const max_content_height = createComputed(() => {
 			const heights = monitors().map((monitor) => monitor.get_geometry().height)
@@ -355,12 +373,16 @@ async function query_keyboard_layout(): Promise<Result<string>> {
 	})
 	if (!result.ok) return result
 
-	const keyboards = Array.isArray(result.value?.keyboards) ? result.value.keyboards : []
+	const keyboards = Array.isArray(result.value?.keyboards)
+		? result.value.keyboards
+		: []
 	for (const keyboard of keyboards) {
 		if (!keyboard?.main) continue
-		if (typeof keyboard.active_keymap !== "string") return err("Main keyboard has no active keymap")
+		if (typeof keyboard.active_keymap !== "string")
+			return err("Main keyboard has no active keymap")
 		const keymap = keyboard.active_keymap.trim().toLowerCase()
-		if (!keymap || keymap === "error" || keymap === "none") return err(`Invalid main keyboard layout: ${keymap}`)
+		if (!keymap || keymap === "error" || keymap === "none")
+			return err(`Invalid main keyboard layout: ${keymap}`)
 		return ok(layout_code(keymap))
 	}
 	return err("No main keyboard layout")
@@ -369,7 +391,10 @@ async function query_keyboard_layout(): Promise<Result<string>> {
 function KeyboardLayout() {
 	if (++keyboard_users === 1) {
 		refresh_keyboard_layout()
-		keyboard_handler = hyprland.connect("keyboard-layout", refresh_keyboard_layout)
+		keyboard_handler = hyprland.connect(
+			"keyboard-layout",
+			refresh_keyboard_layout,
+		)
 	}
 	onCleanup(() => {
 		if (--keyboard_users === 0) {
@@ -388,7 +413,8 @@ function refresh_keyboard_layout() {
 	const revision = ++keyboard_revision
 	void query_keyboard_layout().then((result) => {
 		if (!keyboard_users || revision !== keyboard_revision) return
-		if (log_error(result, "KeyboardLayout: failed to read layout")) set_keyboard_layout(result.value)
+		if (log_error(result, "KeyboardLayout: failed to read layout"))
+			set_keyboard_layout(result.value)
 	})
 }
 

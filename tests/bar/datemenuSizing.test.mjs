@@ -4,28 +4,60 @@ import { readFileSync, realpathSync } from "node:fs"
 import { createRequire } from "node:module"
 import test from "node:test"
 
-const source = readFileSync(new URL("../../widget/Bar/components/DateMenu/index.tsx", import.meta.url), "utf8")
-const tsc_path = realpathSync(execFileSync("which", ["tsc"], { encoding: "utf8" }).trim())
-const ts = createRequire(tsc_path)("../lib/node_modules/typescript/lib/typescript.js")
-const ast = ts.createSourceFile("index.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-const layout = ast.statements.filter(statement =>
-    ts.isClassDeclaration(statement) && statement.name?.text === "DateMenuColumns" ||
-    ts.isVariableStatement(statement) && statement.declarationList.declarations.some(declaration =>
-        declaration.name.getText(ast) === "RegisteredDateMenuColumns"))
+const source = readFileSync(
+	new URL("../../widget/Bar/components/DateMenu/index.tsx", import.meta.url),
+	"utf8",
+)
+const tsc_path = realpathSync(
+	execFileSync("which", ["tsc"], { encoding: "utf8" }).trim(),
+)
+const ts = createRequire(tsc_path)(
+	"../lib/node_modules/typescript/lib/typescript.js",
+)
+const ast = ts.createSourceFile(
+	"index.tsx",
+	source,
+	ts.ScriptTarget.Latest,
+	true,
+	ts.ScriptKind.TSX,
+)
+const layout = ast.statements.filter(
+	(statement) =>
+		(ts.isClassDeclaration(statement) &&
+			statement.name?.text === "DateMenuColumns") ||
+		(ts.isVariableStatement(statement) &&
+			statement.declarationList.declarations.some(
+				(declaration) =>
+					declaration.name.getText(ast) === "RegisteredDateMenuColumns",
+			)),
+)
 assert.equal(layout.length, 2)
-const implementation = ts.transpileModule(layout.map(statement => statement.getText(ast)).join("\n"), {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-}).outputText
+const implementation = ts.transpileModule(
+	layout.map((statement) => statement.getText(ast)).join("\n"),
+	{
+		compilerOptions: {
+			target: ts.ScriptTarget.ES2022,
+			module: ts.ModuleKind.ESNext,
+		},
+	},
+).outputText
 
 function available(command) {
-    try { execFileSync("which", [command], { stdio: "ignore" }); return true }
-    catch { return false }
+	try {
+		execFileSync("which", [command], { stdio: "ignore" })
+		return true
+	} catch {
+		return false
+	}
 }
 
-test("datetime alone determines both equal halves and height under native GTK", {
-    skip: !available("gjs") || !available("xvfb-run"),
-}, () => {
-    const script = `
+test(
+	"datetime alone determines both equal halves and height under native GTK",
+	{
+		skip: !available("gjs") || !available("xvfb-run"),
+	},
+	() => {
+		const script = `
 const gi = imports.gi
 gi.versions.Gtk = "4.0"
 gi.versions.Gdk = "4.0"
@@ -119,42 +151,122 @@ outer.remove(columns)
 if (columns.get_first_child() !== null) throw new Error("DateMenu children survived unparenting")
 window.destroy()
 `
-    const run = spawnSync("xvfb-run", ["-a", "gjs", "-c", script], {
-        encoding: "utf8", timeout: 30000, stdio: ["ignore", "pipe", "pipe"],
-    })
-    assert.equal(run.status, 0, run.stderr)
-    assert.doesNotMatch(run.stderr, /Gtk-(?:WARNING|CRITICAL)|Gjs-CRITICAL/)
-    const { initial, overflow, grown_font, grown_calendar, render } = JSON.parse(run.stdout.trim())
-    for (const size of [initial, overflow, grown_font, grown_calendar]) {
-        assert.equal(size.left, size.right)
-        assert.equal(size.left + size.right < size.width, true)
-        assert.equal(size.left_height, size.column_height)
-        assert.equal(size.right_height, size.column_height)
-    }
-    assert.deepEqual([overflow.width, overflow.height], [initial.width, initial.height])
-    assert.ok(grown_font.width > initial.width, JSON.stringify({ initial, grown_font }))
-    assert.ok(grown_font.height > initial.height, JSON.stringify({ initial, grown_font }))
-    assert.ok(grown_calendar.width > grown_font.width, JSON.stringify({ grown_font, grown_calendar }))
-    assert.ok(grown_calendar.height > grown_font.height, JSON.stringify({ grown_font, grown_calendar }))
-    assert.ok(render.date.text > 0 && render.notifications.text > 0, JSON.stringify(render))
-    assert.ok(render.columns.text >= render.date.text + render.notifications.text, JSON.stringify(render))
-    assert.ok(render.outer.text >= render.columns.text, JSON.stringify(render))
-    console.log(JSON.stringify({ initial, overflow, grown_font, grown_calendar, render }))
-})
+		const run = spawnSync("xvfb-run", ["-a", "gjs", "-c", script], {
+			encoding: "utf8",
+			timeout: 30000,
+			stdio: ["ignore", "pipe", "pipe"],
+		})
+		assert.equal(run.status, 0, run.stderr)
+		assert.doesNotMatch(run.stderr, /Gtk-(?:WARNING|CRITICAL)|Gjs-CRITICAL/)
+		const { initial, overflow, grown_font, grown_calendar, render } =
+			JSON.parse(run.stdout.trim())
+		for (const size of [initial, overflow, grown_font, grown_calendar]) {
+			assert.equal(size.left, size.right)
+			assert.equal(size.left + size.right < size.width, true)
+			assert.equal(size.left_height, size.column_height)
+			assert.equal(size.right_height, size.column_height)
+		}
+		assert.deepEqual(
+			[overflow.width, overflow.height],
+			[initial.width, initial.height],
+		)
+		assert.ok(
+			grown_font.width > initial.width,
+			JSON.stringify({ initial, grown_font }),
+		)
+		assert.ok(
+			grown_font.height > initial.height,
+			JSON.stringify({ initial, grown_font }),
+		)
+		assert.ok(
+			grown_calendar.width > grown_font.width,
+			JSON.stringify({ grown_font, grown_calendar }),
+		)
+		assert.ok(
+			grown_calendar.height > grown_font.height,
+			JSON.stringify({ grown_font, grown_calendar }),
+		)
+		assert.ok(
+			render.date.text > 0 && render.notifications.text > 0,
+			JSON.stringify(render),
+		)
+		assert.ok(
+			render.columns.text >= render.date.text + render.notifications.text,
+			JSON.stringify(render),
+		)
+		assert.ok(render.outer.text >= render.columns.text, JSON.stringify(render))
+		console.log(
+			JSON.stringify({ initial, overflow, grown_font, grown_calendar, render }),
+		)
+	},
+)
 
 test("default center follows the bar edge, not the screen center", () => {
-    const window_body = source.slice(source.indexOf("export function Window()"), source.indexOf("const notification_list"))
-    assert.match(window_body, /layout=\{create_popup_position\(options\.bar\.position, options\.datemenu\.position\)\}/)
-    const position_source = readFileSync(new URL("../../widget/shared/PopupWindow.tsx", import.meta.url), "utf8")
-    const position_ast = ts.createSourceFile("PopupWindow.tsx", position_source, ts.ScriptTarget.Latest, true)
-    const function_node = position_ast.statements.find(statement =>
-        ts.isFunctionDeclaration(statement) && statement.name?.text === "create_popup_position")
-    assert.ok(function_node)
-    const compiled = ts.transpileModule(function_node.getText(position_ast).replace(/^export /, ""), {
-        compilerOptions: { target: ts.ScriptTarget.ES2022 },
-    }).outputText
-    const position = new Function("createComputed", `${compiled}; return create_popup_position`)(fn => fn)
-    for (const bar of ["top-center", "bottom-center"])
-        for (const selected of ["center", "top-center", "bottom-center"])
-            assert.equal(position(() => bar, () => selected)(), `${bar.split("-")[0]}-center`)
+	const namespace = ast.statements.find(
+		(statement) =>
+			ts.isModuleDeclaration(statement) && statement.name.text === "DateMenu",
+	)
+	const window = namespace.body.statements.find(
+		(statement) =>
+			ts.isFunctionDeclaration(statement) && statement.name?.text === "Window",
+	)
+	assert.ok(window)
+	let popup
+	function find_popup(node) {
+		if (
+			ts.isJsxOpeningElement(node) &&
+			node.tagName.getText(ast) === "PopupWindow"
+		)
+			popup = node
+		ts.forEachChild(node, find_popup)
+	}
+	find_popup(window)
+	assert.ok(popup)
+	const attribute = popup.attributes.properties.find(
+		(property) =>
+			ts.isJsxAttribute(property) && property.name.text === "layout",
+	)
+	assert.ok(attribute && ts.isJsxExpression(attribute.initializer))
+	const call = attribute.initializer.expression
+	assert.ok(ts.isCallExpression(call))
+	assert.equal(call.expression.getText(ast), "create_popup_position")
+	assert.deepEqual(
+		call.arguments.map((argument) => argument.getText(ast)),
+		["options.bar.position", "options.datemenu.position"],
+	)
+	const position_source = readFileSync(
+		new URL("../../widget/shared/PopupWindow.tsx", import.meta.url),
+		"utf8",
+	)
+	const position_ast = ts.createSourceFile(
+		"PopupWindow.tsx",
+		position_source,
+		ts.ScriptTarget.Latest,
+		true,
+	)
+	const function_node = position_ast.statements.find(
+		(statement) =>
+			ts.isFunctionDeclaration(statement) &&
+			statement.name?.text === "create_popup_position",
+	)
+	assert.ok(function_node)
+	const compiled = ts.transpileModule(
+		function_node.getText(position_ast).replace(/^export /, ""),
+		{
+			compilerOptions: { target: ts.ScriptTarget.ES2022 },
+		},
+	).outputText
+	const position = new Function(
+		"createComputed",
+		`${compiled}; return create_popup_position`,
+	)((fn) => fn)
+	for (const bar of ["top-center", "bottom-center"])
+		for (const selected of ["center", "top-center", "bottom-center"])
+			assert.equal(
+				position(
+					() => bar,
+					() => selected,
+				)(),
+				`${bar.split("-")[0]}-center`,
+			)
 })

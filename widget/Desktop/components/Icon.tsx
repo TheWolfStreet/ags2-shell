@@ -36,10 +36,7 @@ function rename_selection_end(name: string): number {
 }
 
 function ensure_rename_focus(editor: Gtk.Text, file: DesktopFile): void {
-	if (
-		editor.editable &&
-		desktop_interaction.rename.path.peek() === file.path
-	)
+	if (editor.editable && desktop_interaction.rename.path.peek() === file.path)
 		focus_rename(editor)
 }
 

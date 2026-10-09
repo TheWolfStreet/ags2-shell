@@ -36,7 +36,8 @@ function is_checked(
 	const state = action_group.get_action_state(name)
 	if (!state) return false
 
-	if (state.get_type_string() === "b") return target ? state.equal(target) : state.get_boolean()
+	if (state.get_type_string() === "b")
+		return target ? state.equal(target) : state.get_boolean()
 
 	return target ? state.equal(target) : false
 }
@@ -132,7 +133,10 @@ function build_submenu_button(
 	)
 
 	button.connect("clicked", () => popover.popup())
-	register(() => { dispose(); popover.unparent() })
+	register(() => {
+		dispose()
+		popover.unparent()
+	})
 
 	return button
 }
@@ -155,7 +159,16 @@ function append_model(
 		const section = model.get_item_link(i, "section")
 		if (section) {
 			if (box.get_last_child()) box.append(new Gtk.Separator())
-			append_model(box, section, action_group, close_root, register, budget, ancestors, depth + 1)
+			append_model(
+				box,
+				section,
+				action_group,
+				close_root,
+				register,
+				budget,
+				ancestors,
+				depth + 1,
+			)
 			continue
 		}
 
@@ -163,7 +176,16 @@ function append_model(
 		const submenu = model.get_item_link(i, "submenu")
 		if (submenu) {
 			box.append(
-				build_submenu_button(label, submenu, action_group, close_root, register, budget, ancestors, depth),
+				build_submenu_button(
+					label,
+					submenu,
+					action_group,
+					close_root,
+					register,
+					budget,
+					ancestors,
+					depth,
+				),
 			)
 			continue
 		}
@@ -184,7 +206,16 @@ function build_menu_box(
 ) {
 	const box = new Gtk.Box({ orientation: VERTICAL })
 	box.add_css_class("tray-menu")
-	append_model(box, model, action_group, close_root, register, budget, ancestors, depth)
+	append_model(
+		box,
+		model,
+		action_group,
+		close_root,
+		register,
+		budget,
+		ancestors,
+		depth,
+	)
 	return box
 }
 
@@ -246,7 +277,11 @@ export function create_tray_menu_popover(item: AstalTray.TrayItem) {
 			seen.add(model)
 			const id = model.connect("items-changed", mark_dirty)
 			model_cleanups.push(() => model.disconnect(id))
-			for (let index = 0; index < model.get_n_items() && remaining > 0; index++) {
+			for (
+				let index = 0;
+				index < model.get_n_items() && remaining > 0;
+				index++
+			) {
 				remaining--
 				for (const link of ["section", "submenu"]) {
 					const child = model.get_item_link(index, link)
@@ -263,7 +298,12 @@ export function create_tray_menu_popover(item: AstalTray.TrayItem) {
 		action_cleanups = []
 		const group = item.actionGroup
 		if (!group) return
-		for (const signal of ["action-added", "action-removed", "action-enabled-changed", "action-state-changed"] as const) {
+		for (const signal of [
+			"action-added",
+			"action-removed",
+			"action-enabled-changed",
+			"action-state-changed",
+		] as const) {
 			const id = group.connect(signal, mark_dirty)
 			action_cleanups.push(() => group.disconnect(id))
 		}
@@ -273,8 +313,14 @@ export function create_tray_menu_popover(item: AstalTray.TrayItem) {
 	connect_action_group()
 
 	const item_connections = [
-		item.connect("notify::menu-model", () => { connect_model(); mark_dirty() }),
-		item.connect("notify::action-group", () => { connect_action_group(); mark_dirty() }),
+		item.connect("notify::menu-model", () => {
+			connect_model()
+			mark_dirty()
+		}),
+		item.connect("notify::action-group", () => {
+			connect_action_group()
+			mark_dirty()
+		}),
 	]
 
 	onCleanup(() => {

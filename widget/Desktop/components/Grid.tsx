@@ -103,7 +103,9 @@ function key_pressed(
 	if (key === KEY_Delete) {
 		void remove_desktop_files(paths, {
 			permanently: (state & ModifierType.SHIFT_MASK) !== 0,
-		}).catch((error) => console.error("desktop.keyboard: Failed to remove files", error))
+		}).catch((error) =>
+			console.error("desktop.keyboard: Failed to remove files", error),
+		)
 		return true
 	}
 	if (control && (key === KEY_a || key === KEY_A)) {
@@ -116,13 +118,16 @@ function key_pressed(
 	}
 	if (control && (key === KEY_x || key === KEY_X)) {
 		if (paths.length > 0) cut_desktop_files(paths)
-		else void cancel_desktop_cut().catch((error) =>
-			console.error("desktop.keyboard: Failed to cancel cut", error))
+		else
+			void cancel_desktop_cut().catch((error) =>
+				console.error("desktop.keyboard: Failed to cancel cut", error),
+			)
 		return true
 	}
 	if (control && (key === KEY_v || key === KEY_V)) {
 		void paste_desktop_files(grid.id).catch((error) =>
-			console.error("desktop.keyboard: Failed to paste files", error))
+			console.error("desktop.keyboard: Failed to paste files", error),
+		)
 		return true
 	}
 	if (key === KEY_Return) {
@@ -141,10 +146,10 @@ export function attach_desktop_keyboard(
 	grid: Accessor<DesktopGridData>,
 ): void {
 	const controller = new Gtk.EventControllerKey()
-	controller.connect("key-pressed", (self, key, code, state) =>
+	controller.connect("key-pressed", (_self, key, _code, state) =>
 		key_pressed(grid.peek(), key, state),
 	)
-	controller.connect("key-released", (self, key) => {
+	controller.connect("key-released", (_self, key) => {
 		if (key === KEY_Shift_L || key === KEY_Shift_R)
 			desktop_context_menu.set_shift_held(false)
 	})
@@ -208,12 +213,12 @@ function DesktopInteractions({
 				onLeave={desktop_context_menu.leave_desktop}
 			/>
 			<Gtk.DropControllerMotion
-				onMotion={(unused, x, y) => drag.track(x, y)}
+				onMotion={(_unused, x, y) => drag.track(x, y)}
 				onLeave={drag.leave}
 			/>
 			<Gtk.GestureClick
 				button={BUTTON_PRIMARY}
-				onPressed={(gesture, count, x, y) => {
+				onPressed={(gesture, _count, x, y) => {
 					if (
 						!options.desktop.enabled.peek() ||
 						hit_interactive_target(gesture, x, y)
@@ -229,7 +234,7 @@ function DesktopInteractions({
 			/>
 			<Gtk.GestureClick
 				button={BUTTON_SECONDARY}
-				onPressed={(gesture, count, x, y) => {
+				onPressed={(gesture, _count, x, y) => {
 					if (
 						!options.desktop.enabled.peek() ||
 						hit_interactive_target(gesture, x, y)
@@ -276,7 +281,7 @@ function DesktopInteractions({
 					desktop_context_menu.hide()
 					select_rectangle(x, y, x, y)
 				}}
-				onDragUpdate={(gesture, width, height) => {
+				onDragUpdate={(_gesture, width, height) => {
 					const rectangle = selection_rectangle.peek()
 					if (!rectangle) return
 					set_selection_rectangle({ ...rectangle, width, height })
@@ -291,7 +296,7 @@ function DesktopInteractions({
 						)
 					}
 				}}
-				onDragEnd={(gesture, width, height) => {
+				onDragEnd={(_gesture, width, height) => {
 					set_selecting(false)
 					const rectangle = selection_rectangle.peek()
 					if (rectangle && (Math.abs(width) > 5 || Math.abs(height) > 5))
@@ -437,8 +442,12 @@ export function DesktopGrid({
 						})
 					}}
 				>
-					<For each={grid.as((data) => data.files)}
-						id={(file) => `${file.path}\0${file.displayName ?? ""}\0${file.icon}\0${file.iconFile ?? ""}\0${file.contentType}\0${file.modified?.getTime() ?? 0}`}>
+					<For
+						each={grid.as((data) => data.files)}
+						id={(file) =>
+							`${file.path}\0${file.displayName ?? ""}\0${file.icon}\0${file.iconFile ?? ""}\0${file.contentType}\0${file.modified?.getTime() ?? 0}`
+						}
+					>
 						{(file: DesktopFile) => (
 							<DesktopIcon
 								file={file}

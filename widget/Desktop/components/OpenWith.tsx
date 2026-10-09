@@ -1,10 +1,5 @@
 import app from "$lib/app"
-import {
-	createComputed,
-	createRoot,
-	createState,
-	For,
-} from "ags"
+import { createComputed, createRoot, createState, For } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import { idle } from "$lib/time"
@@ -61,7 +56,7 @@ export namespace DesktopOpenWith {
 				iconName="application-x-executable-symbolic"
 			>
 				<Gtk.EventControllerKey
-					onKeyPressed={(unused, key) => {
+					onKeyPressed={(_unused, key) => {
 						if (key === KEY_Escape) {
 							hide()
 							return true
@@ -104,16 +99,15 @@ export namespace DesktopOpenWith {
 							xalign={0.5}
 							halign={CENTER}
 						/>
-						<Gtk.ScrolledWindow
-							vexpand
-							hscrollbarPolicy={Gtk.PolicyType.NEVER}
-						>
+						<Gtk.ScrolledWindow vexpand hscrollbarPolicy={Gtk.PolicyType.NEVER}>
 							<box class="app-list" orientation={VERTICAL}>
 								<label
 									class="section"
 									label="Recommended Apps"
 									xalign={0}
-									visible={filtered_recommended.as((entries) => entries.length > 0)}
+									visible={filtered_recommended.as(
+										(entries) => entries.length > 0,
+									)}
 								/>
 								<For each={filtered_recommended}>
 									{(entry) => <AppRow entry={entry} />}
@@ -217,11 +211,7 @@ function to_entry(info: Gio.AppInfo): open_with_app {
 function content_type_of(path: string): string {
 	const queried = attempt(() =>
 		Gio.File.new_for_path(path)
-			.query_info(
-				"standard::content-type",
-				Gio.FileQueryInfoFlags.NONE,
-				null,
-			)
+			.query_info("standard::content-type", Gio.FileQueryInfoFlags.NONE, null)
 			.get_content_type(),
 	)
 	if (queried.ok && queried.value) return queried.value
@@ -268,10 +258,14 @@ function confirm() {
 		)
 		return
 	}
-	const last_used = attempt(() => entry.app.set_as_last_used_for_type(content_type.peek()))
+	const last_used = attempt(() =>
+		entry.app.set_as_last_used_for_type(content_type.peek()),
+	)
 	if (!last_used.ok || !last_used.value)
-		console.error("desktop.openWith: Failed to record last used application",
-			last_used.ok ? "operation returned false" : last_used.err)
+		console.error(
+			"desktop.openWith: Failed to record last used application",
+			last_used.ok ? "operation returned false" : last_used.err,
+		)
 	if (always_use.peek()) set_as_default(entry)
 	hide()
 }

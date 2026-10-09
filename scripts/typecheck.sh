@@ -11,7 +11,7 @@ gnim_root=$(realpath -- "$root/node_modules/gnim")
 gir_types=()
 for gir in "$root"/@girs/*.d.ts; do
   case $gir in
-    */astal-3.0.d.ts|*/gdk-3.0.d.ts|*/gdkx11-3.0.d.ts|*/girepository-2.0.d.ts|*/gtk-3.0.d.ts) continue ;;
+  */astal-3.0.d.ts | */gdk-3.0.d.ts | */gdkx11-3.0.d.ts | */girepository-2.0.d.ts | */gtk-3.0.d.ts) continue ;;
   esac
   gir_types+=("$gir")
 done

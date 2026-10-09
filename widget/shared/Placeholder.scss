@@ -1,16 +1,16 @@
-@use '../../style/base' as *;
+@use "../../style/base" as *;
 
 .placeholder {
-  @include spacing(.5);
-  padding: calc(var(--padding) * 2);
+	@include spacing(0.5);
+	padding: calc(var(--padding) * 2);
 
-  image {
-    color: color-mix(in srgb, var(--fg) 70%, transparent);
-    margin-bottom: .1em;
-  }
+	image {
+		color: color-mix(in srgb, var(--fg) 70%, transparent);
+		margin-bottom: 0.1em;
+	}
 
-  label {
-    color: color-mix(in srgb, var(--fg) 70%, transparent);
-    font-size: 1.25em;
-  }
+	label {
+		color: color-mix(in srgb, var(--fg) 70%, transparent);
+		font-size: 1.25em;
+	}
 }

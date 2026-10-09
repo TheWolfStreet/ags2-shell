@@ -5,59 +5,130 @@ import { createRequire } from "node:module"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 
-const tsc = realpathSync(execFileSync("which", ["tsc"], { encoding: "utf8" }).trim())
-const ts = createRequire(tsc)("../lib/node_modules/typescript/lib/typescript.js")
-const source = readFileSync(new URL("../../widget/Dock/components/Trash.tsx", import.meta.url), "utf8")
-const compiled = ts.transpileModule(`${source}\nexport { open_or_focus_trash }`, {
-	compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-}).outputText
+const tsc = realpathSync(
+	execFileSync("which", ["tsc"], { encoding: "utf8" }).trim(),
+)
+const ts = createRequire(tsc)(
+	"../lib/node_modules/typescript/lib/typescript.js",
+)
+const source = readFileSync(
+	new URL("../../widget/Dock/components/Trash.tsx", import.meta.url),
+	"utf8",
+)
+const compiled = ts.transpileModule(
+	`${source}\nexport { open_or_focus_trash }`,
+	{
+		compilerOptions: {
+			module: ts.ModuleKind.ESNext,
+			target: ts.ScriptTarget.ES2022,
+		},
+	},
+).outputText
 
-async function fixture({ id = "org.gnome.Nautilus.desktop", executable = "/usr/bin/nautilus",
-	wm_class = "Nautilus", clients = [], focused_workspace = 3, launch_result = true } = {}) {
+async function fixture({
+	id = "org.gnome.Nautilus.desktop",
+	executable = "/usr/bin/nautilus",
+	wm_class = "Nautilus",
+	clients = [],
+	focused_workspace = 3,
+	launch_result = true,
+} = {}) {
 	const calls = []
-	const hyprland = { clients, focusedWorkspace: focused_workspace == null ? null : { id: focused_workspace } }
-	const app = id || executable ? { get_id: () => id, get_executable: () => executable } : null
+	const hyprland = {
+		clients,
+		focusedWorkspace:
+			focused_workspace == null ? null : { id: focused_workspace },
+	}
+	const app =
+		id || executable
+			? { get_id: () => id, get_executable: () => executable }
+			: null
 	let move = async (workspace, client) => {
 		calls.push(["move", workspace, client.get_address()])
 		return { ok: true, value: undefined }
 	}
 	const result = {
-		attempt: (fn) => { try { return { ok: true, value: fn() } } catch (err) { return { ok: false, err } } },
-		err: (err) => ({ ok: false, err }), ok: (value) => ({ ok: true, value }),
-		log_error: (value) => { if (!value.ok) calls.push(["error", value.err]); return value.ok },
+		attempt: (fn) => {
+			try {
+				return { ok: true, value: fn() }
+			} catch (err) {
+				return { ok: false, err }
+			}
+		},
+		err: (err) => ({ ok: false, err }),
+		ok: (value) => ({ ok: true, value }),
+		log_error: (value) => {
+			if (!value.ok) calls.push(["error", value.err])
+			return value.ok
+		},
 	}
 	const imports = {
 		ags: { createState: (value) => [() => value, () => {}] },
-		"gi://Gio": { default: { AppInfo: { get_default_for_type: (type, must_support_uris) => {
-			calls.push(["default", type, must_support_uris]); return app
-		} }, app_info_launch_default_for_uri: (uri) => { calls.push(["launch", uri]); return launch_result } } },
-		"gi://GioUnix": { default: { DesktopAppInfo: { new: () => ({ get_startup_wm_class: () => wm_class }) } } },
+		"gi://Gio": {
+			default: {
+				AppInfo: {
+					get_default_for_type: (type, must_support_uris) => {
+						calls.push(["default", type, must_support_uris])
+						return app
+					},
+				},
+				app_info_launch_default_for_uri: (uri) => {
+					calls.push(["launch", uri])
+					return launch_result
+				},
+			},
+		},
+		"gi://GioUnix": {
+			default: {
+				DesktopAppInfo: {
+					new: () => ({ get_startup_wm_class: () => wm_class }),
+				},
+			},
+		},
 		"gi://GLib": { default: {} },
 		"$lib/hyprland": { hyprland },
 		"$lib/result": result,
 		"$lib/time": { debounce: () => ({ call: () => {}, cancel: () => {} }) },
-		"$lib/windowing": { get_client_workspace_id: (client) => client.workspace?.id ?? null,
-			move_client_to_workspace_silent: (...args) => move(...args) },
+		"$lib/windowing": {
+			get_client_workspace_id: (client) => client.workspace?.id ?? null,
+			move_client_to_workspace_silent: (...args) => move(...args),
+		},
 	}
 	const module = new SourceTextModule(compiled)
 	await module.link((name) => {
 		assert.ok(imports[name], `missing mock ${name}`)
 		return new SyntheticModule(Object.keys(imports[name]), function () {
-			for (const [key, value] of Object.entries(imports[name])) this.setExport(key, value)
+			for (const [key, value] of Object.entries(imports[name]))
+				this.setExport(key, value)
 		})
 	})
 	await module.evaluate()
-	return { calls, open: module.namespace.open_or_focus_trash, click: module.namespace.open_trash,
-		set_move: (fn) => { move = fn } }
+	return {
+		calls,
+		open: module.namespace.open_or_focus_trash,
+		click: module.namespace.open_trash,
+		set_move: (fn) => {
+			move = fn
+		},
+	}
 }
 
 function client(title, class_name, workspace = 2) {
 	let address = "abc"
 	let focuses = 0
-	return { get_title: () => title, get_class: () => class_name,
-		workspace: { id: workspace }, get_address: () => address,
-		set_address: (value) => { address = value }, focus: () => { focuses++ },
-		focuses: () => focuses }
+	return {
+		get_title: () => title,
+		get_class: () => class_name,
+		workspace: { id: workspace },
+		get_address: () => address,
+		set_address: (value) => {
+			address = value
+		},
+		focus: () => {
+			focuses++
+		},
+		focuses: () => focuses,
+	}
 }
 
 test("browser tab titled Trash is never moved or focused", async () => {
@@ -86,7 +157,10 @@ test("StartupWMClass and executable basename identify the selected file manager"
 		assert.equal((await f.open()).ok, true)
 		assert.equal(window.focuses(), 1)
 		assert.deepEqual(f.calls.at(-1), ["move", 3, "abc"])
-		assert.equal(f.calls.some(([kind]) => kind === "launch"), false)
+		assert.equal(
+			f.calls.some(([kind]) => kind === "launch"),
+			false,
+		)
 	}
 })
 
@@ -101,12 +175,22 @@ test("partial title and unmatched manager do not reuse a folder window", async (
 
 test("missing identity or focused workspace falls back without moving a client", async () => {
 	const window = client("Trash", "Nautilus")
-	const missing = await fixture({ id: null, executable: null, clients: [window] })
+	const missing = await fixture({
+		id: null,
+		executable: null,
+		clients: [window],
+	})
 	assert.equal((await missing.open()).ok, true)
 	assert.deepEqual(missing.calls.at(-1), ["launch", "trash:///"])
-	const no_workspace = await fixture({ clients: [window], focused_workspace: null })
+	const no_workspace = await fixture({
+		clients: [window],
+		focused_workspace: null,
+	})
 	assert.equal((await no_workspace.open()).ok, true)
-	assert.equal(no_workspace.calls.some(([kind]) => kind === "move"), false)
+	assert.equal(
+		no_workspace.calls.some(([kind]) => kind === "move"),
+		false,
+	)
 	assert.deepEqual(no_workspace.calls.at(-1), ["launch", "trash:///"])
 	assert.equal(window.focuses(), 0)
 })
@@ -117,7 +201,9 @@ test("awaits a dynamic-address move result before focusing and reports failure",
 	let finish_move
 	f.set_move(async (workspace, target) => {
 		f.calls.push(["move", workspace, target.get_address()])
-		return new Promise((resolve) => { finish_move = resolve })
+		return new Promise((resolve) => {
+			finish_move = resolve
+		})
 	})
 	window.set_address("new-address")
 	const pending = f.open()

@@ -21,7 +21,9 @@ export function PanelButton({
 }: panel_button_props) {
 	const classes = createComputed(() => {
 		const button_name = is_accessor<string>(name) ? name() : name
-		const extra_class = is_accessor<string>(class_name) ? class_name() : class_name
+		const extra_class = is_accessor<string>(class_name)
+			? class_name()
+			: class_name
 		return `${button_name ?? ""} ${extra_class ?? ""}`
 	})
 	return (
@@ -32,13 +34,15 @@ export function PanelButton({
 			canFocus={false}
 			onClicked={on_clicked}
 			{...props}
-			$={self => {
+			$={(self) => {
 				if (target_window) {
 					const initial = app.get_window(target_window)
 					if (initial) toggle_class(self, "active", initial.is_visible())
-					onCleanup(on_window_toggle(target_window, (window) => {
-						toggle_class(self, "active", window.is_visible())
-					}))
+					onCleanup(
+						on_window_toggle(target_window, (window) => {
+							toggle_class(self, "active", window.is_visible())
+						}),
+					)
 				}
 
 				$ && $(self)

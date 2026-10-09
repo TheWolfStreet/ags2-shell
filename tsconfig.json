@@ -1,50 +1,33 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "jsx": "react-jsx",
-    "jsxImportSource": "ags/gtk4",
-    "lib": [
-      "ES2023"
-    ],
-    "module": "ES2022",
-    "moduleResolution": "Bundler",
-    "paths": {
-      "$lib/*": [
-        "lib/*"
-      ],
-      "$service/*": [
-        "service/*"
-      ],
-      "$shell/*": [
-        "shell/*"
-      ],
-      "ags": [
-        "@girs/ags-types/lib/index.d.ts"
-      ],
-      "ags/*": [
-        "@girs/ags-types/lib/*"
-      ],
-      "gnim": [
-        "@girs/gnim-types/dist/index.d.ts"
-      ],
-      "gnim/*": [
-        "@girs/gnim-types/dist/*"
-      ],
-      "widget/*": [
-        "widget/*"
-      ]
-    },
-    "strict": true,
-    "noUnusedLocals": true,
-    "skipLibCheck": true,
-    "target": "ES2020"
-  },
-  "exclude": [
-    "@girs/astal-3.0.d.ts",
-    "@girs/gdk-3.0.d.ts",
-    "@girs/gdkx11-3.0.d.ts",
-    "@girs/girepository-2.0.d.ts",
-    "@girs/gtk-3.0.d.ts"
-  ]
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"jsx": "react-jsx",
+		"jsxImportSource": "ags/gtk4",
+		"lib": ["ES2023"],
+		"module": "ES2022",
+		"moduleResolution": "Bundler",
+		"paths": {
+			"$lib/*": ["lib/*"],
+			"$service/*": ["service/*"],
+			"$shell/*": ["shell/*"],
+			"ags": ["@girs/ags-types/lib/index.d.ts"],
+			"ags/*": ["@girs/ags-types/lib/*"],
+			"gnim": ["@girs/gnim-types/dist/index.d.ts"],
+			"gnim/*": ["@girs/gnim-types/dist/*"],
+			"widget/*": ["widget/*"]
+		},
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"skipLibCheck": true,
+		"target": "ES2020"
+	},
+	"exclude": [
+		"@girs/astal-3.0.d.ts",
+		"@girs/gdk-3.0.d.ts",
+		"@girs/gdkx11-3.0.d.ts",
+		"@girs/girepository-2.0.d.ts",
+		"@girs/gtk-3.0.d.ts"
+	]
 }

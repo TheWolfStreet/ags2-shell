@@ -1,137 +1,140 @@
-@use '../../../../style/base' as *;
+@use "../../../../style/base" as *;
 
 window#launcher {
-  box.launcher {
-    @extend .floating;
+	box.launcher {
+		@extend .floating;
 
-    * {
-      --padding: inherit;
-      --spacing: inherit;
-      --radius: inherit;
-      --border-width: inherit;
-      --font-size: inherit;
-      --icon-size: inherit;
-      --popover-padding: inherit;
-      --popover-radius: inherit;
-      --scale: inherit;
-    }
+		* {
+			--padding: inherit;
+			--spacing: inherit;
+			--radius: inherit;
+			--border-width: inherit;
+			--font-size: inherit;
+			--icon-size: inherit;
+			--popover-padding: inherit;
+			--popover-radius: inherit;
+			--scale: inherit;
+		}
 
-    box.quicklaunch {
-      @include spacing;
-      margin-top: var(--spacing);
+		box.quicklaunch {
+			@include spacing;
+			margin-top: var(--spacing);
 
-      button {
-        @extend .flat-button;
-        padding: calc(var(--padding) / 2);
+			button {
+				@extend .flat-button;
+				padding: calc(var(--padding) / 2);
 
-        image {
-          transition: var(--transition);
-        }
+				image {
+					transition: var(--transition);
+				}
 
-        &:hover,
-        &:focus-visible {
-          outline: none;
+				&:hover,
+				&:focus-visible {
+					outline: none;
 
-          image {
-            -gtk-icon-shadow: 2px 2px var(--primary-bg);
-          }
-        }
-      }
-    }
+					image {
+						-gtk-icon-shadow: 2px 2px var(--primary-bg);
+					}
+				}
+			}
+		}
 
-    entry {
-      margin: var(--spacing);
+		entry {
+			margin: var(--spacing);
 
-      > text {
-        > placeholder {
-          color: color-mix(in srgb, var(--fg) 60%, transparent);
-          opacity: 1;
-        }
-      }
+			> text {
+				> placeholder {
+					color: color-mix(in srgb, var(--fg) 60%, transparent);
+					opacity: 1;
+				}
+			}
 
-      > image {
-        all: unset;
-        color: color-mix(in srgb, var(--fg) 60%, transparent);
-        -gtk-icon-size: var(--icon-size);
-        margin-right: calc(var(--spacing) / 2);
-      }
+			> image {
+				all: unset;
+				color: color-mix(in srgb, var(--fg) 60%, transparent);
+				-gtk-icon-size: var(--icon-size);
+				margin-right: calc(var(--spacing) / 2);
+			}
 
-      &:focus-visible {
-        outline: none;
-      }
+			&:focus-visible {
+				outline: none;
+			}
 
-      selection {
-        color: color-mix(in srgb, var(--fg) 50%, var(--bg));
-        background-color: transparent;
-      }
+			selection {
+				color: color-mix(in srgb, var(--fg) 50%, var(--bg));
+				background-color: transparent;
+			}
+		}
 
-    }
+		separator {
+			margin: calc(4pt * var(--scale, 1)) 0;
+			background-color: var(--popover-border-color);
+		}
 
-    separator {
-      margin: calc(4pt * var(--scale, 1)) 0;
-      background-color: var(--popover-border-color);
-    }
+		button.app-item {
+			padding: var(--padding);
+			transition: var(--transition);
+			background-color: transparent;
+			background-image: none;
+			box-shadow: none;
 
-    button.app-item {
-      padding: var(--padding);
-      transition: var(--transition);
-      background-color: transparent;
-      background-image: none;
-      box-shadow: none;
+			&:focus-visible {
+				outline: none;
+			}
 
-      &:focus-visible {
-        outline: none;
-      }
+			> box {
+				@include spacing(0.5);
+			}
 
-      > box {
-        @include spacing(0.5);
-      }
+			label {
+				transition: var(--transition);
 
-      label {
-        transition: var(--transition);
+				&.title {
+					color: var(--fg);
+				}
 
-        &.title {
-          color: var(--fg);
-        }
+				&.description {
+					color: color-mix(in srgb, var(--fg) 70%, transparent);
+					font-weight: normal;
+				}
+			}
 
-        &.description {
-          color: color-mix(in srgb, var(--fg) 70%, transparent);
-          font-weight: normal;
-        }
-      }
+			image {
+				transition: var(--transition);
+			}
 
-      image {
-        transition: var(--transition);
-      }
+			&:hover,
+			&:focus {
+				label.title {
+					color: var(--primary-bg);
+				}
 
-      &:hover,
-      &:focus {
-        label.title {
-          color: var(--primary-bg);
-        }
+				label.description {
+					color: color-mix(in srgb, var(--primary-bg) 60%, transparent);
+				}
 
-        label.description {
-          color: color-mix(in srgb, var(--primary-bg) 60%, transparent);
-        }
+				image {
+					-gtk-icon-shadow: 2px 2px var(--primary-bg);
+				}
+			}
 
-        image {
-          -gtk-icon-shadow: 2px 2px var(--primary-bg);
-        }
-      }
+			&:active {
+				background-color: color-mix(
+					in srgb,
+					var(--primary-bg) 50%,
+					transparent
+				);
+				border-radius: var(--radius);
+				box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
 
-      &:active {
-        background-color: color-mix(in srgb, var(--primary-bg) 50%, transparent);
-        border-radius: var(--radius);
-        box-shadow: inset 0 0 0 var(--border-width) var(--border-color);
+				label.title {
+					color: var(--fg);
+				}
+			}
+		}
 
-        label.title {
-          color: var(--fg);
-        }
-      }
-    }
-
-    label.launch-hint {
-      color: color-mix(in srgb, var(--fg) 70%, transparent);
-    }
-  }
+		label.launch-hint {
+			color: color-mix(in srgb, var(--fg) 70%, transparent);
+		}
+	}
 }

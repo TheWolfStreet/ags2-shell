@@ -1,4 +1,4 @@
-@use '../../../../style/base' as *;
+@use "../../../../style/base" as *;
 
 window#bar {
 	box.battery {
@@ -13,37 +13,37 @@ window#bar {
 		}
 	}
 
-  box.colorpicker {
-    @include spacing(0.5);
-    button {
-      padding: calc(var(--padding) / 2) calc(var(--padding));
-    }
-  }
+	box.colorpicker {
+		@include spacing(0.5);
+		button {
+			padding: calc(var(--padding) / 2) calc(var(--padding));
+		}
+	}
 
-  button.recorder {
-    box {
-      @include spacing(0.5);
-    }
+	button.recorder {
+		box {
+			@include spacing(0.5);
+		}
 
-    image {
-      color: color-mix(in srgb, var(--error-bg) 70%, transparent);
-    }
+		image {
+			color: color-mix(in srgb, var(--error-bg) 70%, transparent);
+		}
 
-    &:hover image {
-      color: color-mix(in srgb, var(--error-bg) 85%, transparent);
-    }
+		&:hover image {
+			color: color-mix(in srgb, var(--error-bg) 85%, transparent);
+		}
 
-    &:active image {
-      color: var(--primary-fg);
-    }
-  }
+		&:active image {
+			color: var(--primary-fg);
+		}
+	}
 
-  button.media {
-    box.media-content {
-      all: unset;
-      revealer label {
-        margin-left: calc(var(--spacing) / 2);
-      }
-    }
-  }
+	button.media {
+		box.media-content {
+			all: unset;
+			revealer label {
+				margin-left: calc(var(--spacing) / 2);
+			}
+		}
+	}
 }

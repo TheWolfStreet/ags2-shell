@@ -42,13 +42,13 @@ ags bundle shell/main.tsx "$stage/main" -g 4 \
   -d "STYLE_DIR=$(js_string "$appdatadir")"
 
 for launcher in "$stage/main" "$stage/wallpaper"; do
-  grep -Fxq 'file="${XDG_RUNTIME_DIR:-/tmp}/dmFyIF-ags.js"' "$launcher"
-  grep -q '> \$file$' "$launcher"
-  grep -q -- '-m \$file \$@$' "$launcher"
+  grep -Fxq "file=\"\${XDG_RUNTIME_DIR:-/tmp}/dmFyIF-ags.js\"" "$launcher"
+  grep -q "> \\\$file$" "$launcher"
+  grep -q -- "-m \\\$file \\\$@$" "$launcher"
   sed -i \
-    -e 's|^file=.*$|set -eo pipefail; umask 077; file=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/ags2-shell.XXXXXXXX"); trap '\''rm -f -- "$file"'\'' EXIT|' \
-    -e 's|> \$file$|> "$file"|' \
-    -e 's|-m \$file \$@$|-m "$file" "$@"|' "$launcher"
+    -e "s|^file=.*$|set -eo pipefail; umask 077; file=\$(mktemp \"\${XDG_RUNTIME_DIR:-/tmp}/ags2-shell.XXXXXXXX\"); trap 'rm -f -- \"\$file\"' EXIT|" \
+    -e "s|> \\\$file$|> \"\$file\"|" \
+    -e "s|-m \\\$file \\\$@$|-m \"\$file\" \"\$@\"|" "$launcher"
 done
 
 install -Dm755 "$stage/wallpaper" "$wallpaper_bin"

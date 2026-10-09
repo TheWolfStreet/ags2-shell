@@ -25,31 +25,55 @@ export const quick_settings_submenu = {
 	},
 }
 
-export function Menu({ name, iconName: icon_name, title, headerChild: header_child, children }: menu_props & {
+export function Menu({
+	name,
+	iconName: icon_name,
+	title,
+	headerChild: header_child,
+	children,
+}: menu_props & {
 	headerChild?: Node
 	children?: Node | Node[]
 }) {
 	const menu_name = () => read_value(name) ?? ""
-	const class_name = is_accessor<string>(name) ? name.as(value => `menu ${value}`) : `menu ${name ?? ""}`
+	const class_name = is_accessor<string>(name)
+		? name.as((value) => `menu ${value}`)
+		: `menu ${name ?? ""}`
 
 	return (
 		<revealer
 			transitionType={SLIDE_DOWN}
 			transitionDuration={options.transition.duration}
-			revealChild={createComputed(() => quick_settings_submenu.opened() === menu_name())}
-			vexpand={false} hexpand={false}
+			revealChild={createComputed(
+				() => quick_settings_submenu.opened() === menu_name(),
+			)}
+			vexpand={false}
+			hexpand={false}
 		>
-			<box
-				class={class_name}
-				orientation={VERTICAL}
-			>
+			<box class={class_name} orientation={VERTICAL}>
 				<box class="title-box horizontal">
-					<image class="icon" iconName={icon_name} valign={Gtk.Align.CENTER} useFallback />
-					<label class="title" label={title} valign={Gtk.Align.CENTER} yalign={0.5} />
+					<image
+						class="icon"
+						iconName={icon_name}
+						valign={Gtk.Align.CENTER}
+						useFallback
+					/>
+					<label
+						class="title"
+						label={title}
+						valign={Gtk.Align.CENTER}
+						yalign={0.5}
+					/>
 					{header_child}
 				</box>
 				<Gtk.Separator />
-				<box class="content vertical" orientation={VERTICAL} vexpand hexpand children={children} />
+				<box
+					class="content vertical"
+					orientation={VERTICAL}
+					vexpand
+					hexpand
+					children={children}
+				/>
 			</box>
 		</revealer>
 	)
@@ -72,35 +96,51 @@ export function ToggleButton({
 	const arrow_rotation = arrow ? use_arrow_rotation(name) : null
 
 	const base = arrow ? "toggle-button" : "simple-toggle"
-	const class_name = connection?.as(v => v ? `${base} active` : base) ?? base
+	const class_name =
+		connection?.as((v) => (v ? `${base} active` : base)) ?? base
 
 	return (
 		<box class={class_name}>
-			<button onClicked={on_toggle} tooltipText={label} sensitive={on_toggle !== undefined}>
+			<button
+				onClicked={on_toggle}
+				tooltipText={label}
+				sensitive={on_toggle !== undefined}
+			>
 				<box class="horizontal" hexpand>
 					<image class="icon" iconName={icon_name} useFallback />
-					<label class="label" ellipsize={EllipsizeMode.END} maxWidthChars={11} label={label} />
+					<label
+						class="label"
+						ellipsize={EllipsizeMode.END}
+						maxWidthChars={11}
+						label={label}
+					/>
 				</box>
 			</button>
 			{arrow && arrow_rotation && (
-				<button class="arrow" visible onClicked={() => {
-					arrow_rotation.toggle_menu()
-					on_arrow?.()
-				}}>
-					<image iconName={icons.ui.arrow.right} useFallback css={arrow_rotation.css} />
+				<button
+					class="arrow"
+					visible
+					onClicked={() => {
+						arrow_rotation.toggle_menu()
+						on_arrow?.()
+					}}
+				>
+					<image
+						iconName={icons.ui.arrow.right}
+						useFallback
+						css={arrow_rotation.css}
+					/>
 				</button>
 			)}
 		</box>
 	)
 }
 
-export function Arrow(
-	{
-		name,
-		visible,
-		tooltipText: tooltip_text
-	}: FCProps<Gtk.Button, arrow_props>
-) {
+export function Arrow({
+	name,
+	visible,
+	tooltipText: tooltip_text,
+}: FCProps<Gtk.Button, arrow_props>) {
 	const arrow_rotation = use_arrow_rotation(name)
 
 	return (
@@ -112,7 +152,11 @@ export function Arrow(
 				arrow_rotation.toggle_menu()
 			}}
 		>
-			<image iconName={icons.ui.arrow.right} useFallback css={arrow_rotation.css} />
+			<image
+				iconName={icons.ui.arrow.right}
+				useFallback
+				css={arrow_rotation.css}
+			/>
 		</button>
 	)
 }
@@ -128,14 +172,17 @@ export function SettingsButton({ callback }: { callback: () => void }) {
 	)
 }
 
-on_window_toggle("quicksettings", window => {
+on_window_toggle("quicksettings", (window) => {
 	if (!window.visible) quick_settings_submenu.close()
 })
 
 function use_arrow_rotation(name?: Accessor<string> | string) {
 	const menu_name = () => read_value(name)
-	const css = createComputed(() => quick_settings_submenu.opened() === menu_name()
-		? "transform: rotate(90deg);" : "transform: rotate(0deg);")
+	const css = createComputed(() =>
+		quick_settings_submenu.opened() === menu_name()
+			? "transform: rotate(90deg);"
+			: "transform: rotate(0deg);",
+	)
 
 	return {
 		css,
@@ -160,8 +207,11 @@ type toggle_button_props = {
 	label?: Accessor<string> | string
 }
 
-type menu_props = FCProps<Gtk.Widget, {
-	name?: Accessor<string> | string
-	iconName?: Accessor<string> | string
-	title?: Accessor<string> | string
-}>
+type menu_props = FCProps<
+	Gtk.Widget,
+	{
+		name?: Accessor<string> | string
+		iconName?: Accessor<string> | string
+		title?: Accessor<string> | string
+	}
+>

@@ -38,7 +38,9 @@ export function Battery() {
 		if (percentage() === 1) return "Fully charged"
 
 		const is_charging = charging()
-		const formatted = format_duration(is_charging ? time_to_full() : time_to_empty())
+		const formatted = format_duration(
+			is_charging ? time_to_full() : time_to_empty(),
+		)
 		if (!formatted) return is_charging ? "Charging" : "Draining"
 
 		return is_charging ? `${formatted} until full` : `${formatted} remaining`
@@ -48,7 +50,10 @@ export function Battery() {
 		options.bar.position.peek() === "top-center"
 			? Gtk.PositionType.BOTTOM
 			: Gtk.PositionType.TOP
-	const { popover, revealer, dispose } = create_animated_popover(popover_position(), false)
+	const { popover, revealer, dispose } = create_animated_popover(
+		popover_position(),
+		false,
+	)
 	revealer.set_child(
 		(
 			<box class="batterystate vertical" orientation={Gtk.Orientation.VERTICAL}>

@@ -96,8 +96,18 @@ async function sync_tmux_accent() {
 
 	const sessions = raw_sessions.split("\n").filter(Boolean)
 	for (const session of sessions) {
-		await execAsync(["tmux", "set-option", "-t", session, "@main_accent", hex]).catch(
-			(error) => console.debug(`startup.tmux: accent sync skipped for session ${session}`, error),
+		await execAsync([
+			"tmux",
+			"set-option",
+			"-t",
+			session,
+			"@main_accent",
+			hex,
+		]).catch((error) =>
+			console.debug(
+				`startup.tmux: accent sync skipped for session ${session}`,
+				error,
+			),
 		)
 	}
 }
@@ -109,8 +119,11 @@ const sync_scheme = debounce(SCHEME_SYNC_DEBOUNCE_MS, () => {
 
 let tmux_sync = Promise.resolve()
 const sync_tmux = debounce(60, () => {
-	tmux_sync = tmux_sync.then(sync_tmux_accent).catch(error =>
-		console.error("startup.tmux: Failed to synchronize accent", error))
+	tmux_sync = tmux_sync
+		.then(sync_tmux_accent)
+		.catch((error) =>
+			console.error("startup.tmux: Failed to synchronize accent", error),
+		)
 	return tmux_sync
 })
 
@@ -156,15 +169,26 @@ function start_hyprland_appearance_sync() {
 			`decoration:blur:enabled ${blur.peek() ? "true" : "false"}`,
 		]
 		const batch = rules.map((rule) => `keyword ${rule}`).join("; ")
-		const result = await attempt_async(() => hyprland.message_async(`[[BATCH]]/${batch}`))
+		const result = await attempt_async(() =>
+			hyprland.message_async(`[[BATCH]]/${batch}`),
+		)
 		if (!result.ok || result.value !== "ok")
-			console.error("startup.hyprland: Failed to apply appearance", result.ok ? result.value : result.err)
+			console.error(
+				"startup.hyprland: Failed to apply appearance",
+				result.ok ? result.value : result.err,
+			)
 	}
 
 	let pending = Promise.resolve()
 	const update = debounce(100, () => {
-		pending = pending.then(apply_hyprland_appearance).catch(error =>
-			console.error("startup.hyprland: Failed to synchronize appearance", error))
+		pending = pending
+			.then(apply_hyprland_appearance)
+			.catch((error) =>
+				console.error(
+					"startup.hyprland: Failed to synchronize appearance",
+					error,
+				),
+			)
 		return pending
 	})
 	hyprland.connect("config-reloaded", () => update.call())
@@ -181,9 +205,13 @@ let last_wallpaper_revision = -1
 
 function sample_wallpaper_pixels(path: string): Rgb[] {
 	const [, source_width, source_height] = GdkPixbuf.Pixbuf.get_file_info(path)
-	if (source_width < 1 || source_height < 1 ||
-		source_width > MAX_WALLPAPER_DIMENSION || source_height > MAX_WALLPAPER_DIMENSION ||
-		source_width * source_height > MAX_WALLPAPER_PIXELS)
+	if (
+		source_width < 1 ||
+		source_height < 1 ||
+		source_width > MAX_WALLPAPER_DIMENSION ||
+		source_height > MAX_WALLPAPER_DIMENSION ||
+		source_width * source_height > MAX_WALLPAPER_PIXELS
+	)
 		throw new Error("Wallpaper dimensions exceed palette sampling limit")
 	const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
 		path,
@@ -285,8 +313,9 @@ export default function start_shell(): Result<void> {
 		scheme.subscribe(() => sync_scheme.call())
 
 		if (GLib.find_program_in_path("tmux") !== null) {
-			tmux_sync = sync_tmux_accent().catch(error =>
-				console.error("startup.tmux: Failed to synchronize accent", error))
+			tmux_sync = sync_tmux_accent().catch((error) =>
+				console.error("startup.tmux: Failed to synchronize accent", error),
+			)
 			options.theme.dark.primary.bg.subscribe(() => sync_tmux.call())
 			options.theme.light.primary.bg.subscribe(() => sync_tmux.call())
 			options.theme.scheme.subscribe(() => sync_tmux.call())

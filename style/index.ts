@@ -19,15 +19,17 @@ let static_provider: Gtk.CssProvider | undefined
 let runtime_provider: Gtk.CssProvider | undefined
 
 function ensure_providers() {
-	if (static_provider)
-		return
+	if (static_provider) return
 
 	const display = Gdk.Display.get_default()
-	if (!display)
-		return
+	if (!display) return
 
 	static_provider = new Gtk.CssProvider()
-	Gtk.StyleContext.add_provider_for_display(display, static_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+	Gtk.StyleContext.add_provider_for_display(
+		display,
+		static_provider,
+		Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+	)
 	load_static_css()
 }
 
@@ -43,20 +45,22 @@ function perform_reset_css() {
 	}
 
 	const runtime_css_content = build_runtime_css()
-	if (runtime_css_content === last_runtime_css_content)
-		return
+	if (runtime_css_content === last_runtime_css_content) return
 
 	ensure_providers()
 	const display = Gdk.Display.get_default()
-	if (!display)
-		return
+	if (!display) return
 
 	const next_provider = new Gtk.CssProvider()
 	next_provider.load_from_string(runtime_css_content)
 	if (runtime_provider)
 		Gtk.StyleContext.remove_provider_for_display(display, runtime_provider)
 	runtime_provider = next_provider
-	Gtk.StyleContext.add_provider_for_display(display, runtime_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+	Gtk.StyleContext.add_provider_for_display(
+		display,
+		runtime_provider,
+		Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+	)
 	last_runtime_css_content = runtime_css_content
 }
 
@@ -66,14 +70,17 @@ function reset_css() {
 		return
 	}
 
-	if (reset_css_source_id !== undefined)
-		return
+	if (reset_css_source_id !== undefined) return
 
-	reset_css_source_id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, RUNTIME_CSS_DEBOUNCE_MS, () => {
-		reset_css_source_id = undefined
-		perform_reset_css()
-		return GLib.SOURCE_REMOVE
-	})
+	reset_css_source_id = GLib.timeout_add(
+		GLib.PRIORITY_DEFAULT,
+		RUNTIME_CSS_DEBOUNCE_MS,
+		() => {
+			reset_css_source_id = undefined
+			perform_reset_css()
+			return GLib.SOURCE_REMOVE
+		},
+	)
 }
 
 export function begin_css_batch() {
@@ -81,8 +88,7 @@ export function begin_css_batch() {
 }
 
 export function end_css_batch() {
-	if (css_batch_depth <= 0)
-		return
+	if (css_batch_depth <= 0) return
 
 	css_batch_depth -= 1
 	if (css_batch_depth === 0 && css_batch_pending) {
@@ -101,18 +107,28 @@ function watch_static_css() {
 
 export function init_css() {
 	const bundled_style_dir = typeof STYLE_DIR !== "undefined" ? STYLE_DIR : null
-	const config_dir = GLib.getenv("AGS2SHELL_STYLES") ?? bundled_style_dir ?? env.paths.cfg
-	css_file_path = GLib.build_filenamev([config_dir, "style", "compile", "main.css"])
+	const config_dir =
+		GLib.getenv("AGS2SHELL_STYLES") ?? bundled_style_dir ?? env.paths.cfg
+	css_file_path = GLib.build_filenamev([
+		config_dir,
+		"style",
+		"compile",
+		"main.css",
+	])
 
 	ensure_providers()
-	subscribe_options(options, [
-		"scale",
-		"font",
-		"theme",
-		"bar.corners",
-		"hyprland.gaps",
-		"transition.duration",
-	], reset_css)
+	subscribe_options(
+		options,
+		[
+			"scale",
+			"font",
+			"theme",
+			"bar.corners",
+			"hyprland.gaps",
+			"transition.duration",
+		],
+		reset_css,
+	)
 	perform_reset_css()
 	watch_static_css()
 }

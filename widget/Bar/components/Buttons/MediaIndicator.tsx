@@ -75,9 +75,11 @@ function create_preferred_player() {
 	const players = createBinding(media, "players")
 	return createComputed(() => {
 		const available = players()
-		return available.find((player) =>
-			player.get_bus_name().includes(options.bar.media.preferred()),
-		) ?? available[0]
+		return (
+			available.find((player) =>
+				player.get_bus_name().includes(options.bar.media.preferred()),
+			) ?? available[0]
+		)
 	})
 }
 

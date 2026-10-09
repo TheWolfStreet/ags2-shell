@@ -82,7 +82,10 @@ export function get_grid_metrics(
 	const padding_right = Math.max(0, Math.floor(padding.right))
 	const padding_top = Math.max(0, Math.floor(padding.top))
 	const padding_bottom = Math.max(0, Math.floor(padding.bottom))
-	const base_width = Math.max(1, Math.floor(width) - padding_left - padding_right)
+	const base_width = Math.max(
+		1,
+		Math.floor(width) - padding_left - padding_right,
+	)
 	const base_height = Math.max(
 		1,
 		Math.floor(height) - padding_top - padding_bottom,
@@ -90,7 +93,10 @@ export function get_grid_metrics(
 	const columns = Math.max(1, Math.floor(base_width / cell_size))
 	const requested_side_margin_total = requested_edge_left + requested_edge_right
 	const max_side_margin_total = Math.max(0, base_width - columns * cell_size)
-	const side_margin_total = Math.min(requested_side_margin_total, max_side_margin_total)
+	const side_margin_total = Math.min(
+		requested_side_margin_total,
+		max_side_margin_total,
+	)
 	const left_ratio =
 		requested_side_margin_total > 0
 			? requested_edge_left / requested_side_margin_total
@@ -368,7 +374,8 @@ export function move_paths_to_slot(
 	if (dragged.length === 1) {
 		const dragged_path = dragged[0]
 		const source_slot = normalized[dragged_path]
-		if (source_slot == null || source_slot === move.targetSlot) return normalized
+		if (source_slot == null || source_slot === move.targetSlot)
+			return normalized
 		const next = { ...normalized }
 		const occupied_path = Object.entries(normalized).find(
 			([path, slot]) => path !== dragged_path && slot === move.targetSlot,
@@ -449,7 +456,10 @@ export function move_paths_to_grid(
 			(anchor.row + offset.row) * columns + anchor.column + offset.column
 
 		if (slot < 0 || slot >= target.slotCount || used_slots.has(slot)) {
-			while (free_slot_cursor < target.slotCount && used_slots.has(free_slot_cursor))
+			while (
+				free_slot_cursor < target.slotCount &&
+				used_slots.has(free_slot_cursor)
+			)
 				free_slot_cursor += 1
 			if (free_slot_cursor >= target.slotCount) break
 			slot = free_slot_cursor

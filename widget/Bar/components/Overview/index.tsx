@@ -98,7 +98,8 @@ export namespace Overview {
 					hyprland.sync_clients_finish(result)
 					succeeded = true
 				} catch {
-					if (!sync_warned) console.warn("overview: Hyprland client sync failed")
+					if (!sync_warned)
+						console.warn("overview: Hyprland client sync failed")
 					sync_warned = true
 				}
 				in_flight = false
@@ -108,10 +109,19 @@ export namespace Overview {
 				}
 				if (succeeded) {
 					sync_warned = false
-					const snapshot = hyprland.clients.map((client) => [
-						client.address, client.workspace?.id, client.x, client.y,
-						client.width, client.height,
-					].join(":")).sort().join("|")
+					const snapshot = hyprland.clients
+						.map((client) =>
+							[
+								client.address,
+								client.workspace?.id,
+								client.x,
+								client.y,
+								client.width,
+								client.height,
+							].join(":"),
+						)
+						.sort()
+						.join("|")
 					if (snapshot !== previous_snapshot) {
 						previous_snapshot = snapshot
 						refresh_client_placement()
@@ -138,7 +148,9 @@ export namespace Overview {
 		return (
 			<PopupWindow application={app} name="overview" layer={OVERLAY}>
 				<box class="overview horizontal">
-					<For each={workspaces}>{(workspace_id) => <Workspace entry={workspace_id} />}</For>
+					<For each={workspaces}>
+						{(workspace_id) => <Workspace entry={workspace_id} />}
+					</For>
 				</box>
 			</PopupWindow>
 		)
@@ -186,25 +198,45 @@ export namespace Overview {
 	}
 
 	function workspace_ids(total: number) {
-		if (total > 0) return Array.from({ length: Math.min(16, total) }, (_, index) => index + 1)
+		if (total > 0)
+			return Array.from(
+				{ length: Math.min(16, total) },
+				(_value, index) => index + 1,
+			)
 		const workspaces = createBinding(hyprland, "workspaces")() ?? []
-		const ids = workspaces.map((workspace) => workspace.id).filter((id) => id > 0)
+		const ids = workspaces
+			.map((workspace) => workspace.id)
+			.filter((id) => id > 0)
 		return [...new Set(ids)].sort((a, b) => a - b)
 	}
 
 	function workspace_monitor(workspace_id: number) {
-		return hyprland.get_workspace(workspace_id)?.get_monitor()
-			?? hyprland.get_focused_monitor() ?? hyprland.monitors[0] ?? null
+		return (
+			hyprland.get_workspace(workspace_id)?.get_monitor() ??
+			hyprland.get_focused_monitor() ??
+			hyprland.monitors[0] ??
+			null
+		)
 	}
 
 	function monitor_size(monitor: AstalHyprland.Monitor | null) {
-		if (!monitor) return { width: fallback_monitor_width, height: fallback_monitor_height }
+		if (!monitor)
+			return { width: fallback_monitor_width, height: fallback_monitor_height }
 		const transform = createBinding(monitor, "transform")()
 		const rotated = [1, 3, 5, 7].includes(transform)
 		const scale = sanitize_dimension(createBinding(monitor, "scale")(), 1)
-		const width = sanitize_dimension(createBinding(monitor, "width")(), fallback_monitor_width)
-		const height = sanitize_dimension(createBinding(monitor, "height")(), fallback_monitor_height)
-		return { width: (rotated ? height : width) / scale, height: (rotated ? width : height) / scale }
+		const width = sanitize_dimension(
+			createBinding(monitor, "width")(),
+			fallback_monitor_width,
+		)
+		const height = sanitize_dimension(
+			createBinding(monitor, "height")(),
+			fallback_monitor_height,
+		)
+		return {
+			width: (rotated ? height : width) / scale,
+			height: (rotated ? width : height) / scale,
+		}
 	}
 
 	function place_client_widget(self: Gtk.Widget, client: AstalHyprland.Client) {
@@ -243,7 +275,9 @@ export namespace Overview {
 		})
 
 		const scaled_width = createComputed(() => Math.round(scale(client_width())))
-		const scaled_height = createComputed(() => Math.round(scale(client_height())))
+		const scaled_height = createComputed(() =>
+			Math.round(scale(client_height())),
+		)
 
 		let widget: Gtk.Widget | null = null
 		let update_timer: Timer | null = null
@@ -282,7 +316,9 @@ export namespace Overview {
 				monitor_sub = createComputed(() => {
 					createBinding(hyprland, "monitors")()
 					const workspace = createBinding(client, "workspace")()
-					const monitor = workspace ? createBinding(workspace, "monitor")() : null
+					const monitor = workspace
+						? createBinding(workspace, "monitor")()
+						: null
 					if (monitor) {
 						createBinding(monitor, "x")()
 						createBinding(monitor, "y")()
@@ -292,7 +328,9 @@ export namespace Overview {
 			})
 
 			onCleanup(() => {
-				client_connections.forEach((connection) => client.disconnect(connection))
+				client_connections.forEach((connection) =>
+					client.disconnect(connection),
+				)
 				scale_sub?.()
 				placement_sub?.()
 				monitor_sub?.()
@@ -322,10 +360,13 @@ export namespace Overview {
 						Math.round((16 * scale) / 100),
 					)}
 				/>
-				<Gtk.GestureClick button={Gdk.BUTTON_MIDDLE} onPressed={(self) => {
-					client.kill()
-					self.reset()
-				}} />
+				<Gtk.GestureClick
+					button={Gdk.BUTTON_MIDDLE}
+					onPressed={(self) => {
+						client.kill()
+						self.reset()
+					}}
+				/>
 				<Gtk.DragSource
 					actions={MOVE}
 					content={content_provider}
@@ -341,17 +382,21 @@ export namespace Overview {
 	}
 
 	function Workspace({ entry: workspace_id }: { entry: number }) {
-		const class_name = createBinding(hyprland, "focusedWorkspace").as((focused_workspace) => {
-			const classes: string[] = ["workspace"]
-			if (focused_workspace?.id === workspace_id) classes.push("active")
-			return classes.join(" ")
-		})
+		const class_name = createBinding(hyprland, "focusedWorkspace").as(
+			(focused_workspace) => {
+				const classes: string[] = ["workspace"]
+				if (focused_workspace?.id === workspace_id) classes.push("active")
+				return classes.join(" ")
+			},
+		)
 
 		const css = createComputed(() => {
 			const factor = scale_factor(options.overview.scale())
 			createBinding(hyprland, "workspaces")()
 			const workspace = hyprland.get_workspace(workspace_id)
-			const monitor = workspace ? createBinding(workspace, "monitor")() : workspace_monitor(workspace_id)
+			const monitor = workspace
+				? createBinding(workspace, "monitor")()
+				: workspace_monitor(workspace_id)
 			const { width, height } = monitor_size(monitor)
 			return `min-width: ${factor * width}px; min-height: ${factor * height}px;`
 		})
@@ -372,12 +417,16 @@ export namespace Overview {
 				<Gtk.DropTarget
 					actions={MOVE}
 					formats={Gdk.ContentFormats.new_for_gtype(GObject.TYPE_STRING)}
-					onAccept={(_, drop) => {
+					onAccept={(_target, drop) => {
 						const formats = drop.get_formats()
 						return formats.contain_gtype(GObject.TYPE_STRING)
 					}}
-					onDrop={(_, value) => {
-						if (typeof value !== "string" || !/^(?:0x)?[0-9a-fA-F]+$/.test(value)) return false
+					onDrop={(_target, value) => {
+						if (
+							typeof value !== "string" ||
+							!/^(?:0x)?[0-9a-fA-F]+$/.test(value)
+						)
+							return false
 						if (!hyprland.get_client(value)) return false
 						move_client_to_workspace_silent(workspace_id, value)
 						return true

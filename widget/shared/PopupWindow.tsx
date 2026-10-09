@@ -12,7 +12,10 @@ type vertical_position = "top" | "center" | "bottom"
 type horizontal_position = "left" | "center" | "right"
 export type Position = `${vertical_position}-${horizontal_position}` | "center"
 
-export function create_popup_position(bar: Accessor<string>, popup: Accessor<string>): Accessor<Position> {
+export function create_popup_position(
+	bar: Accessor<string>,
+	popup: Accessor<string>,
+): Accessor<Position> {
 	return createComputed(() => {
 		const vertical = bar().split("-")[0]
 		const horizontal = popup().split("-").pop() ?? "center"
@@ -21,7 +24,8 @@ export function create_popup_position(bar: Accessor<string>, popup: Accessor<str
 }
 
 const { START, END, CENTER } = Gtk.Align
-const { SLIDE_UP, SLIDE_DOWN, SLIDE_LEFT, SLIDE_RIGHT, CROSSFADE } = Gtk.RevealerTransitionType
+const { SLIDE_UP, SLIDE_DOWN, SLIDE_LEFT, SLIDE_RIGHT, CROSSFADE } =
+	Gtk.RevealerTransitionType
 const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 const { ON_DEMAND } = Astal.Keymode
 const { IGNORE } = Astal.Exclusivity
@@ -47,34 +51,53 @@ export function PopupWindow({
 	...props
 }: Props<PopupWindowImpl, popup_props> & {
 	handleClosing?: boolean
-	onKey?: (controller: Gtk.EventControllerKey, keyval: number, keycode: number, modifiers: number, window: Gtk.Window) => void
-	onClick?: (controller: Gtk.GestureClick, press_count: number, x: number, y: number, window: Gtk.Window, content: Gtk.Widget) => void
+	onKey?: (
+		controller: Gtk.EventControllerKey,
+		keyval: number,
+		keycode: number,
+		modifiers: number,
+		window: Gtk.Window,
+	) => void
+	onClick?: (
+		controller: Gtk.GestureClick,
+		press_count: number,
+		x: number,
+		y: number,
+		window: Gtk.Window,
+		content: Gtk.Widget,
+	) => void
 }) {
 	let content: Gtk.Revealer
 	let window: PopupWindowImpl
 	let visibility_unsubscribe: (() => void) | undefined
 
 	const alignment = createComputed(() => get_position_config(layout))
-	const initial_visible = is_accessor<boolean>(visible) ? visible.peek() : visible
+	const initial_visible = is_accessor<boolean>(visible)
+		? visible.peek()
+		: visible
 	const classes = createComputed(() => {
 		const window_name = is_accessor<string>(name) ? name() : name
-		const name_class = is_accessor<string>(class_name) ? class_name() : class_name
+		const name_class = is_accessor<string>(class_name)
+			? class_name()
+			: class_name
 		return `popup-window${window_name ? ` ${window_name}` : ""}${name_class ? ` ${name_class}` : ""}`
 	})
 
 	const pick_alignment = <K extends keyof align_config>(key: K) => {
-		return alignment.as(config => config[key])
+		return alignment.as((config) => config[key])
 	}
 
 	onCleanup(() => visibility_unsubscribe?.())
 
 	return (
 		<RegisteredPopupWindow
-			$={popup_window => {
+			$={(popup_window) => {
 				window = popup_window
 				$?.(popup_window)
 				if (is_accessor<boolean>(visible))
-					visibility_unsubscribe = visible.subscribe(() => popup_window.set_requested_visible(visible.peek()))
+					visibility_unsubscribe = visible.subscribe(() =>
+						popup_window.set_requested_visible(visible.peek()),
+					)
 			}}
 			name={name}
 			class={classes}
@@ -86,17 +109,22 @@ export function PopupWindow({
 			layer={layer}
 			{...props}
 		>
-			<Gtk.EventControllerKey onKeyPressed={(controller, keyval, keycode, modifiers) => {
-				if (handle_closing && keyval === KEY_Escape) window.hide()
-				on_key?.(controller, keyval, keycode, modifiers, window)
-			}} />
-			<Gtk.GestureClick onPressed={(controller, press_count, x, y) => {
-				if (handle_closing && content) {
-					const [valid, rect] = content.compute_bounds(window)
-					if (valid && !rect.contains_point(new Graphene.Point({ x, y }))) window.hide()
-				}
-				on_click?.(controller, press_count, x, y, window, content)
-			}} />
+			<Gtk.EventControllerKey
+				onKeyPressed={(controller, keyval, keycode, modifiers) => {
+					if (handle_closing && keyval === KEY_Escape) window.hide()
+					on_key?.(controller, keyval, keycode, modifiers, window)
+				}}
+			/>
+			<Gtk.GestureClick
+				onPressed={(controller, press_count, x, y) => {
+					if (handle_closing && content) {
+						const [valid, rect] = content.compute_bounds(window)
+						if (valid && !rect.contains_point(new Graphene.Point({ x, y })))
+							window.hide()
+					}
+					on_click?.(controller, press_count, x, y, window, content)
+				}}
+			/>
 
 			<Gtk.Revealer
 				transitionDuration={options.transition.duration}
@@ -104,11 +132,15 @@ export function PopupWindow({
 				halign={pick_alignment("halign")}
 				valign={pick_alignment("valign")}
 				onNotifyChildRevealed={(self) => {
-					if (!self.get_child_revealed() && !self.get_reveal_child() && !window.requested_visible) {
+					if (
+						!self.get_child_revealed() &&
+						!self.get_reveal_child() &&
+						!window.requested_visible
+					) {
 						window.perform_hide()
 					}
 				}}
-				$={self => {
+				$={(self) => {
 					onMount(() => {
 						content = self
 						window.revealer = self
@@ -133,12 +165,20 @@ type align_config = {
 }
 
 const position_config: Record<Position, align_config> = {
-	"center": { halign: CENTER, valign: CENTER, transition_type: CROSSFADE },
+	center: { halign: CENTER, valign: CENTER, transition_type: CROSSFADE },
 	"top-left": { halign: START, valign: START, transition_type: SLIDE_DOWN },
 	"top-center": { halign: CENTER, valign: START, transition_type: SLIDE_DOWN },
 	"top-right": { halign: END, valign: START, transition_type: SLIDE_DOWN },
-	"center-left": { halign: START, valign: CENTER, transition_type: SLIDE_RIGHT },
-	"center-center": { halign: CENTER, valign: CENTER, transition_type: CROSSFADE },
+	"center-left": {
+		halign: START,
+		valign: CENTER,
+		transition_type: SLIDE_RIGHT,
+	},
+	"center-center": {
+		halign: CENTER,
+		valign: CENTER,
+		transition_type: CROSSFADE,
+	},
 	"center-right": { halign: END, valign: CENTER, transition_type: SLIDE_LEFT },
 	"bottom-left": { halign: START, valign: END, transition_type: SLIDE_UP },
 	"bottom-center": { halign: CENTER, valign: END, transition_type: SLIDE_UP },
@@ -146,12 +186,14 @@ const position_config: Record<Position, align_config> = {
 }
 
 function is_position(value: unknown): value is Position {
-	return typeof value === "string" && Object.prototype.hasOwnProperty.call(position_config, value)
+	return (
+		typeof value === "string" &&
+		Object.prototype.hasOwnProperty.call(position_config, value)
+	)
 }
 
 function get_position_config(value: unknown): align_config {
-	if (is_accessor<unknown>(value))
-		return get_position_config(value())
+	if (is_accessor<unknown>(value)) return get_position_config(value())
 	return is_position(value) ? position_config[value] : position_config.center
 }
 

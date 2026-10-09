@@ -1,10 +1,19 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { brightness_target, parse_ddc_brightness } from "../../service/brightnessMath.ts"
+import {
+	brightness_target,
+	parse_ddc_brightness,
+} from "../../service/brightnessMath.ts"
 
 test("brief DDC output parses current and maximum", () => {
-	assert.deepEqual(parse_ddc_brightness("VCP 10 C 50 100"), { current: 50, maximum: 100 })
-	assert.deepEqual(parse_ddc_brightness("VCP 10 C 127 255"), { current: 127, maximum: 255 })
+	assert.deepEqual(parse_ddc_brightness("VCP 10 C 50 100"), {
+		current: 50,
+		maximum: 100,
+	})
+	assert.deepEqual(parse_ddc_brightness("VCP 10 C 127 255"), {
+		current: 127,
+		maximum: 255,
+	})
 	assert.equal(parse_ddc_brightness("VCP 10 ERR"), null)
 	assert.equal(parse_ddc_brightness("VCP 10 C 300 255"), null)
 	assert.equal(parse_ddc_brightness("VCP 10 C 0 0"), null)

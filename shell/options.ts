@@ -6,7 +6,14 @@ import app from "$lib/app"
 import icons from "$lib/icons"
 import env from "$lib/env"
 import { ensure_file } from "$lib/files"
-import { attempt, attempt_async, err, log_error, ok, type Result } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type Result,
+} from "$lib/result"
 import { debounce } from "$lib/time"
 
 namespace Store {
@@ -17,10 +24,12 @@ namespace Store {
 	function ensure_loaded() {
 		if (cache !== null) return
 		const ready = ensure_file(path)
-		const result = ready.ok ? attempt(() => {
-			const raw = readFile(path) || "{}"
-			return JSON.parse(raw) as Record<string, unknown>
-		}) : ready
+		const result = ready.ok
+			? attempt(() => {
+					const raw = readFile(path) || "{}"
+					return JSON.parse(raw) as Record<string, unknown>
+				})
+			: ready
 		if (
 			log_error(result, "option.store.load: Failed to load options store") &&
 			!is_structured(result.value)
@@ -40,9 +49,11 @@ namespace Store {
 			if (revision === saved_revision) return ok(undefined)
 			const writing_revision = revision
 			const ready = ensure_file(path)
-			const result = ready.ok ? await attempt_async(async () => {
-				await writeFileAsync(path, JSON.stringify(cache, null, 2))
-			}) : ready
+			const result = ready.ok
+				? await attempt_async(async () => {
+						await writeFileAsync(path, JSON.stringify(cache, null, 2))
+					})
+				: ready
 			if (result.ok) saved_revision = writing_revision
 			log_error(result, "option.store.save: Failed to save options store")
 			return result
@@ -50,7 +61,9 @@ namespace Store {
 		return last_save
 	}
 
-	const save = debounce(3000, () => { void write() })
+	const save = debounce(3000, () => {
+		void write()
+	})
 
 	export function flush(): Promise<Result<void>> {
 		if (save.pending) {
@@ -120,12 +133,15 @@ namespace Store {
 
 function same_leaf(a: unknown, b: unknown): boolean {
 	if (Array.isArray(a) && Array.isArray(b))
-		return a.length === b.length && a.every((value, index) => Object.is(value, b[index]))
+		return (
+			a.length === b.length &&
+			a.every((value, index) => Object.is(value, b[index]))
+		)
 	return Object.is(a, b)
 }
 
 function snapshot_leaf<T>(value: T): T {
-	return Array.isArray(value) ? Object.freeze([...value]) as T : value
+	return Array.isArray(value) ? (Object.freeze([...value]) as T) : value
 }
 
 export class Opt<T> extends Accessor<T> {
@@ -134,9 +150,18 @@ export class Opt<T> extends Accessor<T> {
 	#valid: (value: unknown) => boolean
 	readonly id: string
 
-	constructor(initial: T, id: string, valid: (value: unknown) => boolean, current: T = initial) {
+	constructor(
+		initial: T,
+		id: string,
+		valid: (value: unknown) => boolean,
+		current: T = initial,
+	) {
 		const default_value = snapshot_leaf(initial)
-		const [acc, set] = createState(same_leaf(current, default_value) ? default_value : snapshot_leaf(current))
+		const [acc, set] = createState(
+			same_leaf(current, default_value)
+				? default_value
+				: snapshot_leaf(current),
+		)
 		super(
 			() => acc.peek(),
 			(cb) => acc.subscribe(cb),
@@ -198,29 +223,49 @@ type WidenLiterals<T> = T extends boolean
 			? number
 			: T
 
-type OptionRule = readonly (string | number)[] | { min: number, max: number, integer?: boolean }
+type OptionRule =
+	| readonly (string | number)[]
+	| { min: number; max: number; integer?: boolean }
 type OptionConstraints = Readonly<Record<string, OptionRule>>
 
-function valid_leaf(value: unknown, initial: unknown, path: string, constraints: OptionConstraints): boolean {
+function valid_leaf(
+	value: unknown,
+	initial: unknown,
+	path: string,
+	constraints: OptionConstraints,
+): boolean {
 	const rule = constraints[path]
 	if (Array.isArray(rule))
 		return rule.some((allowed) => Object.is(allowed, value))
 
 	if (Array.isArray(initial)) {
-		return Array.isArray(value) && value.length <= 128 && value.every((item) =>
-			typeof item === typeof initial[0] && typeof item === "string" && item.length <= 256)
+		return (
+			Array.isArray(value) &&
+			value.length <= 128 &&
+			value.every(
+				(item) =>
+					typeof item === typeof initial[0] &&
+					typeof item === "string" &&
+					item.length <= 256,
+			)
+		)
 	}
 	if (typeof initial === "boolean") return typeof value === "boolean"
 	if (typeof initial === "string") {
 		if (typeof value !== "string" || value.length > 4096) return false
 		if (initial.startsWith("#")) return /^#[0-9a-f]{6}$/i.test(value)
-		if (path === "font") return /^[^\n\r\\";{}]+\s+[1-9]\d*(?:\.\d+)?$/.test(value)
+		if (path === "font")
+			return /^[^\n\r\\";{}]+\s+[1-9]\d*(?:\.\d+)?$/.test(value)
 		return !/[\x00-\x1f]/.test(value)
 	}
 	if (typeof initial === "number") {
 		if (typeof value !== "number" || !Number.isFinite(value)) return false
 		if (rule && "min" in rule)
-			return value >= rule.min && value <= rule.max && (!rule.integer || Number.isInteger(value))
+			return (
+				value >= rule.min &&
+				value <= rule.max &&
+				(!rule.integer || Number.isInteger(value))
+			)
 		return value >= 0 && value <= 1000 && Number.isInteger(value)
 	}
 	return false
@@ -317,7 +362,7 @@ export const option_values = {
 } as const
 
 const constraints = {
-	"scale": { min: 50, max: 200, integer: true },
+	scale: { min: 50, max: 200, integer: true },
 	"transition.duration": { min: 0, max: 2000, integer: true },
 	"theme.scheme": option_values.theme_scheme,
 	"theme.opacity": { min: 0, max: 70, integer: true },

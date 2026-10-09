@@ -4,13 +4,30 @@ import { readFileSync, realpathSync } from "node:fs"
 import { createRequire } from "node:module"
 import test from "node:test"
 
-const tsc_path = realpathSync(execFileSync("which", ["tsc"], { encoding: "utf8" }).trim())
-const ts = createRequire(tsc_path)("../lib/node_modules/typescript/lib/typescript.js")
-const source = readFileSync(new URL("../../widget/Bar/components/Launcher/index.tsx", import.meta.url), "utf8")
-const ast = ts.createSourceFile("index.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+const tsc_path = realpathSync(
+	execFileSync("which", ["tsc"], { encoding: "utf8" }).trim(),
+)
+const ts = createRequire(tsc_path)(
+	"../lib/node_modules/typescript/lib/typescript.js",
+)
+const source = readFileSync(
+	new URL("../../widget/Bar/components/Launcher/index.tsx", import.meta.url),
+	"utf8",
+)
+const ast = ts.createSourceFile(
+	"index.tsx",
+	source,
+	ts.ScriptTarget.Latest,
+	true,
+	ts.ScriptKind.TSX,
+)
 const updates = []
 function visit(node) {
-	if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "update" && node.initializer)
+	if (
+		ts.isVariableDeclaration(node) &&
+		node.name.getText(ast) === "update" &&
+		node.initializer
+	)
 		updates.push(node)
 	ts.forEachChild(node, visit)
 }
@@ -21,14 +38,21 @@ const implementation = ts.transpileModule(`const ${updates[0].getText(ast)};`, {
 }).outputText
 
 function available(command) {
-	try { execFileSync("which", [command], { stdio: "ignore" }); return true }
-	catch { return false }
+	try {
+		execFileSync("which", [command], { stdio: "ignore" })
+		return true
+	} catch {
+		return false
+	}
 }
 
-test("native launcher rows retain positions throughout top and bottom slide transitions", {
-	skip: !available("gjs") || !available("xvfb-run"),
-}, () => {
-	const script = `
+test(
+	"native launcher rows retain positions throughout top and bottom slide transitions",
+	{
+		skip: !available("gjs") || !available("xvfb-run"),
+	},
+	() => {
+		const script = `
 const gi = imports.gi
 gi.versions.Gtk = "4.0"
 const { Gtk, GLib } = gi
@@ -113,41 +137,82 @@ ${implementation}
 }
 print(JSON.stringify(results))
 `
-	const run = spawnSync("xvfb-run", ["-n", String(1000 + process.pid % 1000 * 20), "gjs", "-c", script], {
-		encoding: "utf8", timeout: 30000, env: { ...process.env, GTK_A11Y: "none" },
-	})
-	assert.equal(run.status, 0, run.stderr)
-	assert.doesNotMatch(run.stderr, /Gtk-(?:WARNING|CRITICAL)|Gjs-CRITICAL/)
-	const results = JSON.parse(run.stdout.trim())
-	for (const { bottom, before, start, early, middle, end, returning, reversed, instant } of results) {
-		const outgoing = "Btop"
-		const retained = bottom ? "TextEditor" : "Steam"
-		assert.equal(before.rows[outgoing].height, 82)
-		const stable = bottom ? ["Sniper", ...before.siblings.filter(name => name !== "Sniper")] : before.siblings
-		assert.deepEqual(start.siblings, stable)
-		assert.deepEqual(early.siblings, stable)
-		assert.deepEqual(middle.siblings, stable)
-		assert.equal(start.rows.Sniper.height, 0)
-		assert.ok(early.rows.Sniper.height > 0 && early.rows.Sniper.height < 64, JSON.stringify(early))
-		assert.ok(early.rows.Btop.height > 0 && early.rows.Btop.height < 82, JSON.stringify(early))
-		assert.ok(middle.rows.Btop.height < early.rows.Btop.height, JSON.stringify(middle))
-		assert.ok(early.rows[retained].y < before.rows[retained].y, JSON.stringify(early))
-		assert.ok(middle.rows[retained].y < early.rows[retained].y, JSON.stringify(middle))
-		assert.equal(end.rows.Btop.height, 0)
-		assert.equal(end.rows.Sniper.height, 64)
-		for (const frame of [before, start, early, middle, end]) {
-			assert.ok(Math.abs(frame.rows[retained].y - frame.rows.Btop.y - frame.rows.Btop.height) <= 1,
-				JSON.stringify(frame))
+		const run = spawnSync(
+			"xvfb-run",
+			["-n", String(1000 + (process.pid % 1000) * 20), "gjs", "-c", script],
+			{
+				encoding: "utf8",
+				timeout: 30000,
+				env: { ...process.env, GTK_A11Y: "none" },
+			},
+		)
+		assert.equal(run.status, 0, run.stderr)
+		assert.doesNotMatch(run.stderr, /Gtk-(?:WARNING|CRITICAL)|Gjs-CRITICAL/)
+		const results = JSON.parse(run.stdout.trim())
+		for (const {
+			bottom,
+			before,
+			start,
+			early,
+			middle,
+			end,
+			returning,
+			reversed,
+			instant,
+		} of results) {
+			const outgoing = "Btop"
+			const retained = bottom ? "TextEditor" : "Steam"
+			assert.equal(before.rows[outgoing].height, 82)
+			const stable = bottom
+				? ["Sniper", ...before.siblings.filter((name) => name !== "Sniper")]
+				: before.siblings
+			assert.deepEqual(start.siblings, stable)
+			assert.deepEqual(early.siblings, stable)
+			assert.deepEqual(middle.siblings, stable)
+			assert.equal(start.rows.Sniper.height, 0)
+			assert.ok(
+				early.rows.Sniper.height > 0 && early.rows.Sniper.height < 64,
+				JSON.stringify(early),
+			)
+			assert.ok(
+				early.rows.Btop.height > 0 && early.rows.Btop.height < 82,
+				JSON.stringify(early),
+			)
+			assert.ok(
+				middle.rows.Btop.height < early.rows.Btop.height,
+				JSON.stringify(middle),
+			)
+			assert.ok(
+				early.rows[retained].y < before.rows[retained].y,
+				JSON.stringify(early),
+			)
+			assert.ok(
+				middle.rows[retained].y < early.rows[retained].y,
+				JSON.stringify(middle),
+			)
+			assert.equal(end.rows.Btop.height, 0)
+			assert.equal(end.rows.Sniper.height, 64)
+			for (const frame of [before, start, early, middle, end]) {
+				assert.ok(
+					Math.abs(
+						frame.rows[retained].y - frame.rows.Btop.y - frame.rows.Btop.height,
+					) <= 1,
+					JSON.stringify(frame),
+				)
+			}
+			assert.ok(returning.rows.Btop.height > 0, JSON.stringify(returning))
+			assert.equal(returning.rows.Btop.revealed, false)
+			assert.deepEqual(reversed.siblings, returning.siblings)
+			assert.equal(reversed.rows.Btop.height, returning.rows.Btop.height)
+			assert.equal(reversed.rows.Btop.target, false)
+			assert.equal(instant.rows.Btop.height, 82)
+			assert.equal(instant.rows.Sniper.height, 0)
+			assert.deepEqual(
+				instant.visual,
+				bottom
+					? ["Soldier", "Scout", "Steam", "Btop", "TextEditor", "Telegram"]
+					: ["Telegram", "TextEditor", "Btop", "Steam", "Scout", "Soldier"],
+			)
 		}
-		assert.ok(returning.rows.Btop.height > 0, JSON.stringify(returning))
-		assert.equal(returning.rows.Btop.revealed, false)
-		assert.deepEqual(reversed.siblings, returning.siblings)
-		assert.equal(reversed.rows.Btop.height, returning.rows.Btop.height)
-		assert.equal(reversed.rows.Btop.target, false)
-		assert.equal(instant.rows.Btop.height, 82)
-		assert.equal(instant.rows.Sniper.height, 0)
-		assert.deepEqual(instant.visual, bottom
-			? ["Soldier", "Scout", "Steam", "Btop", "TextEditor", "Telegram"]
-			: ["Telegram", "TextEditor", "Btop", "Steam", "Scout", "Soldier"])
-	}
-})
+	},
+)

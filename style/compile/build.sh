@@ -7,14 +7,14 @@ css=$(mktemp "$root/style/compile/.main.XXXXXXXX.css")
 list=$(mktemp "$root/style/.widget-files.XXXXXXXX.tmp")
 trap 'rm -f -- "$index" "$css" "$list"' EXIT
 
-: > "$index"
-find "$root/widget" -name '*.scss' -type f -print0 | LC_ALL=C sort -z > "$list"
+: >"$index"
+find "$root/widget" -name '*.scss' -type f -print0 | LC_ALL=C sort -z >"$list"
 count=0
 while IFS= read -r -d '' file; do
   path=${file#"$root"/}
-  printf "@use '../%s' as *;\n" "$path" >> "$index"
+  printf "@use '../%s' as *;\n" "$path" >>"$index"
   ((count += 1))
-done < "$list"
+done <"$list"
 
 if ! cmp -s "$index" "$root/style/widgets.scss"; then
   mv -f -- "$index" "$root/style/widgets.scss"

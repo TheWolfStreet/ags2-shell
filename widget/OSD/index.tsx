@@ -53,7 +53,11 @@ export namespace OSD {
 							class={content.as((value) =>
 								value.muted ? "percentage muted" : "percentage",
 							)}
-							fraction={content.as((value) => Number.isFinite(value.value) ? Math.max(0, Math.min(1, value.value)) : 0)}
+							fraction={content.as((value) =>
+								Number.isFinite(value.value)
+									? Math.max(0, Math.min(1, value.value))
+									: 0,
+							)}
 							hexpand
 						/>
 					</box>
@@ -156,7 +160,11 @@ export namespace OSD {
 		})
 		const keyboard_handler = brightness.connect("notify::kbd", () => {
 			if (!brightness.initialized) return
-			show(brightness.kbd, get_brightness_icon(brightness.kbd, "keyboard"), false)
+			show(
+				brightness.kbd,
+				get_brightness_icon(brightness.kbd, "keyboard"),
+				false,
+			)
 		})
 
 		return () => {

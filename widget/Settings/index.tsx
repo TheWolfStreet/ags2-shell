@@ -1,4 +1,3 @@
-
 import { createComputed, createRoot, createState } from "ags"
 import app from "$lib/app"
 import { Gtk } from "ags/gtk4"

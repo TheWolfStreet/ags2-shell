@@ -156,7 +156,8 @@ function readable_text(background: Rgb, hue: number, tinted: boolean) {
 	const black = { r: 0, g: 0, b: 0 }
 	const white = { r: 1, g: 1, b: 1 }
 	if (!tinted)
-		return contrast_ratio(background, black) >= contrast_ratio(background, white)
+		return contrast_ratio(background, black) >=
+			contrast_ratio(background, white)
 			? black
 			: white
 
@@ -212,7 +213,7 @@ function dominant_hue(labs: Oklch[]) {
 		bin_scores[bin] += chroma_weight * tone_weight
 	}
 
-	const smoothed = bin_scores.map((_, bin) => {
+	const smoothed = bin_scores.map((_score, bin) => {
 		return [-2, -1, 0, 1, 2].reduce((score, offset) => {
 			const neighbor = (bin + offset + HUE_BIN_COUNT) % HUE_BIN_COUNT
 			let weight = 0.35
@@ -284,7 +285,10 @@ export function build_wallpaper_palette(
 		total_weight > 0
 			? source_chroma / total_weight
 			: Math.hypot(global.a, global.b) / pixels.length
-	const sampled_chroma = Math.max(mean_chroma, percentile(selected_chromas, 0.9))
+	const sampled_chroma = Math.max(
+		mean_chroma,
+		percentile(selected_chromas, 0.9),
+	)
 	const chromatic_coverage = selected_chromas.length / pixels.length
 	const is_neutral = sampled_chroma < 0.04 || chromatic_coverage < 0.005
 	const palette_hue = is_neutral ? 0 : hue

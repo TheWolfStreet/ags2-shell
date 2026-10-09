@@ -1,130 +1,130 @@
-@use '../../style/base' as *;
+@use "../../style/base" as *;
 
 window#powermenu,
 window#verification {
-  background-color: rgba(0, 0, 0, .4);
+	background-color: rgba(0, 0, 0, 0.4);
 }
 
 window#verification box.verification {
-  @extend .floating;
-  padding: calc(var(--popover-padding) * 1.5);
-  min-width: calc(300px * var(--scale, 1));
-  min-height: calc(100px * var(--scale, 1));
+	@extend .floating;
+	padding: calc(var(--popover-padding) * 1.5);
+	min-width: calc(300px * var(--scale, 1));
+	min-height: calc(100px * var(--scale, 1));
 
-  box.text-box {
-    margin-bottom: var(--spacing);
+	box.text-box {
+		margin-bottom: var(--spacing);
 
-    label.title {
-      font-weight: bold;
-      font-size: 1.3em;
-    }
+		label.title {
+			font-weight: bold;
+			font-size: 1.3em;
+		}
 
-    label.desc {
-      color: color-mix(in srgb, var(--fg) 90%, transparent);
-      font-size: 1.1em;
-    }
-  }
+		label.desc {
+			color: color-mix(in srgb, var(--fg) 90%, transparent);
+			font-size: 1.1em;
+		}
+	}
 
-  box.buttons {
-    @include spacing;
-    margin-top: var(--padding);
+	box.buttons {
+		@include spacing;
+		margin-top: var(--padding);
 
-    button:focus {
-      outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-      outline-offset: -1px;
-    }
-  }
+		button:focus {
+			outline: calc(var(--border-width) / 2) solid var(--primary-bg);
+			outline-offset: -1px;
+		}
+	}
 }
 
 window#powermenu box.powermenu {
-  @extend .floating;
+	@extend .floating;
 
-  &.line {
-    padding: calc(var(--popover-padding) * 1.5);
+	&.line {
+		padding: calc(var(--popover-padding) * 1.5);
 
-    button {
-      padding: var(--popover-padding);
-    }
+		button {
+			padding: var(--popover-padding);
+		}
 
-    label {
-      margin-bottom: calc(var(--spacing) * -0.5);
-    }
-  }
+		label {
+			margin-bottom: calc(var(--spacing) * -0.5);
+		}
+	}
 
-  &.box {
-    padding: calc(var(--popover-padding) * 2);
+	&.box {
+		padding: calc(var(--popover-padding) * 2);
 
-    button {
-      padding: calc(var(--popover-padding) * 1.5);
-    }
+		button {
+			padding: calc(var(--popover-padding) * 1.5);
+		}
 
-    label {
-      margin-bottom: calc(var(--spacing) * -1);
-    }
-  }
+		label {
+			margin-bottom: calc(var(--spacing) * -1);
+		}
+	}
 
-  button {
-    all: unset;
+	button {
+		all: unset;
 
-    image {
-      border-radius: calc(var(--radius) + var(--popover-padding) * 1.4);
-      min-width: 1.7em;
-      min-height: 1.7em;
-      font-size: 4em;
-      background-color: var(--widget-bg);
-      box-shadow:
-        inset 0 0 0 var(--border-width) var(--border-color),
-        var(--neu-button-highlight),
-        var(--neu-button-shadow);
-      transition: var(--transition);
-    }
+		image {
+			border-radius: calc(var(--radius) + var(--popover-padding) * 1.4);
+			min-width: 1.7em;
+			min-height: 1.7em;
+			font-size: 4em;
+			background-color: var(--widget-bg);
+			box-shadow:
+				inset 0 0 0 var(--border-width) var(--border-color),
+				var(--neu-button-highlight),
+				var(--neu-button-shadow);
+			transition: var(--transition);
+		}
 
-    label,
-    image {
-      color: color-mix(in srgb, var(--fg) 90%, transparent);
-    }
+		label,
+		image {
+			color: color-mix(in srgb, var(--fg) 90%, transparent);
+		}
 
-    label {
-      margin-top: calc(var(--spacing) * 0.8);
-    }
+		label {
+			margin-top: calc(var(--spacing) * 0.8);
+		}
 
-    &:hover {
-      image {
-        box-shadow:
-          inset 0 0 0 var(--border-width) var(--border-color),
-          var(--neu-button-hover-highlight),
-          var(--neu-button-hover-shadow);
-        background-color: var(--hover-bg);
-        color: var(--hover-fg);
-      }
+		&:hover {
+			image {
+				box-shadow:
+					inset 0 0 0 var(--border-width) var(--border-color),
+					var(--neu-button-hover-highlight),
+					var(--neu-button-hover-shadow);
+				background-color: var(--hover-bg);
+				color: var(--hover-fg);
+			}
 
-      label {
-        color: var(--fg);
-      }
-    }
+			label {
+				color: var(--fg);
+			}
+		}
 
-    &:focus image {
-      box-shadow:
-        inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg),
-        var(--neu-button-highlight),
-        var(--neu-button-shadow);
-      background-color: var(--hover-bg);
-      color: var(--hover-fg);
-    }
+		&:focus image {
+			box-shadow:
+				inset 0 0 0 calc(var(--border-width) / 2) var(--primary-bg),
+				var(--neu-button-highlight),
+				var(--neu-button-shadow);
+			background-color: var(--hover-bg);
+			color: var(--hover-fg);
+		}
 
-    &:active image {
-      box-shadow:
-        inset 0 0 0 var(--border-width) var(--border-color),
-        var(--neu-button-active-highlight),
-        var(--neu-button-active-shadow);
-      background-image: var(--active-gradient);
-      background-color: var(--primary-bg);
-      color: var(--primary-fg);
-    }
+		&:active image {
+			box-shadow:
+				inset 0 0 0 var(--border-width) var(--border-color),
+				var(--neu-button-active-highlight),
+				var(--neu-button-active-shadow);
+			background-image: var(--active-gradient);
+			background-color: var(--primary-bg);
+			color: var(--primary-fg);
+		}
 
-    &:focus label,
-    &:active label {
-      color: var(--primary-bg);
-    }
-  }
+		&:focus label,
+		&:active label {
+			color: var(--primary-bg);
+		}
+	}
 }
