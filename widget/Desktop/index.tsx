@@ -176,7 +176,6 @@ export namespace Desktop {
 				layer={Astal.Layer.BOTTOM}
 				exclusivity={Astal.Exclusivity.IGNORE}
 				anchor={TOP | BOTTOM | LEFT | RIGHT}
-				application={app}
 				gdkmonitor={gdkmonitor}
 				visible={options.desktop.enabled}
 				keymode={Astal.Keymode.ON_DEMAND}

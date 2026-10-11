@@ -1,4 +1,3 @@
-import app from "$lib/app"
 import { Accessor, createBinding, createComputed, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { idle, type Timer } from "$lib/time"
@@ -162,7 +161,6 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 			anchor={position.as((pos) => {
 				return (pos === "bottom-center" ? BOTTOM : TOP) | LEFT | RIGHT
 			})}
-			application={app}
 		>
 			<box
 				orientation={VERTICAL}

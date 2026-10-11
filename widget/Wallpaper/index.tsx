@@ -1,4 +1,3 @@
-import app from "$lib/app"
 import { onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { idle, type Timer } from "$lib/time"
@@ -30,7 +29,6 @@ export namespace Wallpaper {
 				layer={BACKGROUND}
 				exclusivity={IGNORE}
 				anchor={TOP | BOTTOM | LEFT | RIGHT}
-				application={app}
 				gdkmonitor={gdkmonitor}
 				onRealize={ignore_input}
 				onMap={ignore_input}

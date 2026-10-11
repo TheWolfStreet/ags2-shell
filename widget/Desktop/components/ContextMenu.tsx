@@ -1,4 +1,3 @@
-import app from "$lib/app"
 import { Accessor, createComputed, createState, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { idle, timeout } from "$lib/time"
@@ -298,7 +297,6 @@ export function DesktopContextMenu({
 			layer={Astal.Layer.TOP}
 			exclusivity={Astal.Exclusivity.IGNORE}
 			anchor={TOP | LEFT}
-			application={app}
 			gdkmonitor={gdkmonitor}
 			visible={shown}
 			keymode={Astal.Keymode.ON_DEMAND}

@@ -1,4 +1,3 @@
-import app from "$lib/app"
 import { Accessor, createComputed, createState, For, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
@@ -161,7 +160,6 @@ export namespace Dock {
 					keymode={Astal.Keymode.NONE}
 					focusable={false}
 					anchor={side_config[side].anchor}
-					application={app}
 					visible={createComputed(() => shown() && active() && is_autohide())}
 					{...thickness_request(side, hotzone_thickness)}
 					gdkmonitor={gdkmonitor}
@@ -202,7 +200,6 @@ export namespace Dock {
 						active() && is_static() ? EXCLUSIVE : IGNORE,
 					)}
 					anchor={config.anchor}
-					application={app}
 					visible={createComputed(
 						() => shown() && active() && (is_static() || hovered()),
 					)}

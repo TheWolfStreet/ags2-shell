@@ -48,12 +48,8 @@ export function on_window_toggle(
 
 export function schedule_monitor_window_release(window?: Gtk.Window | null) {
 	if (!window) return
-	idle(() => {
-		if (window.get_application() && !window.get_surface()) {
-			window.set_visible(false)
-			window.get_application()?.remove_window(window)
-		} else window.destroy()
-	})
+	window.set_visible(false)
+	idle(() => window.destroy())
 }
 
 export function track_monitor_fullscreen(target: Gdk.Monitor) {

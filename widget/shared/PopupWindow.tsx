@@ -87,7 +87,10 @@ export function PopupWindow({
 		return alignment.as((config) => config[key])
 	}
 
-	onCleanup(() => visibility_unsubscribe?.())
+	onCleanup(() => {
+		visibility_unsubscribe?.()
+		window?.perform_hide()
+	})
 
 	return (
 		<RegisteredPopupWindow
