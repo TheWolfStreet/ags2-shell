@@ -7,7 +7,7 @@ import GLib from "gi://GLib"
 import { programArgs } from "system"
 
 import env from "$lib/env"
-import { hyprland } from "$lib/hyprland"
+import { hyprland, live_monitor_names } from "$lib/hyprland"
 import { attempt, log_error } from "$lib/result"
 import { Wallpaper } from "widget/Wallpaper"
 
@@ -32,9 +32,7 @@ function start_wallpaper_windows() {
 
 	const sync = () => {
 		if (stopped) return
-		const live_connectors = new Set(
-			hyprland.monitors.map((monitor) => monitor.name),
-		)
+		const live_connectors = live_monitor_names()
 		const current = new Map(
 			app
 				.get_monitors()

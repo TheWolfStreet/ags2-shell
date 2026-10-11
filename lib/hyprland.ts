@@ -1,6 +1,8 @@
 import Hyprland from "gi://AstalHyprland"
 import GLib from "gi://GLib"
 
+import { attempt, log_error } from "$lib/result"
+
 function create_hyprland() {
 	const critical = GLib.LogLevelFlags.LEVEL_CRITICAL
 	const known_messages = [
@@ -35,3 +37,20 @@ function create_hyprland() {
 }
 
 export const hyprland = create_hyprland()
+
+export function live_monitor_names(): Set<string> {
+	const queried = attempt(() => {
+		const monitors: unknown = JSON.parse(hyprland.message("j/monitors"))
+		if (!Array.isArray(monitors)) throw new Error("Unexpected monitor reply")
+		return monitors
+			.map((monitor: { name?: unknown }) => monitor.name)
+			.filter((name): name is string => typeof name === "string")
+	})
+	if (log_error(queried, "hyprland.monitors: Failed to query monitors"))
+		return new Set(queried.value)
+	return new Set(
+		hyprland.monitors
+			.map((monitor) => monitor?.name)
+			.filter((name): name is string => typeof name === "string"),
+	)
+}

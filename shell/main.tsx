@@ -20,7 +20,7 @@ import { Bar } from "widget/Bar"
 import { Dock } from "widget/Dock"
 import { Desktop } from "widget/Desktop"
 
-import { hyprland } from "$lib/hyprland"
+import { hyprland, live_monitor_names } from "$lib/hyprland"
 import { screen_capture } from "$service/screenCapture"
 import { flush_options } from "$shell/options"
 import { attempt, log_error } from "$lib/result"
@@ -146,9 +146,7 @@ app.start({
 		>()
 		let monitor_windows_stopped = false
 		const sync_monitor_windows = () => {
-			const live_connectors = new Set(
-				hyprland.monitors.map((monitor) => monitor.name),
-			)
+			const live_connectors = live_monitor_names()
 			const current = new Map(
 				app
 					.get_monitors()
