@@ -179,7 +179,7 @@ window#quicksettings {
 					font-weight: bold;
 				}
 
-				image:first-child {
+				image:first-child:not(:last-child) {
 					margin-right: calc(var(--spacing) / 2);
 				}
 			}

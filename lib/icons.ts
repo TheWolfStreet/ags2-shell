@@ -80,6 +80,10 @@ const icon_list = {
 		logout: "system-log-out-symbolic",
 		shutdown: "system-shutdown-symbolic",
 	},
+	sleep_inhibit: {
+		on: "my-caffeine-on-symbolic",
+		off: "my-caffeine-off-symbolic",
+	},
 	recorder: {
 		recording: "media-record-symbolic",
 	},

@@ -165,6 +165,9 @@ test("opening Quick Settings observes profile without applying panel policy; man
 		"$lib/apps": { launch_program: noop },
 		"$lib/notifications": { notify_missing_programs: noop },
 		"$service/asusctl": { asusctl: service },
+		"$service/sleepInhibitor": {
+			sleep_inhibitor: { inhibited: () => false, toggle: noop },
+		},
 		"$lib/windowing": {
 			on_window_toggle: (_name, callback) => {
 				on_toggle = callback

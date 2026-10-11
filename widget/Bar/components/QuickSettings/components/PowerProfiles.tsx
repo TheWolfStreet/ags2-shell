@@ -24,6 +24,7 @@ import { attempt } from "$lib/result"
 import { launch_program } from "$lib/apps"
 import { notify_missing_programs } from "$lib/notifications"
 import { asusctl } from "$service/asusctl"
+import { sleep_inhibitor } from "$service/sleepInhibitor"
 import { on_window_toggle } from "$lib/windowing"
 
 export namespace PowerProfiles {
@@ -191,6 +192,29 @@ export namespace PowerProfiles {
 		)
 	}
 
+	function SleepInhibitToggle() {
+		const { inhibited } = sleep_inhibitor
+		return (
+			<centerbox hexpand>
+				<button
+					$type="end"
+					class={inhibited.as((on) => (on ? "active" : ""))}
+					tooltipText={inhibited.as((on) =>
+						on ? "Sleep inhibited" : "Inhibit sleep",
+					)}
+					onClicked={sleep_inhibitor.toggle}
+				>
+					<image
+						iconName={inhibited.as((on) =>
+							on ? icons.sleep_inhibit.on : icons.sleep_inhibit.off,
+						)}
+						useFallback
+					/>
+				</button>
+			</centerbox>
+		)
+	}
+
 	function make_selector(provider: profile_provider) {
 		const active = provider.active
 		const profiles = provider.profiles()
@@ -199,6 +223,7 @@ export namespace PowerProfiles {
 				name="profile-selector"
 				iconName={active.as((p) => provider.icon(p))}
 				title="Profiles"
+				headerChild={<SleepInhibitToggle />}
 			>
 				<box orientation={VERTICAL} hexpand>
 					{profiles.map((p) => (
