@@ -4,6 +4,7 @@ import { idle, type Timer } from "$lib/time"
 
 import GdkPixbuf from "gi://GdkPixbuf"
 import GLib from "gi://GLib"
+import LayerShell from "gi://Gtk4LayerShell"
 
 import { ignore_input, schedule_monitor_window_release } from "$lib/windowing"
 import { attempt } from "$lib/result"
@@ -54,6 +55,14 @@ export namespace Wallpaper {
 		return {
 			retarget(next_monitor: Gdk.Monitor) {
 				window.set_property("gdkmonitor", next_monitor)
+			},
+			// BUG: Hyprland <= 0.56.2 leaves a monitor's layers at their old position when another monitor's
+			// removal moves it. A margin change forces a re-arrange. Remove once Hyprland ships
+			// hyprwm/Hyprland#15842.
+			rearrange() {
+				if (!window.get_mapped()) return
+				LayerShell.set_margin(window, LayerShell.Edge.LEFT, 1)
+				LayerShell.set_margin(window, LayerShell.Edge.LEFT, 0)
 			},
 		}
 	}

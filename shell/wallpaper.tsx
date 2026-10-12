@@ -1,13 +1,13 @@
 import app from "$lib/app"
 import { createRoot } from "ags"
 import { Gdk } from "ags/gtk4"
-import { interval } from "$lib/time"
+import { interval, timeout, type Timer } from "$lib/time"
 
 import GLib from "gi://GLib"
 import { programArgs } from "system"
 
 import env from "$lib/env"
-import { hyprland, live_monitor_names } from "$lib/hyprland"
+import { watch_live_monitors } from "$lib/hyprland"
 import { attempt, log_error } from "$lib/result"
 import { Wallpaper } from "widget/Wallpaper"
 
@@ -25,14 +25,15 @@ function start_wallpaper_windows() {
 		{
 			monitor: Gdk.Monitor
 			retarget: (monitor: Gdk.Monitor) => void
+			rearrange: () => void
 			dispose: () => void
 		}
 	>()
 	let stopped = false
+	let rearrange_timer: Timer | null = null
 
-	const sync = () => {
+	const sync = (live_connectors: Set<string>) => {
 		if (stopped) return
-		const live_connectors = live_monitor_names()
 		const current = new Map(
 			app
 				.get_monitors()
@@ -57,26 +58,35 @@ function start_wallpaper_windows() {
 		for (const [key, monitor] of current) {
 			if (active.has(key)) continue
 			let retarget: (monitor: Gdk.Monitor) => void = () => {}
+			let rearrange = () => {}
 			const dispose = createRoot((dispose) => {
-				retarget = Wallpaper.Window({ gdkmonitor: monitor }).retarget
+				const wallpaper = Wallpaper.Window({ gdkmonitor: monitor })
+				retarget = wallpaper.retarget
+				rearrange = wallpaper.rearrange
 				return dispose
 			})
-			active.set(key, { monitor, retarget, dispose })
+			active.set(key, { monitor, retarget, rearrange, dispose })
 		}
+
+		const rearrange = () => {
+			for (const slot of active.values()) slot.rearrange()
+		}
+		rearrange()
+		rearrange_timer?.cancel()
+		rearrange_timer = timeout(300, () => {
+			rearrange_timer = null
+			rearrange()
+		})
 	}
 
-	const monitor_handler = app.connect("notify::monitors", sync)
-	const added_handler = hyprland.connect("monitor-added", sync)
-	const removed_handler = hyprland.connect("monitor-removed", sync)
+	const stop_watch = watch_live_monitors(sync)
 	app.connect("shutdown", () => {
 		stopped = true
-		app.disconnect(monitor_handler)
-		hyprland.disconnect(added_handler)
-		hyprland.disconnect(removed_handler)
+		rearrange_timer?.cancel()
+		stop_watch()
 		for (const slot of active.values()) slot.dispose()
 		active.clear()
 	})
-	sync()
 }
 
 const parent_pid = programArgs

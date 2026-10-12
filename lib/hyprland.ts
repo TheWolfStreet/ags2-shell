@@ -1,7 +1,9 @@
 import Hyprland from "gi://AstalHyprland"
 import GLib from "gi://GLib"
 
-import { attempt, log_error } from "$lib/result"
+import app from "$lib/app"
+import { attempt, type Result } from "$lib/result"
+import { timeout, type Timer } from "$lib/time"
 
 function create_hyprland() {
 	const critical = GLib.LogLevelFlags.LEVEL_CRITICAL
@@ -38,19 +40,53 @@ function create_hyprland() {
 
 export const hyprland = create_hyprland()
 
-export function live_monitor_names(): Set<string> {
-	const queried = attempt(() => {
+function query_live_monitor_names(): Result<Set<string>> {
+	return attempt(() => {
 		const monitors: unknown = JSON.parse(hyprland.message("j/monitors"))
 		if (!Array.isArray(monitors)) throw new Error("Unexpected monitor reply")
-		return monitors
-			.map((monitor: { name?: unknown }) => monitor.name)
-			.filter((name): name is string => typeof name === "string")
+		return new Set(
+			monitors
+				.map((monitor: { name?: unknown }) => monitor.name)
+				.filter((name): name is string => typeof name === "string"),
+		)
 	})
-	if (log_error(queried, "hyprland.monitors: Failed to query monitors"))
-		return new Set(queried.value)
-	return new Set(
-		hyprland.monitors
-			.map((monitor) => monitor?.name)
-			.filter((name): name is string => typeof name === "string"),
-	)
+}
+
+export function watch_live_monitors(
+	sync: (live_connectors: Set<string>) => void,
+): () => void {
+	let retry: Timer | null = null
+	let failures = 0
+
+	const run = () => {
+		retry?.cancel()
+		retry = null
+		const live = query_live_monitor_names()
+		if (live.ok) {
+			failures = 0
+			sync(live.value)
+			return
+		}
+		failures += 1
+		if (failures <= 40) {
+			retry = timeout(250, run)
+			return
+		}
+		failures = 0
+		console.error("hyprland.monitors: Failed to query monitors", live.err)
+	}
+
+	const app_handler = app.connect("notify::monitors", run)
+	const hyprland_handlers = [
+		hyprland.connect("monitor-added", run),
+		hyprland.connect("monitor-removed", run),
+	]
+	run()
+
+	return () => {
+		retry?.cancel()
+		retry = null
+		app.disconnect(app_handler)
+		for (const handler of hyprland_handlers) hyprland.disconnect(handler)
+	}
 }
