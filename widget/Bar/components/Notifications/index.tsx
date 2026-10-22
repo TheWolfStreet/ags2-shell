@@ -106,8 +106,7 @@ export namespace Notifications {
 	)
 
 	type transition_type =
-		| Accessor<Gtk.RevealerTransitionType>
-		| Gtk.RevealerTransitionType
+		Accessor<Gtk.RevealerTransitionType> | Gtk.RevealerTransitionType
 
 	type notification_props = {
 		entry: AstalNotifd.Notification

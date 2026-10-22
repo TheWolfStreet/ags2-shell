@@ -21,6 +21,7 @@
     pname = "ags2-shell";
     entry = "shell/main.tsx";
     wallpaper_entry = "shell/wallpaper.tsx";
+    typescript_api = "${pkgs.typescript_5}/lib/node_modules/typescript/lib/typescript.js";
 
     appmenu_glib_translator = pkgs.stdenv.mkDerivation {
       pname = "appmenu-glib-translator";
@@ -143,7 +144,6 @@
         src = ./.;
         nativeBuildInputs = with pkgs; [
           nodejs
-          typescript
           bash
           dart-sass
           diffutils
@@ -175,6 +175,7 @@
           export BUNDLED_MAIN=${self.packages.${system}.default}/bin/.${pname}-wrapped
           export BUNDLED_WALLPAPER=${self.packages.${system}.default}/libexec/.${pname}-wallpaper-wrapped
           export SWAY_HEADLESS_BIN=${pkgs.sway-unwrapped}/bin/sway
+          export AGS2SHELL_TYPESCRIPT=${typescript_api}
           dbus-run-session --config-file=${pkgs.dbus}/share/dbus-1/session.conf -- npm test
           runHook postBuild
         '';
@@ -320,6 +321,7 @@
         shellHook = ''
           export GIO_EXTRA_MODULES=${pkgs.gvfs}/lib/gio/modules
           export AGS2SHELL_STYLES=$PWD
+          export AGS2SHELL_TYPESCRIPT=${typescript_api}
         '';
       };
     };

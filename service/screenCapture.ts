@@ -81,9 +81,8 @@ class ScreenCaptureService extends GObject.Object {
 	> => {
 		if (!notify_missing_programs("hyprctl"))
 			return err(new Error("hyprctl is unavailable"))
-		const parsed = await attempt_async(
-			async (): Promise<unknown> =>
-				JSON.parse(await execAsync(["hyprctl", "monitors", "-j"])),
+		const parsed = await attempt_async(async (): Promise<unknown> =>
+			JSON.parse(await execAsync(["hyprctl", "monitors", "-j"])),
 		)
 		if (!parsed.ok) return parsed
 		if (!Array.isArray(parsed.value))

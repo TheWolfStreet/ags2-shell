@@ -1,18 +1,12 @@
 import assert from "node:assert/strict"
 import { execFileSync, spawnSync } from "node:child_process"
-import { readFileSync, realpathSync } from "node:fs"
-import { createRequire } from "node:module"
+import { readFileSync } from "node:fs"
 import test from "node:test"
+import ts from "../typescript.mjs"
 
 const source = readFileSync(
 	new URL("../../widget/Bar/components/DateMenu/index.tsx", import.meta.url),
 	"utf8",
-)
-const tsc_path = realpathSync(
-	execFileSync("which", ["tsc"], { encoding: "utf8" }).trim(),
-)
-const ts = createRequire(tsc_path)(
-	"../lib/node_modules/typescript/lib/typescript.js",
 )
 const ast = ts.createSourceFile(
 	"index.tsx",

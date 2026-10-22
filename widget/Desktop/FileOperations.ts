@@ -170,12 +170,10 @@ async function move_tree(source: Gio.File, target: Gio.File): Promise<void> {
 		await move_async(source, target)
 		return
 	} catch (error) {
-		if (
-			!(
-				error instanceof GLib.Error &&
-				error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.WOULD_RECURSE)
-			)
-		)
+		if (!(
+			error instanceof GLib.Error &&
+			error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.WOULD_RECURSE)
+		))
 			throw error
 	}
 	const info = await source.query_info_async(

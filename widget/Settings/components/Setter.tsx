@@ -16,12 +16,7 @@ const { FontDescription, FontFamily, FontFace, SCALE } = Pango
 type EnumValue = string | number
 
 export type EditorType =
-	| "number"
-	| "color"
-	| "string"
-	| "enum"
-	| "boolean"
-	| "font"
+	"number" | "color" | "string" | "enum" | "boolean" | "font"
 
 type SetterProps = {
 	opt: Opt<any>

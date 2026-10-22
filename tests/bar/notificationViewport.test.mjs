@@ -1,15 +1,8 @@
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
-import { readFileSync, realpathSync } from "node:fs"
-import { createRequire } from "node:module"
+import { readFileSync } from "node:fs"
 import test from "node:test"
-
-const tsc_path = realpathSync(
-	execFileSync("which", ["tsc"], { encoding: "utf8" }).trim(),
-)
-const ts = createRequire(tsc_path)(
-	"../lib/node_modules/typescript/lib/typescript.js",
-)
+import ts from "../typescript.mjs"
 
 function compiled_functions(path, names) {
 	const source = readFileSync(new URL(path, import.meta.url), "utf8")

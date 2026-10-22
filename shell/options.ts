@@ -224,8 +224,7 @@ type WidenLiterals<T> = T extends boolean
 			: T
 
 type OptionRule =
-	| readonly (string | number)[]
-	| { min: number; max: number; integer?: boolean }
+	readonly (string | number)[] | { min: number; max: number; integer?: boolean }
 type OptionConstraints = Readonly<Record<string, OptionRule>>
 
 function valid_leaf(

@@ -27,14 +27,14 @@ for name in ags gnim; do
   fi
 done
 
-tsc --noCheck --declaration --emitDeclarationOnly --skipLibCheck --strictNullChecks \
+tsc --ignoreConfig --noCheck --declaration --emitDeclarationOnly --skipLibCheck --strictNullChecks \
   --target ES2020 --module ES2022 --moduleResolution Bundler \
   --rootDir "$gnim_root" --outDir "$root/@girs/gnim-types" \
   "$gnim_root"/dist/*.ts "$gnim_root"/dist/jsx/*.ts \
   "$gnim_root"/dist/gtk3/*.ts "$gnim_root"/dist/gtk4/*.ts \
   "$gnim_root"/dist/gnome/*.ts "${gir_types[@]}"
 
-tsc --noCheck --declaration --emitDeclarationOnly --skipLibCheck --strictNullChecks \
+tsc --ignoreConfig --noCheck --declaration --emitDeclarationOnly --skipLibCheck --strictNullChecks \
   --target ES2020 --module ES2022 --moduleResolution Bundler \
   --rootDir "$ags_root" --outDir "$root/@girs/ags-types" \
   "$ags_root"/lib/*.ts "$ags_root"/lib/gtk4/*.ts "${gir_types[@]}"
@@ -42,5 +42,9 @@ tsc --noCheck --declaration --emitDeclarationOnly --skipLibCheck --strictNullChe
 app_types="$root/@girs/ags-types/lib/gtk4/app.d.ts"
 grep -Fq '"window-toggled": App["windowToggled"];' "$app_types"
 sed -i 's|"window-toggled": App\["windowToggled"\];|"window-toggled": (window: Gtk.Window) => void;|' "$app_types"
+
+jsx_types="$root/@girs/gnim-types/dist/jsx/jsx.d.ts"
+grep -Fq 'C extends CC ? CCProps<InstanceType<C>, Props> : never;' "$jsx_types"
+sed -i 's|C extends CC ? CCProps<InstanceType<C>, Props> : never;|C extends CC ? (GObject.Object extends InstanceType<C> ? Props : CCProps<InstanceType<C>, Props>) : never;|' "$jsx_types"
 
 exec tsc --noEmit --incremental false -p "$root/tsconfig.json"

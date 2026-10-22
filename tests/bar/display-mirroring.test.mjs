@@ -1,16 +1,9 @@
 import assert from "node:assert/strict"
-import { execFileSync } from "node:child_process"
-import { readFileSync, realpathSync } from "node:fs"
-import { createRequire } from "node:module"
+import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
+import ts from "../typescript.mjs"
 
-const tsc_path = realpathSync(
-	execFileSync("which", ["tsc"], { encoding: "utf8" }).trim(),
-)
-const ts = createRequire(tsc_path)(
-	"../lib/node_modules/typescript/lib/typescript.js",
-)
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 
 test("externally mirrored target can be unmirrored without a saved snapshot", async () => {

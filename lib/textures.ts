@@ -77,12 +77,10 @@ function file_signature(path: string, refresh = false) {
 			result.value.get_attribute_uint32("time::modified-usec"),
 			result.value.get_attribute_string("etag::value") ?? "",
 		].join(":")
-	} else if (
-		!(
-			result.err instanceof GLib.Error &&
-			result.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND)
-		)
-	) {
+	} else if (!(
+		result.err instanceof GLib.Error &&
+		result.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND)
+	)) {
 		console.error(`textures: Failed to stat ${path}`, result.err)
 	}
 	const signature = { value, size, checked: now }
@@ -466,12 +464,10 @@ function remove_temporary(path: string) {
 	if (removed.ok) {
 		if (!removed.value)
 			console.error(`textures: Failed to remove temporary artwork ${path}`)
-	} else if (
-		!(
-			removed.err instanceof GLib.Error &&
-			removed.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND)
-		)
-	) {
+	} else if (!(
+		removed.err instanceof GLib.Error &&
+		removed.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND)
+	)) {
 		console.error(
 			`textures: Failed to remove temporary artwork ${path}`,
 			removed.err,

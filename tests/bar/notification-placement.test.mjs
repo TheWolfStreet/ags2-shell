@@ -7,15 +7,14 @@ import {
 	mkdirSync,
 	readFileSync,
 	readdirSync,
-	realpathSync,
 	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs"
-import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
+import ts from "../typescript.mjs"
 
 const root = new URL("../../", import.meta.url)
 const sway =
@@ -47,16 +46,10 @@ test(
 		timeout: 60_000,
 	},
 	async (t) => {
-		if (!sway || !available("ags") || !available("sass") || !available("tsc"))
-			return t.skip("AGS, Sass, TypeScript and headless Sway are required")
+		if (!sway || !available("ags") || !available("sass"))
+			return t.skip("AGS, Sass and headless Sway are required")
 		const dir = mkdtempSync(join(tmpdir(), "ags-notification-placement-"))
 		try {
-			const tsc = realpathSync(
-				spawnSync("which", ["tsc"], { encoding: "utf8" }).stdout.trim(),
-			)
-			const ts = createRequire(tsc)(
-				"../lib/node_modules/typescript/lib/typescript.js",
-			)
 			const source = readFileSync(
 				new URL(
 					"../../widget/Bar/components/Notifications/index.tsx",

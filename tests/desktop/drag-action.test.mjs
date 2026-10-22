@@ -1,16 +1,9 @@
 import assert from "node:assert/strict"
-import { execFileSync } from "node:child_process"
-import { readFileSync, realpathSync } from "node:fs"
-import { createRequire } from "node:module"
+import { readFileSync } from "node:fs"
 import test from "node:test"
 import { runInNewContext } from "node:vm"
+import ts from "../typescript.mjs"
 
-const tsc = realpathSync(
-	execFileSync("which", ["tsc"], { encoding: "utf8" }).trim(),
-)
-const ts = createRequire(tsc)(
-	"../lib/node_modules/typescript/lib/typescript.js",
-)
 const source = readFileSync(
 	new URL("../../widget/Desktop/DragAndDrop.tsx", import.meta.url),
 	"utf8",
