@@ -24,6 +24,8 @@
 		"target": "ES2020"
 	},
 	"exclude": [
+		"tests/**/*.test.ts",
+		"tests/typescript.ts",
 		"@girs/astal-3.0.d.ts",
 		"@girs/gdk-3.0.d.ts",
 		"@girs/gdkx11-3.0.d.ts",

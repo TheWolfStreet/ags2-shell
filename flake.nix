@@ -83,6 +83,18 @@
         --replace-fail '"version": "4.1.0",' '"version": "4.1.0", "peerDependencies": { "typescript": "^5.9.3" },'
     '';
 
+    node_types = pkgs.runCommand "ags2-shell-node-types" {} ''
+      mkdir -p $out/node_modules/@types/node $out/node_modules/undici-types
+      tar -xzf ${pkgs.fetchurl {
+        url = "https://registry.npmjs.org/@types/node/-/node-24.19.2.tgz";
+        hash = "sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==";
+      }} -C $out/node_modules/@types/node --strip-components=1
+      tar -xzf ${pkgs.fetchurl {
+        url = "https://registry.npmjs.org/undici-types/-/undici-types-7.24.6.tgz";
+        hash = "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==";
+      }} -C $out/node_modules/undici-types --strip-components=1
+    '';
+
     gir_templates = pkgs.runCommand "ags2-shell-gir-templates" {} ''
       mkdir -p $out
       tar -xzf ${pkgs.fetchurl {
@@ -168,10 +180,10 @@
           mkdir node_modules
           ln -s ${ags.packages.${system}.default.jsPackage} node_modules/ags
           ln -s ${ags.packages.${system}.default.jsPackage}/node_modules/gnim node_modules/gnim
-          test -f tests/scripts/options.test.mjs
-          test -f tests/scripts/dev.test.mjs
-          test -f tests/scripts/style.test.mjs
-          test -f tests/scripts/bundle.test.mjs
+          test -f tests/scripts/options.test.ts
+          test -f tests/scripts/dev.test.ts
+          test -f tests/scripts/style.test.ts
+          test -f tests/scripts/bundle.test.ts
           export BUNDLED_MAIN=${self.packages.${system}.default}/bin/.${pname}-wrapped
           export BUNDLED_WALLPAPER=${self.packages.${system}.default}/libexec/.${pname}-wallpaper-wrapped
           export SWAY_HEADLESS_BIN=${pkgs.sway-unwrapped}/bin/sway
@@ -235,6 +247,7 @@
           test -f @girs/index.d.ts
           test -f tests/types-contract.ts
           test -f ${self.checks.${system}.native}/passed
+          export AGS2SHELL_NODE_TYPES=${node_types}/node_modules
           npm run typecheck
           runHook postBuild
         '';
@@ -321,6 +334,7 @@
         shellHook = ''
           export GIO_EXTRA_MODULES=${pkgs.gvfs}/lib/gio/modules
           export AGS2SHELL_STYLES=$PWD
+          export AGS2SHELL_NODE_TYPES=${node_types}/node_modules
           export AGS2SHELL_TYPESCRIPT=${typescript_api}
         '';
       };

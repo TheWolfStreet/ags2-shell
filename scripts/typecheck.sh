@@ -47,4 +47,11 @@ jsx_types="$root/@girs/gnim-types/dist/jsx/jsx.d.ts"
 grep -Fq 'C extends CC ? CCProps<InstanceType<C>, Props> : never;' "$jsx_types"
 sed -i 's|C extends CC ? CCProps<InstanceType<C>, Props> : never;|C extends CC ? (GObject.Object extends InstanceType<C> ? Props : CCProps<InstanceType<C>, Props>) : never;|' "$jsx_types"
 
-exec tsc --noEmit --incremental false -p "$root/tsconfig.json"
+if [[ -z ${AGS2SHELL_NODE_TYPES:-} || ! -d $AGS2SHELL_NODE_TYPES/@types/node ]]; then
+  printf 'AGS2SHELL_NODE_TYPES is unset; run the typecheck from nix develop.\n' >&2
+  exit 1
+fi
+ln -sfn -- "$AGS2SHELL_NODE_TYPES/@types" "$root/node_modules/@types"
+
+tsc --noEmit --incremental false -p "$root/tsconfig.json"
+exec tsc --noEmit --incremental false -p "$root/tests/tsconfig.json"

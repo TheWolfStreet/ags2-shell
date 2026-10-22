@@ -6,7 +6,7 @@
 		"format": "prettier --write --ignore-unknown --ignore-path .gitignore . && alejandra flake.nix && shfmt -w -i 2 dev.sh scripts/*.sh style/compile/build.sh",
 		"format:check": "prettier --check --ignore-unknown --ignore-path .gitignore . && alejandra --check flake.nix && shfmt -d -i 2 dev.sh scripts/*.sh style/compile/build.sh",
 		"lint:shell": "shellcheck dev.sh scripts/*.sh style/compile/build.sh",
-		"test": "node --experimental-vm-modules --test 'tests/**/*.test.mjs'"
+		"test": "node --experimental-vm-modules --test 'tests/**/*.test.ts'"
 	},
 	"prettier": {
 		"semi": false,
