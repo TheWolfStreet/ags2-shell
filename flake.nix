@@ -22,6 +22,29 @@
     entry = "shell/main.tsx";
     wallpaper_entry = "shell/wallpaper.tsx";
 
+    appmenu_glib_translator = pkgs.stdenv.mkDerivation {
+      pname = "appmenu-glib-translator";
+      version = "25.04-unstable-2026-10-12";
+
+      src = "${pkgs.fetchFromGitLab {
+        owner = "vala-panel-project";
+        repo = "vala-panel-appmenu";
+        rev = "1c47efa9fb8542e02aa5beb9dcb10fcf4fdae4ba";
+        hash = "sha256-Yk13XIwv53UGYq/tIKW7W55nGIuiJpf3SW7OXSg3c0I=";
+      }}/subprojects/appmenu-glib-translator";
+
+      buildInputs = [pkgs.glib];
+      nativeBuildInputs = with pkgs; [gobject-introspection meson pkg-config ninja vala];
+    };
+
+    tray = ags.packages.${system}.tray.overrideAttrs (old: {
+      propagatedBuildInputs = map (input:
+        if (input.pname or "") == "appmenu-glib-translator"
+        then appmenu_glib_translator
+        else input)
+      old.propagatedBuildInputs;
+    });
+
     astal_packages = with ags.packages.${system}; [
       io
       astal4

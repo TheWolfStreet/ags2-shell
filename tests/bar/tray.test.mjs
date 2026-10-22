@@ -22,6 +22,7 @@ async function tray_fixture(is_menu, has_menu = true) {
 		gicon: "icon",
 		tooltipText: "Example",
 		menuModel: has_menu ? {} : null,
+		menuPath: "/MenuBar",
 		get_item_id: () => "org.example.Tray/StatusNotifierItem",
 		get_is_menu: () => {
 			is_menu_reads++
@@ -129,6 +130,8 @@ for (const is_menu of [false, true]) {
 		fixture.button.props.onClicked()
 		fixture.gesture.props.onPressed()
 		assert.equal(fixture.calls.length, 1)
+		assert.equal(fixture.calls[0][0], "org.example.Tray")
+		assert.equal(fixture.calls[0][1], "/MenuBar")
 		assert.equal(fixture.calls[0][2], "com.canonical.dbusmenu")
 		assert.equal(fixture.calls[0][3], "AboutToShow")
 		assert.equal(fixture.calls[0][4].type, "(i)")

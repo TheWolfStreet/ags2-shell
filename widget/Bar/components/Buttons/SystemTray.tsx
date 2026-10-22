@@ -38,26 +38,23 @@ export function SystemTray() {
 					onCleanup(() => {
 						active = false
 					})
-					const request = (
-						iface: string,
-						method: string,
-						parameters: GLib.Variant,
-						done?: () => void,
-					) => {
+					const about_to_show = (done: () => void) => {
 						const item_id = item.get_item_id()
 						const separator = item_id.indexOf("/")
-						if (separator < 0) {
-							console.warn("tray: Invalid item address")
-							if (active) done?.()
+						const menu_path = (item as unknown as { menuPath: string | null })
+							.menuPath
+						if (separator < 0 || !menu_path) {
+							console.warn("tray: Invalid menu address")
+							if (active) done()
 							return
 						}
 						try {
 							Gio.DBus.session.call(
 								item_id.slice(0, separator),
-								item_id.slice(separator),
-								iface,
-								method,
-								parameters,
+								menu_path,
+								"com.canonical.dbusmenu",
+								"AboutToShow",
+								new GLib.Variant("(i)", [0]),
 								null,
 								Gio.DBusCallFlags.NONE,
 								1000,
@@ -66,30 +63,25 @@ export function SystemTray() {
 									try {
 										connection!.call_finish(result)
 									} catch (error) {
-										console.warn(`tray: ${method} failed`, error)
+										console.warn("tray: AboutToShow failed", error)
 									}
-									if (active) done?.()
+									if (active) done()
 								},
 							)
 						} catch (error) {
-							console.warn(`tray: ${method} failed`, error)
-							if (active) done?.()
+							console.warn("tray: AboutToShow failed", error)
+							if (active) done()
 						}
 					}
 					const open_menu = () => {
 						if (!item.menuModel || !item_visible.peek() || pending) return
 						pending = true
-						request(
-							"com.canonical.dbusmenu",
-							"AboutToShow",
-							new GLib.Variant("(i)", [0]),
-							() => {
-								pending = false
-								if (!item.menuModel || !item_visible.peek()) return
-								ensure_built()
-								popover.popup()
-							},
-						)
+						about_to_show(() => {
+							pending = false
+							if (!item.menuModel || !item_visible.peek()) return
+							ensure_built()
+							popover.popup()
+						})
 					}
 					return (
 						<button
