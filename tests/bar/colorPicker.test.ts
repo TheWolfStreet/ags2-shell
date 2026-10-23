@@ -4,27 +4,14 @@ import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
 
-type FakeProcess = {
-	args: string[]
-	flags: number
-	input?: string
-	callback?: (process: FakeProcess, result: object) => void
-	force_exit(): void
-	communicate_utf8_async(
-		input: string,
-		cancel: unknown,
-		callback: (process: FakeProcess, result: object) => void,
-	): void
-	communicate_utf8_finish(): void
-	get_successful: () => boolean
-}
+type FakeCopy = { content: unknown; finish: () => void }
 
 async function color_picker_fixture(
 	history,
 	max = 100,
 	copy_successful = true,
 ) {
-	const processes: FakeProcess[] = []
+	const copies: FakeCopy[] = []
 	const notifications: unknown[] = []
 	const writes: string[][] = []
 	let colors
@@ -79,10 +66,6 @@ async function color_picker_fixture(
 		"ags/process": { execAsync: async () => "#abcdef" },
 		"gi://Gio": {
 			default: {
-				SubprocessFlags: { STDIN_PIPE: 1 },
-				Cancellable: class {
-					cancel() {}
-				},
 				File: {
 					new_for_path: () => ({
 						query_exists: () => true,
@@ -90,35 +73,24 @@ async function color_picker_fixture(
 					}),
 				},
 				FileQueryInfoFlags: { NONE: 0 },
-				Subprocess: {
-					new: (args, flags) => {
-						const process: FakeProcess = {
-							args,
-							flags,
-							force_exit() {},
-							communicate_utf8_async(input, _cancel, callback) {
-								this.input = input
-								this.callback = callback
-							},
-							communicate_utf8_finish() {},
-							get_successful: () => copy_successful,
-						}
-						processes.push(process)
-						return process
-					},
-				},
-			},
-		},
-		"gi://GLib": {
-			default: {
-				PRIORITY_DEFAULT: 0,
-				SOURCE_REMOVE: false,
-				timeout_add: () => 1,
-				Source: { remove() {} },
 			},
 		},
 		"$lib/env": { default: { paths: { cache: { base: "/cache" } } } },
 		"$lib/files": { ensure_file: () => ({ ok: true }) },
+		"$lib/clipboard": {
+			copy_to_clipboard: (content: unknown) =>
+				new Promise((resolve) =>
+					copies.push({
+						content,
+						finish: () =>
+							resolve(
+								copy_successful
+									? { ok: true, value: undefined }
+									: { ok: false, err: new Error("wl-copy failed") },
+							),
+					}),
+				),
+		},
 		"$lib/icons": { default: { ui: { colorpicker: "colorpicker" } } },
 		"$lib/result": {
 			attempt: (fn) => {
@@ -140,6 +112,7 @@ async function color_picker_fixture(
 		},
 		"$lib/time": {
 			idle: () => ({ cancel() {} }),
+			timeout: () => ({ cancel() {} }),
 			debounce: (_delay, fn) => ({
 				call: () => {
 					void fn()
@@ -200,7 +173,7 @@ async function color_picker_fixture(
 	return {
 		button: (module.namespace as { ColorPicker: () => any }).ColorPicker(),
 		colors,
-		processes,
+		copies,
 		notifications,
 		writes,
 	}
@@ -216,13 +189,10 @@ test("history with 80 colors remains intact with maxColors 100 and grows on a ne
 	assert.equal(fixture.writes.length, 0)
 	fixture.button.props.onClicked()
 	await new Promise((resolve) => setImmediate(resolve))
-	assert.equal(fixture.processes.length, 1)
-	const copy = fixture.processes[0]
-	assert.deepEqual(copy.args, ["setsid", "wl-copy"])
-	assert.equal(copy.flags, 1)
-	assert.equal(copy.input, "#abcdef")
+	assert.equal(fixture.copies.length, 1)
+	assert.equal(fixture.copies[0].content, "#abcdef")
 	assert.equal(fixture.notifications.length, 0)
-	copy.callback!(copy, {})
+	fixture.copies[0].finish()
 	await new Promise((resolve) => setImmediate(resolve))
 	assert.equal(fixture.colors.peek().length, 81)
 	assert.deepEqual([...fixture.colors.peek()].slice(0, 80), history)
@@ -235,7 +205,7 @@ test("failed clipboard parent exit does not save or notify", async () => {
 	const fixture = await color_picker_fixture([], 100, false)
 	fixture.button.props.onClicked()
 	await new Promise((resolve) => setImmediate(resolve))
-	fixture.processes[0].callback!(fixture.processes[0], {})
+	fixture.copies[0].finish()
 	await new Promise((resolve) => setImmediate(resolve))
 	assert.deepEqual([...fixture.colors.peek()], [])
 	assert.equal(fixture.writes.length, 0)

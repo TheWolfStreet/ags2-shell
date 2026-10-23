@@ -15,6 +15,8 @@ async function service_fixture(catalog, variants) {
 	let on_favorites_change
 	let on_idle
 	const apps = { list: catalog }
+	const shutdown_handlers: (() => void)[] = []
+	let kills = 0
 	const imports = {
 		"ags/gobject": {
 			default: {
@@ -37,7 +39,20 @@ async function service_fixture(catalog, variants) {
 			subprocess: (args, callback) => {
 				commands.push(args)
 				on_favorites_change = callback
-				return { connect() {}, kill() {} }
+				return {
+					connect() {},
+					kill() {
+						kills++
+					},
+				}
+			},
+		},
+		"$lib/app": {
+			default: {
+				connect: (signal: string, callback: () => void) => {
+					assert.equal(signal, "shutdown")
+					shutdown_handlers.push(callback)
+				},
 			},
 		},
 		"$lib/time": {
@@ -128,6 +143,10 @@ async function service_fixture(catalog, variants) {
 			await Promise.resolve()
 		},
 		watch: () => on_favorites_change(),
+		shutdown: () => shutdown_handlers.forEach((handler) => handler()),
+		get kills() {
+			return kills
+		},
 		change_catalog(next) {
 			apps.list = next
 			on_catalog_change()
@@ -290,4 +309,13 @@ test("invalid GVariant leaves favorites and snapshot intact and can be retried",
 	await fixture.read(invalid)
 	assert.deepEqual(fixture.service.favorites, [new_app])
 	assert.deepEqual(fixture.parsed, [valid, invalid, valid, invalid])
+})
+
+test("shell shutdown kills the dconf watch exactly once", async () => {
+	const fixture = await service_fixture([], [])
+	assert.equal(fixture.kills, 0)
+	fixture.shutdown()
+	assert.equal(fixture.kills, 1)
+	fixture.shutdown()
+	assert.equal(fixture.kills, 1)
 })

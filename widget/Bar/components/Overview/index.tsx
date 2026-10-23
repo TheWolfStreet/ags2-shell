@@ -9,7 +9,8 @@ import AstalHyprland from "gi://AstalHyprland"
 import { PopupWindow } from "widget/shared/PopupWindow"
 import { PanelButton } from "../PanelButton"
 
-import { hyprland } from "$lib/hyprland"
+import { hyprland, hyprland_command } from "$lib/hyprland"
+import { attempt, log_error } from "$lib/result"
 import {
 	create_client_title_accessor,
 	create_workspace_clients,
@@ -93,13 +94,10 @@ export namespace Overview {
 			in_flight = true
 			const current_generation = generation
 			hyprland.sync_clients((_source, result) => {
-				let succeeded = false
-				try {
-					hyprland.sync_clients_finish(result)
-					succeeded = true
-				} catch {
+				const synced = attempt(() => hyprland.sync_clients_finish(result))
+				if (!synced.ok) {
 					if (!sync_warned)
-						console.warn("overview: Hyprland client sync failed")
+						console.warn("overview: Hyprland client sync failed", synced.err)
 					sync_warned = true
 				}
 				in_flight = false
@@ -107,7 +105,7 @@ export namespace Overview {
 					schedule_sync()
 					return
 				}
-				if (succeeded) {
+				if (synced.ok) {
 					sync_warned = false
 					const snapshot = hyprland.clients
 						.map((client) =>
@@ -170,10 +168,6 @@ export namespace Overview {
 		"notify::workspace",
 	] as const
 
-	function sanitize_overview_scale(value: number) {
-		return Math.max(1, value)
-	}
-
 	function sanitize_dimension(
 		value: number | null | undefined,
 		fallback: number,
@@ -186,7 +180,7 @@ export namespace Overview {
 	}
 
 	function scale_factor(value: number) {
-		const safe_value = sanitize_overview_scale(value)
+		const safe_value = Math.max(1, value)
 		if (safe_value <= 15) {
 			return safe_value / 100
 		}
@@ -281,17 +275,11 @@ export namespace Overview {
 
 		let widget: Gtk.Widget | null = null
 		let update_timer: Timer | null = null
-		function run_update() {
-			if (!widget) return
-
-			update(widget)
-		}
-
 		function schedule_update() {
 			if (update_timer) return
 			update_timer = idle(() => {
 				update_timer = null
-				run_update()
+				if (widget) update(widget)
 			})
 		}
 
@@ -411,7 +399,13 @@ export namespace Overview {
 				css={css}
 				valign={CENTER}
 				onClicked={() =>
-					hyprland.message_async(`dispatch workspace ${workspace_id}`, null)
+					void hyprland_command(`dispatch workspace ${workspace_id}`).then(
+						(result) =>
+							log_error(
+								result,
+								"overview.workspace: Failed to switch workspace",
+							),
+					)
 				}
 			>
 				<Gtk.DropTarget

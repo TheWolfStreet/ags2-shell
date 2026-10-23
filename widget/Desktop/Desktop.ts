@@ -16,13 +16,12 @@ import {
 	create_desktop_folder,
 	create_desktop_launcher,
 	create_desktop_text_file,
+	delete_desktop_files,
 	DESKTOP_PATH,
 	load_desktop_files,
 	open_path,
-	permanently_delete_files,
 	read_clipboard_file_payload,
 	rename_file,
-	trash_files,
 	transfer_desktop_files,
 	write_clipboard_file_payload,
 } from "./FileOperations"
@@ -73,16 +72,14 @@ function normalize_monitor_id(monitor_id: string): string {
 	return normalized || default_monitor
 }
 
-function sanitize_slot(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value)
-		? Math.max(0, Math.floor(value))
-		: 0
-}
-
 function sanitize_optional_slot(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value)
 		? Math.max(0, Math.floor(value))
 		: undefined
+}
+
+function sanitize_slot(value: unknown): number {
+	return sanitize_optional_slot(value) ?? 0
 }
 
 function sanitize_column_count(value: unknown): number | undefined {
@@ -292,21 +289,35 @@ function update_layout(next: desktop_layout): void {
 	save_layout.call()
 }
 
-function normalize_owned_positions(
+function apply_grid_metrics(
 	layout: desktop_layout,
 	id: string,
 	files: DesktopFile[],
 	metrics: GridMetrics,
 ): desktop_layout {
-	const owned = files_on_monitor(layout, files, id)
-	const expanded_metrics = expand_grid_metrics(metrics, owned.length)
+	let next = layout
+	const previous_columns = next.columns[id]
+	if (previous_columns && previous_columns !== metrics.columns) {
+		const owned = files_on_monitor(next, files, id)
+		const expanded = expand_grid_metrics(metrics, owned.length)
+		const remapped = remap_slots_across_columns(
+			positions_of(next, id),
+			previous_columns,
+			metrics.columns,
+			expanded.rows * expanded.columns,
+		)
+		next = set_positions(next, id, remapped)
+	}
+	next = set_column_count(next, id, metrics.columns)
+	const owned = files_on_monitor(next, files, id)
+	const expanded = expand_grid_metrics(metrics, owned.length)
 	const positions = reconcile_grid_positions(
 		owned,
-		positions_of(layout, id),
-		expanded_metrics.rows * expanded_metrics.columns,
-		expanded_metrics.columns,
+		positions_of(next, id),
+		expanded.rows * expanded.columns,
+		expanded.columns,
 	)
-	return set_positions(layout, id, positions)
+	return set_positions(next, id, positions)
 }
 
 function normalize_known_positions(
@@ -314,22 +325,8 @@ function normalize_known_positions(
 	files: DesktopFile[],
 ): desktop_layout {
 	let next = layout
-	for (const [id, metrics] of Object.entries(grid_metrics.peek())) {
-		const previous_columns = next.columns[id]
-		if (previous_columns && previous_columns !== metrics.columns) {
-			const owned = files_on_monitor(next, files, id)
-			const expanded = expand_grid_metrics(metrics, owned.length)
-			const remapped = remap_slots_across_columns(
-				positions_of(next, id),
-				previous_columns,
-				metrics.columns,
-				expanded.rows * expanded.columns,
-			)
-			next = set_positions(next, id, remapped)
-		}
-		next = set_column_count(next, id, metrics.columns)
-		next = normalize_owned_positions(next, id, files, metrics)
-	}
+	for (const [id, metrics] of Object.entries(grid_metrics.peek()))
+		next = apply_grid_metrics(next, id, files, metrics)
 	return next
 }
 
@@ -357,6 +354,10 @@ async function reload_desktop_files(
 	)
 	has_loaded_files = true
 	update_layout(next)
+	show_desktop_files(files)
+}
+
+function show_desktop_files(files: DesktopFile[]): void {
 	set_desktop_files(files)
 	const valid = new Set(files.map((file) => file.path))
 	set_selected(selected.peek().filter((path) => valid.has(path)))
@@ -430,6 +431,9 @@ function watch_desktop_directory(): void {
 			if (!directory.query_exists(null)) {
 				desktop_directory_monitor?.cancel()
 				desktop_directory_monitor = null
+				reload_sequence += 1
+				refresh_desktop_files.cancel()
+				show_desktop_files([])
 				watch_desktop_directory()
 				return
 			}
@@ -527,23 +531,15 @@ export function resize_desktop_grid(
 		set_grid_metrics({ ...grid_metrics.peek(), [id]: metrics })
 		return
 	}
-	let layout = desktop_layout.peek()
-	const previous_columns = layout.columns[id]
-	if (previous_columns && previous_columns !== metrics.columns) {
-		const owned = files_on_monitor(layout, desktop_files.peek(), id)
-		const expanded_metrics = expand_grid_metrics(metrics, owned.length)
-		const remapped = remap_slots_across_columns(
-			positions_of(layout, id),
-			previous_columns,
-			metrics.columns,
-			expanded_metrics.rows * expanded_metrics.columns,
-		)
-		layout = set_positions(layout, id, remapped)
-	}
-	layout = set_column_count(layout, id, metrics.columns)
 	set_grid_metrics({ ...grid_metrics.peek(), [id]: metrics })
-	layout = normalize_owned_positions(layout, id, desktop_files.peek(), metrics)
-	update_layout(layout)
+	update_layout(
+		apply_grid_metrics(
+			desktop_layout.peek(),
+			id,
+			desktop_files.peek(),
+			metrics,
+		),
+	)
 }
 
 export function set_desktop_monitors(ids: string[], primary_id: string): void {
@@ -634,15 +630,13 @@ function set_desktop_clipboard(
 ): void {
 	const files = [...new Set(paths)].filter(Boolean)
 	if (files.length === 0) return
-	void write_clipboard_file_payload(operation, files).then((result) => {
-		if (
-			log_error(
-				result,
-				"desktop.setClipboardFiles: Failed to set desktop clipboard",
-			)
+	if (
+		log_error(
+			write_clipboard_file_payload(operation, files),
+			"desktop.setClipboardFiles: Failed to set desktop clipboard",
 		)
-			update_desktop_clipboard({ operation, files })
-	})
+	)
+		update_desktop_clipboard({ operation, files })
 }
 
 export function copy_desktop_files(paths: string[]): void {
@@ -664,9 +658,8 @@ export async function cancel_desktop_cut(): Promise<void> {
 		original_content === clipboard.get_content() &&
 		current.files.join("\0") === local.files.join("\0")
 	) {
-		const result = await clear_clipboard_file_payload()
 		log_error(
-			result,
+			clear_clipboard_file_payload(),
 			"desktop.clearClipboardFiles: Failed to clear desktop clipboard",
 		)
 	}
@@ -678,44 +671,22 @@ export async function paste_desktop_files(monitor_id: string): Promise<void> {
 	const payload = await read_clipboard_file_payload()
 	if (!payload?.files.length) return
 
-	const monitor = monitor_id.trim() || fallback_monitor(desktop_layout.peek())
-	let visible_paths: string[] = []
-	begin_desktop_transfer()
-
-	try {
-		const result = await transfer_desktop_files({
-			paths: payload.files,
-			operation: payload.operation === "cut" ? "move" : "copy",
-		})
-		visible_paths = [
-			...result.createdPaths,
-			...result.failures.flatMap((failure) =>
-				failure.destination ? [failure.destination] : [],
-			),
-		]
-
-		if (result.failures.length > 0)
-			console.error(
-				"desktop.pasteFiles: Failed to paste some desktop files",
-				result.failures,
-			)
-		else if (payload.operation === "cut") {
-			if (
-				clipboard?.is_local() &&
-				original_content === clipboard.get_content() &&
-				desktop_clipboard.peek()?.files.join("\0") === payload.files.join("\0")
-			) {
-				const cleared = await clear_clipboard_file_payload()
-				log_error(
-					cleared,
-					"desktop.pasteFiles: Failed to clear moved clipboard files",
-				)
-			}
-			update_desktop_clipboard(null)
-		}
-	} finally {
-		await finish_desktop_transfer(visible_paths, monitor)
-	}
+	const result = await import_files_to_desktop({
+		paths: payload.files,
+		to: monitor_id.trim() || fallback_monitor(desktop_layout.peek()),
+		operation: payload.operation === "cut" ? "move" : "copy",
+	})
+	if (result.failures.length > 0 || payload.operation !== "cut") return
+	if (
+		clipboard?.is_local() &&
+		original_content === clipboard.get_content() &&
+		desktop_clipboard.peek()?.files.join("\0") === payload.files.join("\0")
+	)
+		log_error(
+			clear_clipboard_file_payload(),
+			"desktop.pasteFiles: Failed to clear moved clipboard files",
+		)
+	update_desktop_clipboard(null)
 }
 
 export async function import_files_to_desktop(opts: {
@@ -752,9 +723,10 @@ export async function remove_desktop_files(
 	opts: { permanently?: boolean } = {},
 ): Promise<void> {
 	if (paths.length === 0) return
-	const result = opts.permanently
-		? await permanently_delete_files(paths)
-		: await trash_files(paths)
+	const result = await delete_desktop_files(
+		paths,
+		opts.permanently ? "delete" : "trash",
+	)
 	if (result.failures.length)
 		console.error("desktop.remove: Failed to remove files", result.failures)
 	const removed = new Set(result.removedPaths)
@@ -763,12 +735,6 @@ export async function remove_desktop_files(
 	if (rename_path.peek() && removed.has(rename_path.peek()!))
 		set_rename_path(null)
 	await reload_desktop_files()
-}
-
-function remember_created_path(path: string, monitor_id: string): string {
-	update_layout(assign_paths(desktop_layout.peek(), [path], monitor_id))
-	reload_desktop_files(monitor_id)
-	return path
 }
 
 export type DesktopEntrySpec =
@@ -792,7 +758,9 @@ export function create_desktop_entry(
 		!log_error(result, `desktop.create: Failed to create desktop ${spec.kind}`)
 	)
 		return null
-	return remember_created_path(result.value, monitor_id)
+	update_layout(assign_paths(desktop_layout.peek(), [result.value], monitor_id))
+	void reload_desktop_files(monitor_id)
+	return result.value
 }
 
 function rename_desktop_file(target: string, name: string): string | null {

@@ -5,7 +5,14 @@ import GioUnix from "gi://GioUnix"
 import GLib from "gi://GLib"
 
 import { hyprland } from "$lib/hyprland"
-import { attempt, err, log_error, ok, type Result } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type Result,
+} from "$lib/result"
 import { debounce } from "$lib/time"
 import {
 	get_client_workspace_id,
@@ -21,7 +28,7 @@ const [has_items, set_has_items] = createState(false)
 export { has_items }
 
 async function refresh_state() {
-	try {
+	const result = await attempt_async(async () => {
 		const dir = Gio.File.new_for_uri(trash_uri)
 		const enumerator = await dir.enumerate_children_async(
 			"standard::name",
@@ -35,14 +42,15 @@ async function refresh_state() {
 				GLib.PRIORITY_DEFAULT,
 				null,
 			)
-			if (watcher_users > 0) set_has_items(items.length > 0)
+			return items.length > 0
 		} finally {
 			if (!(await enumerator.close_async(GLib.PRIORITY_DEFAULT, null)))
 				throw new Error("Failed to close Trash enumeration")
 		}
-	} catch (error) {
-		console.error("dock.trash.refresh: Failed to refresh trash state", error)
-	}
+	})
+	if (!log_error(result, "dock.trash.refresh: Failed to refresh trash state"))
+		return
+	if (watcher_users > 0) set_has_items(result.value)
 }
 
 const refresh = debounce(refresh_debounce_ms, refresh_state)

@@ -18,6 +18,7 @@ import { notification_manager } from "$service/notifications"
 import icons from "$lib/icons"
 import { on_window_toggle } from "$lib/windowing"
 import { attempt, log_error } from "$lib/result"
+import { interval, type Timer } from "$lib/time"
 
 import options from "$shell/options"
 
@@ -197,7 +198,10 @@ export namespace DateMenu {
 					hscrollbarPolicy={NEVER}
 				>
 					<box vexpand orientation={VERTICAL}>
-						<Notifications.Stack class="notification-list vertical" />
+						<Notifications.NotificationList
+							class="notification-list vertical"
+							persistent
+						/>
 						<revealer
 							revealChild={no_notifications}
 							transitionDuration={options.transition.duration}
@@ -216,11 +220,7 @@ export namespace DateMenu {
 	function DateColumn() {
 		const [uptime, set_uptime] = createState(0)
 		const [shown, set_shown] = createState(false)
-		let uptime_source = 0
-		const stop = () => {
-			if (uptime_source) GLib.Source.remove(uptime_source)
-			uptime_source = 0
-		}
+		let uptime_timer: Timer | null = null
 		const update = () => {
 			const result = attempt(() =>
 				Math.floor(Number(readFile("/proc/uptime").split(" ")[0]) / 60),
@@ -232,18 +232,13 @@ export namespace DateMenu {
 				set_uptime(result.value)
 		}
 		const unsubscribe = on_window_toggle("datemenu", (window) => {
-			stop()
+			uptime_timer?.cancel()
+			uptime_timer = null
 			set_shown(window.visible)
-			if (window.visible) {
-				update()
-				uptime_source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 60_000, () => {
-					update()
-					return GLib.SOURCE_CONTINUE
-				})
-			}
+			if (window.visible) uptime_timer = interval(60_000, update)
 		})
 		onCleanup(() => {
-			stop()
+			uptime_timer?.cancel()
 			unsubscribe()
 		})
 		return (

@@ -1,6 +1,7 @@
 import { Accessor, createState, type Setter } from "ags"
 import { readFile, writeFileAsync } from "ags/file"
 import { Gtk } from "ags/gtk4"
+import Gio from "gi://Gio"
 import app from "$lib/app"
 
 import icons from "$lib/icons"
@@ -21,23 +22,47 @@ namespace Store {
 
 	let cache: Record<string, unknown> | null = null
 
+	let writes_blocked = false
+
 	function ensure_loaded() {
 		if (cache !== null) return
+		cache = {}
 		const ready = ensure_file(path)
-		const result = ready.ok
-			? attempt(() => {
-					const raw = readFile(path) || "{}"
-					return JSON.parse(raw) as Record<string, unknown>
-				})
-			: ready
-		if (
-			log_error(result, "option.store.load: Failed to load options store") &&
-			!is_structured(result.value)
-		)
+		if (!log_error(ready, "option.store.load: Failed to prepare options store"))
+			return
+		const result = attempt(() => JSON.parse(readFile(path) || "{}") as unknown)
+		if (result.ok && is_structured(result.value)) {
+			cache = result.value
+			return
+		}
+		if (result.ok)
 			console.error(
 				"option.store.load: Options store does not contain an object",
 			)
-		cache = result.ok && is_structured(result.value) ? result.value : {}
+		else log_error(result, "option.store.load: Failed to load options store")
+		set_aside_unreadable_store()
+	}
+
+	function set_aside_unreadable_store() {
+		const backup = `${path}.bad`
+		const moved = attempt(() =>
+			Gio.File.new_for_path(path).move(
+				Gio.File.new_for_path(backup),
+				Gio.FileCopyFlags.OVERWRITE,
+				null,
+				null,
+			),
+		)
+		if (
+			log_error(
+				moved,
+				"option.store.load: Failed to set aside unreadable options",
+			)
+		) {
+			console.error(`option.store.load: Unreadable options moved to ${backup}`)
+			return
+		}
+		writes_blocked = true
 	}
 
 	let last_save: Promise<Result<void>> = Promise.resolve(ok(undefined))
@@ -47,6 +72,10 @@ namespace Store {
 	function write(): Promise<Result<void>> {
 		last_save = last_save.then(async () => {
 			if (revision === saved_revision) return ok(undefined)
+			if (writes_blocked)
+				return err(
+					new Error("Options store is unreadable and was not set aside"),
+				)
 			const writing_revision = revision
 			const ready = ensure_file(path)
 			const result = ready.ok
@@ -270,12 +299,12 @@ function valid_leaf(
 	return false
 }
 
-export type Options<T> =
+type Options<T> =
 	T extends Record<string, unknown>
 		? { [K in keyof T]: Options<T[K]> }
 		: Opt<WidenLiterals<T>>
 
-export function mk_options<T>(
+function mk_options<T>(
 	node: T,
 	constraints: OptionConstraints = {},
 ): Options<T> {
@@ -314,27 +343,29 @@ export function flush_options(): Promise<Result<void>> {
 	return Store.flush()
 }
 
+export function collect_options(opts: unknown): Opt<any>[] {
+	if (opts instanceof Opt) return [opts]
+	if (!is_structured(opts)) return []
+	const collected: Opt<any>[] = []
+	for (const key in opts) {
+		if (Object.prototype.hasOwnProperty.call(opts, key))
+			collected.push(...collect_options(opts[key]))
+	}
+	return collected
+}
+
 export function subscribe_options(
 	opts: unknown,
 	prefixes: readonly string[],
 	callback: () => void,
 ): () => void {
-	const disposers: Array<() => void> = []
-
-	if (opts instanceof Opt) {
-		if (
+	const disposers = collect_options(opts)
+		.filter((opt) =>
 			prefixes.some(
-				(prefix) => opts.id === prefix || opts.id.startsWith(`${prefix}.`),
-			)
+				(prefix) => opt.id === prefix || opt.id.startsWith(`${prefix}.`),
+			),
 		)
-			disposers.push(opts.subscribe(callback))
-	} else if (is_structured(opts)) {
-		for (const key in opts) {
-			if (Object.prototype.hasOwnProperty.call(opts, key))
-				disposers.push(subscribe_options(opts[key], prefixes, callback))
-		}
-	}
-
+		.map((opt) => opt.subscribe(callback))
 	return () => disposers.forEach((dispose) => dispose())
 }
 

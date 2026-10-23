@@ -1,14 +1,21 @@
 import GObject, { getter, register } from "ags/gobject"
 
-import { hyprland } from "$lib/hyprland"
+import { hyprland, hyprland_command } from "$lib/hyprland"
 import GLib from "gi://GLib"
-import { attempt, attempt_async, err, ok, type Result } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type Result,
+} from "$lib/result"
 import options from "$shell/options"
 import {
 	format_monitor_command,
 	type monitor_settings,
 } from "./monitorConfiguration"
-import { run_command } from "./commands"
+import { run_command } from "$lib/commands"
 
 type monitor_configuration = monitor_settings & {
 	disabled: boolean
@@ -84,11 +91,6 @@ function nearest_value(values: number[], preferred: number): number {
 			? value
 			: nearest,
 	)
-}
-
-function normalize_refresh_rate(value: number, available: number[]): number {
-	if (available.includes(value)) return value
-	return nearest_value(available, value)
 }
 
 function resolve_refresh_rate(
@@ -307,13 +309,13 @@ class Asusctl extends GObject.Object {
 			available_refresh_rates.length === 0
 		)
 			return
-		const ac_hz = normalize_refresh_rate(
+		const ac_hz = nearest_value(
+			available_refresh_rates,
 			options.asus.ac_hz.peek(),
-			available_refresh_rates,
 		)
-		const bat_hz = normalize_refresh_rate(
-			options.asus.bat_hz.peek(),
+		const bat_hz = nearest_value(
 			available_refresh_rates,
+			options.asus.bat_hz.peek(),
 		)
 
 		if (ac_hz !== options.asus.ac_hz.peek()) options.asus.ac_hz.set(ac_hz)
@@ -326,17 +328,11 @@ class Asusctl extends GObject.Object {
 			preferred_refresh_rate,
 		)
 		if (Math.abs(policy_panel.refreshRate - refresh_rate) < 0.1) return
-		const response = await attempt_async(() =>
-			hyprland.message_async(
-				format_monitor_command(policy_panel, { refresh_rate: refresh_rate }),
-			),
+		const response = await hyprland_command(
+			format_monitor_command(policy_panel, { refresh_rate: refresh_rate }),
 		)
 		if (policy_sequence !== this.#policy_sequence) return
-		if (!response.ok || response.value !== "ok")
-			console.error(
-				"asusctl.monitor: Failed to apply refresh rate",
-				response.ok ? response.value : response.err,
-			)
+		log_error(response, "asusctl.monitor: Failed to apply refresh rate")
 	}
 
 	async refresh(): Promise<Result<void>> {

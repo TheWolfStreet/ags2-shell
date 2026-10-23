@@ -74,9 +74,7 @@ export namespace PowerMenu {
 		return (
 			<PopupWindow
 				name="verification"
-				class="verification"
 				transitionType={CROSSFADE}
-				anchor={undefined}
 				application={app}
 				onNotifyVisible={(window) => {
 					if (window.visible) cancel_button?.grab_focus()

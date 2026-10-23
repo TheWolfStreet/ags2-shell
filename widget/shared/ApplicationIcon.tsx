@@ -1,12 +1,12 @@
 import { createComputed, With } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
-import { create_square_texture_accessor } from "$lib/textures"
+import { create_texture_accessor } from "$lib/textures"
 import { type MaybeAccessor, read_value } from "$lib/ui"
 
 function render_icon(icon: string, size: number) {
 	if (icon.includes("/")) {
-		const texture = create_square_texture_accessor(icon, size)
+		const texture = create_texture_accessor(icon, size)
 		return (
 			<Gtk.Picture
 				paintable={texture.as((value) => value as Gdk.Paintable)}

@@ -1,6 +1,6 @@
 import GObject, { getter, register } from "ags/gobject"
-import { execAsync, Process, subprocess } from "ags/process"
-import { interval, timeout, type Timer } from "$lib/time"
+import { Process, subprocess } from "ags/process"
+import { interval, type Timer } from "$lib/time"
 import app from "$lib/app"
 
 import GLib from "gi://GLib"
@@ -16,6 +16,9 @@ import {
 	type Result,
 } from "$lib/result"
 import { ensure_directory } from "$lib/files"
+import { run_command } from "$lib/commands"
+import { copy_to_clipboard } from "$lib/clipboard"
+import { hyprland } from "$lib/hyprland"
 import { notify, notify_missing_programs } from "$lib/notifications"
 import icons from "$lib/icons"
 
@@ -23,19 +26,6 @@ const recordings_directory = `${env.paths.home}/Videos/Screencasting/`
 const screenshots_directory = `${env.paths.home}/Pictures/Screenshots/`
 const create_capture_timestamp = () =>
 	`${GLib.DateTime.new_now_local().format("%Y-%m-%d_%H-%M-%S")}-${GLib.uuid_string_random()}`
-
-type hyprland_monitor_json = {
-	focused: boolean
-	name?: unknown
-}
-
-function is_hyprland_monitor_json(
-	value: unknown,
-): value is hyprland_monitor_json {
-	if (value === null || typeof value !== "object") return false
-	const monitor = value as Record<string, unknown>
-	return typeof monitor.focused === "boolean"
-}
 
 @register()
 class ScreenCaptureService extends GObject.Object {
@@ -76,31 +66,9 @@ class ScreenCaptureService extends GObject.Object {
 		return this.#recording
 	}
 
-	readonly #get_focused_monitor = async (): Promise<
-		Result<hyprland_monitor_json>
-	> => {
-		if (!notify_missing_programs("hyprctl"))
-			return err(new Error("hyprctl is unavailable"))
-		const parsed = await attempt_async(async (): Promise<unknown> =>
-			JSON.parse(await execAsync(["hyprctl", "monitors", "-j"])),
-		)
-		if (!parsed.ok) return parsed
-		if (!Array.isArray(parsed.value))
-			return err(new Error("Invalid monitor list"))
-		const focused = parsed.value.find(
-			(monitor): monitor is hyprland_monitor_json =>
-				is_hyprland_monitor_json(monitor) && monitor.focused,
-		)
-		return focused ? ok(focused) : err(new Error("No focused output"))
-	}
-
-	readonly #get_focused_output_name = async (): Promise<Result<string>> => {
-		const focused = await this.#get_focused_monitor()
-		if (!focused.ok) return focused
-		const name = focused.value.name
-		return typeof name === "string" && name.length > 0
-			? ok(name)
-			: err(new Error("Focused output has no name"))
+	readonly #get_focused_output_name = (): Result<string> => {
+		const name = hyprland.focusedMonitor?.name
+		return name ? ok(name) : err(new Error("No focused output"))
 	}
 
 	readonly screenshot = async ({
@@ -119,8 +87,7 @@ class ScreenCaptureService extends GObject.Object {
 		} else {
 			if (!notify_missing_programs("grim"))
 				return err(new Error("grim is unavailable"))
-			const focused_output = await this.#get_focused_output_name()
-			if (this.#shutting_down) return ok("cancelled" as const)
+			const focused_output = this.#get_focused_output_name()
 			if (!focused_output.ok) return focused_output
 			args = ["grim", "-o", focused_output.value]
 		}
@@ -129,32 +96,13 @@ class ScreenCaptureService extends GObject.Object {
 		if (this.#shutting_down) return ok("cancelled" as const)
 		const result = await attempt_async(async () => {
 			const screenshot_file = `${screenshots_directory}${create_capture_timestamp()}.png`
-			await execAsync([...args, screenshot_file])
+			const captured = await run_command([...args, screenshot_file])
+			if (!captured.ok) throw captured.err
 
-			const copied = await attempt_async(
-				() =>
-					new Promise<void>((resolve, reject) => {
-						const process = Gio.Subprocess.new(
-							[
-								"bash",
-								"-c",
-								`setsid wl-copy --type image/png < ${GLib.shell_quote(screenshot_file)}`,
-							],
-							Gio.SubprocessFlags.NONE,
-						)
-						const deadline = timeout(5000, () => process.force_exit())
-						process.wait_check_async(null, (_source, response) => {
-							deadline.cancel()
-							try {
-								if (!process.wait_check_finish(response))
-									throw new Error("Clipboard copy failed")
-								resolve()
-							} catch (error) {
-								reject(error)
-							}
-						})
-					}),
-			)
+			const copied = await copy_to_clipboard({
+				path: screenshot_file,
+				mime_type: "image/png",
+			})
 			log_error(
 				copied,
 				"screenCapture.screenshot: Saved screenshot but failed to copy it",
@@ -298,7 +246,8 @@ class ScreenCaptureService extends GObject.Object {
 			return ok(null)
 		if (!notify_missing_programs(main_tool, "slurp"))
 			return err(new Error(`Missing ${main_tool} or slurp`))
-		const slurp_running = await execAsync(["pidof", "slurp"]).catch(() => "")
+		const slurp = await run_command(["pidof", "slurp"], { timeout_ms: 2000 })
+		const slurp_running = slurp.ok && slurp.value !== ""
 		if (
 			this.#shutting_down ||
 			(revision !== null && revision !== this.#start_revision)

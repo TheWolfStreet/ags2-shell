@@ -3,7 +3,7 @@
 set -euo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-for program in ags sass install sed realpath mktemp grep cmp; do
+for program in ags sass install sed realpath mktemp grep; do
   if ! command -v "$program" >/dev/null 2>&1; then
     printf 'Missing required build command: %s\n' "$program" >&2
     exit 1

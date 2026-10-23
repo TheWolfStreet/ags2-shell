@@ -1,4 +1,3 @@
-import { execAsync } from "ags/process"
 import { Gdk } from "ags/gtk4"
 import { timeout } from "$lib/time"
 
@@ -15,6 +14,7 @@ import {
 	with_context,
 	type Result,
 } from "$lib/result"
+import { is_exists_error } from "$lib/files"
 
 export type DesktopFile = {
 	name: string
@@ -30,11 +30,14 @@ export const DESKTOP_PATH =
 	GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP) ??
 	`${GLib.get_home_dir()}/Desktop`
 
+function split_extension(name: string): [string, string] {
+	const dot = name.lastIndexOf(".")
+	if (dot <= 0) return [name, ""]
+	return [name.slice(0, dot), name.slice(dot)]
+}
+
 function unique_desktop_target_path(base_name: string) {
-	const last_dot = base_name.lastIndexOf(".")
-	const has_ext = last_dot > 0
-	const stem = has_ext ? base_name.slice(0, last_dot) : base_name
-	const ext = has_ext ? base_name.slice(last_dot) : ""
+	const [stem, ext] = split_extension(base_name)
 	let counter = 1
 	let candidate = `${DESKTOP_PATH}/${base_name}`
 
@@ -48,13 +51,6 @@ function unique_desktop_target_path(base_name: string) {
 export type DesktopTransferResult = {
 	createdPaths: string[]
 	failures: Array<{ path: string; error: unknown; destination?: string }>
-}
-
-function is_exists(error: unknown): boolean {
-	return (
-		error instanceof GLib.Error &&
-		error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.EXISTS)
-	)
 }
 
 function copy_async(source: Gio.File, target: Gio.File): Promise<void> {
@@ -97,10 +93,14 @@ function move_async(source: Gio.File, target: Gio.File): Promise<void> {
 	})
 }
 
-async function* children_of(file: Gio.File): AsyncGenerator<Gio.File> {
+async function* enumerate_children(
+	file: Gio.File,
+	attributes: string,
+	flags: Gio.FileQueryInfoFlags,
+): AsyncGenerator<Gio.FileInfo> {
 	const enumerator = await file.enumerate_children_async(
-		"standard::name",
-		Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+		attributes,
+		flags,
 		GLib.PRIORITY_DEFAULT,
 		null,
 	)
@@ -112,7 +112,7 @@ async function* children_of(file: Gio.File): AsyncGenerator<Gio.File> {
 				null,
 			)
 			if (batch.length === 0) break
-			for (const info of batch) yield file.get_child(info.get_name())
+			yield* batch
 		}
 	} finally {
 		if (!(await enumerator.close_async(GLib.PRIORITY_DEFAULT, null)))
@@ -128,7 +128,12 @@ async function delete_tree(file: Gio.File): Promise<void> {
 		null,
 	)
 	if (info.get_file_type() === Gio.FileType.DIRECTORY) {
-		for await (const child of children_of(file)) await delete_tree(child)
+		for await (const child of enumerate_children(
+			file,
+			"standard::name",
+			Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+		))
+			await delete_tree(file.get_child(child.get_name()))
 	}
 	if (!(await file.delete_async(GLib.PRIORITY_DEFAULT, null)))
 		throw new Error(`Failed to delete ${file.get_path()}`)
@@ -145,23 +150,32 @@ async function copy_tree(source: Gio.File, target: Gio.File): Promise<void> {
 		try {
 			await copy_async(source, target)
 		} catch (error) {
-			if (is_exists(error)) throw error
-			throw new Error(`Incomplete copy may remain at ${target.get_path()}`, {
-				cause: error,
-			})
+			if (is_exists_error(error)) throw error
+			throw Object.assign(
+				new Error(`Incomplete copy may remain at ${target.get_path()}`, {
+					cause: error,
+				}),
+				{ destination: target.get_path() ?? "" },
+			)
 		}
 		return
 	}
 	if (!(await target.make_directory_async(GLib.PRIORITY_DEFAULT, null)))
 		throw new Error(`Failed to create ${target.get_path()}`)
 	try {
-		for await (const child of children_of(source)) {
-			const name = child.get_basename()
-			if (!name) throw new Error(`Cannot name child of ${source.get_path()}`)
-			await copy_tree(child, target.get_child(name))
+		for await (const child of enumerate_children(
+			source,
+			"standard::name",
+			Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+		)) {
+			const name = child.get_name()
+			await copy_tree(source.get_child(name), target.get_child(name))
 		}
 	} catch (error) {
-		throw new Error(`Incomplete copy at ${target.get_path()}`, { cause: error })
+		throw Object.assign(
+			new Error(`Incomplete copy at ${target.get_path()}`, { cause: error }),
+			{ destination: target.get_path() ?? "" },
+		)
 	}
 }
 
@@ -189,10 +203,13 @@ async function move_tree(source: Gio.File, target: Gio.File): Promise<void> {
 	if (!(await target.make_directory_async(GLib.PRIORITY_DEFAULT, null)))
 		throw new Error(`Failed to create ${target.get_path()}`)
 	try {
-		for await (const child of children_of(source)) {
-			const name = child.get_basename()
-			if (!name) throw new Error(`Cannot name child of ${source.get_path()}`)
-			await move_tree(child, target.get_child(name))
+		for await (const child of enumerate_children(
+			source,
+			"standard::name",
+			Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+		)) {
+			const name = child.get_name()
+			await move_tree(source.get_child(name), target.get_child(name))
 		}
 		if (!(await source.delete_async(GLib.PRIORITY_DEFAULT, null)))
 			throw new Error(`Failed to remove empty directory ${source.get_path()}`)
@@ -225,9 +242,7 @@ export async function transfer_desktop_files(opts: {
 				source.equal(Gio.File.new_for_path(`${DESKTOP_PATH}/${name}`))
 			)
 				continue
-			const dot = name.lastIndexOf(".")
-			const stem = dot > 0 ? name.slice(0, dot) : name
-			const extension = dot > 0 ? name.slice(dot) : ""
+			const [stem, extension] = split_extension(name)
 			let completed = false
 			for (let index = 0; index < 10000; index++) {
 				const target_path = `${DESKTOP_PATH}/${index ? `${stem} (${index})${extension}` : name}`
@@ -241,7 +256,7 @@ export async function transfer_desktop_files(opts: {
 					completed = true
 					break
 				} catch (error) {
-					if (!is_exists(error)) throw error
+					if (!is_exists_error(error)) throw error
 				}
 			}
 			if (!completed) throw new Error("No available destination name")
@@ -267,7 +282,7 @@ type desktop_remove_result = {
 	failures: DesktopTransferResult["failures"]
 }
 
-async function mutate_desktop_files(
+export async function delete_desktop_files(
 	paths: string[],
 	operation: "trash" | "delete",
 ): Promise<desktop_remove_result> {
@@ -288,16 +303,6 @@ async function mutate_desktop_files(
 		}
 	}
 	return { removedPaths: removed_paths, failures }
-}
-
-export function trash_files(paths: string[]): Promise<desktop_remove_result> {
-	return mutate_desktop_files(paths, "trash")
-}
-
-export function permanently_delete_files(
-	paths: string[],
-): Promise<desktop_remove_result> {
-	return mutate_desktop_files(paths, "delete")
 }
 
 export function rename_file(
@@ -469,25 +474,28 @@ function first_icon_name(icon: Gio.Icon | null) {
 	return Array.isArray(names) && typeof names[0] === "string" ? names[0] : null
 }
 
-function try_get_content_type_icon_name(content_type: string) {
-	const result = attempt(() =>
-		first_icon_name(Gio.content_type_get_icon(content_type)),
-	)
-	return result.ok ? result.value : null
-}
-
 function icon_name_from_file_info(info: Gio.FileInfo): string {
 	const icon_name = first_icon_name(info.get_icon())
 	if (icon_name) return icon_name
 
 	const content_type = info.get_content_type()
-	return content_type
-		? (try_get_content_type_icon_name(content_type) ?? "text-x-generic")
-		: "text-x-generic"
+	if (!content_type) return "text-x-generic"
+	const result = attempt(() =>
+		first_icon_name(Gio.content_type_get_icon(content_type)),
+	)
+	return (result.ok ? result.value : null) ?? "text-x-generic"
 }
 
-function desktop_launcher_metadata(path: string) {
+function is_trusted_launcher(info: Gio.FileInfo): boolean {
+	return (
+		info.get_attribute_string("metadata::trusted") === "true" &&
+		info.get_attribute_boolean("access::can-execute")
+	)
+}
+
+function desktop_launcher_metadata(path: string, info: Gio.FileInfo) {
 	if (!path.toLowerCase().endsWith(".desktop")) return null
+	if (!is_trusted_launcher(info)) return null
 	const result = attempt(() => {
 		const launcher = GioUnix.DesktopAppInfo.new_from_filename(path)
 		if (!launcher) return null
@@ -508,52 +516,35 @@ function desktop_launcher_metadata(path: string) {
 export async function load_desktop_files(): Promise<Result<DesktopFile[]>> {
 	const desktop_dir = Gio.File.new_for_path(DESKTOP_PATH)
 	const result = await attempt_async(async () => {
-		const file_enum = await desktop_dir.enumerate_children_async(
-			"standard::name,standard::type,time::modified,standard::content-type,standard::icon",
-			Gio.FileQueryInfoFlags.NONE,
-			GLib.PRIORITY_DEFAULT,
-			null,
-		)
-
 		const found_files: DesktopFile[] = []
-		try {
-			for (;;) {
-				const batch = await file_enum.next_files_async(
-					64,
-					GLib.PRIORITY_DEFAULT,
-					null,
-				)
-				if (batch.length === 0) break
-				for (const file_info of batch) {
-					const file_name = file_info.get_name()
-					if (file_name.startsWith(".")) continue
+		for await (const file_info of enumerate_children(
+			desktop_dir,
+			"standard::name,standard::type,time::modified,standard::content-type,standard::icon,access::can-execute,metadata::trusted",
+			Gio.FileQueryInfoFlags.NONE,
+		)) {
+			const file_name = file_info.get_name()
+			if (file_name.startsWith(".")) continue
 
-					const is_directory =
-						file_info.get_file_type() === Gio.FileType.DIRECTORY
-					const file_path = `${DESKTOP_PATH}/${file_name}`
-					const file_type = is_directory
-						? "inode/directory"
-						: file_info.get_content_type() ||
-							Gio.content_type_guess(file_path, null)[0] ||
-							"application/octet-stream"
-					const launcher = desktop_launcher_metadata(file_path)
+			const is_directory = file_info.get_file_type() === Gio.FileType.DIRECTORY
+			const file_path = `${DESKTOP_PATH}/${file_name}`
+			const file_type = is_directory
+				? "inode/directory"
+				: file_info.get_content_type() ||
+					Gio.content_type_guess(file_path, null)[0] ||
+					"application/octet-stream"
+			const launcher = desktop_launcher_metadata(file_path, file_info)
 
-					found_files.push({
-						name: file_name,
-						displayName: launcher?.displayName,
-						path: file_path,
-						contentType: file_type,
-						modified: new Date(
-							(file_info.get_modification_date_time()?.to_unix() || 0) * 1000,
-						),
-						icon: launcher?.icon ?? icon_name_from_file_info(file_info),
-						iconFile: launcher?.iconFile ?? undefined,
-					})
-				}
-			}
-		} finally {
-			if (!(await file_enum.close_async(GLib.PRIORITY_DEFAULT, null)))
-				throw new Error(`Failed to close directory ${DESKTOP_PATH}`)
+			found_files.push({
+				name: file_name,
+				displayName: launcher?.displayName,
+				path: file_path,
+				contentType: file_type,
+				modified: new Date(
+					(file_info.get_modification_date_time()?.to_unix() || 0) * 1000,
+				),
+				icon: launcher?.icon ?? icon_name_from_file_info(file_info),
+				iconFile: launcher?.iconFile ?? undefined,
+			})
 		}
 
 		return found_files.sort(compare_desktop_files)
@@ -578,8 +569,7 @@ export function open_path(file_path: string): Result<void> {
 				Gio.FileQueryInfoFlags.NONE,
 				null,
 			)
-			const trusted = info.get_attribute_string("metadata::trusted") === "true"
-			if (!trusted || !info.get_attribute_boolean("access::can-execute"))
+			if (!is_trusted_launcher(info))
 				throw new Error("Refusing to launch an untrusted desktop entry")
 
 			const launcher = GioUnix.DesktopAppInfo.new_from_filename(file_path)
@@ -604,128 +594,62 @@ export type ClipboardFilePayload = {
 
 type clipboard_operation = ClipboardFilePayload["operation"]
 
-function string_to_bytes(value: string) {
-	return new TextEncoder().encode(value)
-}
-
-function serialize_clipboard_file_payload(
+export function build_file_content_provider(
 	paths: string[],
 	operation: clipboard_operation,
 ) {
 	const files = paths.map((path) => Gio.File.new_for_path(path))
 	const uris = files.map((file) => file.get_uri())
-	return {
-		files,
-		uri_list: `${uris.join("\r\n")}\r\n`,
-		gnome_payload: `${operation}\n${uris.join("\n")}`,
-	}
-}
-
-export function build_file_content_provider(
-	paths: string[],
-	operation: clipboard_operation,
-) {
-	const payload = serialize_clipboard_file_payload(paths, operation)
+	const encoder = new TextEncoder()
 	return Gdk.ContentProvider.new_union([
-		Gdk.ContentProvider.new_for_value(
-			Gdk.FileList.new_from_array(payload.files),
-		),
+		Gdk.ContentProvider.new_for_value(Gdk.FileList.new_from_array(files)),
 		Gdk.ContentProvider.new_for_bytes(
 			"text/uri-list",
-			string_to_bytes(payload.uri_list),
+			encoder.encode(`${uris.join("\r\n")}\r\n`),
 		),
 		Gdk.ContentProvider.new_for_bytes(
 			"x-special/gnome-copied-files",
-			string_to_bytes(payload.gnome_payload),
+			encoder.encode(`${operation}\n${uris.join("\n")}`),
 		),
 	])
 }
 
-export async function write_clipboard_file_payload(
+export function write_clipboard_file_payload(
 	operation: clipboard_operation,
 	paths: string[],
-): Promise<Result<void>> {
+): Result<void> {
 	if (paths.length === 0) return ok(undefined)
-
 	const display = Gdk.Display.get_default()
-	if (display) {
-		const result = attempt(() =>
-			display
-				.get_clipboard()
-				.set_content(build_file_content_provider(paths, operation)),
+	if (!display) return err(new Error("No display for desktop clipboard"))
+	const result = attempt(() =>
+		display
+			.get_clipboard()
+			.set_content(build_file_content_provider(paths, operation)),
+	)
+	if (!result.ok)
+		return err(
+			new Error("Failed to write desktop clipboard payload", {
+				cause: result.err,
+			}),
 		)
-		if (!result.ok)
-			return err(
-				new Error("Failed to write desktop clipboard payload", {
-					cause: result.err,
-				}),
-			)
-		if (!result.value)
-			return err(new Error("Failed to write desktop clipboard payload"))
-		return ok(undefined)
-	}
-
-	const payload = serialize_clipboard_file_payload(paths, operation)
-	const primary = await attempt_async(async () =>
-		execAsync([
-			"setsid",
-			"-f",
-			"wl-copy",
-			"-t",
-			"x-special/gnome-copied-files",
-			payload.gnome_payload,
-		]),
-	)
-	if (primary.ok) return ok(undefined)
-
-	const fallback = await attempt_async(async () =>
-		execAsync([
-			"setsid",
-			"-f",
-			"wl-copy",
-			"-t",
-			"text/uri-list",
-			payload.uri_list,
-		]),
-	)
-	if (fallback.ok) return ok(undefined)
-
-	return err(
-		new Error("Failed to write desktop clipboard payload", {
-			cause: { primary_error: primary.err, fallback_error: fallback.err },
-		}),
-	)
+	if (!result.value)
+		return err(new Error("Failed to write desktop clipboard payload"))
+	return ok(undefined)
 }
 
-export async function clear_clipboard_file_payload(): Promise<Result<void>> {
+export function clear_clipboard_file_payload(): Result<void> {
 	const display = Gdk.Display.get_default()
-	if (display) {
-		const result = attempt(() => display.get_clipboard().set_content(null))
-		if (!result.ok)
-			return err(
-				new Error("Failed to clear desktop clipboard payload", {
-					cause: result.err,
-				}),
-			)
-		return result.value
-			? ok(undefined)
-			: err(new Error("Failed to clear desktop clipboard payload"))
-	}
-
-	const result = await attempt_async(async () =>
-		execAsync(["wl-copy", "--clear"]),
-	)
-	return result.ok
+	if (!display) return err(new Error("No display for desktop clipboard"))
+	const result = attempt(() => display.get_clipboard().set_content(null))
+	if (!result.ok)
+		return err(
+			new Error("Failed to clear desktop clipboard payload", {
+				cause: result.err,
+			}),
+		)
+	return result.value
 		? ok(undefined)
-		: err(
-				new Error("Failed to clear desktop clipboard payload", {
-					cause: result.err,
-				}),
-			)
-}
-
-async function read_clipboard_mime(mime_type: string) {
-	return execAsync(["wl-paste", "-t", mime_type]).catch(() => null)
+		: err(new Error("Failed to clear desktop clipboard payload"))
 }
 
 export function paths_from_uris(uris: string[]): string[] {
@@ -772,58 +696,51 @@ export async function read_file_text(
 	return new TextDecoder().decode(data)
 }
 
-export function split_payload_lines(text: string): string[] {
+function split_payload_lines(text: string): string[] {
 	return text
 		.split(/\r?\n/g)
 		.map((line) => line.trim())
 		.filter(Boolean)
 }
 
+export function uri_list_paths(text: string): string[] {
+	return paths_from_uris(
+		split_payload_lines(text).filter((line) => !line.startsWith("#")),
+	)
+}
+
 export async function read_clipboard_file_payload(): Promise<ClipboardFilePayload | null> {
 	const clipboard = Gdk.Display.get_default()?.get_clipboard()
-	let copied_files: string | null = null
-	let uri_list: string | null = null
-	if (clipboard) {
-		const formats = clipboard.get_formats()
-		const mime_types = ["x-special/gnome-copied-files", "text/uri-list"]
-		if (!mime_types.some((mime) => formats.contain_mime_type(mime))) return null
-		const cancellable = new Gio.Cancellable()
-		const deadline = timeout(30_000, () => cancellable.cancel())
-		try {
-			const [stream, mime] = await clipboard.read_async(
-				mime_types,
-				GLib.PRIORITY_DEFAULT,
-				cancellable,
-			)
-			if (!stream) throw new Error("Clipboard provided no stream")
-			const text = await read_file_text(stream, cancellable)
-			if (mime === mime_types[0]) copied_files = text
-			else uri_list = text
-		} catch (error) {
-			console.error("desktop.clipboard: Failed to read clipboard", error)
-			return null
-		} finally {
-			deadline.cancel()
-		}
-	} else {
-		copied_files = await read_clipboard_mime("x-special/gnome-copied-files")
-		if (!copied_files) uri_list = await read_clipboard_mime("text/uri-list")
-	}
-	if (copied_files) {
-		const lines = split_payload_lines(copied_files)
+	if (!clipboard) return null
+	const mime_types = ["x-special/gnome-copied-files", "text/uri-list"]
+	const formats = clipboard.get_formats()
+	if (!mime_types.some((mime) => formats.contain_mime_type(mime))) return null
+	const cancellable = new Gio.Cancellable()
+	const deadline = timeout(30_000, () => cancellable.cancel())
+	const read = await attempt_async(async () => {
+		const [stream, mime] = await clipboard.read_async(
+			mime_types,
+			GLib.PRIORITY_DEFAULT,
+			cancellable,
+		)
+		if (!stream) throw new Error("Clipboard provided no stream")
+		return { mime, text: await read_file_text(stream, cancellable) }
+	})
+	deadline.cancel()
+	if (!log_error(read, "desktop.clipboard: Failed to read clipboard"))
+		return null
+	const { mime, text } = read.value
+
+	if (mime === mime_types[0]) {
+		const lines = split_payload_lines(text)
 		const files = paths_from_uris(lines.slice(1))
-		if (files.length > 0) {
-			let operation: clipboard_operation = "copy"
-			if (lines[0] === "cut") operation = "cut"
-			return { operation, files }
-		}
+		if (files.length === 0) return null
+		let operation: clipboard_operation = "copy"
+		if (lines[0] === "cut") operation = "cut"
+		return { operation, files }
 	}
 
-	if (!uri_list) return null
-
-	const files = paths_from_uris(
-		split_payload_lines(uri_list).filter((line) => !line.startsWith("#")),
-	)
+	const files = uri_list_paths(text)
 	if (files.length === 0) return null
 	return { operation: "copy", files }
 }

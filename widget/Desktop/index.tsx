@@ -6,8 +6,10 @@ import { idle } from "$lib/time"
 import AstalHyprland from "gi://AstalHyprland"
 
 import { schedule_monitor_window_release } from "$lib/windowing"
+import { font_size } from "$lib/ui"
 import { hyprland } from "$lib/hyprland"
 import options, { surface_scale, ui_scale } from "$shell/options"
+import { dock_window_thickness } from "widget/Dock"
 
 import { attach_desktop_keyboard, DesktopGrid } from "./components/Grid"
 import { DesktopContextMenu } from "./components/ContextMenu"
@@ -19,13 +21,6 @@ import {
 	set_desktop_monitors,
 } from "./Desktop"
 import { get_desktop_icon_metrics, get_grid_metrics } from "./GridGeometry"
-
-function font_size(font: string): number {
-	const match = font.trim().match(/(\d+(?:\.\d+)?)\s*$/)
-	if (!match) return 11
-	const size = Number.parseFloat(match[1])
-	return Number.isFinite(size) && size > 0 ? size : 11
-}
 
 function match_monitor(
 	monitor: Gdk.Monitor,
@@ -72,12 +67,9 @@ function desktop_padding() {
 		options.taskbar.location() === "dock" &&
 		options.dock.mode() === "static"
 	) {
-		const scale = surface_scale(options.dock.scale, 0.25) * factor
-		const dock = Math.max(
-			48,
-			Math.round((64 + 4 * 2 + 4 + 4 + 6 * 2 + 2 * 2) * scale) +
-				Math.max(0, Math.floor(options.theme.spacing() * factor)),
-		)
+		const dock =
+			dock_window_thickness(surface_scale(options.dock.scale)) +
+			Math.max(0, Math.floor(options.theme.spacing() * factor))
 		if (options.dock.position() === "center-left") left += dock
 		else if (options.dock.position() === "bottom-center") bottom += dock
 	}

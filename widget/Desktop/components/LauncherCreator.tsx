@@ -9,13 +9,14 @@ import {
 	type Accessor,
 } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
-import { idle } from "$lib/time"
+import { debounce, idle } from "$lib/time"
 
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
 import { applications } from "$service/apps"
+import { attempt } from "$lib/result"
 import icons from "$lib/icons"
 import { is_dialog_dismissed } from "$lib/ui"
 import { ApplicationIcon } from "widget/shared/ApplicationIcon"
@@ -31,9 +32,6 @@ export namespace DesktopLauncherCreator {
 	}
 
 	export function Window() {
-		const existing = app.get_window("desktop-launcher-creator")
-		if (existing) return existing
-
 		const create_blocked_reason = createComputed(() => {
 			const missing_name = !name().trim()
 			const missing_command = !command().trim()
@@ -328,9 +326,30 @@ export namespace DesktopLauncherCreator {
 		const working_directory_label = working_directory.as(
 			(path) => path.trim().split("/").pop() || "Choose",
 		)
+		const [command_directory, set_command_directory] = createState(false)
+		let command_query: Gio.Cancellable | null = null
+		const check_command = debounce(250, () => {
+			command_query?.cancel()
+			const cancellable = new Gio.Cancellable()
+			command_query = cancellable
+			void query_command_directory(command.peek(), cancellable).then(
+				(directory) => {
+					if (command_query !== cancellable) return
+					command_query = null
+					set_command_directory(directory)
+				},
+			)
+		})
+		check_command.call()
+		const unsubscribe_command = command.subscribe(() => check_command.call())
+		onCleanup(() => {
+			unsubscribe_command()
+			check_command.cancel()
+			command_query?.cancel()
+			command_query = null
+		})
 		const directory_target = createComputed(
-			() =>
-				target_kind() === "location" || command_targets_directory(command()),
+			() => target_kind() === "location" || command_directory(),
 		)
 		const show_application_options = directory_target.as(
 			(directory) => !directory,
@@ -504,7 +523,8 @@ export namespace DesktopLauncherCreator {
 		}
 
 		function select_another_application() {
-			choose_file(
+			choose_path(
+				"file",
 				"Choose application",
 				(path) => {
 					const base_name = path.split("/").pop() || "Application"
@@ -550,46 +570,44 @@ export namespace DesktopLauncherCreator {
 				set_error_message("Launcher window is no longer available")
 				return
 			}
-			try {
-				const operation = Gtk.MountOperation.new(parent)
+			const started = attempt(() =>
 				option.volume.mount(
 					Gio.MountMountFlags.NONE,
-					operation,
+					Gtk.MountOperation.new(parent),
 					null,
 					(_volume, result) => {
-						try {
+						const mounted = attempt(() => {
 							if (!option.volume.mount_finish(result))
 								throw new Error("Mount returned false")
-							if (session !== creator_session) return
 							const root = option.volume.get_mount()?.get_root()
 							const target = root?.get_path() ?? root?.get_uri()
 							if (!target)
 								throw new Error("Mounted volume has no accessible location")
+							return target
+						})
+						if (session !== creator_session) return
+						if (mounted.ok)
 							select_location(
 								option.name,
-								target,
+								mounted.value,
 								launcher_icon_name(option.icon, "drive-harddisk-symbolic"),
 							)
-						} catch (error) {
-							if (session !== creator_session) return
-							set_error_message(`Could not mount ${option.name}. ${error}`)
-						} finally {
-							if (session === creator_session) {
-								set_mounting_volume("")
-								sync_volumes()
-							}
-						}
+						else
+							set_error_message(
+								`Could not mount ${option.name}. ${mounted.err}`,
+							)
+						set_mounting_volume("")
+						sync_volumes()
 					},
-				)
-			} catch (error) {
-				if (session !== creator_session) return
-				set_mounting_volume("")
-				set_error_message(`Could not mount ${option.name}. ${error}`)
-			}
+				),
+			)
+			if (started.ok) return
+			set_mounting_volume("")
+			set_error_message(`Could not mount ${option.name}. ${started.err}`)
 		}
 
 		function select_folder_shortcut() {
-			choose_directory((path) => {
+			choose_path("folder", "Choose a folder or mounted disk", (path) => {
 				const mounted = volume_options
 					.peek()
 					.find((option) => option.target === path)
@@ -602,11 +620,12 @@ export namespace DesktopLauncherCreator {
 						? launcher_icon_name(mounted.icon, "drive-harddisk-symbolic")
 						: folder_icon_name(path),
 				)
-			}, "Choose a folder or mounted disk")
+			})
 		}
 
 		function select_image_icon() {
-			choose_file(
+			choose_path(
+				"file",
 				"Choose launcher image",
 				(path) => {
 					set_icon(path)
@@ -616,9 +635,15 @@ export namespace DesktopLauncherCreator {
 			)
 		}
 
-		function create() {
+		let creating = false
+		async function create() {
+			if (creating) return
+			creating = true
 			set_error_message("")
-			const is_directory = directory_target.peek()
+			const is_directory =
+				target_kind.peek() === "location" ||
+				(await query_command_directory(command.peek(), null))
+			creating = false
 			const path = create_desktop_entry(target_monitor.peek(), {
 				kind: "launcher",
 				name: name.peek(),
@@ -729,7 +754,13 @@ export namespace DesktopLauncherCreator {
 								<button
 									class="folder-picker"
 									tooltipText={working_directory}
-									onClicked={() => choose_directory(set_working_directory)}
+									onClicked={() =>
+										choose_path(
+											"folder",
+											"Choose working directory",
+											set_working_directory,
+										)
+									}
 								>
 									<box orientation={HORIZONTAL}>
 										<image iconName="folder-symbolic" />
@@ -1154,24 +1185,8 @@ function folder_icon_name(path: string) {
 	)
 }
 
-function command_targets_directory(value: string) {
-	try {
-		const [parsed, argv] = GLib.shell_parse_argv(value.trim())
-		if (!parsed || argv?.length !== 2 || argv[0] !== "xdg-open") return false
-		const target = argv[1]
-		let file: Gio.File | null = null
-		if (target.startsWith("file://")) file = Gio.File.new_for_uri(target)
-		else if (GLib.path_is_absolute(target)) file = Gio.File.new_for_path(target)
-		return (
-			file?.query_file_type(Gio.FileQueryInfoFlags.NONE, null) ===
-			Gio.FileType.DIRECTORY
-		)
-	} catch {
-		return false
-	}
-}
-
-function choose_file(
+function choose_path(
+	kind: "file" | "folder",
 	title: string,
 	on_selected: (path: string) => void,
 	filter?: Gtk.FileFilter,
@@ -1186,47 +1201,59 @@ function choose_file(
 		dialog.set_filters(filters)
 		dialog.set_default_filter(filter)
 	}
-	dialog.open(parent, null, (_source, result) => {
-		try {
-			const path = dialog.open_finish(result)?.get_path()
-			if (session !== creator_session) return
-			if (!path) {
-				console.error(`desktop.launcherChooser: ${title} has no local path`)
-				return
-			}
-			on_selected(path)
-		} catch (error) {
-			if (session !== creator_session) return
-			if (is_dialog_dismissed(error)) return
-			console.error(`desktop.launcherChooser: ${title} failed`, error)
+	const finish = (_source: unknown, result: Gio.AsyncResult) => {
+		const chosen = attempt(() => {
+			const file =
+				kind === "folder"
+					? dialog.select_folder_finish(result)
+					: dialog.open_finish(result)
+			return file?.get_path()
+		})
+		if (session !== creator_session) return
+		if (!chosen.ok) {
+			if (!is_dialog_dismissed(chosen.err))
+				console.error(`desktop.launcherChooser: ${title} failed`, chosen.err)
+			return
 		}
-	})
+		if (!chosen.value) {
+			console.error(`desktop.launcherChooser: ${title} has no local path`)
+			return
+		}
+		on_selected(chosen.value)
+	}
+	if (kind === "folder") dialog.select_folder(parent, null, finish)
+	else dialog.open(parent, null, finish)
 }
 
-function choose_directory(
-	on_selected: (path: string) => void,
-	title = "Choose working directory",
-) {
-	const session = creator_session
-	const dialog = new Gtk.FileDialog({ title, modal: true })
-	const parent = app.get_window("desktop-launcher-creator")
-	if (!parent) return
-	dialog.select_folder(parent, null, (_source, result) => {
-		try {
-			const path = dialog.select_folder_finish(result)?.get_path()
-			if (session !== creator_session) return
-			if (!path) {
-				console.error("desktop.launcherChooser: Folder has no local path")
-				return
-			}
-			on_selected(path)
-		} catch (error) {
-			if (session !== creator_session) return
-			if (is_dialog_dismissed(error)) return
-			console.error(
-				"desktop.launcherChooser: Directory selection failed",
-				error,
-			)
-		}
+function command_target_file(value: string): Gio.File | null {
+	const parsed = attempt(() => GLib.shell_parse_argv(value.trim()))
+	if (!parsed.ok) return null
+	const [valid, argv] = parsed.value
+	if (!valid || argv?.length !== 2 || argv[0] !== "xdg-open") return null
+	const target = argv[1]
+	if (target.startsWith("file://")) return Gio.File.new_for_uri(target)
+	if (GLib.path_is_absolute(target)) return Gio.File.new_for_path(target)
+	return null
+}
+
+function query_command_directory(
+	value: string,
+	cancellable: Gio.Cancellable | null,
+): Promise<boolean> {
+	const file = command_target_file(value)
+	if (!file) return Promise.resolve(false)
+	return new Promise((resolve) => {
+		file.query_info_async(
+			"standard::type",
+			Gio.FileQueryInfoFlags.NONE,
+			GLib.PRIORITY_DEFAULT,
+			cancellable,
+			(_source, result) => {
+				const info = attempt(() => file.query_info_finish(result))
+				resolve(
+					info.ok && info.value.get_file_type() === Gio.FileType.DIRECTORY,
+				)
+			},
+		)
 	})
 }

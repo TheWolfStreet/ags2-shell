@@ -2,6 +2,8 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { stripTypeScriptTypes } from "node:module"
 import { test } from "node:test"
+import { with_hyprland_command } from "../hyprland.ts"
+import * as result from "../../lib/result.ts"
 import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
 
 async function load(
@@ -28,6 +30,17 @@ async function load(
 	})
 	await module.evaluate()
 	return module.namespace
+}
+
+async function with_files(imports) {
+	return {
+		...imports,
+		"$lib/files": await load("./files.ts", {
+			"gi://Gio": imports["gi://Gio"],
+			"gi://GLib": imports["gi://GLib"],
+			"$lib/result": result,
+		}),
+	}
 }
 
 function emitter() {
@@ -201,22 +214,7 @@ function notificationHarness(
 			},
 		},
 		"$lib/icons": { default: { missing: "missing" } },
-		"$lib/result": {
-			attempt_async: async (fn) => {
-				try {
-					return { ok: true, value: await fn() }
-				} catch (error) {
-					return { ok: false, err: error }
-				}
-			},
-			attempt: (fn) => {
-				try {
-					return { ok: true, value: fn() }
-				} catch (error) {
-					return { ok: false, err: error }
-				}
-			},
-		},
+		"$lib/result": result,
 	}
 	return { shell, daemon, calls, callbacks, timers, imports }
 }
@@ -324,7 +322,8 @@ test("pending notification attachment expires and disconnects", async () => {
 	const pending = module.notify({
 		actions: [{ label: "View", argv: ["xdg-open", "file"] }],
 	})
-	for (let i = 0; i < 4; i++) await Promise.resolve()
+	for (let i = 0; i < 20 && h.daemon.listeners.size < 2; i++)
+		await Promise.resolve()
 	assert.equal(h.daemon.listeners.size, 2)
 	h.timers[0].callback()
 	const result = await pending
@@ -522,8 +521,8 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 				]
 			},
 		},
-		"ags/process": {
-			execAsync: async (args) => {
+		"$lib/commands": {
+			run_command: async (args) => {
 				if (args[0] === "heif-dec") {
 					assert.match(args.at(-1), /\.png$/)
 					await new Promise<void>((resolve) => {
@@ -534,6 +533,7 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 					assert.equal(args[0], "cp")
 					files.set(args.at(-1), files.get(args.at(-2)))
 				}
+				return { ok: true, value: "" }
 			},
 		},
 		"gi://Gio": {
@@ -654,7 +654,7 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 
 test("wallpaper validates before commit and replaces symlink entry, not target", async () => {
 	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", h.imports)
+	const module = await load("./wallpaper.ts", await with_files(h.imports))
 	assert.equal(h.timers.length, 1)
 	h.files.set("/home/user/invalid", "NOT-IMAGE")
 	assert.equal((await module.set_wallpaper("/home/user/invalid")).ok, false)
@@ -672,7 +672,7 @@ test("wallpaper validates before commit and replaces symlink entry, not target",
 
 test("oversized source, staged output, and dimensions cannot replace wallpaper", async () => {
 	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", h.imports)
+	const module = await load("./wallpaper.ts", await with_files(h.imports))
 	h.files.set("/home/user/good", "IMG good")
 	assert.equal((await module.set_wallpaper("/home/user/good")).ok, true)
 	assert.equal(h.decode_count, 1)
@@ -698,7 +698,7 @@ test("oversized source, staged output, and dimensions cannot replace wallpaper",
 
 test("the setter accepts 6000x6000 and rejects dimensions above its 40 million pixel limit", async () => {
 	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", h.imports)
+	const module = await load("./wallpaper.ts", await with_files(h.imports))
 	h.files.set("/home/user/accepted", "IMG 6000")
 	assert.equal((await module.set_wallpaper("/home/user/accepted")).ok, true)
 	assert.equal(h.files.get(h.path), "IMG 6000")
@@ -709,7 +709,7 @@ test("the setter accepts 6000x6000 and rejects dimensions above its 40 million p
 
 test("clearing wallpaper invalidates a pending conversion", async () => {
 	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", h.imports)
+	const module = await load("./wallpaper.ts", await with_files(h.imports))
 	h.files.set("/home/user/old.heic", "HEIC input")
 	const pending = module.set_wallpaper("/home/user/old.heic")
 	for (let i = 0; i < 12 && !h.release_conversion; i++) await Promise.resolve()
@@ -728,7 +728,7 @@ test("clearing wallpaper invalidates a pending conversion", async () => {
 test("a failed directory monitor uses the fallback poll", async () => {
 	const h = wallpaperHarness(true, false)
 	const errors: unknown[][] = []
-	await load("./wallpaper.ts", h.imports, {
+	await load("./wallpaper.ts", await with_files(h.imports), {
 		error: (...args) => errors.push(args),
 	})
 	assert.equal(h.timers.length, 1)
@@ -738,7 +738,7 @@ test("a failed directory monitor uses the fallback poll", async () => {
 
 test("a working monitor still polls symlink targets and stops after link replacement", async () => {
 	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", h.imports)
+	const module = await load("./wallpaper.ts", await with_files(h.imports))
 	assert.equal(h.timers.length, 1)
 	const initial = module.wallpaper_revision.peek()
 	h.external_write("/home/user/important", "UPDATED")
@@ -754,7 +754,7 @@ test("a working monitor still polls symlink targets and stops after link replace
 
 test("a regular wallpaper uses only its monitor until replaced by a symlink", async () => {
 	const h = wallpaperHarness(false, false)
-	await load("./wallpaper.ts", h.imports)
+	await load("./wallpaper.ts", await with_files(h.imports))
 	assert.equal(h.timers.length, 0)
 	h.links.set(h.path, "/home/user/important")
 	h.directory_monitor.emit("changed", { get_path: () => h.path }, null)
@@ -861,9 +861,9 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 		},
 		"$lib/time": { debounce: (_ms, fn) => ({ call: fn, cancel() {} }) },
 		"$lib/textures": { get_file_size: () => bytes },
-		"$lib/hyprland": {
+		"$lib/hyprland": with_hyprland_command({
 			hyprland: { connect() {}, message_async: async () => "ok" },
-		},
+		}),
 		"$lib/wallpaper": {
 			wallpaper_path: "/wall",
 			wallpaper_revision: {
@@ -882,7 +882,9 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 			subscribe_options() {},
 		},
 	}
-	const module = await load("../shell/startup.ts", imports, { error() {} })
+	const module = await load("../shell/startup.ts", await with_files(imports), {
+		error() {},
+	})
 	const started = module.default()
 	assert.equal(started.ok, true, String(started.err))
 	assert.equal(sampled, 1)

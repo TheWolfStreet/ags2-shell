@@ -7,7 +7,7 @@ import { create_pages } from "./components/Pages"
 import icons from "$lib/icons"
 import { hyprland } from "$lib/hyprland"
 
-import options, { Opt } from "$shell/options"
+import options, { collect_options } from "$shell/options"
 
 export namespace Settings {
 	export function Button() {
@@ -36,9 +36,7 @@ export namespace Settings {
 		)
 	}
 
-	export function Window() {
-		const existing = app.get_window("settings-dialog")
-		if (existing) return existing
+	function Window() {
 		const pages = create_pages()
 		const page_buttons = pages.map((page) => {
 			const name = page.name
@@ -46,7 +44,7 @@ export namespace Settings {
 			return { name, icon_name: page.iconName }
 		})
 		if (!page_buttons.length) throw new Error("Settings has no pages")
-		const all_opts = collect_opts(options)
+		const all_opts = collect_options(options)
 
 		let stack: Gtk.Stack | undefined
 		const [current_page, set_current_page] = createState(page_buttons[0].name)
@@ -143,22 +141,9 @@ export namespace Settings {
 
 		let window: Gtk.Window | null = null
 		root ??= createRoot((dispose) => {
-			window = Settings.Window() as Gtk.Window
+			window = Window() as Gtk.Window
 			return dispose
 		})
 		return window
-	}
-
-	function collect_opts(obj: Record<string, unknown>): Opt<any>[] {
-		let opts: Opt<any>[] = []
-		for (const key in obj) {
-			const value = obj[key]
-			if (value instanceof Opt) {
-				opts.push(value)
-			} else if (value && typeof value === "object") {
-				opts = opts.concat(collect_opts(value as Record<string, unknown>))
-			}
-		}
-		return opts
 	}
 }

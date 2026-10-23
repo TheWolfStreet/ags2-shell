@@ -2,7 +2,7 @@ import Hyprland from "gi://AstalHyprland"
 import GLib from "gi://GLib"
 
 import app from "$lib/app"
-import { attempt, type Result } from "$lib/result"
+import { attempt, attempt_async, err, ok, type Result } from "$lib/result"
 import { timeout, type Timer } from "$lib/time"
 
 function create_hyprland() {
@@ -39,6 +39,18 @@ function create_hyprland() {
 }
 
 export const hyprland = create_hyprland()
+
+export async function hyprland_command(message: string): Promise<Result<void>> {
+	const response = await attempt_async(() => hyprland.message_async(message))
+	if (!response.ok) return response
+	const replies = response.value
+		.split("\n")
+		.map((reply) => reply.trim())
+		.filter((reply) => reply !== "")
+	if (replies.length > 0 && replies.every((reply) => reply === "ok"))
+		return ok(undefined)
+	return err(new Error(`Hyprland rejected ${message}: ${response.value}`))
+}
 
 function query_live_monitor_names(): Result<Set<string>> {
 	return attempt(() => {

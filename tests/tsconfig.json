@@ -1,7 +1,6 @@
 {
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
-		"lib": ["ES2023"],
 		"target": "ES2023",
 		"allowImportingTsExtensions": true,
 		"noEmit": true,
@@ -11,6 +10,7 @@
 	"include": [
 		"./**/*.test.ts",
 		"./typescript.ts",
+		"./hyprland.ts",
 		"../env.d.ts",
 		"../@girs/*.d.ts"
 	],

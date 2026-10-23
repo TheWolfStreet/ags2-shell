@@ -75,7 +75,7 @@ window.notifications {
 	all: unset;
 
 	box.notification {
-		@extend .floating;
+		@extend %floating;
 		border-radius: var(--radius);
 		margin-bottom: 0;
 

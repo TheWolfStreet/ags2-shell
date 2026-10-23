@@ -6,7 +6,7 @@ window#verification {
 }
 
 window#verification box.verification {
-	@extend .floating;
+	@extend %floating;
 	padding: calc(var(--popover-padding) * 1.5);
 	min-width: calc(300px * var(--scale, 1));
 	min-height: calc(100px * var(--scale, 1));
@@ -30,14 +30,13 @@ window#verification box.verification {
 		margin-top: var(--padding);
 
 		button:focus {
-			outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-			outline-offset: -1px;
+			@include focus-ring;
 		}
 	}
 }
 
 window#powermenu box.powermenu {
-	@extend .floating;
+	@extend %floating;
 
 	&.line {
 		padding: calc(var(--popover-padding) * 1.5);

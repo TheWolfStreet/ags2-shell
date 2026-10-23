@@ -78,7 +78,7 @@ popover.menu {
 		}
 
 		modelbutton {
-			@extend .flat-button;
+			@extend %flat-button;
 			padding: calc(var(--padding) * 0.8);
 			min-height: 0;
 			margin: 0;
@@ -111,7 +111,7 @@ popover.menu {
 	}
 }
 
-.widget {
+%widget {
 	transition: var(--transition);
 	border-radius: var(--radius);
 	color: var(--fg);
@@ -123,7 +123,7 @@ popover.menu {
 		var(--neu-widget-shadow);
 }
 
-.floating {
+%floating {
 	box-shadow:
 		0 0 5px 0 var(--shadow-color),
 		var(--neu-widget-highlight),

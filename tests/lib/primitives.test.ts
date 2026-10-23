@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { stripTypeScriptTypes } from "node:module"
 import { test } from "node:test"
+import { with_hyprland_command } from "../hyprland.ts"
 import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
 
 const results = {
@@ -116,14 +117,14 @@ test("launch uses argv quoting and returns dispatch failure instead of hiding it
 				shell_quote: (value) => `'${value.replaceAll("'", "'\\''")}'`,
 			},
 		},
-		"$lib/hyprland": {
+		"$lib/hyprland": with_hyprland_command({
 			hyprland: {
 				message_async: async (command) => {
 					commands.push(command)
 					return response
 				},
 			},
-		},
+		}),
 		"$lib/result": results,
 	})
 	assert.equal(

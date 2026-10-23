@@ -9,7 +9,6 @@ import {
 	createState,
 	onCleanup,
 } from "ags"
-import { execAsync } from "ags/process"
 
 import AstalNetwork from "gi://AstalNetwork"
 import GLib from "gi://GLib"
@@ -21,6 +20,7 @@ import {
 	ToggleButton,
 	Menu,
 	SettingsButton,
+	open_gnome_settings,
 	quick_settings_submenu,
 } from "./MenuControls"
 
@@ -47,6 +47,18 @@ export namespace Network {
 									label={"No device"}
 								/>
 							)
+						const enable_and_scan = () => {
+							const enabled = attempt(() => w.set_enabled(true))
+							if (!log_error(enabled, "network.wifi: Failed to enable Wi-Fi"))
+								return
+							timeout(100, () => {
+								if (network.wifi === w && w.enabled)
+									log_error(
+										attempt(() => w.scan()),
+										"network.wifi: Failed to scan",
+									)
+							})
+						}
 						return (
 							<ToggleButton
 								arrow
@@ -58,18 +70,7 @@ export namespace Network {
 								onArrow={() => {
 									if (quick_settings_submenu.opened.peek() !== "wifi-selector")
 										return
-									const enabled = attempt(() => w.set_enabled(true))
-									if (
-										!log_error(enabled, "network.wifi: Failed to enable Wi-Fi")
-									)
-										return
-									timeout(100, () => {
-										if (network.wifi === w && w.enabled)
-											log_error(
-												attempt(() => w.scan()),
-												"network.wifi: Failed to scan",
-											)
-									})
+									enable_and_scan()
 								}}
 								onToggle={() => {
 									if (w.enabled)
@@ -77,23 +78,7 @@ export namespace Network {
 											attempt(() => w.set_enabled(false)),
 											"network.wifi: Failed to disable Wi-Fi",
 										)
-									else {
-										const enabled = attempt(() => w.set_enabled(true))
-										if (
-											!log_error(
-												enabled,
-												"network.wifi: Failed to enable Wi-Fi",
-											)
-										)
-											return
-										timeout(100, () => {
-											if (network.wifi === w && w.enabled)
-												log_error(
-													attempt(() => w.scan()),
-													"network.wifi: Failed to scan",
-												)
-										})
-									}
+									else enable_and_scan()
 								}}
 								connection={createBinding(w, "enabled")}
 							/>
@@ -170,21 +155,7 @@ export namespace Network {
 										</revealer>
 										<Gtk.Separator />
 										<SettingsButton
-											callback={() =>
-												void attempt_async(() =>
-													execAsync([
-														"env",
-														"XDG_CURRENT_DESKTOP=GNOME",
-														"gnome-control-center",
-														"wifi",
-													]),
-												).then((result) =>
-													log_error(
-														result,
-														"network.settings: Failed to open Wi-Fi settings",
-													),
-												)
-											}
+											callback={() => open_gnome_settings("wifi")}
 										/>
 									</box>
 								)
@@ -204,7 +175,7 @@ export namespace Network {
 			)
 			const handle_connect = async () => {
 				let sequence = activation_sequence
-				try {
+				const result = await attempt_async(async () => {
 					const { ap, password } = authentication.peek()
 					if (!ap) return
 
@@ -217,14 +188,14 @@ export namespace Network {
 					}))
 
 					await activate_and_watch(ap, password || null, sequence, true)
-				} catch (error) {
-					if (sequence !== activation_sequence) return
-					if (is_invalid_password_error(error)) reject_password()
-					else {
-						set_authentication((state) => ({ ...state, phase: "failed" }))
-						console.error("Failed to connect to WiFi:", error)
-					}
+				})
+				if (result.ok || sequence !== activation_sequence) return
+				if (is_invalid_password_error(result.err)) {
+					reject_password()
+					return
 				}
+				set_authentication((state) => ({ ...state, phase: "failed" }))
+				log_error(result, "Failed to connect to WiFi:")
 			}
 
 			const handle_cancel = () => {
@@ -339,7 +310,7 @@ export namespace Network {
 			)
 			const handle_click = async () => {
 				let sequence = activation_sequence
-				try {
+				const result = await attempt_async(async () => {
 					sequence = await begin_activation()
 					if (sequence !== activation_sequence) return
 					const current = resolve_access_point(ap)
@@ -356,16 +327,15 @@ export namespace Network {
 					}
 
 					await activate_and_watch(saved ?? current, null, sequence, false)
-				} catch (error) {
-					if (sequence !== activation_sequence) return
-					if (is_invalid_password_error(error)) {
-						const current = resolve_access_point(ap)
-						if (current) show_authentication(current)
-					} else {
-						set_authentication(idle_authentication)
-						console.error("Failed to connect to WiFi:", error)
-					}
+				})
+				if (result.ok || sequence !== activation_sequence) return
+				if (is_invalid_password_error(result.err)) {
+					const current = resolve_access_point(ap)
+					if (current) show_authentication(current)
+					return
 				}
+				set_authentication(idle_authentication)
+				log_error(result, "Failed to connect to WiFi:")
 			}
 
 			return (
@@ -377,8 +347,9 @@ export namespace Network {
 							const saved = current && find_saved_access_point(current)
 							const connection = saved && find_saved_connection(saved)
 							if (connection)
-								void delete_connection(connection).catch((error) =>
-									console.error("Failed to forget Wi-Fi network:", error),
+								void attempt_async(() => delete_connection(connection)).then(
+									(result) =>
+										log_error(result, "Failed to forget Wi-Fi network:"),
 								)
 							gesture.reset()
 						}}
@@ -513,13 +484,11 @@ async function begin_activation() {
 	if (sequence !== activation_sequence) return sequence
 	const transaction = pending_transaction
 	pending_transaction = null
-	if (transaction) {
-		try {
-			await transaction.rollback()
-		} catch (error) {
-			console.error("Failed to cancel superseded Wi-Fi activation:", error)
-		}
-	}
+	if (transaction)
+		log_error(
+			await attempt_async(() => transaction.rollback()),
+			"Failed to cancel superseded Wi-Fi activation:",
+		)
 	return sequence
 }
 
@@ -809,13 +778,13 @@ async function activate_access_point(
 				active,
 				persist: async () => {
 					const old_password = saved_security.get_psk()
-					try {
-						saved_security.set_property("psk", password)
-						await commit_connection(connection)
-					} catch (error) {
-						saved_security.set_property("psk", old_password)
-						throw error
-					}
+					saved_security.set_property("psk", password)
+					const committed = await attempt_async(() =>
+						commit_connection(connection),
+					)
+					if (committed.ok) return
+					saved_security.set_property("psk", old_password)
+					throw committed.err
 				},
 				rollback: async () => {
 					try {
@@ -909,51 +878,36 @@ function watch_activation(
 	disconnect_activation_watcher()
 	const wifi = network.wifi
 	if (!wifi) {
-		pending_settlement = transaction
-			.rollback()
-			.then(() => {
+		pending_settlement = attempt_async(() => transaction.rollback()).then(
+			(result) => {
+				log_error(result, "Failed to cancel Wi-Fi activation:")
 				if (sequence === activation_sequence && authentication_open)
 					set_authentication((state) => ({ ...state, phase: "failed" }))
-			})
-			.catch((error) => {
-				console.error("Failed to cancel Wi-Fi activation:", error)
-				if (sequence === activation_sequence && authentication_open)
-					set_authentication((state) => ({ ...state, phase: "failed" }))
-			})
+			},
+		)
 		return
 	}
 	pending_transaction = transaction
 	const settle = async (persist: boolean) => {
 		if (pending_transaction === transaction) pending_transaction = null
 		pending_settlement = (async () => {
-			try {
-				await transaction[persist ? "persist" : "rollback"]()
-			} catch (error) {
-				if (persist) {
-					try {
-						await transaction.rollback()
-					} catch (rollback_error) {
-						console.error(
-							"Failed to cancel unsaved Wi-Fi connection:",
-							rollback_error,
-						)
-					}
-				}
-				throw error
-			}
-		})()
-		try {
-			await pending_settlement
-			return true
-		} catch (error) {
-			console.error(
-				`Failed to ${persist ? "save" : "restore"} Wi-Fi connection:`,
-				error,
+			const settled = await attempt_async(() =>
+				transaction[persist ? "persist" : "rollback"](),
 			)
-			return false
-		} finally {
-			pending_settlement = Promise.resolve()
-		}
+			if (settled.ok) return
+			if (persist)
+				log_error(
+					await attempt_async(() => transaction.rollback()),
+					"Failed to cancel unsaved Wi-Fi connection:",
+				)
+			throw settled.err
+		})()
+		const result = await attempt_async(() => pending_settlement)
+		pending_settlement = Promise.resolve()
+		return log_error(
+			result,
+			`Failed to ${persist ? "save" : "restore"} Wi-Fi connection:`,
+		)
 	}
 	const update = async (
 		state: AstalNetwork.DeviceState,

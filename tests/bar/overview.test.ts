@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
+import * as result from "../../lib/result.ts"
 
 type FakeTimer = { callback: () => void; cancelled: boolean; cancel(): void }
 
@@ -83,7 +85,8 @@ async function overview_fixture(client: object | null = null) {
 			PopupWindow: (props) => make("popup-window", props),
 		},
 		"../PanelButton": { PanelButton: () => null },
-		"$lib/hyprland": { hyprland },
+		"$lib/hyprland": with_hyprland_command({ hyprland }),
+		"$lib/result": result,
 		"$lib/windowing": {
 			create_client_title_accessor: () => null,
 			create_workspace_clients: () => accessor(() => (client ? [client] : [])),

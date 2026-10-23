@@ -87,13 +87,11 @@ switch {
 	}
 
 	&:focus-visible {
-		outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-		outline-offset: -1px;
+		@include focus-ring;
 	}
 
 	&:checked:focus-visible {
-		outline: calc(var(--border-width) / 2) solid var(--primary-fg);
-		outline-offset: -1px;
+		@include focus-ring(var(--primary-fg));
 	}
 
 	slider {
@@ -130,8 +128,7 @@ entry {
 	}
 
 	&:focus-visible {
-		outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-		outline-offset: -1px;
+		@include focus-ring;
 	}
 }
 
@@ -168,8 +165,7 @@ entry {
 		}
 
 		&:focus-visible {
-			outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-			outline-offset: -1px;
+			@include focus-ring;
 		}
 
 		&:active {
@@ -195,8 +191,7 @@ spinbutton {
 	}
 
 	&:focus-visible {
-		outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-		outline-offset: -1px;
+		@include focus-ring;
 	}
 
 	text {

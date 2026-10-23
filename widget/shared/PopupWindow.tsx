@@ -45,7 +45,6 @@ export function PopupWindow({
 	layer = LAYER_TOP,
 	handleClosing: handle_closing = true,
 	onKey: on_key,
-	onClick: on_click,
 	children,
 	$,
 	...props
@@ -57,14 +56,6 @@ export function PopupWindow({
 		keycode: number,
 		modifiers: number,
 		window: Gtk.Window,
-	) => void
-	onClick?: (
-		controller: Gtk.GestureClick,
-		press_count: number,
-		x: number,
-		y: number,
-		window: Gtk.Window,
-		content: Gtk.Widget,
 	) => void
 }) {
 	let content: Gtk.Revealer
@@ -119,13 +110,12 @@ export function PopupWindow({
 				}}
 			/>
 			<Gtk.GestureClick
-				onPressed={(controller, press_count, x, y) => {
+				onPressed={(_controller, _press_count, x, y) => {
 					if (handle_closing && content) {
 						const [valid, rect] = content.compute_bounds(window)
 						if (valid && !rect.contains_point(new Graphene.Point({ x, y })))
 							window.hide()
 					}
-					on_click?.(controller, press_count, x, y, window, content)
 				}}
 			/>
 

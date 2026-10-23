@@ -48,7 +48,18 @@ export function create_animated_popover(
 			popover.perform_hide()
 	})
 
+	const unsubscribe_duration = options.transition.duration.subscribe(() =>
+		revealer.set_transition_duration(options.transition.duration.peek()),
+	)
+
 	popover.revealer = revealer
 	popover.set_child(revealer)
-	return { popover, revealer, dispose: () => revealer.disconnect(handler) }
+	return {
+		popover,
+		revealer,
+		dispose: () => {
+			unsubscribe_duration()
+			revealer.disconnect(handler)
+		},
+	}
 }

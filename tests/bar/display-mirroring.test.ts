@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
+import * as result from "../../lib/result.ts"
 
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 
@@ -62,12 +64,6 @@ test("externally mirrored target can be unmirrored without a saved snapshot", as
 			},
 		},
 		"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
-		"ags/process": {
-			execAsync: async (args) => {
-				reads.push(args)
-				return JSON.stringify([panel, target])
-			},
-		},
 		ags: {
 			createState: (initial) => {
 				let state = initial
@@ -92,26 +88,22 @@ test("externally mirrored target can be unmirrored without a saved snapshot", as
 		"$lib/icons": {
 			default: { ui: { projector: "projector" }, missing: "missing" },
 		},
-		"$lib/result": {
-			attempt_async: async (fn) => {
-				try {
-					return { ok: true, value: await fn() }
-				} catch (err) {
-					return { ok: false, err }
-				}
-			},
-		},
-		"$lib/hyprland": {
+		"$lib/result": result,
+		"$lib/hyprland": with_hyprland_command({
 			hyprland: {
 				focusedMonitor: panel,
 				connect: () => 1,
 				disconnect() {},
 				message_async: async (command) => {
+					if (command === "j/monitors all") {
+						reads.push(command)
+						return JSON.stringify([panel, target])
+					}
 					messages.push(command)
 					return "ok"
 				},
 			},
-		},
+		}),
 		"$service/monitorConfiguration": {
 			format_monitor_command: (monitor, change) => {
 				const mirror =
@@ -169,9 +161,9 @@ test("externally mirrored target can be unmirrored without a saved snapshot", as
 	button.props.onClicked()
 	await tick()
 	assert.deepEqual(reads, [
-		["hyprctl", "monitors", "all", "-j"],
-		["hyprctl", "monitors", "all", "-j"],
-		["hyprctl", "monitors", "all", "-j"],
+		"j/monitors all",
+		"j/monitors all",
+		"j/monitors all",
 	])
 	assert.deepEqual(messages, [
 		"keyword monitor DP-1,2560x1440@60,2560x120,1.5,transform,1",

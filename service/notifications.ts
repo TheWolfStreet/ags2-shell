@@ -5,8 +5,10 @@ import AstalNotifd from "gi://AstalNotifd"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
-import { attempt } from "$lib/result"
-import { notification_daemon } from "$lib/notifications"
+import {
+	notification_daemon,
+	notification_name_owner,
+} from "$lib/notifications"
 import options from "$shell/options"
 
 const display_limit = 50
@@ -41,48 +43,23 @@ class NotificationManager extends GObject.Object {
 		this.#schedule_prune()
 		this.#owner_warning_timer = timeout(5000, () => {
 			this.#owner_warning_timer = null
-			this.#warn_if_not_daemon_owner()
+			void this.#warn_if_not_daemon_owner()
 		})
 	}
 
-	#warn_if_not_daemon_owner(): void {
-		const result = attempt(() => {
-			const connection = Gio.DBus.session
-			connection.call(
-				"org.freedesktop.DBus",
-				"/org/freedesktop/DBus",
-				"org.freedesktop.DBus",
-				"GetNameOwner",
-				GLib.Variant.new_tuple([
-					GLib.Variant.new_string("org.freedesktop.Notifications"),
-				]),
-				new GLib.VariantType("(s)"),
-				Gio.DBusCallFlags.NONE,
-				1000,
-				null,
-				(_connection, response) => {
-					const owner = attempt(
-						() =>
-							connection.call_finish(response).recursiveUnpack() as [string],
-					)
-					if (!owner.ok) {
-						console.debug(
-							"notifications: could not verify daemon bus ownership",
-							owner.err,
-						)
-						return
-					}
-					if (owner.value[0] !== connection.get_unique_name())
-						console.warn(
-							`notifications: org.freedesktop.Notifications is owned by ${owner.value[0]}, not this shell (${connection.get_unique_name()})`,
-						)
-				},
-			)
-		})
-		if (!result.ok)
+	async #warn_if_not_daemon_owner(): Promise<void> {
+		const owner = await notification_name_owner()
+		if (!owner.ok) {
 			console.debug(
 				"notifications: could not verify daemon bus ownership",
-				result.err,
+				owner.err,
+			)
+			return
+		}
+		const unique_name = Gio.DBus.session.get_unique_name()
+		if (owner.value !== unique_name)
+			console.warn(
+				`notifications: org.freedesktop.Notifications is owned by ${owner.value}, not this shell (${unique_name})`,
 			)
 	}
 

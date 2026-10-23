@@ -206,10 +206,15 @@ const names = new Map([
 	["gi://Gio", "gio"],
 	["gi://GdkPixbuf", "pixbuf"],
 	["$lib/env", "env"],
-	["$lib/result", "result"],
 ])
 registerHooks({
 	resolve(specifier, context, next) {
+		if (specifier === "$lib/files" || specifier === "$lib/result")
+			return {
+				url: new URL(`../../lib/${specifier.slice(5)}.ts`, import.meta.url)
+					.href,
+				shortCircuit: true,
+			}
 		const name = names.get(specifier)
 		return name
 			? { url: `texture-mock:${name}`, shortCircuit: true }
@@ -229,11 +234,8 @@ registerHooks({
 	},
 })
 
-const {
-	create_square_texture_accessor,
-	create_texture_accessor,
-	texture_from_file_square_contain,
-} = await import("../../lib/textures.ts")
+const { create_texture_accessor, texture_from_file_square_contain } =
+	await import("../../lib/textures.ts")
 
 test("direct square textures also clamp before decoding and caching", () => {
 	files.set("/mock/direct.png", { size: 100 })
@@ -272,7 +274,7 @@ test("an accepted 6000x6000 wallpaper decodes as a thumbnail but 6400x6400 is re
 	console.error = () => {}
 	try {
 		dimensions = [6000, 6000]
-		const preview = create_square_texture_accessor("/mock/wallpaper.png", 520)
+		const preview = create_texture_accessor("/mock/wallpaper.png", 520)
 		assert.equal(reads.length, initial + 1)
 		reads.shift()!.callback(null, {})
 		assert.deepEqual(decode_bounds.at(-1), [512, 512])
@@ -281,7 +283,7 @@ test("an accepted 6000x6000 wallpaper decodes as a thumbnail but 6400x6400 is re
 		dimensions = [6400, 6400]
 		files.set("/mock/too-many-pixels.png", { size: 100 })
 		assert.equal(
-			create_square_texture_accessor("/mock/too-many-pixels.png", 32)(),
+			create_texture_accessor("/mock/too-many-pixels.png", 32)(),
 			null,
 		)
 		assert.equal(reads.length, initial)
@@ -311,7 +313,7 @@ test("notification-style preview keeps landscape dimensions without square paddi
 			80,
 			"contain",
 		)
-		const square = create_square_texture_accessor("/mock/landscape.png", 80)
+		const square = create_texture_accessor("/mock/landscape.png", 80)
 		assert.notEqual(preview, square)
 		assert.equal(decodes.length, 0)
 		reads.shift()!.callback(null, {})
@@ -338,7 +340,7 @@ test("portrait preview keeps its aspect and HTTP fit variants share the download
 	image_dimensions = [130, 260]
 	try {
 		const preview = create_texture_accessor(uri, 260, "contain")
-		const square = create_square_texture_accessor(uri, 260)
+		const square = create_texture_accessor(uri, 260)
 		assert.equal(downloads.length, 1)
 		cache.set("/mock-cache/artwork/.temporary", { size: 100 })
 		downloads.shift()!(null, {})
@@ -359,10 +361,10 @@ test("portrait preview keeps its aspect and HTTP fit variants share the download
 test("file URI decoding and revision keys prevent stale async delivery", () => {
 	const initial_closed = closed
 	files.set("/mock/a b.png", { size: 100, usec: 1 })
-	const old = create_square_texture_accessor("file:///mock/a%20b.png", 32)
+	const old = create_texture_accessor("file:///mock/a%20b.png", 32)
 	assert.equal(reads.at(-1)!.path, "/mock/a b.png")
 	files.set("/mock/a b.png", { size: 100, usec: 2 })
-	const fresh = create_square_texture_accessor("file:///mock/a%20b.png", 32)
+	const fresh = create_texture_accessor("file:///mock/a%20b.png", 32)
 	assert.notEqual(fresh, old)
 	reads.shift()!.callback(null, {})
 	decodes.shift()!(null, {})
@@ -376,8 +378,8 @@ test("file URI decoding and revision keys prevent stale async delivery", () => {
 
 test("HTTP requests for different sizes share one download", () => {
 	const uri = "https://example.invalid/cover.png"
-	const first = create_square_texture_accessor(uri, 40)
-	const second = create_square_texture_accessor(uri, 80)
+	const first = create_texture_accessor(uri, 40)
+	const second = create_texture_accessor(uri, 80)
 	assert.equal(downloads.length, 1)
 	cache.set("/mock-cache/artwork/.temporary", { size: 100 })
 	downloads.shift()!(null, {})
@@ -390,7 +392,7 @@ test("HTTP oversized response is discarded without publishing a texture", () => 
 	const errors: unknown[][] = []
 	console.error = (...args) => errors.push(args)
 	try {
-		const texture = create_square_texture_accessor(
+		const texture = create_texture_accessor(
 			"https://example.invalid/too-large",
 			40,
 		)
@@ -411,7 +413,7 @@ test("oversized decoded dimensions are rejected before opening a local stream", 
 	console.error = () => {}
 	try {
 		dimensions = [9000, 8]
-		assert.equal(create_square_texture_accessor("/mock/giant.png", 32)(), null)
+		assert.equal(create_texture_accessor("/mock/giant.png", 32)(), null)
 		assert.equal(reads.length, before)
 	} finally {
 		dimensions = [8, 8]
@@ -427,7 +429,7 @@ test("oversized local files are rejected before any stream is opened", () => {
 	console.error = (...args) => errors.push(args)
 	try {
 		assert.equal(
-			create_square_texture_accessor("/mock/oversized-file.png", 32)(),
+			create_texture_accessor("/mock/oversized-file.png", 32)(),
 			null,
 		)
 		assert.equal(reads.length, before)
@@ -447,7 +449,7 @@ test("only four local decodes run and the pending queue is bounded", () => {
 		for (let index = 0; index < 69; index++) {
 			const path = `/mock/${index}.png`
 			files.set(path, { size: 100 })
-			textures.push(create_square_texture_accessor(path, 32))
+			textures.push(create_texture_accessor(path, 32))
 		}
 	} finally {
 		console.error = previous
@@ -478,7 +480,7 @@ test("68 rendered Gnim consumers drain once even after texture cache eviction", 
 		files.set(path, { size: 100 })
 		const selected = createComputed(() => {
 			lookups++
-			return create_square_texture_accessor(path, 32)
+			return create_texture_accessor(path, 32)
 		})
 		const rendered = createComputed(() => selected()())
 		dispose.push(rendered.subscribe(() => rendered.peek()))
@@ -507,7 +509,7 @@ test("Gnim selection switches on URI, size, and explicit revision", () => {
 	const selected = createComputed(() => {
 		revision()
 		lookups++
-		return create_square_texture_accessor(uri(), size())
+		return create_texture_accessor(uri(), size())
 	})
 	const rendered = createComputed(() => selected()())
 	const unsubscribe = rendered.subscribe(() => rendered.peek())

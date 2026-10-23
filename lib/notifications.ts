@@ -8,7 +8,7 @@ import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
 import icons from "$lib/icons"
-import { attempt, attempt_async, type Result } from "$lib/result"
+import { attempt, attempt_async, err, ok, type Result } from "$lib/result"
 
 export const notification_daemon = AstalNotifd.get_default()
 
@@ -63,6 +63,18 @@ function call_notification_bus(
 			},
 		)
 	})
+}
+
+export function notification_name_owner(): Promise<Result<string>> {
+	return call_notification_bus(
+		"org.freedesktop.DBus",
+		"GetNameOwner",
+		new GLib.Variant("(s)", ["org.freedesktop.Notifications"]),
+		"(s)",
+	).then(
+		(owner) => ok((owner.recursiveUnpack() as [string])[0]),
+		(error) => err(error),
+	)
 }
 
 function watch_actions(
@@ -217,16 +229,11 @@ export async function notify(options: {
 		const name = "org.freedesktop.Notifications"
 		let destination = name
 		if (actions.length) {
-			const owner = await call_notification_bus(
-				"org.freedesktop.DBus",
-				"GetNameOwner",
-				new GLib.Variant("(s)", [name]),
-				"(s)",
-			)
-			const [unique_name] = owner.recursiveUnpack() as [string]
-			if (unique_name !== Gio.DBus.session.get_unique_name())
+			const owner = await notification_name_owner()
+			if (!owner.ok) throw owner.err
+			if (owner.value !== Gio.DBus.session.get_unique_name())
 				throw new Error("This shell does not own the notification service")
-			destination = unique_name
+			destination = owner.value
 		}
 
 		const hints: Record<string, GLib.Variant> = {

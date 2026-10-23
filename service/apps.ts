@@ -1,5 +1,6 @@
 import GObject, { getter, register } from "ags/gobject"
 import { execAsync, Process, subprocess } from "ags/process"
+import app from "$lib/app"
 import { idle, timeout, type Timer } from "$lib/time"
 
 import AstalApps from "gi://AstalApps"
@@ -28,6 +29,7 @@ class ApplicationCatalog extends GObject.Object {
 
 	constructor() {
 		super()
+		app.connect("shutdown", () => this.#dispose())
 
 		this.#favorites = []
 		this.#apps = new AstalApps.Apps()
@@ -161,7 +163,8 @@ class ApplicationCatalog extends GObject.Object {
 		this.notify("favorites")
 	}
 
-	vfunc_finalize() {
+	#dispose() {
+		if (this.#finished) return
 		this.#finished = true
 		this.#favorites_read++
 		this.#favorites_refresh.cancel()
@@ -169,6 +172,10 @@ class ApplicationCatalog extends GObject.Object {
 		this.#refresh_idle?.cancel()
 		this.#favorites_watcher?.kill()
 		this.#app_monitor.disconnect(this.#app_handler)
+	}
+
+	vfunc_finalize() {
+		this.#dispose()
 		super.vfunc_finalize()
 	}
 }

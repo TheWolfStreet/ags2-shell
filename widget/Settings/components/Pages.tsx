@@ -18,7 +18,7 @@ import { file_exists } from "$lib/files"
 import icons from "$lib/icons"
 import { notify } from "$lib/notifications"
 import { attempt } from "$lib/result"
-import { create_square_texture_accessor, hidden_drag_icon } from "$lib/textures"
+import { create_texture_accessor, hidden_drag_icon } from "$lib/textures"
 import { is_dialog_dismissed } from "$lib/ui"
 
 import options, { Opt, option_values } from "$shell/options"
@@ -68,7 +68,7 @@ function WallpaperChooser() {
 	})
 	const preview_texture = createComputed(() => {
 		wallpaper_revision()
-		return create_square_texture_accessor(wallpaper_path, 256)
+		return create_texture_accessor(wallpaper_path, 256)
 	})
 	const preview = createComputed(
 		() => preview_texture()() ?? hidden_drag_icon(),

@@ -2,7 +2,7 @@
 
 window#datemenu {
 	box.datemenu {
-		@extend .floating;
+		@extend %floating;
 
 		box.notifications {
 			box.notifications-header {
@@ -23,7 +23,7 @@ window#datemenu {
 			}
 
 			box.notification {
-				@extend .widget;
+				@extend %widget;
 				padding: var(--padding);
 				margin-left: 1px;
 				margin-right: 1px;
@@ -49,7 +49,7 @@ window#datemenu {
 		}
 
 		box.calendar {
-			@extend .widget;
+			@extend %widget;
 			padding: var(--padding) var(--padding) 0;
 
 			calendar {
@@ -62,14 +62,13 @@ window#datemenu {
 				}
 
 				button {
-					@extend .flat-button;
+					@extend %flat-button;
 					padding: calc(var(--padding) / 2);
 				}
 
 				label {
 					&:focus {
-						outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-						outline-offset: -1px;
+						@include focus-ring;
 						border-radius: calc(var(--radius) * 0.6);
 					}
 
@@ -78,8 +77,7 @@ window#datemenu {
 						border-radius: calc(var(--radius) * 0.6);
 
 						&:focus {
-							outline: calc(var(--border-width) / 2) solid var(--primary-fg);
-							outline-offset: -1px;
+							@include focus-ring(var(--primary-fg));
 						}
 					}
 				}

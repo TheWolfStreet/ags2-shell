@@ -1,6 +1,5 @@
 import GObject, { getter, register } from "ags/gobject"
 import { monitorFile, readFileAsync } from "ags/file"
-import { execAsync } from "ags/process"
 import { idle, timeout, type Timer } from "$lib/time"
 
 import Gio from "gi://Gio"
@@ -13,11 +12,12 @@ import {
 	log_error,
 	ok,
 	type Result,
+	unwrap_or,
 } from "$lib/result"
 import { debounce } from "$lib/time"
 import { hyprland } from "$lib/hyprland"
 import { brightness_target, parse_ddc_brightness } from "./brightnessMath"
-import { run_command } from "./commands"
+import { run_command } from "$lib/commands"
 
 function first_sysfs_device(
 	directory: string,
@@ -39,7 +39,23 @@ function first_sysfs_device(
 		}
 		return names.sort()[0] ?? ""
 	})
-	return result.ok ? result.value : ""
+	return unwrap_or(
+		result,
+		"",
+		`brightness.devices: Failed to enumerate ${directory}`,
+	)
+}
+
+async function read_sysfs_level(
+	base: string,
+): Promise<{ max: number; current: number }> {
+	const [max, current] = await Promise.all([
+		readFileAsync(`${base}/max_brightness`).then(Number),
+		readFileAsync(`${base}/brightness`).then(Number),
+	])
+	if (!Number.isFinite(max) || max <= 0 || !Number.isFinite(current))
+		throw new Error(`Invalid brightness from ${base}`)
+	return { max, current }
 }
 
 let ddc_work: Promise<void> = Promise.resolve()
@@ -203,26 +219,18 @@ class Brightness extends GObject.Object {
 
 	async #load_keyboard_value() {
 		if (!this.#keyboard_device) return
-		const base = `/sys/class/leds/${this.#keyboard_device}`
-		const [max, current] = await Promise.all([
-			readFileAsync(`${base}/max_brightness`).then(Number),
-			readFileAsync(`${base}/brightness`).then(Number),
-		])
-		if (!Number.isFinite(max) || max <= 0 || !Number.isFinite(current))
-			throw new Error(`Invalid keyboard brightness from ${base}`)
+		const { max, current } = await read_sysfs_level(
+			`/sys/class/leds/${this.#keyboard_device}`,
+		)
 		this.#keyboard_max = max
 		this.#keyboard_value = clamp01(current / max)
 	}
 
 	async #load_display_value() {
 		if (!this.#display_device) return
-		const base = `/sys/class/backlight/${this.#display_device}`
-		const [max, current] = await Promise.all([
-			readFileAsync(`${base}/max_brightness`).then(Number),
-			readFileAsync(`${base}/brightness`).then(Number),
-		])
-		if (!Number.isFinite(max) || max <= 0 || !Number.isFinite(current))
-			throw new Error(`Invalid display brightness from ${base}`)
+		const { max, current } = await read_sysfs_level(
+			`/sys/class/backlight/${this.#display_device}`,
+		)
 		this.#display_max = max
 		this.#display_value = clamp01(current / this.#display_max)
 		this.#internal_applied = Math.round(this.#display_value * 100)
@@ -458,16 +466,14 @@ class Brightness extends GObject.Object {
 		const controlled =
 			Boolean(this.#display_device) || this.#external_displays.size > 0
 		if (this.#display_device && this.#internal_applied !== target) {
-			const result = await attempt_async(async () =>
-				execAsync([
-					"brightnessctl",
-					"-d",
-					this.#display_device,
-					"set",
-					`${target}%`,
-					"-q",
-				]),
-			)
+			const result = await run_command([
+				"brightnessctl",
+				"-d",
+				this.#display_device,
+				"set",
+				`${target}%`,
+				"-q",
+			])
 			log_error(
 				result,
 				"brightness.write: Failed to set internal display brightness",

@@ -2,7 +2,6 @@ import app from "$lib/app"
 import { createBinding, createComputed, createState, For, onCleanup } from "ags"
 import { monitorFile } from "ags/file"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import { execAsync } from "ags/process"
 
 import AstalMpris from "gi://AstalMpris"
 import AstalWp from "gi://AstalWp"
@@ -120,11 +119,7 @@ export namespace QuickSettings {
 					const monitored = attempt(() =>
 						monitorFile(env.paths.avatar, refresh),
 					)
-					if (!monitored.ok)
-						console.error(
-							"quicksettings.avatar: Failed to watch avatar",
-							monitored.err,
-						)
+					log_error(monitored, "quicksettings.avatar: Failed to watch avatar")
 					const unsubscribe = avatar_size.subscribe(refresh)
 					refresh()
 					onCleanup(() => {
@@ -366,7 +361,7 @@ function layout_code(keymap: string): string {
 
 async function query_keyboard_layout(): Promise<Result<string>> {
 	const result = await attempt_async(async () => {
-		const output = await execAsync(["hyprctl", "devices", "-j"])
+		const output = await hyprland.message_async("j/devices")
 		return JSON.parse(output) as {
 			keyboards?: Array<{ active_keymap?: string; main?: boolean }>
 		}
@@ -424,13 +419,13 @@ function BrightnessSlider() {
 	const toggle_brightness_mute = () => {
 		if (brightness.display > 0) {
 			prev_brightness = brightness.display
-			void brightness.set_display(0).then((result) => {
-				if (!result.ok) console.error("brightness.toggle:", result.err)
-			})
+			void brightness
+				.set_display(0)
+				.then((result) => log_error(result, "brightness.toggle:"))
 		} else {
-			void brightness.set_display(prev_brightness).then((result) => {
-				if (!result.ok) console.error("brightness.toggle:", result.err)
-			})
+			void brightness
+				.set_display(prev_brightness)
+				.then((result) => log_error(result, "brightness.toggle:"))
 		}
 	}
 
@@ -458,9 +453,9 @@ function BrightnessSlider() {
 				hexpand
 				value={display}
 				onChangeValue={({ value }) => {
-					void brightness.set_display(value).then((result) => {
-						if (!result.ok) console.error("brightness.slider:", result.err)
-					})
+					void brightness
+						.set_display(value)
+						.then((result) => log_error(result, "brightness.slider:"))
 				}}
 			/>
 		</box>

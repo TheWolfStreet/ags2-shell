@@ -2,7 +2,7 @@
 
 window#overview {
 	box.overview {
-		@extend .floating;
+		@extend %floating;
 		@include spacing;
 
 		button.workspace {

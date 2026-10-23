@@ -97,10 +97,6 @@ export namespace Notifications {
 		if (all.length) timeout(Math.random() * 100, dismiss_next)
 	}
 
-	export function Stack({ class: class_name }: { class: string }) {
-		return <NotificationList class={class_name} persistent />
-	}
-
 	const popup_width = options.scale.as((scale) =>
 		Math.round((350 * scale) / 100),
 	)
@@ -495,7 +491,7 @@ export namespace Notifications {
 		)
 	}
 
-	function NotificationList({
+	export function NotificationList({
 		class: class_name,
 		persistent,
 		transition_type = SLIDE_DOWN,

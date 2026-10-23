@@ -12,15 +12,8 @@ import { idle } from "$lib/time"
 import AstalHyprland from "gi://AstalHyprland"
 import giCairo from "cairo"
 
-import { hyprland } from "$lib/hyprland"
-import {
-	attempt,
-	attempt_async,
-	err,
-	log_error,
-	ok,
-	type Result,
-} from "$lib/result"
+import { hyprland, hyprland_command } from "$lib/hyprland"
+import { attempt, err, log_error, type Result } from "$lib/result"
 
 const { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_MIDDLE } = Gdk
 
@@ -100,7 +93,7 @@ export function track_monitor_fullscreen(target: Gdk.Monitor) {
 	return fullscreen
 }
 
-export function filter_valid_window_clients(
+function filter_valid_window_clients(
 	clients: Array<AstalHyprland.Client | null | undefined>,
 ) {
 	return clients.filter((client): client is AstalHyprland.Client => {
@@ -190,21 +183,13 @@ function filter_window_clients_for_workspace(
 	)
 }
 
-async function dispatch_client(message: string): Promise<Result<void>> {
-	const response = await attempt_async(() => hyprland.message_async(message))
-	if (!response.ok) return response
-	return response.value === "ok"
-		? ok(undefined)
-		: err(new Error(`Hyprland rejected ${message}: ${response.value}`))
-}
-
 export async function focus_client_and_toggle_fullscreen(
 	client: AstalHyprland.Client,
 ): Promise<Result<void>> {
 	const focused = attempt(() => client.focus())
 	if (!log_error(focused, "windowing.fullscreen: Failed to focus client"))
 		return focused
-	const result = await dispatch_client("dispatch fullscreen")
+	const result = await hyprland_command("dispatch fullscreen")
 	log_error(result, "windowing.fullscreen: Failed to toggle fullscreen")
 	return result
 }
@@ -232,7 +217,7 @@ export async function move_client_to_workspace_silent(
 		log_error(invalid, "windowing.move: Failed to move client")
 		return invalid
 	}
-	const result = await dispatch_client(
+	const result = await hyprland_command(
 		`dispatch movetoworkspacesilent ${workspace_id},address:${address}`,
 	)
 	log_error(result, "windowing.move: Failed to move client")

@@ -169,13 +169,13 @@ async function fixture() {
 		"gi://Gio": { default: { Cancellable: class {} } },
 		"gi://GLib": { default: { PRIORITY_DEFAULT: 0 } },
 		"gi://Graphene": { default: { Point: class {}, Size: class {} } },
+		"$lib/result": { attempt_async: async () => {}, log_error: () => {} },
 		"$lib/textures": { hidden_drag_icon: () => icon },
 		"$shell/options": { default: { desktop: { enabled: () => true } } },
 		"./FileOperations": {
 			build_file_content_provider: (paths) => paths,
-			paths_from_uris: () => [],
 			read_file_text: () => "",
-			split_payload_lines: () => [],
+			uri_list_paths: () => [],
 		},
 		"./Desktop": {
 			desktop_interaction: {

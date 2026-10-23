@@ -44,8 +44,6 @@ const icon_metrics_by_size: Record<desktop_icon_size, DesktopIconMetrics> = {
 	extralarge: { iconPx: 96, cellPx: 156, labelChars: 12 },
 }
 
-const zero_padding: work_area_padding = { left: 0, right: 0, top: 0, bottom: 0 }
-
 export function get_desktop_icon_metrics(
 	size: string,
 	scale = 1,
@@ -64,9 +62,9 @@ export function get_desktop_icon_metrics(
 export function get_grid_metrics(
 	width: number,
 	height: number,
-	padding: work_area_padding = zero_padding,
-	cell_size = icon_metrics_by_size.small.cellPx,
-	scale = 1,
+	padding: work_area_padding,
+	cell_size: number,
+	scale: number,
 ): GridMetrics {
 	const requested_edge_left = Math.max(
 		0,

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import { stripTypeScriptTypes } from "node:module"
 import { test } from "node:test"
 import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
+import * as result from "../../lib/result.ts"
 
 async function load() {
 	const sources = new Map<number, () => boolean>()
@@ -27,16 +28,18 @@ async function load() {
 		readFileSync(new URL("../../lib/time.ts", import.meta.url), "utf8"),
 	)
 	const module = new SourceTextModule(source, { context })
-	await module.link(
-		() =>
-			new SyntheticModule(
-				["default"],
-				function () {
-					this.setExport("default", glib)
-				},
-				{ context },
-			),
-	)
+	await module.link((name) => {
+		const exports: Record<string, unknown> =
+			name === "$lib/result" ? result : { default: glib }
+		return new SyntheticModule(
+			Object.keys(exports),
+			function () {
+				for (const [key, value] of Object.entries(exports))
+					this.setExport(key, value)
+			},
+			{ context },
+		)
+	})
 	await module.evaluate()
 	return {
 		module: module.namespace as Record<string, any>,

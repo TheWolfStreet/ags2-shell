@@ -1,5 +1,6 @@
 import { Accessor, CCProps } from "ags"
 import { Gtk } from "ags/gtk4"
+import Pango from "gi://Pango"
 
 export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
 
@@ -31,4 +32,8 @@ export function is_accessor<T>(value: unknown): value is Accessor<T> {
 
 export function read_value<T>(value: MaybeAccessor<T>): T {
 	return is_accessor(value) ? value() : value
+}
+
+export function font_size(font: string): number {
+	return Pango.FontDescription.from_string(font).get_size() / Pango.SCALE || 11
 }

@@ -19,8 +19,6 @@
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
     pname = "ags2-shell";
-    entry = "shell/main.tsx";
-    wallpaper_entry = "shell/wallpaper.tsx";
     typescript_api = "${pkgs.typescript_5}/lib/node_modules/typescript/lib/typescript.js";
 
     appmenu_glib_translator = pkgs.stdenv.mkDerivation {
@@ -271,37 +269,17 @@
 
         buildInputs = gir_packages ++ [pkgs.gjs];
 
-        buildPhase = ''
-          runHook preBuild
-          bash style/compile/build.sh
-          runHook postBuild
-        '';
+        dontBuild = true;
 
         installPhase = ''
           runHook preInstall
-
-          install -Dm644 style/compile/main.css $out/share/${pname}/style/compile/main.css
-          mkdir -p $out/bin $out/libexec
-
-          ags bundle ${wallpaper_entry} $out/libexec/${pname}-wallpaper -g 4
-          ags bundle ${entry} $out/bin/${pname} -g 4 \
-            -d "WALLPAPER_BIN='$out/libexec/${pname}-wallpaper'" \
-            -d "STYLE_DIR='$out/share/${pname}'"
-
-          for launcher in $out/bin/${pname} $out/libexec/${pname}-wallpaper; do
-            substituteInPlace "$launcher" \
-              --replace-fail 'file="''${XDG_RUNTIME_DIR:-/tmp}/dmFyIF-ags.js"' "set -eo pipefail; umask 077; file=\$(mktemp \"\''${XDG_RUNTIME_DIR:-/tmp}/ags2-shell.XXXXXXXX\"); trap 'rm -f -- \"\$file\"' EXIT" \
-              --replace-fail '> $file' '> "$file"' \
-              --replace-fail '-m $file $@' '-m "$file" "$@"'
-          done
-
+          PREFIX=$out bash scripts/install-native.sh
           runHook postInstall
         '';
 
         preFixup = ''
           gappsWrapperArgs+=(
             --prefix PATH : "${pkgs.lib.makeBinPath runtime_programs}"
-            --set AGS2SHELL_STYLES "$out/share/${pname}"
           )
         '';
 

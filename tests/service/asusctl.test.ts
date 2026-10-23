@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
+import * as result from "../../lib/result.ts"
+import { ok } from "../../lib/result.ts"
 
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 
@@ -10,22 +13,6 @@ test("opening Quick Settings observes profile without applying panel policy; man
 	const commands: string[][] = []
 	const messages: string[] = []
 	const handlers = new Map()
-	const ok = (value) => ({ ok: true, value })
-	const err = (err) => ({ ok: false, err })
-	const attempt = (fn) => {
-		try {
-			return ok(fn())
-		} catch (error) {
-			return err(error)
-		}
-	}
-	const attempt_async = async (fn) => {
-		try {
-			return ok(await fn())
-		} catch (error) {
-			return err(error)
-		}
-	}
 	let profile = "Balanced"
 	const panel = {
 		name: "eDP-1",
@@ -57,7 +44,7 @@ test("opening Quick Settings observes profile without applying panel policy; man
 			getter: () => () => {},
 			register: () => (value) => value,
 		},
-		"$lib/hyprland": {
+		"$lib/hyprland": with_hyprland_command({
 			hyprland: {
 				connect: (name, callback) => {
 					handlers.set(name, callback)
@@ -69,13 +56,13 @@ test("opening Quick Settings observes profile without applying panel policy; man
 					return "ok"
 				},
 			},
-		},
+		}),
 		"gi://GLib": {
 			default: {
 				find_program_in_path: (name) => (name === "asusctl" ? name : null),
 			},
 		},
-		"$lib/result": { ok, err, attempt, attempt_async },
+		"$lib/result": result,
 		"$shell/options": {
 			default: { asus: { ac_hz: option(120), bat_hz: option(60) } },
 		},
@@ -83,7 +70,7 @@ test("opening Quick Settings observes profile without applying panel policy; man
 			format_monitor_command: (monitor, change) =>
 				`keyword monitor ${monitor.name},${monitor.width}x${monitor.height}@${change.refresh_rate},${monitor.x}x${monitor.y},${monitor.scale}`,
 		},
-		"./commands": {
+		"$lib/commands": {
 			run_command: async (args) => {
 				commands.push(args)
 				if (args[0] === "hyprctl") return ok(JSON.stringify([panel]))
@@ -154,7 +141,7 @@ test("opening Quick Settings observes profile without applying panel policy; man
 		},
 		"widget/shared/Placeholder": { Placeholder: noop },
 		"$lib/icons": { default: {} },
-		"$lib/result": { attempt },
+		"$lib/result": result,
 		"$lib/apps": { launch_program: noop },
 		"$lib/notifications": { notify_missing_programs: noop },
 		"$service/asusctl": { asusctl: service },
@@ -228,22 +215,6 @@ for (const order of ["observer first", "manual first", "observer removed"]) {
 		const notifications: string[] = []
 		const handlers = new Map()
 		const option_changes: (() => void)[] = []
-		const ok = (value) => ({ ok: true, value })
-		const err = (err) => ({ ok: false, err })
-		const attempt = (fn) => {
-			try {
-				return ok(fn())
-			} catch (error) {
-				return err(error)
-			}
-		}
-		const attempt_async = async (fn) => {
-			try {
-				return ok(await fn())
-			} catch (error) {
-				return err(error)
-			}
-		}
 		const panel = {
 			name: "eDP-1",
 			disabled: false,
@@ -280,7 +251,7 @@ for (const order of ["observer first", "manual first", "observer removed"]) {
 				getter: () => () => {},
 				register: () => (value) => value,
 			},
-			"$lib/hyprland": {
+			"$lib/hyprland": with_hyprland_command({
 				hyprland: {
 					connect: (name, callback) => {
 						handlers.set(name, callback)
@@ -292,13 +263,13 @@ for (const order of ["observer first", "manual first", "observer removed"]) {
 						return "ok"
 					},
 				},
-			},
+			}),
 			"gi://GLib": {
 				default: {
 					find_program_in_path: (name) => (name === "asusctl" ? name : null),
 				},
 			},
-			"$lib/result": { ok, err, attempt, attempt_async },
+			"$lib/result": result,
 			"$shell/options": {
 				default: { asus: { ac_hz: option(120), bat_hz: option(60) } },
 			},
@@ -306,7 +277,7 @@ for (const order of ["observer first", "manual first", "observer removed"]) {
 				format_monitor_command: (monitor, change) =>
 					`keyword monitor ${monitor.name},${monitor.width}x${monitor.height}@${change.refresh_rate},${monitor.x}x${monitor.y},${monitor.scale}`,
 			},
-			"./commands": {
+			"$lib/commands": {
 				run_command: async (args) => {
 					if (args[0] === "asusctl")
 						return ok(args[2] === "set" ? "" : "Active profile: Balanced")

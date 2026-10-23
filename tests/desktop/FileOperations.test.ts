@@ -10,6 +10,7 @@ import {
 type transfer_hook = (source: string, target: string) => void
 
 const files = new Map<string, string | undefined>()
+const attributes = new Map<string, Record<string, string | boolean>>()
 let before_copy: transfer_hook | null = null
 let before_move: transfer_hook | null = null
 
@@ -62,9 +63,16 @@ class mock_file {
 		let offset = 0
 		return Promise.resolve({
 			next_files_async: async (count) =>
-				names
-					.slice(offset, (offset += count))
-					.map((path) => ({ get_name: () => path.split("/").pop() })),
+				names.slice(offset, (offset += count)).map((path) => ({
+					get_name: () => path.split("/").pop(),
+					get_file_type: () => files.get(path),
+					get_content_type: () => "application/x-desktop",
+					get_modification_date_time: () => null,
+					get_icon: () => null,
+					get_attribute_string: (name) => attributes.get(path)?.[name] ?? null,
+					get_attribute_boolean: (name) =>
+						attributes.get(path)?.[name] === true,
+				})),
 			close_async: async () => true,
 		})
 	}
@@ -136,10 +144,11 @@ const gio = {
 		},
 	},
 	FileCopyFlags: { NONE: 0, NOFOLLOW_SYMLINKS: 1 },
-	FileQueryInfoFlags: { NOFOLLOW_SYMLINKS: 1 },
+	FileQueryInfoFlags: { NONE: 0, NOFOLLOW_SYMLINKS: 1 },
 	FileType: { DIRECTORY: "directory" },
 	IOErrorEnum: { EXISTS: "EXISTS", WOULD_RECURSE: "WOULD_RECURSE" },
 	io_error_quark: () => "gio",
+	content_type_get_icon: () => ({ get_names: () => ["application-x-desktop"] }),
 }
 const glib = {
 	Error: io_error,
@@ -152,7 +161,18 @@ const glib = {
 
 const values = {
 	"gi://Gio": { default: gio },
-	"gi://GioUnix": { default: {} },
+	"gi://GioUnix": {
+		default: {
+			DesktopAppInfo: {
+				new_from_filename: () => ({
+					get_icon: () => ({ get_names: () => ["application-pdf"] }),
+					get_string: () => null,
+					get_display_name: () => "invoice.pdf",
+					get_name: () => "invoice.pdf",
+				}),
+			},
+		},
+	},
 	"gi://GLib": { default: glib },
 	"ags/gtk4": { Gdk: {} },
 	"$lib/time": { timeout: () => ({ cancel: () => {} }) },
@@ -178,30 +198,36 @@ const values = {
 		with_context: (result) => result,
 	},
 }
-const source = read_file_sync(
-	new URL("../../widget/Desktop/FileOperations.ts", import.meta.url),
-	"utf8",
+async function load_values_module(path: string) {
+	const source = read_file_sync(new URL(path, import.meta.url), "utf8")
+	const loaded = new source_text_module(strip_type_script_types(source))
+	await loaded.link(
+		(name) =>
+			new synthetic_module(Object.keys(values[name]), function () {
+				for (const [key, value] of Object.entries(values[name]))
+					this.setExport(key, value)
+			}),
+	)
+	await loaded.evaluate()
+	return loaded
+}
+values["$lib/files"] = (await load_values_module("../../lib/files.ts"))
+	.namespace as Record<string, unknown>
+const module = await load_values_module(
+	"../../widget/Desktop/FileOperations.ts",
 )
-const compiled = strip_type_script_types(source)
-const module = new source_text_module(compiled)
-await module.link(
-	(name) =>
-		new synthetic_module(Object.keys(values[name]), function () {
-			for (const [key, value] of Object.entries(values[name]))
-				this.setExport(key, value)
-		}),
-)
-await module.evaluate()
 const {
 	transfer_desktop_files,
 	rename_file,
-	permanently_delete_files,
+	delete_desktop_files,
+	load_desktop_files,
 	read_file_text,
 	paths_from_uris,
 } = module.namespace as typeof import("../../widget/Desktop/FileOperations.ts")
 
 function reset() {
 	files.clear()
+	attributes.clear()
 	files.set("/home/test/Desktop", "directory")
 	before_copy = null
 	before_move = null
@@ -362,10 +388,37 @@ test("rename rejects path traversal without touching files", () => {
 test("permanent removal refuses files outside the Desktop", async () => {
 	reset()
 	files.set("/home/test/Downloads/item", "file")
-	const result = await permanently_delete_files(["/home/test/Downloads/item"])
+	const result = await delete_desktop_files(
+		["/home/test/Downloads/item"],
+		"delete",
+	)
 	assert.deepEqual(result.removedPaths, [])
 	assert.equal(result.failures.length, 1)
 	assert.equal(files.get("/home/test/Downloads/item"), "file")
+})
+
+test("desktop entries show their Name and Icon only when trusted and executable", async () => {
+	reset()
+	files.set("/home/test/Desktop/untrusted.desktop", "file")
+	files.set("/home/test/Desktop/not-executable.desktop", "file")
+	files.set("/home/test/Desktop/trusted.desktop", "file")
+	attributes.set("/home/test/Desktop/not-executable.desktop", {
+		"metadata::trusted": "true",
+		"access::can-execute": false,
+	})
+	attributes.set("/home/test/Desktop/trusted.desktop", {
+		"metadata::trusted": "true",
+		"access::can-execute": true,
+	})
+	const result = await load_desktop_files()
+	assert.ok(result.ok)
+	const by_name = new Map(result.value.map((file) => [file.name, file]))
+	for (const name of ["untrusted.desktop", "not-executable.desktop"]) {
+		assert.equal(by_name.get(name)?.displayName, undefined)
+		assert.equal(by_name.get(name)?.icon, "application-x-desktop")
+	}
+	assert.equal(by_name.get("trusted.desktop")?.displayName, "invoice.pdf")
+	assert.equal(by_name.get("trusted.desktop")?.icon, "application-pdf")
 })
 
 test("file URI parsing rejects nonlocal and non-file URI payloads", () => {

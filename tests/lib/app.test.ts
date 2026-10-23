@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import { stripTypeScriptTypes } from "node:module"
 import { test } from "node:test"
 import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
+import * as result from "../../lib/result.ts"
 
 type ShutdownListener = { callback: () => void; after: boolean }
 
@@ -67,6 +68,7 @@ async function shell_app() {
 			},
 		},
 		"ags/gobject": { default: { Object: class {} }, register: () => () => {} },
+		"$lib/result": result,
 	}
 	await module.link(
 		(name) =>

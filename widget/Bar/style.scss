@@ -18,7 +18,7 @@ window#bar {
 	}
 
 	button {
-		@extend .flat-button;
+		@extend %flat-button;
 		padding: calc(var(--padding) / 2);
 	}
 
@@ -33,7 +33,7 @@ window#bar {
 		padding: calc(var(--padding) / 2);
 
 		button.model-item {
-			@extend .flat-button;
+			@extend %flat-button;
 			padding: calc(var(--padding) * 0.8);
 		}
 
@@ -96,7 +96,7 @@ window#bar {
 
 	box.tasks {
 		button.task {
-			@extend .flat-button;
+			@extend %flat-button;
 			padding: calc(var(--padding) / 2);
 			border-radius: calc(var(--radius) * 1.5);
 		}

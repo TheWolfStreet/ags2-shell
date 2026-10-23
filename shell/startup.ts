@@ -11,10 +11,11 @@ import {
 	type WallpaperPalette,
 } from "$lib/colors"
 import env from "$lib/env"
-import { attempt, attempt_async, log_error, type Result } from "$lib/result"
+import { attempt, log_error, type Result } from "$lib/result"
 import { debounce } from "$lib/time"
 import { get_file_size } from "$lib/textures"
-import { hyprland } from "$lib/hyprland"
+import { max_image_bytes, valid_image_dimensions } from "$lib/files"
+import { hyprland, hyprland_command } from "$lib/hyprland"
 import { wallpaper_path, wallpaper_revision } from "$lib/wallpaper"
 
 import options, { subscribe_options } from "$shell/options"
@@ -169,14 +170,10 @@ function start_hyprland_appearance_sync() {
 			`decoration:blur:enabled ${blur.peek() ? "true" : "false"}`,
 		]
 		const batch = rules.map((rule) => `keyword ${rule}`).join("; ")
-		const result = await attempt_async(() =>
-			hyprland.message_async(`[[BATCH]]/${batch}`),
+		log_error(
+			await hyprland_command(`[[BATCH]]/${batch}`),
+			"startup.hyprland: Failed to apply appearance",
 		)
-		if (!result.ok || result.value !== "ok")
-			console.error(
-				"startup.hyprland: Failed to apply appearance",
-				result.ok ? result.value : result.err,
-			)
 	}
 
 	let pending = Promise.resolve()
@@ -197,21 +194,12 @@ function start_hyprland_appearance_sync() {
 }
 
 const SAMPLE_SIZE = 96
-const MAX_WALLPAPER_BYTES = 64 * 1024 * 1024
-const MAX_WALLPAPER_DIMENSION = 8192
-const MAX_WALLPAPER_PIXELS = 40_000_000
 const WALLPAPER_THEME_DELAY_MS = 180
 let last_wallpaper_revision = -1
 
 function sample_wallpaper_pixels(path: string): Rgb[] {
 	const [, source_width, source_height] = GdkPixbuf.Pixbuf.get_file_info(path)
-	if (
-		source_width < 1 ||
-		source_height < 1 ||
-		source_width > MAX_WALLPAPER_DIMENSION ||
-		source_height > MAX_WALLPAPER_DIMENSION ||
-		source_width * source_height > MAX_WALLPAPER_PIXELS
-	)
+	if (!valid_image_dimensions(source_width, source_height))
 		throw new Error("Wallpaper dimensions exceed palette sampling limit")
 	const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
 		path,
@@ -270,7 +258,7 @@ const update_wallpaper_theme = debounce(WALLPAPER_THEME_DELAY_MS, () => {
 	const path = wallpaper_path
 	const size = get_file_size(path)
 	if (!size) return
-	if (size > MAX_WALLPAPER_BYTES) {
+	if (size > max_image_bytes) {
 		console.error("wallpaper.theme: Wallpaper exceeds palette sampling limit")
 		return
 	}

@@ -215,7 +215,5 @@ export default function Setter(props: SetterProps) {
 				</button>
 			)
 		}
-		default:
-			return <label label={`[ERROR]: No setter with type ${resolved_type}`} />
 	}
 }

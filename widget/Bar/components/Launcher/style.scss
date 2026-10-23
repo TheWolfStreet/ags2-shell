@@ -2,7 +2,7 @@
 
 window#launcher {
 	box.launcher {
-		@extend .floating;
+		@extend %floating;
 
 		* {
 			--padding: inherit;
@@ -21,7 +21,7 @@ window#launcher {
 			margin-top: var(--spacing);
 
 			button {
-				@extend .flat-button;
+				@extend %flat-button;
 				padding: calc(var(--padding) / 2);
 
 				image {

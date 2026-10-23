@@ -9,7 +9,7 @@ import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
 import { debounce, format_clock } from "$lib/time"
-import { create_square_texture_accessor } from "$lib/textures"
+import { create_texture_accessor } from "$lib/textures"
 
 import options from "$shell/options"
 
@@ -50,7 +50,7 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const art_url = createBinding(player, "artUrl")
 	const cover_uri = createComputed(() => art_url() || cover_art() || "")
 	const selected_cover = createComputed(() =>
-		create_square_texture_accessor(cover_uri(), cover_size()),
+		create_texture_accessor(cover_uri(), cover_size()),
 	)
 	const cover_texture = createComputed(() => selected_cover()())
 	const has_cover_art = cover_texture.as((texture) => texture !== null)

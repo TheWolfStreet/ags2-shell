@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
+import * as result from "../../lib/result.ts"
 import ts from "../typescript.ts"
 
 async function tray_fixture(is_menu, has_menu = true) {
@@ -68,6 +69,7 @@ async function tray_fixture(is_menu, has_menu = true) {
 				},
 			},
 		},
+		"$lib/result": result,
 		"$shell/options": { default: { bar: { systray: { ignore: () => [] } } } },
 		"./TrayMenu": {
 			create_tray_menu_popover: () => ({

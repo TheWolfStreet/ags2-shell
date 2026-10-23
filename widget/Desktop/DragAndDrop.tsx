@@ -6,13 +6,13 @@ import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import Graphene from "gi://Graphene"
 
+import { attempt_async, log_error } from "$lib/result"
 import { hidden_drag_icon } from "$lib/textures"
 import options from "$shell/options"
 import {
 	build_file_content_provider,
-	paths_from_uris,
 	read_file_text,
-	split_payload_lines,
+	uri_list_paths,
 } from "./FileOperations"
 import {
 	desktop_interaction,
@@ -297,24 +297,22 @@ export function create_desktop_drag_controller(
 			void (async () => {
 				const cancellable = new Gio.Cancellable()
 				const deadline = timeout(30_000, () => cancellable.cancel())
-				try {
+				const completed = await attempt_async(async () => {
 					const [stream] = await drop.read_async(
 						["text/uri-list"],
 						GLib.PRIORITY_DEFAULT,
 						cancellable,
 					)
 					if (!stream) throw new Error("Drop provided no file URI list")
-					const text = await read_file_text(stream, cancellable)
 					const paths = [
 						...new Set(
-							paths_from_uris(
-								split_payload_lines(text).filter(
-									(line) => !line.startsWith("#"),
-								),
-							),
+							uri_list_paths(await read_file_text(stream, cancellable)),
 						),
 					]
-					if (!paths.length) throw new Error("Drop contains no local files")
+					if (!paths.length) {
+						console.error("desktop.drop: Drop contains no local files")
+						return false
+					}
 					const state = active_drag.peek()
 					const internal = paths.every(
 						(path) =>
@@ -323,23 +321,25 @@ export function create_desktop_drag_controller(
 					if (internal && action === DragAction.MOVE) {
 						drag_session.handled = true
 						move(state.paths, state.anchor ?? paths[0], slot_at(x, y))
-					} else {
-						const result = await import_files_to_desktop({
-							paths,
-							to: grid.peek().id,
-							operation: action === DragAction.COPY ? "copy" : "move",
-						})
-						if (result.failures.length || !result.createdPaths.length)
-							throw new Error("Not all dropped files were transferred")
+						return true
 					}
+					const result = await import_files_to_desktop({
+						paths,
+						to: grid.peek().id,
+						operation: action === DragAction.COPY ? "copy" : "move",
+					})
+					return result.failures.length === 0 && result.createdPaths.length > 0
+				})
+				deadline.cancel()
+				if (
+					log_error(completed, "desktop.drop: Failed to complete drop") &&
+					completed.value
+				) {
 					set_drag_preview(null)
 					drop.finish(action)
-				} catch (error) {
-					console.error("desktop.drop: Failed to complete drop", error)
-					drop.finish(0)
-				} finally {
-					deadline.cancel()
+					return
 				}
+				drop.finish(0)
 			})()
 			return true
 		})

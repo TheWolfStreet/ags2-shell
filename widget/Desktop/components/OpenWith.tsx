@@ -41,9 +41,6 @@ export namespace DesktopOpenWith {
 	}
 
 	export function Window() {
-		const existing = app.get_window("desktop-open-with")
-		if (existing) return existing
-
 		return (
 			<Gtk.Window
 				title="Open File"

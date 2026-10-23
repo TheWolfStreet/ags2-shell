@@ -1,6 +1,6 @@
 import app from "$lib/app"
 import { createState } from "ags"
-import { execAsync } from "ags/process"
+import { run_command } from "$lib/commands"
 import { interval, type Timer } from "$lib/time"
 
 import Gio from "gi://Gio"
@@ -10,11 +10,14 @@ import GdkPixbuf from "gi://GdkPixbuf"
 import env from "$lib/env"
 import { attempt, attempt_async, err, ok, type Result } from "$lib/result"
 import { debounce } from "$lib/time"
+import {
+	ensure_directory,
+	max_image_bytes,
+	query_file_signature,
+	valid_image_dimensions,
+} from "$lib/files"
 
 export const wallpaper_path = `${env.paths.home}/.config/background`
-const MAX_IMAGE_BYTES = 64 * 1024 * 1024
-const MAX_IMAGE_DIMENSION = 8192
-const MAX_IMAGE_PIXELS = 40_000_000
 const VALIDATION_SIZE = 256
 const [wallpaper_revision, set_wallpaper_revision] = createState(0)
 export { wallpaper_revision }
@@ -38,26 +41,8 @@ function update_polling() {
 }
 
 function file_signature(): Result<string | null> {
-	const result = attempt(() => {
-		const info = Gio.File.new_for_path(wallpaper_path).query_info(
-			"standard::size,time::modified,time::modified-usec,etag::value",
-			Gio.FileQueryInfoFlags.NONE,
-			null,
-		)
-		return [
-			info.get_size(),
-			info.get_attribute_uint64("time::modified"),
-			info.get_attribute_uint32("time::modified-usec"),
-			info.get_attribute_string("etag::value") ?? "",
-		].join(":")
-	})
-	if (result.ok) return result
-	if (
-		result.err instanceof GLib.Error &&
-		result.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND)
-	)
-		return ok(null)
-	return result
+	const result = query_file_signature(wallpaper_path)
+	return result.ok ? ok(result.value?.value ?? null) : result
 }
 
 function read_signature(): string | null {
@@ -114,9 +99,9 @@ function check_image_size(file: Gio.File) {
 	const size = file
 		.query_info("standard::size", Gio.FileQueryInfoFlags.NONE, null)
 		.get_size()
-	if (size <= 0 || size > MAX_IMAGE_BYTES)
+	if (size <= 0 || size > max_image_bytes)
 		throw new Error(
-			`Wallpaper must be nonempty and no larger than ${MAX_IMAGE_BYTES} bytes`,
+			`Wallpaper must be nonempty and no larger than ${max_image_bytes} bytes`,
 		)
 }
 
@@ -131,14 +116,7 @@ async function validate_image(file: Gio.File, path: string) {
 			else reject(info.err)
 		})
 	})
-	if (
-		!format ||
-		width <= 0 ||
-		height <= 0 ||
-		width > MAX_IMAGE_DIMENSION ||
-		height > MAX_IMAGE_DIMENSION ||
-		width * height > MAX_IMAGE_PIXELS
-	)
+	if (!format || !valid_image_dimensions(width, height))
 		throw new Error("Wallpaper format or dimensions are unsupported")
 
 	const stream = await new Promise<Gio.FileInputStream>((resolve, reject) => {
@@ -215,11 +193,11 @@ export async function set_wallpaper(path: string): Promise<Result<void>> {
 		const directory = destination.get_parent()
 		if (!directory)
 			throw new Error("Wallpaper destination has no parent directory")
-		if (!directory.query_exists(null))
-			directory.make_directory_with_parents(null)
 		const directory_path = directory.get_path()
 		if (!directory_path)
 			throw new Error("Wallpaper destination is not a local directory")
+		const ready = ensure_directory(directory_path)
+		if (!ready.ok) throw ready.err
 		const temporary_path = `${directory_path}/.background-${GLib.uuid_string_random()}.png`
 		temporary = Gio.File.new_for_path(temporary_path)
 		const stream = temporary.create(Gio.FileCreateFlags.PRIVATE, null)
@@ -229,17 +207,18 @@ export async function set_wallpaper(path: string): Promise<Result<void>> {
 		check_image_size(Gio.File.new_for_path(path))
 
 		const lower = path.toLowerCase()
+		let command = ["cp", "--", path, temporary_path]
 		if (lower.endsWith(".heic")) {
 			if (GLib.find_program_in_path("heif-dec") === null)
 				throw new Error("heif-dec not found")
-			await execAsync(["heif-dec", path, temporary_path])
+			command = ["heif-dec", path, temporary_path]
 		} else if (lower.endsWith(".webp")) {
 			if (GLib.find_program_in_path("dwebp") === null)
 				throw new Error("dwebp not found")
-			await execAsync(["dwebp", path, "-o", temporary_path])
-		} else {
-			await execAsync(["cp", "--", path, temporary_path])
+			command = ["dwebp", path, "-o", temporary_path]
 		}
+		const converted = await run_command(command, { timeout_ms: 60_000 })
+		if (!converted.ok) throw converted.err
 		if (current !== generation) return
 		await validate_image(temporary, temporary_path)
 		if (current !== generation) return

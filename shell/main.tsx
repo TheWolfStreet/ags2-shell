@@ -28,6 +28,7 @@ import { attempt, log_error } from "$lib/result"
 const deferred_roots: Array<() => void> = []
 let wallpaper_child: Process | null = null
 let wallpaper_restart: Timer | null = null
+let wallpaper_failures = 0
 let stopping = false
 let ready = false
 let quitting = false
@@ -98,6 +99,12 @@ function wallpaper_command() {
 	]
 }
 
+function schedule_wallpaper_restart() {
+	const delay = Math.min(30_000, 1000 * 2 ** wallpaper_failures)
+	wallpaper_failures++
+	wallpaper_restart = timeout(delay, start_wallpaper)
+}
+
 function start_wallpaper() {
 	wallpaper_restart = null
 	if (stopping || wallpaper_child) return
@@ -105,28 +112,33 @@ function start_wallpaper() {
 	const command = wallpaper_command()
 	if (!command) {
 		console.error("wallpaper: Could not locate shell/wallpaper.tsx")
-		wallpaper_restart = timeout(1000, start_wallpaper)
+		schedule_wallpaper_restart()
 		return
 	}
 
-	try {
-		const process = subprocess(command, print, (error) =>
+	const started = attempt(() =>
+		subprocess(command, print, (error) =>
 			console.error("wallpaper: Child stderr:", error),
-		)
-		wallpaper_child = process
-		process.connect("exit", (_process, code, signaled) => {
-			if (wallpaper_child !== process) return
-			wallpaper_child = null
-			if (stopping) return
-
-			const reason = signaled ? `signal ${code}` : `status ${code}`
-			console.error(`wallpaper: Child exited with ${reason}`)
-			wallpaper_restart = timeout(1000, start_wallpaper)
-		})
-	} catch (error) {
-		console.error("wallpaper: Failed to start child", error)
-		wallpaper_restart = timeout(1000, start_wallpaper)
+		),
+	)
+	if (!log_error(started, "wallpaper: Failed to start child")) {
+		schedule_wallpaper_restart()
+		return
 	}
+	const process = started.value
+	const started_at = GLib.get_monotonic_time()
+	wallpaper_child = process
+	process.connect("exit", (_process, code, signaled) => {
+		if (wallpaper_child !== process) return
+		wallpaper_child = null
+		if (stopping) return
+
+		const reason = signaled ? `signal ${code}` : `status ${code}`
+		console.error(`wallpaper: Child exited with ${reason}`)
+		if (GLib.get_monotonic_time() - started_at >= 30_000_000)
+			wallpaper_failures = 0
+		schedule_wallpaper_restart()
+	})
 }
 
 app.start({

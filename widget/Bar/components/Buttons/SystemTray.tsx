@@ -5,33 +5,29 @@ import AstalTray from "gi://AstalTray"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
+import { attempt } from "$lib/result"
+
 import options from "$shell/options"
 import { create_tray_menu_popover } from "./TrayMenu"
 
 const tray = AstalTray.get_default()
 
+function is_tray_item_visible(item: AstalTray.TrayItem) {
+	return (
+		!options.bar.systray.ignore().includes(createBinding(item, "title")()) &&
+		!!createBinding(item, "gicon")()
+	)
+}
+
 export function SystemTray() {
 	const tray_items = createBinding(tray, "items")
-	const items = createComputed(() => {
-		const ignored = new Set(options.bar.systray.ignore())
-		return tray_items().filter(
-			(item) =>
-				!ignored.has(createBinding(item, "title")()) &&
-				!!createBinding(item, "gicon")(),
-		)
-	})
+	const items = createComputed(() => tray_items().filter(is_tray_item_visible))
 
 	return (
 		<box visible={items.as((value) => value.length > 0)}>
 			<For each={tray_items}>
 				{(item) => {
-					const item_visible = createComputed(
-						() =>
-							!options.bar.systray
-								.ignore()
-								.includes(createBinding(item, "title")()) &&
-							!!createBinding(item, "gicon")(),
-					)
+					const item_visible = createComputed(() => is_tray_item_visible(item))
 					const { popover, ensure_built } = create_tray_menu_popover(item)
 					let pending = false
 					let active = true
@@ -48,7 +44,7 @@ export function SystemTray() {
 							if (active) done()
 							return
 						}
-						try {
+						const started = attempt(() =>
 							Gio.DBus.session.call(
 								item_id.slice(0, separator),
 								menu_path,
@@ -60,18 +56,18 @@ export function SystemTray() {
 								1000,
 								null,
 								(connection, result) => {
-									try {
-										connection!.call_finish(result)
-									} catch (error) {
-										console.warn("tray: AboutToShow failed", error)
-									}
+									const finished = attempt(() =>
+										connection!.call_finish(result),
+									)
+									if (!finished.ok)
+										console.warn("tray: AboutToShow failed", finished.err)
 									if (active) done()
 								},
-							)
-						} catch (error) {
-							console.warn("tray: AboutToShow failed", error)
-							if (active) done()
-						}
+							),
+						)
+						if (started.ok) return
+						console.warn("tray: AboutToShow failed", started.err)
+						if (active) done()
 					}
 					const open_menu = () => {
 						if (!item.menuModel || !item_visible.peek() || pending) return

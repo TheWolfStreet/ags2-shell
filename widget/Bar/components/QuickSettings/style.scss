@@ -65,12 +65,12 @@ window#quicksettings {
 		transition: transform var(--transition);
 	}
 	.quicksettings {
-		@extend .floating;
+		@extend %floating;
 		@include spacing;
 		padding: calc(var(--popover-padding) * 1.4);
 
 		picture.avatar {
-			@extend .widget;
+			@extend %widget;
 			border-radius: calc(var(--radius) * 3);
 			min-width: calc(56px * var(--scale, 1));
 			min-height: calc(56px * var(--scale, 1));
@@ -89,11 +89,11 @@ window#quicksettings {
 		}
 
 		box.sliders-box {
-			@extend .widget;
+			@extend %widget;
 			padding: var(--padding);
 
 			box.volume button {
-				@extend .flat-button;
+				@extend %flat-button;
 				padding: calc(var(--padding) / 2);
 
 				&.arrow:last-child {
@@ -105,7 +105,7 @@ window#quicksettings {
 				padding: calc(var(--padding) / 2);
 
 				button {
-					@extend .flat-button;
+					@extend %flat-button;
 					padding: calc(var(--padding) / 2);
 				}
 
@@ -143,7 +143,7 @@ window#quicksettings {
 		}
 
 		box.menu {
-			@extend .widget;
+			@extend %widget;
 			padding: var(--padding);
 			margin-top: var(--spacing);
 
@@ -171,7 +171,7 @@ window#quicksettings {
 			}
 
 			button {
-				@extend .flat-button;
+				@extend %flat-button;
 				padding: calc(var(--padding) * 0.7);
 				font-weight: normal;
 
@@ -229,8 +229,7 @@ window#quicksettings {
 			}
 
 			button:focus-visible {
-				outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-				outline-offset: -1px;
+				@include focus-ring;
 			}
 
 			> button {
@@ -296,7 +295,7 @@ window#quicksettings {
 			@include spacing;
 
 			box.player {
-				@extend .widget;
+				@extend %widget;
 				padding: var(--padding);
 
 				picture.cover-art {
@@ -320,7 +319,7 @@ window#quicksettings {
 				}
 
 				button {
-					@extend .flat-button;
+					@extend %flat-button;
 					padding: calc(var(--padding) / 2);
 
 					&.play-pause {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
 
 const path = "/mock/Desktop/keep"
 const missing = "/mock/Desktop/missing"
@@ -181,11 +182,10 @@ async function fixture() {
 					"create_desktop_folder",
 					"create_desktop_launcher",
 					"create_desktop_text_file",
+					"delete_desktop_files",
 					"open_path",
-					"permanently_delete_files",
 					"read_clipboard_file_payload",
 					"rename_file",
-					"trash_files",
 					"transfer_desktop_files",
 					"write_clipboard_file_payload",
 				].map((name) => [
@@ -203,7 +203,9 @@ async function fixture() {
 		"./components/ContextMenu": { DesktopContextMenu: () => null },
 		"./DragAndDrop": { create_desktop_drag_controller: () => ({}) },
 		"$lib/windowing": { schedule_monitor_window_release: () => {} },
-		"$lib/hyprland": { hyprland },
+		"$lib/ui": { font_size: () => 11 },
+		"widget/Dock": { dock_window_thickness: () => 0 },
+		"$lib/hyprland": with_hyprland_command({ hyprland }),
 		"$shell/options": {
 			default: options,
 			surface_scale: fixed(1),

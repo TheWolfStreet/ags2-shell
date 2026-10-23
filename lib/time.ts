@@ -1,4 +1,5 @@
 import GLib from "gi://GLib"
+import { attempt, log_error } from "$lib/result"
 
 export type Timer = { cancel(): void }
 
@@ -13,15 +14,12 @@ function schedule(
 	let cancelled = false
 	const invoke = () => {
 		if (cancelled) return
-		try {
-			const result = callback()
-			if (result instanceof Promise)
-				void result.catch((error) =>
-					console.error("timer: Callback failed", error),
-				)
-		} catch (error) {
-			console.error("timer: Callback failed", error)
-		}
+		const result = attempt(callback)
+		if (!log_error(result, "timer: Callback failed")) return
+		if (result.value instanceof Promise)
+			void result.value.catch((error) =>
+				console.error("timer: Callback failed", error),
+			)
 	}
 	const dispatch = () => {
 		if (!repeat) source = 0

@@ -143,14 +143,14 @@ window#desktop-context-menu {
 	border: none;
 
 	.contents {
-		@extend .floating;
+		@extend %floating;
 		box-shadow: 0 0 5px 0 var(--shadow-color);
 		border-radius: calc(var(--popover-radius) / 2);
 		padding: calc(var(--padding) / 2);
 		min-width: calc(180px * var(--scale, 1));
 
 		button {
-			@extend .flat-button;
+			@extend %flat-button;
 			padding: calc(var(--padding) * 0.8);
 		}
 
@@ -181,7 +181,7 @@ window.desktop-open-with {
 		}
 
 		button {
-			@extend .flat-button;
+			@extend %flat-button;
 			padding: calc(var(--padding) / 2) var(--padding);
 		}
 
@@ -224,7 +224,7 @@ window.desktop-open-with {
 			}
 
 			button.app-option {
-				@extend .flat-button;
+				@extend %flat-button;
 				padding: calc(var(--padding) * 0.6);
 
 				box {
@@ -264,7 +264,7 @@ window.desktop-launcher-creator {
 		}
 
 		button.back {
-			@extend .flat-button;
+			@extend %flat-button;
 		}
 
 		button.back,
@@ -319,6 +319,7 @@ window.desktop-launcher-creator {
 	.option-detail {
 		color: color-mix(in srgb, var(--fg) 62%, transparent);
 		font-size: 0.9em;
+		font-weight: 400;
 	}
 
 	.option-copy {
@@ -327,10 +328,6 @@ window.desktop-launcher-creator {
 
 	.option-title {
 		font-weight: 650;
-	}
-
-	.option-detail {
-		font-weight: 400;
 	}
 
 	.folder-control > *:not(:last-child) {
@@ -417,8 +414,7 @@ window.desktop-launcher-creator {
 		}
 
 		&:focus-visible {
-			outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-			outline-offset: -1px;
+			@include focus-ring;
 		}
 
 		&.first {
@@ -463,8 +459,7 @@ window.desktop-launcher-creator {
 		}
 
 		&:focus-visible {
-			outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-			outline-offset: -1px;
+			@include focus-ring;
 		}
 
 		> box > *:not(:last-child) {
@@ -507,11 +502,6 @@ window.desktop-launcher-creator {
 
 	.selector-actions > button:not(:last-child) {
 		margin-right: calc(var(--spacing) / 2);
-	}
-
-	.selector-actions button.suggested-action {
-		background: var(--active-gradient);
-		color: var(--primary-fg);
 	}
 
 	label.error {

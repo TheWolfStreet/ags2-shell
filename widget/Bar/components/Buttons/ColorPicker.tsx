@@ -2,48 +2,21 @@ import { createState, For, onCleanup } from "ags"
 import { readFile, writeFileAsync } from "ags/file"
 import { Gdk, Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
-import { idle } from "$lib/time"
+import { debounce, idle } from "$lib/time"
 
 import Gio from "gi://Gio"
-import GLib from "gi://GLib"
 
 import env from "$lib/env"
 import { ensure_file } from "$lib/files"
+import { copy_to_clipboard } from "$lib/clipboard"
 import icons from "$lib/icons"
 import { attempt, attempt_async, log_error, unwrap_or } from "$lib/result"
-import { debounce } from "$lib/time"
 import { notify, notify_missing_programs } from "$lib/notifications"
 import { PanelButton } from "../PanelButton"
 import { create_animated_popover } from "widget/shared/AnimatedPopover"
 import options from "$shell/options"
 
 const color_history_file = `${env.paths.cache.base}/colors.json`
-
-function wl_copy(data: string) {
-	return new Promise<void>((resolve, reject) => {
-		const process = Gio.Subprocess.new(
-			["setsid", "wl-copy"],
-			Gio.SubprocessFlags.STDIN_PIPE,
-		)
-		const cancellable = new Gio.Cancellable()
-		let deadline = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
-			deadline = 0
-			cancellable.cancel()
-			process.force_exit()
-			return GLib.SOURCE_REMOVE
-		})
-		process.communicate_utf8_async(data, cancellable, (_source, result) => {
-			if (deadline) GLib.Source.remove(deadline)
-			try {
-				process.communicate_utf8_finish(result)
-				if (!process.get_successful()) throw new Error("wl-copy failed")
-				resolve()
-			} catch (error) {
-				reject(error)
-			}
-		})
-	})
-}
 
 function color_limit() {
 	return options.colorpicker.maxColors.peek()
@@ -129,7 +102,7 @@ async function run_pick(existing?: string) {
 		if (!/^#[0-9a-fA-F]{6}$/.test(color)) return
 	}
 
-	const copied = await attempt_async(async () => wl_copy(color))
+	const copied = await copy_to_clipboard(color)
 	if (!copied.ok) {
 		console.error("colorpicker.copy: Failed to copy color", copied.err)
 		return

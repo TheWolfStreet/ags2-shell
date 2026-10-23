@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
 
 const source = readFileSync(
 	new URL("../../widget/Dock/components/Trash.tsx", import.meta.url),
@@ -55,6 +56,13 @@ async function fixture({
 				return { ok: false, err }
 			}
 		},
+		attempt_async: async (fn) => {
+			try {
+				return { ok: true, value: await fn() }
+			} catch (err) {
+				return { ok: false, err }
+			}
+		},
 		err: (err) => ({ ok: false, err }),
 		ok: (value) => ({ ok: true, value }),
 		log_error: (value) => {
@@ -86,7 +94,7 @@ async function fixture({
 			},
 		},
 		"gi://GLib": { default: {} },
-		"$lib/hyprland": { hyprland },
+		"$lib/hyprland": with_hyprland_command({ hyprland }),
 		"$lib/result": result,
 		"$lib/time": { debounce: () => ({ call: () => {}, cancel: () => {} }) },
 		"$lib/windowing": {

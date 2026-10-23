@@ -8,6 +8,7 @@ import {
 	ToggleButton,
 	Menu,
 	SettingsButton,
+	open_gnome_settings,
 	quick_settings_submenu,
 } from "widget/Bar/components/QuickSettings/components/MenuControls"
 import { Placeholder } from "widget/shared/Placeholder"
@@ -26,12 +27,16 @@ export namespace Bluetooth {
 		const powered = createBinding(bluetooth, "isPowered")
 		const connected = createBinding(bluetooth, "isConnected")
 		const adapters = createBinding(bluetooth, "adapters")
+		const devices = createBinding(bluetooth, "devices")
 
 		const label = createComputed(() => {
 			if (adapters().length == 0) return "No Device"
 			if (!powered()) return "Disabled"
 			if (connected())
-				return bluetooth.devices.filter((d) => d.connected).at(0)?.name ?? ""
+				return (
+					devices().find((device) => createBinding(device, "connected")())
+						?.name ?? ""
+				)
 			return "Not Connected"
 		})
 
@@ -169,21 +174,7 @@ export namespace Bluetooth {
 								</revealer>
 								<Gtk.Separator />
 								<SettingsButton
-									callback={() =>
-										void attempt_async(() =>
-											execAsync([
-												"env",
-												"XDG_CURRENT_DESKTOP=GNOME",
-												"gnome-control-center",
-												"bluetooth",
-											]),
-										).then((result) =>
-											log_error(
-												result,
-												"bluetooth.settings: Failed to open settings",
-											),
-										)
-									}
+									callback={() => open_gnome_settings("bluetooth")}
 								/>
 							</box>
 						)

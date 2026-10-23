@@ -20,7 +20,7 @@ import {
 } from "widget/Bar/components/QuickSettings/components/MenuControls"
 import { Placeholder } from "widget/shared/Placeholder"
 import icons from "$lib/icons"
-import { attempt } from "$lib/result"
+import { attempt, log_error, unwrap_or } from "$lib/result"
 import { launch_program } from "$lib/apps"
 import { notify_missing_programs } from "$lib/notifications"
 import { asusctl } from "$service/asusctl"
@@ -72,9 +72,9 @@ export namespace PowerProfiles {
 	export function Selector() {
 		const unsubscribe = on_window_toggle("quicksettings", (window) => {
 			if (window.visible && GLib.find_program_in_path("asusctl") !== null)
-				void asusctl.refresh().then((result) => {
-					if (!result.ok) console.error("powerProfiles.refresh:", result.err)
-				})
+				void asusctl
+					.refresh()
+					.then((result) => log_error(result, "powerProfiles.refresh:"))
 		})
 		onCleanup(unsubscribe)
 		return (
@@ -103,9 +103,9 @@ export namespace PowerProfiles {
 	const asus_provider: profile_provider = {
 		active: createBinding(asusctl, "profile"),
 		select: (profile) =>
-			void asusctl.set_profile(profile).then((result) => {
-				if (!result.ok) console.error("powerProfiles.select:", result.err)
-			}),
+			void asusctl
+				.set_profile(profile)
+				.then((result) => log_error(result, "powerProfiles.select:")),
 		profiles: () => asusctl.profiles,
 		icon: (p) => get_mapped_icon(icons.asusctl.profile as icon_map, p),
 		label: (p) => p,
@@ -113,13 +113,9 @@ export namespace PowerProfiles {
 			<SettingsButton
 				callback={() => {
 					if (notify_missing_programs("rog-control-center"))
-						void launch_program(["rog-control-center"]).then((result) => {
-							if (!result.ok)
-								console.error(
-									"powerProfiles: Could not open settings",
-									result.err,
-								)
-						})
+						void launch_program(["rog-control-center"]).then((result) =>
+							log_error(result, "powerProfiles: Could not open settings"),
+						)
 				}}
 			/>
 		),
@@ -138,22 +134,22 @@ export namespace PowerProfiles {
 			const power_profiles = power_profile_service.peek()
 			if (!power_profiles) return undefined
 			if (!power_profiles.get_version()) return undefined
-			const profiles = () => {
-				const available = attempt(() =>
-					power_profiles.get_profiles().map((item) => item.profile),
+			const profiles = () =>
+				unwrap_or(
+					attempt(() =>
+						power_profiles.get_profiles().map((item) => item.profile),
+					),
+					[],
+					"powerProfiles.profiles:",
 				)
-				if (!available.ok)
-					console.error("powerProfiles.profiles:", available.err)
-				return available.ok ? available.value : []
-			}
 			return {
 				active: createBinding(power_profiles, "activeProfile"),
 				profiles,
 				select: (profile) => {
-					const result = attempt(() =>
-						power_profiles.set_active_profile(profile),
+					log_error(
+						attempt(() => power_profiles.set_active_profile(profile)),
+						"powerProfiles.select:",
 					)
-					if (!result.ok) console.error("powerProfiles.select:", result.err)
 				},
 				icon: (p) => get_mapped_icon(icons.powerprofile as icon_map, p),
 				label: (p) => prettify(p),
@@ -169,8 +165,7 @@ export namespace PowerProfiles {
 				},
 			}
 		})
-		if (!result.ok) console.error("powerProfiles.provider:", result.err)
-		return result.ok ? result.value : undefined
+		return unwrap_or(result, undefined, "powerProfiles.provider:")
 	}
 
 	function make_toggle(provider: profile_provider) {
@@ -282,12 +277,15 @@ export namespace PowerProfiles {
 		Gio.BusNameWatcherFlags.NONE,
 		() => {
 			const created = attempt(() => new AstalPowerProfiles.PowerProfiles())
-			if (!created.ok) {
-				console.error("powerProfiles.connect:", created.err)
-				return
-			}
+			if (!log_error(created, "powerProfiles.connect:")) return
 			const current = created.value
-			if (!attempt(() => current.get_version()).ok) return
+			if (
+				!log_error(
+					attempt(() => current.get_version()),
+					"powerProfiles.version:",
+				)
+			)
+				return
 			power_handlers = [
 				current.connect("notify::version", () =>
 					set_power_revision((revision) => revision + 1),

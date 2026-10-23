@@ -2,6 +2,7 @@ import "./native"
 import upstream_app from "ags/gtk4/app"
 import { Gtk } from "ags/gtk4"
 import GObject, { register } from "ags/gobject"
+import { attempt_async, log_error } from "$lib/result"
 
 const UpstreamApplication =
 	upstream_app.constructor as new () => typeof upstream_app & GObject.Object
@@ -18,7 +19,7 @@ class ShellApplication extends UpstreamApplication {
 
 	private async finish_quit(code: number): Promise<void> {
 		let handler = 0
-		try {
+		const quit = await attempt_async(async () => {
 			if (this.before_quit && !(await this.before_quit())) {
 				this.#quit_pending = null
 				return
@@ -29,11 +30,10 @@ class ShellApplication extends UpstreamApplication {
 				super.quit(code)
 			})
 			Gtk.Application.prototype.quit.call(this)
-		} catch (error) {
-			if (handler) this.disconnect(handler)
-			this.#quit_pending = null
-			console.error("shell.quit: Failed to quit application", error)
-		}
+		})
+		if (log_error(quit, "shell.quit: Failed to quit application")) return
+		if (handler) this.disconnect(handler)
+		this.#quit_pending = null
 	}
 }
 

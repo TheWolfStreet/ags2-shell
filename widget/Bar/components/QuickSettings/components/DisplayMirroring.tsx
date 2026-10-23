@@ -1,13 +1,12 @@
 import { Gtk } from "ags/gtk4"
-import { execAsync } from "ags/process"
 import { createState, onCleanup, For } from "ags"
 
 import { Placeholder } from "widget/shared/Placeholder"
 import { ToggleButton, Menu, quick_settings_submenu } from "./MenuControls"
 
 import icons from "$lib/icons"
-import { attempt_async, type Result } from "$lib/result"
-import { hyprland } from "$lib/hyprland"
+import { attempt_async, log_error, type Result } from "$lib/result"
+import { hyprland, hyprland_command } from "$lib/hyprland"
 import {
 	format_monitor_command,
 	type monitor_settings,
@@ -48,7 +47,7 @@ function is_monitor(value: unknown): value is monitor_configuration {
 function read_monitors(): Promise<Result<monitor_configuration[]>> {
 	return attempt_async(async () => {
 		const parsed: unknown = JSON.parse(
-			await execAsync(["hyprctl", "monitors", "all", "-j"]),
+			await hyprland.message_async("j/monitors all"),
 		)
 		if (!Array.isArray(parsed) || !parsed.every(is_monitor))
 			throw new Error("Invalid monitor configuration")
@@ -95,14 +94,13 @@ export namespace DisplayMirroring {
 			const current = ++revision
 			void read_monitors().then((result) => {
 				if (!active || current !== revision) return
-				if (result.ok) {
-					for (const name of original.keys())
-						if (
-							!result.value.some((item) => item.name === name && !item.disabled)
-						)
-							original.delete(name)
-					set_monitors(result.value)
-				} else console.error("DisplayMirroring.read:", result.err)
+				if (!log_error(result, "DisplayMirroring.read:")) return
+				for (const name of original.keys())
+					if (
+						!result.value.some((item) => item.name === name && !item.disabled)
+					)
+						original.delete(name)
+				set_monitors(result.value)
 			})
 		}
 		const handlers = [
@@ -183,10 +181,7 @@ export namespace DisplayMirroring {
 			pending = true
 			try {
 				const current = await read_monitors()
-				if (!current.ok) {
-					console.error("DisplayMirroring.read:", current.err)
-					return
-				}
+				if (!log_error(current, "DisplayMirroring.read:")) return
 				const target = current.value.find(
 					(item) => item.name === monitor.name && !item.disabled,
 				)
@@ -210,16 +205,14 @@ export namespace DisplayMirroring {
 					}
 					command = format_monitor_command(target, { mirror: source })
 				}
-				const applied = await attempt_async(() =>
-					hyprland.message_async(command),
-				)
-				if (!applied.ok || applied.value !== "ok") {
-					console.error(
+				const applied = await hyprland_command(command)
+				if (
+					!log_error(
+						applied,
 						"DisplayMirroring: Failed to change display configuration",
-						applied.ok ? applied.value : applied.err,
 					)
+				)
 					return
-				}
 				if (target.mirrorOf && target.mirrorOf !== "none")
 					original.delete(target.name)
 				else original.set(target.name, target)

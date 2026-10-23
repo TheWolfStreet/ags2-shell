@@ -3,8 +3,8 @@ import type AstalHyprland from "gi://AstalHyprland"
 import GioUnix from "gi://GioUnix"
 import GLib from "gi://GLib"
 
-import { hyprland } from "$lib/hyprland"
-import { attempt, attempt_async, err, ok, type Result } from "$lib/result"
+import { hyprland_command } from "$lib/hyprland"
+import { attempt, err, ok, type Result } from "$lib/result"
 
 export function match_client_app(
 	apps: readonly AstalApps.Application[],
@@ -58,15 +58,9 @@ export async function launch_program(
 ): Promise<Result<void>> {
 	if (!argv.length || !argv[0] || argv.some((arg) => arg.includes("\0")))
 		return err(new Error("A program and valid arguments are required"))
-	const result = await attempt_async(() =>
-		hyprland.message_async(
-			`dispatch exec ${argv.map((arg) => GLib.shell_quote(arg)).join(" ")}`,
-		),
+	return hyprland_command(
+		`dispatch exec ${argv.map((arg) => GLib.shell_quote(arg)).join(" ")}`,
 	)
-	if (!result.ok) return result
-	if (result.value.trim() !== "ok")
-		return err(new Error(`Launch rejected: ${result.value}`))
-	return ok(undefined)
 }
 
 export async function launch_app(

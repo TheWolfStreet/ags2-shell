@@ -40,7 +40,7 @@ function load_static_css() {
 
 function perform_reset_css() {
 	if (!file_exists(css_file_path)) {
-		logError(new Error(`CSS file not found: ${css_file_path}`))
+		console.error(`style.reset: CSS file not found: ${css_file_path}`)
 		return
 	}
 

@@ -220,12 +220,15 @@ async function render_notification(
 	await module.evaluate()
 	const { Notifications } = module.namespace as {
 		Notifications: {
-			Stack: (props: { class: string }) => unknown
+			NotificationList: (props: {
+				class: string
+				persistent: boolean
+			}) => unknown
 			Window: () => unknown
 		}
 	}
 	const root = persistent
-		? Notifications.Stack({ class: "history" })
+		? Notifications.NotificationList({ class: "history", persistent: true })
 		: Notifications.Window()
 	const visit = (item) =>
 		!item

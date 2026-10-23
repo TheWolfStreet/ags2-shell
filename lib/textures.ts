@@ -6,6 +6,11 @@ import GdkPixbuf from "gi://GdkPixbuf"
 
 import env from "$lib/env"
 import { attempt } from "$lib/result"
+import {
+	max_image_bytes,
+	query_file_signature,
+	valid_image_dimensions,
+} from "$lib/files"
 
 const { Texture } = Gdk
 type Entry = {
@@ -26,9 +31,6 @@ const http_jobs = new Map<
 >()
 const cache_dir = `${env.paths.cache.base}/artwork`
 const max_bytes = 8 * 1024 * 1024
-const max_local_bytes = 64 * 1024 * 1024
-const max_dimension = 8192
-const max_pixels = 40_000_000
 const max_size = 512
 const max_pending = 64
 const max_active = 4
@@ -60,30 +62,14 @@ function file_signature(path: string, refresh = false) {
 	const now = GLib.get_monotonic_time()
 	const cached = signature_cache.get(path)
 	if (!refresh && cached && now - cached.checked < 1_000_000) return cached
-	let value: string | null = null
-	let size: number | null = null
-	const result = attempt(() =>
-		Gio.File.new_for_path(path).query_info(
-			"standard::size,time::modified,time::modified-usec,etag::value",
-			Gio.FileQueryInfoFlags.NONE,
-			null,
-		),
-	)
-	if (result.ok) {
-		size = result.value.get_size()
-		value = [
-			size,
-			result.value.get_attribute_uint64("time::modified"),
-			result.value.get_attribute_uint32("time::modified-usec"),
-			result.value.get_attribute_string("etag::value") ?? "",
-		].join(":")
-	} else if (!(
-		result.err instanceof GLib.Error &&
-		result.err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND)
-	)) {
-		console.error(`textures: Failed to stat ${path}`, result.err)
+	const result = query_file_signature(path)
+	if (!result.ok) console.error(`textures: Failed to stat ${path}`, result.err)
+	const found = result.ok ? result.value : null
+	const signature = {
+		value: found?.value ?? null,
+		size: found?.size ?? null,
+		checked: now,
 	}
-	const signature = { value, size, checked: now }
 	if (signature_cache.has(path)) signature_cache.delete(path)
 	signature_cache.set(path, signature)
 	if (signature_cache.size > 256)
@@ -95,20 +81,10 @@ export function get_file_size(file_path: string): number | null {
 	return file_path ? file_signature(file_path).size : null
 }
 
-function valid_dimensions(width: number, height: number) {
-	return (
-		width > 0 &&
-		height > 0 &&
-		width <= max_dimension &&
-		height <= max_dimension &&
-		width * height <= max_pixels
-	)
-}
-
 function file_pixbuf(path: string, width: number, height: number) {
 	const [format, source_width, source_height] =
 		GdkPixbuf.Pixbuf.get_file_info(path)
-	if (!format || !valid_dimensions(source_width, source_height))
+	if (!format || !valid_image_dimensions(source_width, source_height))
 		throw new Error(`Invalid or oversized image dimensions: ${path}`)
 	return GdkPixbuf.Pixbuf.new_from_file_at_scale(path, width, height, true)
 }
@@ -212,7 +188,7 @@ function inline_texture(uri: string, size: number, fit: "square" | "contain") {
 	const loader = GdkPixbuf.PixbufLoader.new()
 	let invalid = false
 	loader.connect("size-prepared", (_loader, width, height) => {
-		if (!valid_dimensions(width, height)) invalid = true
+		if (!valid_image_dimensions(width, height)) invalid = true
 		const scale = Math.min(size / width, size / height, 1)
 		loader.set_size(
 			invalid ? 1 : Math.max(1, Math.round(width * scale)),
@@ -306,7 +282,7 @@ function load_local(
 	if (
 		!dimensions.ok ||
 		!dimensions.value[0] ||
-		!valid_dimensions(dimensions.value[1], dimensions.value[2])
+		!valid_image_dimensions(dimensions.value[1], dimensions.value[2])
 	) {
 		deliver(
 			key,
@@ -522,7 +498,7 @@ export function create_texture_accessor(
 	const path = kind === "local" ? local_path(uri) : null
 	if (kind === "local" && !path) return empty()
 	const signature = path ? file_signature(path, true) : null
-	if (signature?.size && signature.size > max_local_bytes) {
+	if (signature?.size && signature.size > max_image_bytes) {
 		console.error("textures: Local image exceeds 64 MiB")
 		return empty()
 	}
@@ -586,8 +562,6 @@ export function create_texture_accessor(
 	}
 	return texture
 }
-
-export const create_square_texture_accessor = create_texture_accessor
 
 let hidden_drag_texture: Gdk.Texture | null = null
 

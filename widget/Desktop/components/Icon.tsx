@@ -4,7 +4,7 @@ import { idle } from "$lib/time"
 
 import type { DesktopIconMetrics } from "../GridGeometry"
 import type { DesktopFile } from "../FileOperations"
-import { create_square_texture_accessor, hidden_drag_icon } from "$lib/textures"
+import { create_texture_accessor, hidden_drag_icon } from "$lib/textures"
 import type { DesktopDragController } from "../DragAndDrop"
 import { desktop_interaction, open_desktop_files } from "../Desktop"
 import { desktop_context_menu } from "./ContextMenu"
@@ -17,7 +17,6 @@ const { COVER } = Gtk.ContentFit
 function is_image_desktop_file(file: DesktopFile): boolean {
 	return (
 		file.contentType.startsWith("image/") ||
-		file.contentType === "image" ||
 		file.icon.includes("image") ||
 		/\.(avif|bmp|gif|heic|heif|ico|jpe?g|jxl|png|svg|tiff?|webp)$/i.test(
 			file.path,
@@ -227,7 +226,7 @@ export function DesktopIcon({
 	const supports_preview = is_image_desktop_file(file) || !!file.iconFile
 	const preview_texture = createComputed(() => {
 		if (is_cut() || !supports_preview) return null
-		return create_square_texture_accessor(
+		return create_texture_accessor(
 			file.iconFile ?? file.path,
 			icon_metrics().iconPx,
 		)

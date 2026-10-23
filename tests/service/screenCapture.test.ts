@@ -7,7 +7,6 @@ import ts from "../typescript.ts"
 type FakeProcess = {
 	args: string[]
 	flags: number
-	waited: boolean
 	communicated: boolean
 	callback?: (process: FakeProcess, result: object) => void
 	force_exit(): void
@@ -17,11 +16,6 @@ type FakeProcess = {
 		callback: (process: FakeProcess, result: object) => void,
 	): void
 	communicate_utf8_finish(): [boolean, string, string]
-	wait_check_async(
-		cancel: unknown,
-		callback: (process: FakeProcess, result: object) => void,
-	): void
-	wait_check_finish(): boolean
 	get_successful(): boolean
 }
 
@@ -31,6 +25,7 @@ async function service_fixture({ copy_successful = true } = {}) {
 	let resolve_pidof
 	let hold_pidof = false
 	const processes: FakeProcess[] = []
+	const copies: unknown[] = []
 	const commands: string[][] = []
 	const notifications: FakeNotification[] = []
 	const errors: string[] = []
@@ -45,19 +40,18 @@ async function service_fixture({ copy_successful = true } = {}) {
 			getter: () => () => {},
 			register: () => (value) => value,
 		},
-		"ags/process": {
-			execAsync: (args) => {
+		"$lib/commands": {
+			run_command: (args: string[]) => {
 				commands.push(args)
-				if (args[0] === "pidof")
-					return hold_pidof
-						? new Promise((resolve) => {
-								resolve_pidof = resolve
-							})
-						: Promise.resolve("")
-				if (args[0] === "hyprctl")
-					return Promise.resolve('[{"focused":true,"name":"DP-1"}]')
-				return Promise.resolve("")
+				if (args[0] === "pidof" && hold_pidof)
+					return new Promise((resolve) => {
+						resolve_pidof = (value: string) => resolve({ ok: true, value })
+					})
+				return Promise.resolve({ ok: true, value: "" })
 			},
+		},
+		"$lib/hyprland": { hyprland: { focusedMonitor: { name: "DP-1" } } },
+		"ags/process": {
 			Process: class {},
 			subprocess: () => {
 				throw new Error("unexpected recorder")
@@ -88,7 +82,6 @@ async function service_fixture({ copy_successful = true } = {}) {
 						const process: FakeProcess = {
 							args,
 							flags,
-							waited: false,
 							communicated: false,
 							force_exit() {
 								this.callback?.(this, {})
@@ -99,13 +92,6 @@ async function service_fixture({ copy_successful = true } = {}) {
 							},
 							communicate_utf8_finish() {
 								return [true, "10,20 30x40", ""]
-							},
-							wait_check_async(_cancel, callback) {
-								this.waited = true
-								queueMicrotask(() => callback(this, {}))
-							},
-							wait_check_finish() {
-								return copy_successful
 							},
 							get_successful() {
 								return true
@@ -141,6 +127,14 @@ async function service_fixture({ copy_successful = true } = {}) {
 			},
 		},
 		"$lib/files": { ensure_directory: () => ({ ok: true }) },
+		"$lib/clipboard": {
+			copy_to_clipboard: async (content: unknown) => {
+				copies.push(content)
+				return copy_successful
+					? { ok: true, value: undefined }
+					: { ok: false, err: new Error("wl-copy failed") }
+			},
+		},
 		"$lib/notifications": {
 			notify: async (value) => {
 				notifications.push(value)
@@ -173,6 +167,7 @@ async function service_fixture({ copy_successful = true } = {}) {
 	return {
 		service: (module.namespace as { screen_capture: any }).screen_capture,
 		processes,
+		copies,
 		commands,
 		notifications,
 		errors,
@@ -256,28 +251,25 @@ test("completed area selection captures via native finish callback", async () =>
 	)
 })
 
-test("focused screenshot does not capture when shutdown finishes monitor query", async () => {
+test("focused screenshot after shutdown is cancelled without capturing", async () => {
 	const fixture = await service_fixture()
-	const screenshot = fixture.service.screenshot()
 	await fixture.service.shutdown()
-	assert.equal((await screenshot).value, "cancelled")
+	assert.equal((await fixture.service.screenshot()).value, "cancelled")
 	assert.equal(
 		fixture.commands.some((args) => args[0] === "grim"),
 		false,
 	)
-	assert.equal((await fixture.service.screenshot()).value, "cancelled")
 })
 
-test("screenshot detaches clipboard provider, checks parent exit, and shows concise notification", async () => {
+test("screenshot copies the saved PNG to the clipboard and shows concise notification", async () => {
 	const fixture = await service_fixture()
 	assert.equal((await fixture.service.screenshot()).value, "captured")
-	const copy = fixture.processes[0]
-	assert.equal(copy.args[0], "bash")
-	assert.match(copy.args[2], /^setsid wl-copy --type image\/png </)
-	assert.doesNotMatch(copy.args[2], /setsid -f/)
-	assert.equal(copy.flags, 0)
-	assert.equal(copy.waited, true)
-	assert.equal(copy.communicated, false)
+	assert.deepEqual(fixture.copies, [
+		{
+			path: "/test/Pictures/Screenshots/time-uuid.png",
+			mime_type: "image/png",
+		},
+	])
 	assert.equal(fixture.notifications[0].body, "Saved to Pictures/Screenshots")
 	assert.equal(
 		fixture.notifications[0].preview_image,

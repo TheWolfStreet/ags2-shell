@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
 
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 const devices = (keymap) => ({
@@ -67,14 +68,6 @@ async function keyboard_fixture() {
 			},
 		},
 		"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
-		"ags/process": {
-			execAsync: (args) => {
-				assert.deepEqual(Array.from(args), ["hyprctl", "devices", "-j"])
-				return new Promise((resolve, reject) =>
-					requests.push({ resolve, reject }),
-				)
-			},
-		},
 		"gi://AstalMpris": { default: { get_default: () => ({}) } },
 		"gi://AstalWp": { default: { get_default: () => null } },
 		"$lib/app": { default: {} },
@@ -103,7 +96,7 @@ async function keyboard_fixture() {
 			get_brightness_icon: () => "",
 		},
 		"$lib/textures": { texture_from_file_square_contain: () => null },
-		"$lib/hyprland": {
+		"$lib/hyprland": with_hyprland_command({
 			hyprland: {
 				connect: (signal, callback) => {
 					assert.equal(signal, "keyboard-layout")
@@ -111,8 +104,14 @@ async function keyboard_fixture() {
 					return serial
 				},
 				disconnect: (id) => assert.equal(handlers.delete(id), true),
+				message_async: (message) => {
+					assert.equal(message, "j/devices")
+					return new Promise((resolve, reject) =>
+						requests.push({ resolve, reject }),
+					)
+				},
 			},
-		},
+		}),
 		"$lib/notifications": { notification_daemon: { dontDisturb: false } },
 		"$service/brightness": { brightness: {} },
 		"$shell/options": {

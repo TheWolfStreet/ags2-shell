@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
 
 const path = "/home/tws/Software/Music/Prefix/icons/FL Studio 21.png"
 
@@ -92,7 +93,7 @@ async function fixture() {
 			Fragment: ({ children }) => children,
 		},
 		"$lib/textures": {
-			create_square_texture_accessor: (icon, size) => {
+			create_texture_accessor: (icon, size) => {
 				texture_paths.push([icon, size])
 				return accessor(() => icon)
 			},
@@ -102,7 +103,7 @@ async function fixture() {
 		},
 		"gi://GioUnix": { default: {} },
 		"gi://GLib": { default: {} },
-		"$lib/hyprland": { hyprland: {} },
+		"$lib/hyprland": with_hyprland_command({ hyprland: {} }),
 		"$lib/result": {
 			attempt: () => {},
 			attempt_async: () => {},

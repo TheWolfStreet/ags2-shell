@@ -30,7 +30,6 @@ export namespace OSD {
 				visible={reveal}
 				keymode={NONE}
 				exclusivity={IGNORE}
-				anchor={undefined}
 				layer={OVERLAY}
 				application={app}
 				layout={options.osd.position as Opt<Position>}

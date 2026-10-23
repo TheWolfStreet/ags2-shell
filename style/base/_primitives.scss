@@ -1,3 +1,8 @@
+@mixin focus-ring($color: var(--primary-bg)) {
+	outline: calc(var(--border-width) / 2) solid $color;
+	outline-offset: -1px;
+}
+
 @mixin spacing($multiplier: 1) {
 	&.horizontal > * {
 		margin: 0 calc(var(--spacing) * $multiplier / 2);
@@ -47,8 +52,7 @@
 	}
 
 	&:focus-visible {
-		outline: calc(var(--border-width) / 2) solid var(--primary-bg);
-		outline-offset: -1px;
+		@include focus-ring;
 	}
 
 	&:active,
@@ -71,7 +75,7 @@
 	}
 }
 
-.flat-button {
+%flat-button {
 	@extend %outlined-button;
 
 	background-color: transparent;

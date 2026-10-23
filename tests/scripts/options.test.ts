@@ -9,9 +9,14 @@ const source = stripTypeScriptTypes(
 	{ mode: "transform" },
 )
 
-async function load_options(initial, on_write?: () => unknown) {
+async function load_options(
+	initial,
+	on_write?: () => unknown,
+	{ move_fails = false } = {},
+) {
 	let file = typeof initial === "string" ? initial : JSON.stringify(initial)
 	const writes: any[] = []
+	const moves: string[][] = []
 	const context = createContext({ console })
 
 	class Accessor extends Function {
@@ -65,6 +70,22 @@ async function load_options(initial, on_write?: () => unknown) {
 				await on_write?.()
 				file = content
 				writes.push(JSON.parse(content))
+			},
+		},
+		"gi://Gio": {
+			default: {
+				File: {
+					new_for_path: (path: string) => ({
+						path,
+						move(target: { path: string }) {
+							if (move_fails) throw new Error("move failed")
+							moves.push([path, target.path])
+							file = ""
+							return true
+						},
+					}),
+				},
+				FileCopyFlags: { OVERWRITE: 1 },
 			},
 		},
 		"ags/gtk4": {
@@ -139,6 +160,7 @@ async function load_options(initial, on_write?: () => unknown) {
 		options: namespace.default,
 		flush: namespace.flush_options,
 		writes,
+		moves,
 	}
 }
 
@@ -151,6 +173,32 @@ test("loading valid options does not write the store", async () => {
 	assert.equal(options.theme.scheme.peek(), "light")
 	assert.equal((await flush()).ok, true)
 	assert.equal(writes.length, 0)
+})
+
+test("an unreadable store is set aside before anything is written", async () => {
+	for (const initial of ["{broken", "[1, 2]"]) {
+		const { options, flush, writes, moves } = await load_options(initial)
+		assert.deepEqual(moves, [
+			["/cache/options.json", "/cache/options.json.bad"],
+		])
+		assert.equal(options.scale.set(130).ok, true)
+		assert.equal((await flush()).ok, true)
+		assert.deepEqual(writes, [{ scale: 130 }])
+	}
+})
+
+test("an unreadable store that cannot be set aside is never overwritten", async () => {
+	const { options, flush, writes, moves } = await load_options(
+		"{broken",
+		undefined,
+		{
+			move_fails: true,
+		},
+	)
+	assert.deepEqual(moves, [])
+	assert.equal(options.scale.set(130).ok, true)
+	assert.equal((await flush()).ok, false)
+	assert.deepEqual(writes, [])
 })
 
 test("persisted font sizes and legacy launcher counts stay unchanged", async () => {

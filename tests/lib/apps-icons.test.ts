@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
 
 function application(entry, name, wm_class, executable, icon) {
 	return {
@@ -30,7 +31,7 @@ async function matcher() {
 		const imports = {
 			"gi://GioUnix": { default: {} },
 			"gi://GLib": { default: {} },
-			"$lib/hyprland": { hyprland: {} },
+			"$lib/hyprland": with_hyprland_command({ hyprland: {} }),
 			"$lib/result": {
 				attempt: () => {},
 				attempt_async: () => {},

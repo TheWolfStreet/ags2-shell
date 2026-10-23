@@ -25,23 +25,11 @@ window.settings-dialog {
 						margin-right: 0;
 					}
 				}
-
-				> box.vertical > * {
-					margin: 0.15em 0;
-
-					&:first-child {
-						margin-top: 0;
-					}
-
-					&:last-child {
-						margin-bottom: 0;
-					}
-				}
 			}
 		}
 
 		> button.reset {
-			@extend .flat-button;
+			@extend %flat-button;
 			padding: calc(var(--padding) / 2);
 		}
 
@@ -63,7 +51,7 @@ window.settings-dialog {
 			}
 
 			button.reset {
-				@extend .flat-button;
+				@extend %flat-button;
 				padding: calc(var(--padding) / 2);
 
 				&:disabled {
@@ -94,7 +82,7 @@ window.settings-dialog {
 		}
 
 		button.reset {
-			@extend .flat-button;
+			@extend %flat-button;
 			padding: calc(var(--padding) / 2);
 			margin-left: var(--spacing);
 		}

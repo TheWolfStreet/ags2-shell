@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
+import { with_hyprland_command } from "../hyprland.ts"
 
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 
@@ -68,12 +69,6 @@ async function fixture({
 				return { cancel() {} }
 			},
 		},
-		"ags/process": {
-			execAsync: (args) => {
-				commands.push(args)
-				return Promise.resolve("")
-			},
-		},
 		"$lib/time": {
 			idle: (callback) => {
 				timers.push({ kind: "idle", callback })
@@ -126,8 +121,13 @@ async function fixture({
 				if (!result.ok) errors.push([message, result.err])
 				return result.ok
 			},
+			unwrap_or: (result, fallback, message) => {
+				if (result.ok) return result.value
+				errors.push([message, result.err])
+				return fallback
+			},
 		},
-		"$lib/hyprland": {
+		"$lib/hyprland": with_hyprland_command({
 			hyprland: {
 				connect: (name, callback) => {
 					signals.set(name, callback)
@@ -135,7 +135,7 @@ async function fixture({
 				},
 				disconnect() {},
 			},
-		},
+		}),
 		"./brightnessMath": {
 			brightness_target: (percent, maximum = 100) =>
 				Math.round(percent * maximum),
@@ -146,7 +146,7 @@ async function fixture({
 					: null
 			},
 		},
-		"./commands": {
+		"$lib/commands": {
 			run_command: async (args) => {
 				commands.push(args)
 				if (args[1] === "detect")

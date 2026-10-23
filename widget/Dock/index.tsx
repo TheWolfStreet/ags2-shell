@@ -1,4 +1,11 @@
-import { Accessor, createComputed, createState, For, onCleanup } from "ags"
+import {
+	Accessor,
+	createBinding,
+	createComputed,
+	createState,
+	For,
+	onCleanup,
+} from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 
 import { debounce } from "$lib/time"
@@ -44,14 +51,8 @@ function thickness_request(side: DockSide, thickness: Accessor<number>) {
 		: { widthRequest: -1, heightRequest: thickness }
 }
 
-function track_monitor_geometry(monitor: Gdk.Monitor) {
-	const [geometry, set_geometry] = createState(monitor.get_geometry())
-	const geometry_handler = monitor.connect("notify::geometry", () => {
-		set_geometry(monitor.get_geometry())
-	})
-
-	onCleanup(() => monitor.disconnect(geometry_handler))
-	return geometry
+export function dock_window_thickness(dock_scale: number): number {
+	return Math.max(48, Math.round(94 * dock_scale * ui_scale()))
 }
 
 export namespace Dock {
@@ -66,7 +67,7 @@ export namespace Dock {
 			(value) => value === "dock",
 		)
 		const shown = track_monitor_fullscreen(gdkmonitor).as((value) => !value)
-		const geometry = track_monitor_geometry(gdkmonitor)
+		const geometry = createBinding(gdkmonitor, "geometry")
 		const dock_items = create_dock_items(is_dock_location)
 		let release_trash_watcher: (() => void) | null = null
 		function sync_trash_watcher() {
@@ -105,15 +106,15 @@ export namespace Dock {
 			Math.max(16, Math.round(22 * pixel_scale())),
 		)
 		const window_thickness = createComputed(() =>
-			Math.max(48, Math.round(94 * pixel_scale())),
+			dock_window_thickness(dock_scale()),
 		)
 		const edge_margin = createComputed(() => Math.round(16 * pixel_scale()))
 		const icon_size = createComputed(() =>
 			Math.max(16, Math.round(64 * pixel_scale())),
 		)
-		const dock_class_name = createComputed(
-			() =>
-				`dock-container ${dock_side() === "left" ? "dock-vertical" : "dock-horizontal"} ${position()} dock-${mode()}`,
+		const dock_class_name = dock_side.as(
+			(side) =>
+				`dock-container ${side === "left" ? "dock-vertical" : "dock-horizontal"}`,
 		)
 
 		const [hovered, set_hovered] = createState(false)

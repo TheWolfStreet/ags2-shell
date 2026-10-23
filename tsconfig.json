@@ -26,6 +26,7 @@
 	"exclude": [
 		"tests/**/*.test.ts",
 		"tests/typescript.ts",
+		"tests/hyprland.ts",
 		"@girs/astal-3.0.d.ts",
 		"@girs/gdk-3.0.d.ts",
 		"@girs/gdkx11-3.0.d.ts",

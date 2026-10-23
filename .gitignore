@@ -1,5 +1,4 @@
 @girs/
-.config/ags/@girs/
 node_modules/
 package-lock.json
 result

@@ -4,6 +4,7 @@ import { idle, timeout } from "$lib/time"
 
 import Graphene from "gi://Graphene"
 
+import { attempt, attempt_async, log_error } from "$lib/result"
 import { schedule_monitor_window_release } from "$lib/windowing"
 import options from "$shell/options"
 import {
@@ -128,17 +129,14 @@ function Action({
 			hexpand
 			visible={visible}
 			onClicked={() => {
-				try {
-					const outcome = run()
-					if (outcome instanceof Promise)
-						void outcome.catch((error) =>
-							console.error("desktop.menu: Action failed", error),
-						)
-				} catch (error) {
-					console.error("desktop.menu: Action failed", error)
-				} finally {
-					desktop_context_menu.hide()
-				}
+				const outcome = attempt(run)
+				desktop_context_menu.hide()
+				if (!log_error(outcome, "desktop.menu: Action failed")) return
+				const pending = outcome.value
+				if (pending instanceof Promise)
+					void attempt_async(() => pending).then((result) =>
+						log_error(result, "desktop.menu: Action failed"),
+					)
 			}}
 		>
 			<box orientation={HORIZONTAL} hexpand>
