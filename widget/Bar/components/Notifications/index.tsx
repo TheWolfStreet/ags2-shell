@@ -18,6 +18,7 @@ import Pango from "gi://Pango"
 import { PanelButton } from "../PanelButton"
 
 import icons, { substitute_icon_name } from "$lib/icons"
+import { decode_size } from "$lib/pixels"
 import { classify_image_uri, create_texture_accessor } from "$lib/textures"
 import {
 	notification_action_available,
@@ -279,6 +280,15 @@ export namespace Notifications {
 		return Math.max(1, Math.round(texture.get_height() * ratio))
 	}
 
+	function natural_frame(texture: Gdk.Texture | null, width: number) {
+		if (!texture) return Gdk.Paintable.new_empty(width, width)
+		const longest = Math.max(texture.get_width(), texture.get_height())
+		return Gdk.Paintable.new_empty(
+			Math.round((texture.get_width() * width) / longest),
+			Math.round((texture.get_height() * width) / longest),
+		)
+	}
+
 	function Preview({
 		image_path,
 		persistent,
@@ -291,25 +301,35 @@ export namespace Notifications {
 		const box = preview_box(persistent, avatar)
 		const width = scaled(box.width)
 		const height = scaled(box.height)
-		const texture = createComputed(() =>
-			create_texture_accessor(image_path, width(), "contain"),
+		const texture = create_texture_accessor(
+			image_path,
+			decode_size(Math.max(box.width, box.height) * 2),
+			"contain",
 		)
-		const paintable = createComputed(() => texture()())
+		const frame = createComputed(() => natural_frame(texture(), width()))
 		const height_request = avatar
 			? height
-			: createComputed(() => fitted_height(paintable(), width(), height()))
+			: createComputed(() => fitted_height(texture(), width(), height()))
 		return (
-			<Gtk.Picture
+			<overlay
 				class={avatar ? "avatar" : "preview"}
-				tooltipText={image_path}
-				widthRequest={avatar ? width : undefined}
-				heightRequest={height_request}
 				halign={START}
 				valign={CENTER}
-				visible={paintable.as((value) => value !== null)}
-				paintable={paintable as unknown as Accessor<Gdk.Paintable>}
-				canShrink
-			/>
+				visible={texture.as((value) => value !== null)}
+			>
+				<Gtk.Picture
+					paintable={frame}
+					widthRequest={avatar ? width : undefined}
+					heightRequest={height_request}
+					canShrink
+				/>
+				<Gtk.Picture
+					$type="overlay"
+					tooltipText={image_path}
+					paintable={texture as unknown as Accessor<Gdk.Paintable>}
+					canShrink
+				/>
+			</overlay>
 		)
 	}
 

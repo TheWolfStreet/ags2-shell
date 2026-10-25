@@ -8,6 +8,8 @@ import icons from "$lib/icons"
 import { attempt } from "$lib/result"
 import { is_dialog_dismissed, read_value, type maybe_accessor } from "$lib/ui"
 import { Opt } from "$shell/options"
+import { choose_icon } from "widget/shared/icon_chooser"
+import { icon_tooltip } from "$lib/text"
 
 const { CENTER } = Gtk.Align
 const { FONT } = Gtk.FontLevel
@@ -66,10 +68,10 @@ function EnumSetter({ opt, values }: enum_setter_props) {
 		opt.set(choices[(current_index + dir + choices.length) % choices.length])
 	}
 	return (
-		<box class="enum-setter">
+		<box class="enum-setter" sensitive={available}>
 			<label
 				label={createComputed(() =>
-					available() ? String(opt()) : "No enum values",
+					available() ? String(opt()) : "Unavailable",
 				)}
 			/>
 			<button sensitive={available} onClicked={() => step(-1)}>
@@ -144,6 +146,20 @@ function ColorSetter({ opt }: { opt: Opt<any> }) {
 	)
 }
 
+function IconSetter({ opt }: { opt: Opt<any> }) {
+	const name = createComputed(() => String(opt()))
+	return (
+		<button
+			class="icon-setter"
+			valign={CENTER}
+			tooltipText={name.as(icon_tooltip)}
+			onClicked={(self) => choose_icon(self, (icon) => opt.set(icon))}
+		>
+			<image iconName={name} useFallback />
+		</button>
+	)
+}
+
 export default function Setter({ opt, enums }: setter_props) {
 	const editor = enums ? "enum" : opt.editor()
 
@@ -191,5 +207,7 @@ export default function Setter({ opt, enums }: setter_props) {
 			return <FontSetter opt={opt} />
 		case "color":
 			return <ColorSetter opt={opt} />
+		case "icon":
+			return <IconSetter opt={opt} />
 	}
 }

@@ -16,7 +16,7 @@ import {
 import options, { ui_scale } from "$shell/options"
 import { applications } from "$service/apps"
 import { ApplicationIcon, client_identity } from "widget/shared/ApplicationIcon"
-import icons from "$lib/icons"
+import { client_icon_name } from "$lib/icons"
 
 export function WindowList() {
 	const clients = create_window_client_list(options.bar.taskbar.exclusive)
@@ -32,7 +32,7 @@ function TaskEntry({ client }: { client: AstalHyprland.Client }) {
 	const icon = createComputed(() => {
 		const identity = client_identity(client)
 		const app = match_client_app(catalog(), identity)
-		return app?.get_icon_name() || identity.class || icons.fallback.app
+		return client_icon_name(app?.get_icon_name(), identity.class)
 	})
 	const icon_size = createComputed(() =>
 		Math.max(8, Math.round(16 * ui_scale())),

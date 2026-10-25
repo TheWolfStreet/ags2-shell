@@ -441,6 +441,23 @@ test("notification bus failures are returned with their cause", async () => {
 	assert.equal(sent.calls[0].path, "/org/freedesktop/Notifications")
 })
 
+test("a bus call that cannot start is returned, not rejected", async () => {
+	const h = notification_harness()
+	const start_error = new Error("invalid arguments")
+	h.imports["gi://Gio"].default.DBus.session.call = () => {
+		throw start_error
+	}
+	const module = await load("lib/notifications.ts", h.imports)
+	assert.deepEqual(await module.notify({ summary: "x" }), {
+		ok: false,
+		err: start_error,
+	})
+	assert.deepEqual(await module.notification_name_owner(), {
+		ok: false,
+		err: start_error,
+	})
+})
+
 test("notification calls address the bus daemon, then the owned service", async () => {
 	const h = notification_harness()
 	const module = await load("lib/notifications.ts", h.imports)
@@ -720,6 +737,7 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 			}
 		}
 		read_async(_priority, _cancellable, callback) {
+			if (faults.has("read-start")) throw new Error("read start failed")
 			queueMicrotask(() => callback(this, {}))
 		}
 		read_finish() {
@@ -817,8 +835,10 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 		"gi://GdkPixbuf": {
 			default: {
 				Pixbuf: {
-					get_file_info_async: (name, _cancellable, callback) =>
-						queueMicrotask(() => callback(null, { name })),
+					get_file_info_async: (name, _cancellable, callback) => {
+						if (faults.has("info-start")) throw new Error("info start failed")
+						queueMicrotask(() => callback(null, { name }))
+					},
 					get_file_info_finish: ({ name }) => {
 						if (faults.has("info")) throw new Error("info failed")
 						const content = files.get(name)
@@ -835,6 +855,8 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 						_cancellable,
 						callback,
 					) => {
+						if (faults.has("decode-start"))
+							throw new Error("decode start failed")
 						decode_count++
 						assert.equal(width, 256)
 						queueMicrotask(() => callback(null, { name: stream.name }))
@@ -1009,6 +1031,9 @@ test("each wallpaper staging failure carries its reason and leaves nothing stage
 		[["convert"], "convert failed"],
 		[["info"], "info failed"],
 		[["read"], "read failed"],
+		[["info-start"], "info start failed"],
+		[["read-start"], "read start failed"],
+		[["decode-start"], "decode start failed"],
 		[["no-image"], "Wallpaper decoder returned no image"],
 		[["move"], "Failed to replace wallpaper"],
 	]

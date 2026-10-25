@@ -42,6 +42,8 @@ async function color_picker_fixture({
 	const idles: (() => void)[] = []
 	const cleanups: (() => void)[] = []
 	const popover_calls: string[] = []
+	const popovers: any[] = []
+	const revealers: any[] = []
 	let revealer_child
 	let colors
 	const [max_colors, set_max] = create_state(max)
@@ -49,6 +51,20 @@ async function color_picker_fixture({
 	mock.method(console, "error", (...args) => errors.push(args))
 	mock.method(console, "warn", (...args) => warnings.push(args))
 	class Popover {
+		handlers = new Map<string, () => void>()
+		constructor() {
+			popovers.push(this)
+		}
+		connect(name: string, handler: () => void) {
+			this.handlers.set(name, handler)
+			return 7
+		}
+		disconnect(id: number) {
+			popover_calls.push(`disconnect:${id}`)
+		}
+		emit(name: string) {
+			this.handlers.get(name)?.()
+		}
 		set_has_arrow() {}
 		add_css_class() {}
 		set_child() {}
@@ -73,15 +89,31 @@ async function color_picker_fixture({
 		}
 	}
 	class Revealer {
+		revealed = false
+		handlers: (() => void)[] = []
+		constructor() {
+			revealers.push(this)
+		}
 		set_focusable() {}
 		set_child(child) {
 			revealer_child = child
 		}
-		connect() {
-			return 1
+		connect(_signal: string, handler: () => void) {
+			this.handlers.push(handler)
+			return this.handlers.length
 		}
-		disconnect() {
-			popover_calls.push("dispose")
+		disconnect(id: number) {
+			popover_calls.push(id === 1 ? "dispose" : `revealer-disconnect:${id}`)
+		}
+		get_child_revealed() {
+			return this.revealed
+		}
+		get_reveal_child() {
+			return this.revealed
+		}
+		reveal(value: boolean) {
+			this.revealed = value
+			for (const handler of this.handlers.slice(1)) handler()
 		}
 	}
 	const gtk = {
@@ -93,6 +125,7 @@ async function color_picker_fixture({
 			RevealerTransitionType: { SLIDE_DOWN: 0 },
 			Orientation: { VERTICAL: 1 },
 			GestureClick: "gesture",
+			EventControllerMotion: "motion",
 		},
 	}
 	const options = {
@@ -207,6 +240,9 @@ async function color_picker_fixture({
 		idles,
 		cleanups,
 		popover_calls,
+		popover: () => popovers[0],
+		revealer: () => revealers[0],
+		swatch_box: () => revealer_child,
 		set_max,
 		set_position,
 		click: () => button.props.onClicked(),
@@ -625,4 +661,55 @@ test("a change made during a failed save is saved again", async () => {
 	held.pending[1]()
 	await tick()
 	assert.deepEqual(fixture.writes, [["#333333"]])
+})
+
+test("a swatch shows its hex only after the popover settles and the pointer really moves, and hides it on close", async () => {
+	const f = await color_picker_fixture({ history: ["#111111", "#222222"] })
+	const classes = (name: string) => {
+		const set = new Set<string>()
+		return {
+			name,
+			set,
+			add_css_class: (value: string) => set.add(value),
+			remove_css_class: (value: string) => set.delete(value),
+		}
+	}
+	const first = classes("first")
+	const second = classes("second")
+	const linked = (widget, next) => ({ ...widget, get_next_sibling: () => next })
+	const first_node = linked(first, linked(second, null))
+	f.swatch_box().props.$({ get_first_child: () => first_node })
+	const motion = nodes(f.swatch("#111111"), "motion")[0].props
+	const widget = { get_widget: () => first }
+
+	motion.onMotion(widget, 5, 5)
+	assert.deepEqual([...first.set], [])
+
+	f.revealer().reveal(true)
+	motion.onMotion(widget, 5, 6)
+	assert.deepEqual([...first.set], ["hovered"])
+	motion.onLeave(widget)
+	assert.deepEqual([...first.set], [])
+
+	motion.onMotion(widget, 5, 7)
+	second.add_css_class("hovered")
+	f.popover().emit("closed")
+	assert.deepEqual([...first.set], [])
+	assert.deepEqual([...second.set], [])
+	motion.onMotion(widget, 5, 8)
+	assert.deepEqual([...first.set], [])
+
+	f.revealer().reveal(true)
+	motion.onEnter(widget, 5, 8)
+	motion.onMotion(widget, 5, 8)
+	assert.deepEqual([...first.set], [])
+	motion.onMotion(widget, 6, 8)
+	assert.deepEqual([...first.set], ["hovered"])
+	f.revealer().reveal(false)
+	assert.deepEqual([...first.set], [])
+
+	for (const cleanup of f.cleanups) cleanup()
+	assert.ok(f.popover_calls.includes("disconnect:7"))
+	assert.ok(f.popover_calls.includes("revealer-disconnect:2"))
+	assert.ok(f.popover_calls.includes("revealer-disconnect:3"))
 })

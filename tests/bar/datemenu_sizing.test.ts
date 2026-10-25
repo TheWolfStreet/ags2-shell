@@ -413,7 +413,8 @@ test("the date menu shows the clock and uptime only while open and clears notifi
 	assert.equal(button.children[0].props.label(), "formatted %a")
 	const window = f.DateMenu.Window()
 	assert.equal(window.props.name, "datemenu")
-	assert.equal(window.props.exclusivity, 2)
+	assert.equal(window.props.attach_to_bar, true)
+	assert.equal(window.props.exclusivity, undefined)
 	assert.equal(window.props.layout, "top-center|center")
 	const columns = window.children[0].children[0]
 	const all = nodes([columns.notifications, columns.date])

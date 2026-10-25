@@ -4,6 +4,7 @@ import { idle } from "$lib/time"
 
 import type { desktop_icon_metrics } from "../grid_geometry"
 import type { desktop_file } from "../file_operations"
+import { decode_size } from "$lib/pixels"
 import { create_texture_accessor, hidden_drag_icon } from "$lib/textures"
 import type { desktop_drag_controller } from "../DragAndDrop"
 import { desktop_interaction, open_desktop_files } from "../desktop"
@@ -234,7 +235,7 @@ export function DesktopIcon({
 		if (is_cut() || !supports_preview) return null
 		return create_texture_accessor(
 			file.icon_file ?? file.path,
-			icon_metrics().icon_px,
+			decode_size(icon_metrics().icon_px),
 		)
 	})
 	const preview_paintable = createComputed(() => preview_texture()?.() ?? null)

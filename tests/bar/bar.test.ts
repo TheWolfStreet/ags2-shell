@@ -23,6 +23,7 @@ async function bar_fixture({
 	const idles: { callback: () => void; cancelled: boolean }[] = []
 	const cleanups: (() => void)[] = []
 	const zones: number[] = []
+	const thicknesses: number[] = []
 	const regions: object[] = []
 	const released: unknown[] = []
 	const handlers = new Map<number, { target: string; event: string; fn }>()
@@ -119,6 +120,9 @@ async function bar_fixture({
 				},
 			},
 		},
+		"widget/shared/PopupWindow": {
+			set_bar_thickness: (thickness: number) => thicknesses.push(thickness),
+		},
 		"./components/DateMenu": { DateMenu: { Button: button("datemenu") } },
 		"./components/Buttons/Battery": { Battery: button("battery") },
 		"./components/Buttons/ColorPicker": { ColorPicker: button("colorpicker") },
@@ -167,6 +171,7 @@ async function bar_fixture({
 	return {
 		root,
 		zones,
+		thicknesses,
 		regions,
 		released,
 		idles,
@@ -252,6 +257,7 @@ test("the panel reserves its height and takes input only over the panel", async 
 	assert.deepEqual(f.zones, [])
 	f.realize()
 	assert.deepEqual(f.zones, [40])
+	assert.deepEqual(f.thicknesses, [40])
 	assert.deepEqual(f.regions, [[{ x: 0, y: 0, width: 1920, height: 40 }]])
 	f.layout()
 	assert.deepEqual(f.zones, [40, 40])

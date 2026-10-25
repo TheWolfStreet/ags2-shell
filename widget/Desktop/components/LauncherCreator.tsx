@@ -6,9 +6,8 @@ import {
 	createState,
 	For,
 	onCleanup,
-	type Accessor,
 } from "ags"
-import { Gdk, Gtk } from "ags/gtk4"
+import { Gtk } from "ags/gtk4"
 import { debounce, idle } from "$lib/time"
 
 import AstalApps from "gi://AstalApps"
@@ -21,9 +20,10 @@ import { attempt, err, ok, type result } from "$lib/result"
 import icons from "$lib/icons"
 import { is_dialog_dismissed } from "$lib/ui"
 import { ApplicationIcon } from "widget/shared/ApplicationIcon"
+import { IconPicker } from "widget/shared/IconPicker"
 import { Placeholder } from "widget/shared/Placeholder"
 import { create_desktop_entry, desktop_interaction } from "../desktop"
-import { base_name } from "$lib/text"
+import { base_name, icon_tooltip } from "$lib/text"
 
 export namespace DesktopLauncherCreator {
 	export function open(monitor_id: string) {
@@ -101,86 +101,11 @@ export namespace DesktopLauncherCreator {
 		sync_applications()
 		onCleanup(all_applications.subscribe(sync_applications))
 
-		const display = Gdk.Display.get_default()
-		const icon_names = display
-			? Gtk.IconTheme.get_for_display(display).get_icon_names()
-			: []
-		const icon_model = Gtk.StringList.new(icon_names)
-		const icon_expression = Gtk.PropertyExpression.new(
-			Gtk.StringObject.$gtype,
-			null,
-			"string",
-		)
-		const icon_base_selection = Gtk.NoSelection.new(icon_model)
-		const icon_filtered_selection = Gtk.NoSelection.new(null)
-		const [icon_results_page, set_icon_results_page] =
-			createState<icon_results_page>("all")
-		const icon_factory = create_icon_factory()
-		let icon_base_grid: Gtk.GridView | null = null
-		let icon_filtered_grid: Gtk.GridView | null = null
-		let icon_query = ""
-		let pending_icon_model: Gtk.FilterListModel | null = null
-		let pending_icon_handler = 0
-
-		function update_icon_query(value: string) {
-			set_icon_search(value)
-			const next_query = value.trim()
-			if (next_query === icon_query) {
-				reset_active_icon_anchor()
-				return
-			}
-			icon_query = next_query
-			cancel_pending_icon_filter()
-			if (!next_query) {
-				set_icon_results_page("all")
-				scroll_to_top(icon_base_grid)
-				return
-			}
-
-			const filter = Gtk.StringFilter.new(icon_expression)
-			filter.set_ignore_case(true)
-			filter.set_match_mode(Gtk.StringFilterMatchMode.SUBSTRING)
-			filter.set_search(next_query)
-			const candidate = Gtk.FilterListModel.new(null, filter)
-			candidate.set_incremental(true)
-			pending_icon_model = candidate
-			const finish = () => {
-				if (pending_icon_model !== candidate || candidate.get_pending() > 0)
-					return
-				candidate.disconnect(pending_icon_handler)
-				pending_icon_handler = 0
-				pending_icon_model = null
-				icon_filtered_selection.set_model(candidate)
-				if (candidate.get_n_items() === 0) {
-					set_icon_results_page("empty")
-					return
-				}
-				scroll_to_top(icon_filtered_grid)
-				set_icon_results_page("filtered")
-			}
-			pending_icon_handler = candidate.connect("notify::pending", finish)
-			candidate.set_model(icon_model)
-			finish()
-		}
-		function cancel_pending_icon_filter() {
-			if (!pending_icon_model) return
-			if (pending_icon_handler)
-				pending_icon_model.disconnect(pending_icon_handler)
-			pending_icon_model.set_model(null)
-			pending_icon_model = null
-			pending_icon_handler = 0
-		}
-		function reset_active_icon_anchor() {
-			const current = icon_results_page.peek()
-			if (current === "all") scroll_to_top(icon_base_grid)
-			if (current === "filtered") scroll_to_top(icon_filtered_grid)
-		}
+		const icon_picker_active = page.as((current) => current === "icons")
 		function open_icon_selector() {
 			application_open_pending = false
-			update_icon_query("")
 			set_page("icons")
 		}
-		onCleanup(cancel_pending_icon_filter)
 		function update_application_query(value: string) {
 			set_application_search(value)
 			const next_query = value.trim().toLowerCase()
@@ -197,7 +122,6 @@ export namespace DesktopLauncherCreator {
 				scroll_to_top(application_grid)
 		}
 		function open_application_selector() {
-			cancel_pending_icon_filter()
 			application_open_pending = true
 			update_application_query("")
 			finish_opening_application_selector()
@@ -218,7 +142,6 @@ export namespace DesktopLauncherCreator {
 		}
 		function open_location_selector() {
 			application_open_pending = false
-			cancel_pending_icon_filter()
 			sync_volumes()
 			set_error_message("")
 			set_page("locations")
@@ -275,42 +198,6 @@ export namespace DesktopLauncherCreator {
 			set_terminal(application.get_key("Terminal")?.toLowerCase() === "true")
 			set_target_kind("application")
 			set_page("form")
-		}
-
-		function IconResultsGrid({
-			selection,
-			visible,
-			set_grid,
-		}: {
-			selection: Gtk.NoSelection
-			visible: Accessor<boolean>
-			set_grid: (grid: Gtk.GridView) => void
-		}) {
-			return (
-				<Gtk.ScrolledWindow
-					visible={visible}
-					vexpand
-					hscrollbarPolicy={Gtk.PolicyType.NEVER}
-				>
-					<Gtk.GridView
-						class="icon-grid"
-						model={selection}
-						factory={icon_factory}
-						minColumns={5}
-						maxColumns={8}
-						singleClickActivate
-						$={(self) => {
-							set_grid(self)
-							self.connect("activate", (_grid, position) => {
-								const value = selection.get_item(position)
-								if (!(value instanceof Gtk.StringObject)) return
-								set_icon(value.get_string())
-								set_page("form")
-							})
-						}}
-					/>
-				</Gtk.ScrolledWindow>
-			)
 		}
 
 		function select_another_application() {
@@ -460,7 +347,7 @@ export namespace DesktopLauncherCreator {
 							>
 								<button
 									class="icon-editor"
-									tooltipText="Choose icon"
+									tooltipText={icon.as(icon_tooltip)}
 									halign={FILL}
 									valign={FILL}
 									onClicked={open_icon_selector}
@@ -714,41 +601,13 @@ export namespace DesktopLauncherCreator {
 
 		const icons_page = (
 			<box class="selector-page" orientation={VERTICAL}>
-				<box class="selector-content" orientation={VERTICAL} vexpand>
-					<box class="icon-search-row" orientation={HORIZONTAL}>
-						<entry
-							class="selector-search"
-							placeholderText="Search icons"
-							primaryIconName={icons.ui.search}
-							text={icon_search}
-							hexpand
-							onNotifyText={(self) => update_icon_query(self.text)}
-						/>
-					</box>
-					<box class="selector-results-surface" orientation={VERTICAL} vexpand>
-						<IconResultsGrid
-							selection={icon_base_selection}
-							visible={icon_results_page.as((current) => current === "all")}
-							set_grid={(grid) => {
-								icon_base_grid = grid
-							}}
-						/>
-						<IconResultsGrid
-							selection={icon_filtered_selection}
-							visible={icon_results_page.as(
-								(current) => current === "filtered",
-							)}
-							set_grid={(grid) => {
-								icon_filtered_grid = grid
-							}}
-						/>
-						<Placeholder
-							iconName={icons.ui.search}
-							label="No results found"
-							visible={icon_results_page.as((current) => current === "empty")}
-						/>
-					</box>
-				</box>
+				<IconPicker
+					active={icon_picker_active}
+					on_pick={(name) => {
+						set_icon(name)
+						set_page("form")
+					}}
+				/>
 				<box class="selector-actions" orientation={HORIZONTAL} hexpand>
 					<box hexpand />
 					<SelectorAction
@@ -833,7 +692,6 @@ const volume_signals = [
 
 type creator_page = "form" | "applications" | "locations" | "icons"
 type creator_target = "custom" | "application" | "location"
-type icon_results_page = "all" | "filtered" | "empty"
 type volume_option = {
 	key: string
 	volume: Gio.Volume
@@ -856,7 +714,6 @@ const [target_kind, set_target_kind] = createState<creator_target>("custom")
 const [error_message, set_error_message] = createState("")
 const [page, set_page] = createState<creator_page>("form")
 const [application_search, set_application_search] = createState("")
-const [icon_search, set_icon_search] = createState("")
 let root: (() => void) | null = null
 let creator_session = 0
 
@@ -977,39 +834,6 @@ function search_text(application: AstalApps.Application) {
 		.filter(Boolean)
 		.join("\n")
 		.toLowerCase()
-}
-
-function create_icon_factory() {
-	const factory = Gtk.SignalListItemFactory.new()
-	const cells = new WeakMap<
-		Gtk.ListItem,
-		{ image: Gtk.Image; label: Gtk.Label }
-	>()
-	factory.connect("setup", (_factory, object) => {
-		const item = object as Gtk.ListItem
-		const image = new Gtk.Image({ pixelSize: 32 })
-		const label = new Gtk.Label({ ellipsize: EllipsizeMode.END })
-		const cell = new Gtk.Box({ orientation: VERTICAL })
-		cell.add_css_class("icon-option")
-		cell.set_halign(CENTER)
-		cell.set_valign(CENTER)
-		cell.append(image)
-		cell.append(label)
-		item.set_activatable(true)
-		item.set_child(cell)
-		cells.set(item, { image, label })
-	})
-	factory.connect("bind", (_factory, object) => {
-		const item = object as Gtk.ListItem
-		const value = item.get_item()
-		const cell = cells.get(item)
-		if (!(value instanceof Gtk.StringObject) || !cell) return
-		const icon_name = value.get_string()
-		cell.image.set_from_icon_name(icon_name)
-		cell.label.set_label(icon_name)
-		item.get_child()?.set_tooltip_text(icon_name)
-	})
-	return factory
 }
 
 function create_application_cell(
@@ -1178,7 +1002,6 @@ function reset() {
 	set_error_message("")
 	set_page("form")
 	set_application_search("")
-	set_icon_search("")
 }
 
 function quote_exec_argument(value: string) {

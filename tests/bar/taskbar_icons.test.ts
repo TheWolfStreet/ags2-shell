@@ -220,7 +220,7 @@ test("bar and dock render the catalog's absolute FL icon through the same pictur
 	assert.deepEqual(
 		f.texture_paths.map(([icon, size]) => [icon, size]),
 		[
-			[path, 16],
+			[path, 32],
 			[path, 64],
 		],
 	)
@@ -273,11 +273,11 @@ test("symbolic icons use theme images; catalog reload and client metadata update
 	window.title = "Untitled"
 	assert.equal(
 		nodes(f.render_bar(), "image")[0].props.iconName,
-		"application-x-executable-symbolic",
+		"image-missing",
 	)
 	assert.equal(
 		nodes(f.render_dock().trees, "image")[0].props.iconName,
-		"application-x-executable-symbolic",
+		"image-missing",
 	)
 })
 
@@ -320,7 +320,7 @@ test("mixed classless groups retain a generic icon and separate favorites regard
 			assert.equal(items[group_index].icon, undefined)
 			assert.equal(
 				nodes(trees[group_index], "image")[0].props.iconName,
-				"application-x-executable-symbolic",
+				"image-missing",
 			)
 			assert.deepEqual(
 				items
@@ -496,9 +496,15 @@ async function dock_window_fixture() {
 		const node = make(type, props)
 		Object.assign(node, {
 			controllers: [] as any[],
+			signals: {} as Record<string, () => void>,
 			add_controller(controller) {
 				this.controllers.push(controller)
 			},
+			connect(signal: string, handler: () => void) {
+				this.signals[signal] = handler
+				return 1
+			},
+			get_surface: () => null,
 			get_visible: () => props.visible(),
 		})
 		windows[props.name] = node
@@ -535,7 +541,21 @@ async function dock_window_fixture() {
 			jsxs: (type, props) =>
 				type === "window" ? surface(type, props) : make(type, props),
 		},
+		cairo: {
+			default: {
+				Region: class {
+					rects: unknown[] = []
+					unionRectangle(rect) {
+						this.rects.push(rect)
+					}
+				},
+			},
+		},
 		"$lib/time": {
+			idle: (fn) => {
+				fn()
+				return { cancel() {} }
+			},
 			debounce: (_ms, fn) => ({
 				call: () => {
 					hide.pending = fn
@@ -634,6 +654,40 @@ test("dock surfaces follow the hover zones and hide after the last leave", async
 		"dock-container dock-vertical",
 	)
 	assert.equal(d.windows["dock-left"].props.widthRequest(), 94)
+	assert.equal(d.windows["dock-left"].props.defaultWidth, 1)
+	assert.equal(d.windows["dock-bottom"].props.defaultHeight, 1)
+})
+
+test("the dock only takes input on its visible box", async () => {
+	const d = await dock_window_fixture()
+	const dock = d.windows["dock-bottom"]
+	const regions: unknown[] = []
+	const layouts: (() => void)[] = []
+	const disconnected: number[] = []
+	const surface = {
+		connect: (_signal: string, handler: () => void) => {
+			layouts.push(handler)
+			return 3
+		},
+		disconnect: (id: number) => disconnected.push(id),
+		set_input_region: (region) => regions.push(region.rects),
+	}
+	dock.get_surface = () => surface
+	dock.children[0].props.$({
+		compute_bounds: () => [
+			true,
+			{ origin: { x: 700.4, y: 10 }, size: { width: 520.2, height: 84 } },
+		],
+	})
+	dock.signals.map()
+	assert.deepEqual(regions.at(-1), [{ x: 700, y: 10, width: 521, height: 84 }])
+	dock.signals.map()
+	assert.equal(layouts.length, 1)
+	regions.length = 0
+	layouts[0]()
+	assert.equal(regions.length, 1)
+	d.cleanup()
+	assert.deepEqual(disconnected, [3])
 })
 
 test("the dock holds a trash watcher only while the option is on and releases on cleanup", async () => {

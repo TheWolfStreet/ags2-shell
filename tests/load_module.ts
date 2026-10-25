@@ -5,6 +5,7 @@ import ts from "./typescript.ts"
 import * as icons from "../lib/icons.ts"
 import * as json from "../lib/json.ts"
 import * as lua from "../lib/lua.ts"
+import * as pixels from "../lib/pixels.ts"
 import * as text from "../lib/text.ts"
 import * as result from "../lib/result.ts"
 
@@ -14,6 +15,7 @@ const pure_modules: Record<string, module_exports> = {
 	"$lib/icons": icons,
 	"$lib/json": json,
 	"$lib/lua": lua,
+	"$lib/pixels": pixels,
 	"$lib/result": result,
 	"$lib/text": text,
 }

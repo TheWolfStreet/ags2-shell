@@ -298,7 +298,7 @@ test("image and themed icons, cut state and launcher emblem", async () => {
 	const image = await fixture({ path: "/d/photo.JPG", name: "photo.JPG" })
 	const [picture] = image.find((node) => node.type === "Picture")
 	const [themed, emblem] = image.find((node) => node.type === "image")
-	assert.equal(picture.props.paintable(), "/d/photo.JPG@56")
+	assert.equal(picture.props.paintable(), "/d/photo.JPG@64")
 	assert.equal(picture.props.visible(), true)
 	assert.equal(themed.props.visible(), false)
 	image.set_cut_paths(new Set(["/d/photo.JPG"]))
@@ -313,7 +313,7 @@ test("image and themed icons, cut state and launcher emblem", async () => {
 	const [launcher_icon, launcher_emblem] = launcher.find(
 		(node) => node.type === "image",
 	)
-	assert.equal(launcher_picture.props.paintable(), "/icons/tool.png@56")
+	assert.equal(launcher_picture.props.paintable(), "/icons/tool.png@64")
 	assert.equal(launcher_emblem.props.visible(), true)
 	assert.equal(launcher_emblem.props.iconName, icons.default.ui.link)
 	assert.equal(launcher_emblem.props.pixelSize(), 12)

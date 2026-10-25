@@ -333,6 +333,7 @@ const log_error = (result: { ok: boolean; err?: unknown }) => { if (!result.ok) 
 const [texture, set_texture] = createState<Gdk.Texture | null>(null)
 const classify_image_uri = (_uri: string) => "local"
 const create_texture_accessor = (_uri: string, _size: number, _fit: string) => texture
+const decode_size = (size: number) => size
 const items: any[] = []
 const handlers = new Map<number, { name: string; callback: (...args: any[]) => void }>()
 let next_handler = 0
@@ -421,13 +422,14 @@ function measure(window: Gtk.Widget, count: number, hover_card: Gtk.Widget | nul
             check(item.get_wrap() && item.get_layout().get_line_count() > 1, "text did not wrap")
             check(item.get_layout().get_text() === item.get_label() && !item.get_layout().is_ellipsized(), "text truncated")
         }
-        const preview = one(descendants, "preview") as Gtk.Picture
-        check(preview.get_paintable() === expected_texture, "preview has the wrong paintable")
+        const preview = one(descendants, "preview") as Gtk.Overlay
+        const shape = preview.get_child() as Gtk.Picture
+        check((preview.get_last_child() as Gtk.Picture).get_paintable() === expected_texture, "preview has the wrong paintable")
         const size = Math.round(75 * scale_number / 100)
         const expected_height = expected_texture ? Math.max(1, Math.round(expected_texture.get_height() *
             Math.min(size / expected_texture.get_width(), size / expected_texture.get_height()))) : size
-        check(preview.height_request === expected_height,
-            "preview fitted height did not update: " + [preview.height_request, expected_height])
+        check(shape.height_request === expected_height,
+            "preview fitted height did not update: " + [shape.height_request, expected_height])
         if (expected_texture) {
             check(preview.get_visible() && preview.get_width() > 0 && preview.get_height() > 0,
                 "published preview is hidden or unallocated")
@@ -527,8 +529,10 @@ app.start({ instanceName: "private-notification-placement-" + scale_number, main
         check(action_height > 0 && action_top >= viewport_top - 1 &&
             action_top + action_height <= viewport_bottom + 1, "last trailing action clipped by viewport")
 
-        const removed_preview = one(walk(last), "preview") as Gtk.Picture
-        const old_height = removed_preview.height_request
+        const removed_frame = one(walk(last), "preview") as Gtk.Overlay
+        const removed_preview = removed_frame.get_last_child() as Gtk.Picture
+        const removed_shape = removed_frame.get_child() as Gtk.Picture
+        const old_height = removed_shape.height_request
         items.splice(items.findIndex(item => item.id === 1), 1)
         notification_daemon.emit("resolved", 1)
         await delay(200)
@@ -540,7 +544,7 @@ app.start({ instanceName: "private-notification-placement-" + scale_number, main
         set_texture(replacement)
         await delay(150)
         measure(window, 7, null, replacement)
-        check(removed_preview.get_paintable() === published && removed_preview.height_request === old_height,
+        check(removed_preview.get_paintable() === published && removed_shape.height_request === old_height,
             "disposed preview still reacts to texture updates")
         for (const item of [...items]) {
             items.splice(items.indexOf(item), 1)

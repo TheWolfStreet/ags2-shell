@@ -1,7 +1,7 @@
 import app from "$lib/app"
 import { createBinding, createComputed, createState, For, onCleanup } from "ags"
 import { monitorFile } from "ags/file"
-import { Astal, Gdk, Gtk } from "ags/gtk4"
+import { Gdk, Gtk } from "ags/gtk4"
 
 import AstalMpris from "gi://AstalMpris"
 import AstalWp from "gi://AstalWp"
@@ -182,7 +182,7 @@ export namespace QuickSettings {
 		return (
 			<PopupWindow
 				name="quicksettings"
-				exclusivity={EXCLUSIVE}
+				attach_to_bar
 				application={app}
 				layout={layout}
 			>
@@ -240,7 +240,6 @@ const { VERTICAL } = Gtk.Orientation
 const { VERTICAL: scroll_vertical } = Gtk.EventControllerScrollFlags
 const { COVER } = Gtk.ContentFit
 
-const { EXCLUSIVE } = Astal.Exclusivity
 const { BUTTON_MIDDLE } = Gdk
 
 const { bar, quicksettings } = options

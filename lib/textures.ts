@@ -39,6 +39,7 @@ const artwork_name = /^[a-f0-9]{40}$/
 const max_bytes = 8 * 1024 * 1024
 const max_encoded_bytes = (max_bytes * 4) / 3
 const max_size = 512
+const max_display_size = 8192
 const max_pending = 64
 const max_active = 4
 let active = 0
@@ -623,6 +624,11 @@ function empty_texture() {
 	return createState<Gdk.Texture | null>(null)[0]
 }
 
+function new_request(key: string, size: number, fit: fit, now: number) {
+	const [texture, set] = createState<Gdk.Texture | null>(null)
+	return { key, size, fit, entry: { texture, set, created: now } }
+}
+
 export function create_texture_accessor(
 	uri: string,
 	size: number,
@@ -637,16 +643,29 @@ export function create_texture_accessor(
 	const cached = accessor_cache.get(key)
 	if (cached && (source.kind !== "http" || now - cached.created <= 60_000_000))
 		return cached.texture
-	const [texture, set] = createState<Gdk.Texture | null>(null)
-	const request = {
-		key,
-		size: bounded,
-		fit,
-		entry: { texture, set, created: now },
-	}
+	const request = new_request(key, bounded, fit, now)
 	remember(accessor_cache, key, request.entry, 64)
 	request_texture(uri, source, request)
-	return texture
+	return request.entry.texture
+}
+
+export function create_display_texture(
+	uri: string,
+	size: number,
+): Accessor<Gdk.Texture | null> {
+	if (!uri || !valid_size(size)) return empty_texture()
+	const source = image_source(uri)
+	if (!source) return empty_texture()
+	const bounded = Math.min(size, max_display_size)
+	const key = texture_key(uri, source, bounded, "contain")
+	const request = new_request(
+		key,
+		bounded,
+		"contain",
+		GLib.get_monotonic_time(),
+	)
+	request_texture(uri, source, request)
+	return request.entry.texture
 }
 
 export function hidden_drag_icon(): Gdk.Texture {

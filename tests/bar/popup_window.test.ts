@@ -76,9 +76,11 @@ async function popup_fixture() {
 		if (typeof type === "function") return type(props)
 		return { type, props }
 	}
+	const [bar_position, set_bar_position] = create_state("top-center")
 	const module = await load_module("widget/shared/PopupWindow.tsx", {
 		ags: {
 			createComputed: (fn) => accessor(fn),
+			createState: create_state,
 			onCleanup: (fn) => cleanups.push(fn),
 			onMount: (fn) => mounts.push(fn),
 		},
@@ -88,7 +90,7 @@ async function popup_fixture() {
 				WindowAnchor: { TOP: 1, BOTTOM: 2, LEFT: 4, RIGHT: 8 },
 				Keymode: { ON_DEMAND: 2 },
 				Exclusivity: { IGNORE: 2 },
-				Layer: { TOP: 2 },
+				Layer: { TOP: 2, OVERLAY: 3 },
 			},
 			Gdk: { KEY_Escape: 27 },
 			Gtk: {
@@ -121,7 +123,10 @@ async function popup_fixture() {
 		},
 		"$lib/ui": ui,
 		"$shell/options": {
-			default: { transition: { duration: accessor(() => 200) } },
+			default: {
+				transition: { duration: accessor(() => 200) },
+				bar: { position: bar_position },
+			},
 		},
 	})
 	function render(props: Record<string, any> = {}) {
@@ -140,7 +145,7 @@ async function popup_fixture() {
 			},
 		}
 	}
-	return { module, render, log, cleanups }
+	return { module, render, log, cleanups, set_bar_position }
 }
 
 test("window classes, defaults and alignment follow name, class and layout", async () => {
@@ -303,4 +308,25 @@ test("cleanup hides the window immediately", async () => {
 	f.log.length = 0
 	for (const cleanup of f.cleanups) cleanup()
 	assert.deepEqual(f.log, ["super.hide", "notify:visible"])
+})
+
+test("bar-attached popups sit on the bar edge above the dock and ignore other reserved zones", async () => {
+	const f = await popup_fixture()
+	const plain = f.render()
+	assert.equal(plain.props.marginTop, undefined)
+	assert.equal(plain.props.marginBottom, undefined)
+
+	const attached = f.render({ attach_to_bar: true })
+	assert.equal(attached.props.attach_to_bar, undefined)
+	assert.equal(attached.props.exclusivity, 2)
+	assert.equal(attached.props.layer, 3)
+	f.module.set_bar_thickness(40)
+	assert.equal(attached.props.marginTop(), 40)
+	assert.equal(attached.props.marginBottom(), 0)
+
+	f.set_bar_position("bottom-center")
+	assert.equal(attached.props.marginTop(), 0)
+	assert.equal(attached.props.marginBottom(), 40)
+	f.module.set_bar_thickness(52)
+	assert.equal(attached.props.marginBottom(), 52)
 })

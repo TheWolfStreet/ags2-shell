@@ -1,5 +1,5 @@
 import app from "$lib/app"
-import { Astal, Gtk } from "ags/gtk4"
+import { Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 import { createComputed, createState, onCleanup } from "ags"
 import { createPoll } from "ags/time"
@@ -117,7 +117,7 @@ export namespace DateMenu {
 			<PopupWindow
 				name="datemenu"
 				application={app}
-				exclusivity={EXCLUSIVE}
+				attach_to_bar
 				layout={create_popup_position(
 					options.bar.position,
 					options.datemenu.position,
@@ -254,6 +254,5 @@ export namespace DateMenu {
 
 	const { CENTER } = Gtk.Align
 	const { NEVER } = Gtk.PolicyType
-	const { EXCLUSIVE } = Astal.Exclusivity
 	const { VERTICAL } = Gtk.Orientation
 }

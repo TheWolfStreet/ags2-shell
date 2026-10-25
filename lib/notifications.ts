@@ -60,21 +60,24 @@ async function call_bus(
 ): Promise<result<GLib.Variant>> {
 	const session = attempt(() => Gio.DBus.session)
 	if (!session.ok) return session
-	return new Promise((resolve) =>
-		session.value.call(
-			target.name,
-			target.path,
-			target.iface,
-			method,
-			args,
-			new GLib.VariantType(reply_type),
-			Gio.DBusCallFlags.NONE,
-			dbus_timeout_ms,
-			null,
-			(connection, response) =>
-				resolve(attempt(() => connection!.call_finish(response))),
-		),
-	)
+	return new Promise((resolve) => {
+		const started = attempt(() =>
+			session.value.call(
+				target.name,
+				target.path,
+				target.iface,
+				method,
+				args,
+				new GLib.VariantType(reply_type),
+				Gio.DBusCallFlags.NONE,
+				dbus_timeout_ms,
+				null,
+				(connection, response) =>
+					resolve(attempt(() => connection!.call_finish(response))),
+			),
+		)
+		if (!started.ok) resolve(started)
+	})
 }
 
 export async function notification_name_owner(): Promise<result<string>> {

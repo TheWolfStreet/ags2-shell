@@ -628,7 +628,13 @@ async function launcher_fixture() {
 
 	const { DesktopLauncherCreator } = await load_module(
 		"widget/Desktop/components/LauncherCreator.tsx",
-		imports,
+		{
+			...imports,
+			"widget/shared/IconPicker": await load_module(
+				"widget/shared/IconPicker.tsx",
+				imports,
+			),
+		},
 	)
 
 	const tree = () => {
@@ -1627,16 +1633,20 @@ test("icon search filters asynchronously and shows all, filtered or empty result
 	fixture.set_icon_pending(1)
 	entry.props.onNotifyText({ text: "edit" })
 	const cancelled = fixture.catalog.icon_candidates.at(-1)
-	fixture
-		.by_class(fixture.page_named("form"), "application-picker")[0]
-		.props.onClicked()
+	fixture.by_class(fixture.tree(), "back")[0].props.onClicked()
+	assert.equal(fixture.current_page(), "form")
 	assert.equal(cancelled.model, null)
 	assert.equal(cancelled.count("notify::pending"), 0)
 
+	const editor = fixture.by_class(fixture.page_named("form"), "icon-editor")[0]
+	assert.equal(read(editor.props.tooltipText), "Choose icon")
+	editor.props.onClicked()
+	assert.equal(read(entry.props.text), "")
+	assert.deepEqual(shown(), [true, false, false])
 	const grid = nodes(icons_page, "grid")[0]
-	fixture.page_named("form")
 	grid.activate(grid, 1)
 	assert.equal(fixture.state().icon, "edit-paste")
+	assert.equal(read(editor.props.tooltipText), "edit-paste")
 	assert.equal(fixture.current_page(), "form")
 })
 

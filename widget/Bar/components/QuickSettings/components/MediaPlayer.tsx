@@ -14,6 +14,7 @@ import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
 import { debounce, format_clock, timeout, type timer } from "$lib/time"
+import { decode_size } from "$lib/pixels"
 import { create_texture_accessor } from "$lib/textures"
 
 import { scaled } from "$shell/options"
@@ -96,7 +97,7 @@ export function MediaPlayer({ player }: { player: AstalMpris.Player }) {
 	const art_url = createBinding(player, "artUrl")
 	const cover_uri = createComputed(() => art_url() || cover_art() || "")
 	const selected_cover = createComputed(() =>
-		create_texture_accessor(cover_uri(), cover_size()),
+		create_texture_accessor(cover_uri(), decode_size(cover_size())),
 	)
 	const cover_texture = createComputed(() => selected_cover()())
 	const has_cover_art = cover_texture.as((texture) => texture !== null)

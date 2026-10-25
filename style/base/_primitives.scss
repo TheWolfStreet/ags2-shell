@@ -81,3 +81,17 @@
 	background-color: transparent;
 	box-shadow: none;
 }
+
+@mixin dialog-window {
+	background: var(--bg);
+	color: var(--fg);
+
+	.header {
+		padding: var(--padding);
+		border-bottom: 1px solid var(--border-color);
+
+		label.title {
+			font-weight: 700;
+		}
+	}
+}

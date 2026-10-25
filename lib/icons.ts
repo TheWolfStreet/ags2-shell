@@ -13,6 +13,7 @@ const icon_list = {
 		video: "video-x-generic-symbolic",
 		image: "image-x-generic-symbolic",
 		app: "application-x-executable-symbolic",
+		unknown_app: "image-missing",
 		audio: "audio-x-generic-symbolic",
 		drive: "drive-harddisk-symbolic",
 	},
@@ -126,6 +127,13 @@ const icon_list = {
 		dark: "weather-clear-night-symbolic",
 		light: "weather-clear-symbolic",
 	},
+}
+
+export function client_icon_name(
+	app_icon: string | null | undefined,
+	client_class: string,
+): string {
+	return app_icon || client_class || icon_list.fallback.unknown_app
 }
 
 export function substitute_icon_name(

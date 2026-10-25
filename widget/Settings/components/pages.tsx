@@ -18,7 +18,7 @@ import { file_exists, file_size } from "$lib/files"
 import icons from "$lib/icons"
 import { notify } from "$lib/notifications"
 import { attempt, log_error } from "$lib/result"
-import { create_texture_accessor, hidden_drag_icon } from "$lib/textures"
+import { create_display_texture, hidden_drag_icon } from "$lib/textures"
 import { is_dialog_dismissed, type maybe_accessor } from "$lib/ui"
 
 import options, { Opt, scaled } from "$shell/options"
@@ -67,6 +67,21 @@ async function save_wallpaper(path: string) {
 	})
 }
 
+function largest_monitor_pixels() {
+	const monitors = Gdk.Display.get_default()?.get_monitors()
+	let largest = 0
+	for (let index = 0; index < (monitors?.get_n_items() ?? 0); index++) {
+		const monitor = monitors?.get_item(index)
+		if (!(monitor instanceof Gdk.Monitor)) continue
+		const { width, height } = monitor.get_geometry()
+		largest = Math.max(
+			largest,
+			Math.ceil(Math.max(width, height) * monitor.get_scale()),
+		)
+	}
+	return largest || 1920
+}
+
 function WallpaperChooser() {
 	const is_set = wallpaper_revision.as(() => {
 		const size = file_size(wallpaper_path)
@@ -74,7 +89,7 @@ function WallpaperChooser() {
 	})
 	const preview_texture = createComputed(() => {
 		wallpaper_revision()
-		return create_texture_accessor(wallpaper_path, 256)
+		return create_display_texture(wallpaper_path, largest_monitor_pixels())
 	})
 	const preview = createComputed(
 		() => preview_texture()() ?? hidden_drag_icon(),
@@ -310,7 +325,7 @@ function Appearance() {
 				<Row
 					opt={tmux.accent}
 					title="Sync Accent to tmux"
-					note="Sets tmux @main_accent to the primary color"
+					note="Sets tmux's accent and selection highlight to the primary color"
 				/>
 			</Group>
 

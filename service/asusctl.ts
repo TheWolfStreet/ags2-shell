@@ -60,7 +60,7 @@ function find_internal_panel(
 }
 
 function panel_modes(panel: monitor_configuration | undefined): monitor_mode[] {
-	if (!panel || panel.disabled) return []
+	if (!panel) return []
 	const resolution = `${panel.width}x${panel.height}`
 	return (panel.availableModes ?? [])
 		.map(parse_monitor_mode)
@@ -266,7 +266,7 @@ class Asusctl extends GObject.Object {
 	) {
 		const modes = panel_modes(panel)
 		const refresh_rates = unique_refresh_rates(modes)
-		if (!panel || refresh_rates.length === 0) return
+		if (!panel || panel.disabled || refresh_rates.length === 0) return
 		const ac_hz = nearest_value(refresh_rates, options.asus.ac_hz.peek())
 		const bat_hz = nearest_value(refresh_rates, options.asus.bat_hz.peek())
 		set_if_changed(options.asus.ac_hz, ac_hz)

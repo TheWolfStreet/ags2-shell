@@ -6,7 +6,10 @@ import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import AstalTray from "gi://AstalTray"
 
-import { create_animated_popover } from "widget/shared/animated_popover"
+import {
+	create_animated_popover,
+	follow_bar_position,
+} from "widget/shared/animated_popover"
 import icons from "$lib/icons"
 
 const { VERTICAL, HORIZONTAL } = Gtk.Orientation
@@ -206,6 +209,7 @@ function build_menu_box(
 
 export function create_tray_menu_popover(item: AstalTray.TrayItem) {
 	const { popover, revealer, dispose } = create_animated_popover(BOTTOM)
+	const stop_following = follow_bar_position(popover)
 	const menu_cleanups = create_cleanups()
 	const model_cleanups = create_cleanups()
 	const action_cleanups = create_cleanups()
@@ -303,6 +307,7 @@ export function create_tray_menu_popover(item: AstalTray.TrayItem) {
 		model_cleanups.run()
 		action_cleanups.run()
 		menu_cleanups.run()
+		stop_following()
 		dispose()
 		popover.unparent()
 	})

@@ -2,11 +2,25 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
 
-async function fixture({ css_exists = true } = {}) {
+async function fixture({
+	css_exists = true,
+	monitor_error = null as Error | null,
+} = {}) {
 	const events: string[] = []
 	const sources: (() => boolean)[] = []
 	const subscribers: (() => void)[] = []
-	let watcher: (file: string) => void = () => {}
+	const shutdown: (() => void)[] = []
+	let watcher: (...args: unknown[]) => void = () => {}
+	const monitor = {
+		connect(signal: string, callback: (...args: unknown[]) => void) {
+			assert.equal(signal, "changed")
+			watcher = callback
+			return 1
+		},
+		cancel() {
+			events.push("cancel")
+		},
+	}
 	let runtime_css = "a"
 	let next_provider = 0
 	class CssProvider {
@@ -32,10 +46,28 @@ async function fixture({ css_exists = true } = {}) {
 			},
 			Gdk: { Display: { get_default: () => ({}) } },
 		},
-		"ags/file": {
-			monitorFile: (directory: string, callback: (file: string) => void) => {
-				events.push(`watch ${directory}`)
-				watcher = callback
+		"gi://Gio": {
+			default: {
+				FileMonitorFlags: { NONE: 0, WATCH_MOVES: 8 },
+				File: {
+					new_for_path: (directory: string) => ({
+						monitor_directory: (flags: number, cancellable: unknown) => {
+							assert.equal(cancellable, null)
+							if (monitor_error) throw monitor_error
+							events.push(`watch ${directory} ${flags}`)
+							return monitor
+						},
+					}),
+				},
+			},
+		},
+		"$lib/app": {
+			default: {
+				connect: (signal: string, callback: () => void) => {
+					assert.equal(signal, "shutdown")
+					shutdown.push(callback)
+					return 1
+				},
 			},
 		},
 		"gi://GLib": {
@@ -69,7 +101,14 @@ async function fixture({ css_exists = true } = {}) {
 		events,
 		sources,
 		change_option: () => subscribers.forEach((callback) => callback()),
-		touch: (file: string) => watcher(file),
+		touch: (file: string, other: string | null = null) =>
+			watcher(
+				monitor,
+				{ get_path: () => file },
+				other === null ? null : { get_path: () => other },
+				0,
+			),
+		shutdown: () => shutdown.forEach((callback) => callback()),
 		set_runtime_css(css: string) {
 			runtime_css = css
 		},
@@ -90,7 +129,7 @@ test("init loads the static sheet, the runtime sheet and watches for rebuilds", 
 		"subscribe scale,font,theme,bar.corners,hyprland.gaps,transition.duration",
 		"string 2 a",
 		"add 2 600",
-		"watch /styles/style/compile",
+		"watch /styles/style/compile 8",
 	])
 })
 
@@ -138,6 +177,38 @@ test("a rebuilt main.css reloads the static sheet; other files are ignored", asy
 	assert.equal(state.sources.length, 1)
 })
 
+test("a build moved over main.css reloads the static sheet", async () => {
+	const state = await fixture()
+	state.module.init_css()
+	state.events.length = 0
+	state.touch("/styles/style/compile/.main.abc.css", css_path)
+	assert.deepEqual(state.events, [`load 1 ${css_path}`])
+	assert.equal(state.sources.length, 1)
+})
+
+test("shutdown cancels the stylesheet watch", async () => {
+	const state = await fixture()
+	state.module.init_css()
+	state.events.length = 0
+	state.shutdown()
+	assert.deepEqual(state.events, ["cancel"])
+	state.shutdown()
+	assert.deepEqual(state.events, ["cancel"])
+})
+
+test("a stylesheet watch that cannot start is logged", async (t) => {
+	const error = t.mock.method(console, "error", () => {})
+	const monitor_error = new Error("inotify limit")
+	const state = await fixture({ monitor_error })
+	state.module.init_css()
+	assert.deepEqual(
+		error.mock.calls.map((call) => call.arguments),
+		[["style.watch: Failed to monitor compiled CSS", monitor_error]],
+	)
+	state.shutdown()
+	assert.equal(state.events.includes("cancel"), false)
+})
+
 test("a missing stylesheet is reported and nothing is loaded", async (t) => {
 	const error = t.mock.method(console, "error", () => {})
 	const state = await fixture({ css_exists: false })
@@ -149,6 +220,6 @@ test("a missing stylesheet is reported and nothing is loaded", async (t) => {
 	assert.deepEqual(state.events, [
 		"add 1 600",
 		"subscribe scale,font,theme,bar.corners,hyprland.gaps,transition.duration",
-		"watch /styles/style/compile",
+		"watch /styles/style/compile 8",
 	])
 })

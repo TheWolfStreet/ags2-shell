@@ -1,9 +1,11 @@
 import { Gtk, Gdk } from "ags/gtk4"
-import { monitorFile } from "ags/file"
+import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 
+import app from "$lib/app"
 import env from "$lib/env"
 import { file_exists } from "$lib/files"
+import { attempt, log_error } from "$lib/result"
 import options, { subscribe_options } from "$shell/options"
 import { build_runtime_css } from "./runtime_css"
 
@@ -17,6 +19,9 @@ let css_batch_pending = false
 
 let static_provider: Gtk.CssProvider | undefined
 let runtime_provider: Gtk.CssProvider | undefined
+let css_monitor: Gio.FileMonitor | null = null
+
+app.connect("shutdown", stop_watching_static_css)
 
 function add_provider(display: Gdk.Display, provider: Gtk.CssProvider) {
 	Gtk.StyleContext.add_provider_for_display(
@@ -96,12 +101,30 @@ export function end_css_batch() {
 	reset_css()
 }
 
+function names_css_file(file: Gio.File, other: Gio.File | null) {
+	if (file.get_path() === css_file_path) return true
+	return other?.get_path() === css_file_path
+}
+
+function stop_watching_static_css() {
+	css_monitor?.cancel()
+	css_monitor = null
+}
+
 function watch_static_css() {
-	monitorFile(GLib.path_get_dirname(css_file_path), (file) => {
-		if (file !== css_file_path) return
+	stop_watching_static_css()
+	const watched = attempt(() =>
+		Gio.File.new_for_path(
+			GLib.path_get_dirname(css_file_path),
+		).monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null),
+	)
+	if (!log_error(watched, "style.watch: Failed to monitor compiled CSS")) return
+	watched.value.connect("changed", (_monitor, file, other) => {
+		if (!names_css_file(file, other)) return
 		load_static_css()
 		reset_css()
 	})
+	css_monitor = watched.value
 }
 
 export function init_css() {

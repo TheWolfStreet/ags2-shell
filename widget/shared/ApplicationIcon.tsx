@@ -3,6 +3,8 @@ import { Gdk, Gtk } from "ags/gtk4"
 
 import type AstalHyprland from "gi://AstalHyprland"
 
+import icons from "$lib/icons"
+import { decode_size } from "$lib/pixels"
 import { create_texture_accessor } from "$lib/textures"
 import { type maybe_accessor, read_value } from "$lib/ui"
 
@@ -17,17 +19,26 @@ export function client_identity(client: AstalHyprland.Client) {
 
 function render_icon(icon: string, size: number) {
 	if (icon.includes("/")) {
-		const texture = create_texture_accessor(icon, size)
+		const texture = create_texture_accessor(icon, decode_size(size))
+		const loaded = texture.as((value) => value !== null)
 		return (
-			<Gtk.Picture
-				paintable={texture.as((value) => value as Gdk.Paintable)}
-				widthRequest={size}
-				heightRequest={size}
-				halign={Gtk.Align.CENTER}
-				valign={Gtk.Align.CENTER}
-				contentFit={Gtk.ContentFit.CONTAIN}
-				canShrink
-			/>
+			<box halign={Gtk.Align.CENTER} valign={Gtk.Align.CENTER}>
+				<Gtk.Picture
+					visible={loaded}
+					paintable={texture.as((value) => value as Gdk.Paintable)}
+					widthRequest={size}
+					heightRequest={size}
+					contentFit={Gtk.ContentFit.CONTAIN}
+					canShrink
+				/>
+				<image
+					visible={loaded.as((value) => !value)}
+					iconName={icons.fallback.unknown_app}
+					pixelSize={size}
+					widthRequest={size}
+					heightRequest={size}
+				/>
+			</box>
 		)
 	}
 

@@ -4,13 +4,19 @@ import { Gdk, Gtk } from "ags/gtk4"
 import AstalTray from "gi://AstalTray"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
+import Graphene from "gi://Graphene"
 
-import { attempt, type result } from "$lib/result"
+import { hyprland, hyprland_command } from "$lib/hyprland"
+import { lua_string } from "$lib/lua"
+import { attempt, log_error, type result } from "$lib/result"
 
 import options from "$shell/options"
+import { bar_thickness } from "widget/shared/PopupWindow"
 import { create_tray_menu_popover } from "./tray_menu"
 
 const tray = AstalTray.get_default()
+const xembed_bridge_class = "xembedsniproxy"
+const wine_menu_half_width = 60
 
 function is_tray_item_visible(item: AstalTray.TrayItem) {
 	return (
@@ -19,12 +25,48 @@ function is_tray_item_visible(item: AstalTray.TrayItem) {
 	)
 }
 
-function menu_address(item: AstalTray.TrayItem) {
+type dbus_address = { bus_name: string; path: string }
+
+function item_address(item: AstalTray.TrayItem): dbus_address | null {
 	const item_id = item.get_item_id()
 	const separator = item_id.indexOf("/")
+	if (separator < 0) return null
+	return {
+		bus_name: item_id.slice(0, separator),
+		path: item_id.slice(separator),
+	}
+}
+
+function menu_address(item: AstalTray.TrayItem): dbus_address | null {
+	const address = item_address(item)
 	const path = (item as unknown as { menuPath: string | null }).menuPath
-	if (separator < 0 || !path) return null
-	return { bus_name: item_id.slice(0, separator), path }
+	if (!address || !path) return null
+	return { bus_name: address.bus_name, path }
+}
+
+function call_tray(
+	address: dbus_address,
+	iface: string,
+	method: string,
+	args: GLib.Variant,
+	done: (outcome: result<unknown>) => void,
+) {
+	const started = attempt(() =>
+		Gio.DBus.session.call(
+			address.bus_name,
+			address.path,
+			iface,
+			method,
+			args,
+			null,
+			Gio.DBusCallFlags.NONE,
+			1000,
+			null,
+			(connection, response) =>
+				done(attempt(() => connection!.call_finish(response))),
+		),
+	)
+	if (!started.ok) done(started)
 }
 
 function about_to_show(item: AstalTray.TrayItem, done: () => void) {
@@ -34,27 +76,86 @@ function about_to_show(item: AstalTray.TrayItem, done: () => void) {
 		done()
 		return
 	}
-
-	const finish = (outcome: result<unknown>) => {
-		if (!outcome.ok) console.warn("tray: AboutToShow failed", outcome.err)
-		done()
-	}
-	const started = attempt(() =>
-		Gio.DBus.session.call(
-			address.bus_name,
-			address.path,
-			"com.canonical.dbusmenu",
-			"AboutToShow",
-			new GLib.Variant("(i)", [0]),
-			null,
-			Gio.DBusCallFlags.NONE,
-			1000,
-			null,
-			(connection, response) =>
-				finish(attempt(() => connection!.call_finish(response))),
-		),
+	call_tray(
+		address,
+		"com.canonical.dbusmenu",
+		"AboutToShow",
+		new GLib.Variant("(i)", [0]),
+		(outcome) => {
+			if (!outcome.ok) console.warn("tray: AboutToShow failed", outcome.err)
+			done()
+		},
 	)
-	if (!started.ok) finish(started)
+}
+
+type point = { x: number; y: number }
+
+function popover_gap() {
+	const spacing_pt = options.theme.spacing.peek() * (options.scale.peek() / 100)
+	return Math.max(8, Math.round((spacing_pt * 4) / 3))
+}
+
+function center_x(anchor: Gtk.Widget, origin: number, fallback: number) {
+	const root = anchor.get_root()
+	if (!root) return fallback
+	const middle = new Graphene.Point({ x: anchor.get_width() / 2, y: 0 })
+	const [placed, at] = anchor.compute_point(root, middle)
+	return placed ? origin + Math.round(at.x) : fallback
+}
+
+function anchor_monitor(anchor: Gtk.Widget) {
+	const surface = anchor.get_native()?.get_surface()
+	if (!surface) return null
+	return Gdk.Display.get_default()?.get_monitor_at_surface(surface) ?? null
+}
+
+function edge_below(anchor: Gtk.Widget): point {
+	const cursor = hyprland.get_cursor_position()
+	const monitor = anchor_monitor(anchor)
+	if (!monitor) return { x: cursor.x, y: cursor.y }
+	const { x, y, height } = monitor.get_geometry()
+	const center = center_x(anchor, x, cursor.x)
+	const offset = bar_thickness.peek() + popover_gap()
+	if (options.bar.position.peek() === "top-center")
+		return { x: center, y: y + offset }
+	return { x: center, y: y + height - offset }
+}
+
+async function click_point(anchor: Gtk.Widget): Promise<point> {
+	const edge = edge_below(anchor)
+	const bridged = hyprland
+		.get_clients()
+		.some((client) => client.class === xembed_bridge_class)
+	if (!bridged) return edge
+	const at = { x: edge.x - wine_menu_half_width, y: edge.y }
+	const window = lua_string(`class:^(${xembed_bridge_class})$`)
+	const moved = await hyprland_command(
+		`dispatch hl.dsp.window.move({ x = ${at.x}, y = ${at.y}, window = ${window} })`,
+	)
+	log_error(moved, "tray.bridge: Failed to place the XEmbed bridge")
+	return at
+}
+
+async function forward_click(
+	item: AstalTray.TrayItem,
+	method: "Activate" | "ContextMenu",
+	anchor: Gtk.Widget,
+) {
+	const address = item_address(item)
+	if (!address) {
+		console.warn("tray: Invalid item address")
+		return
+	}
+	const { x, y } = await click_point(anchor)
+	call_tray(
+		address,
+		"org.kde.StatusNotifierItem",
+		method,
+		new GLib.Variant("(ii)", [x, y]),
+		(outcome) => {
+			if (!outcome.ok) console.warn(`tray: ${method} failed`, outcome.err)
+		},
+	)
 }
 
 function TrayItem({ item }: { item: AstalTray.TrayItem }) {
@@ -80,6 +181,19 @@ function TrayItem({ item }: { item: AstalTray.TrayItem }) {
 		})
 	}
 
+	const primary_click = (button: Gtk.Widget) => {
+		if (item.menuModel) {
+			open_menu()
+			return
+		}
+		void forward_click(item, "Activate", button)
+	}
+
+	const secondary_click = (button: Gtk.Widget | null) => {
+		if (item.menuModel) open_menu()
+		else if (button) void forward_click(item, "ContextMenu", button)
+	}
+
 	return (
 		<button
 			class="tray-item"
@@ -88,9 +202,12 @@ function TrayItem({ item }: { item: AstalTray.TrayItem }) {
 			halign={Gtk.Align.CENTER}
 			$={(self) => popover.set_parent(self)}
 			tooltipText={createBinding(item, "tooltipText")}
-			onClicked={open_menu}
+			onClicked={primary_click}
 		>
-			<Gtk.GestureClick button={Gdk.BUTTON_SECONDARY} onPressed={open_menu} />
+			<Gtk.GestureClick
+				button={Gdk.BUTTON_SECONDARY}
+				onPressed={(gesture) => secondary_click(gesture.get_widget())}
+			/>
 			<image gicon={createBinding(item, "gicon")} useFallback />
 		</button>
 	)

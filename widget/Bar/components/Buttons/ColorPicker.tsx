@@ -207,10 +207,19 @@ export function ColorPicker() {
 
 function create_color_css(color: string) {
 	return `
-			button { background-color: ${color}; color: transparent; box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow); }
-			button:hover { background-color: ${color}; color: white; text-shadow: 2px 2px 3px rgba(0,0,0,.8); box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow); }
+			button { transition: none; background-color: ${color}; color: transparent; box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-highlight), var(--neu-button-shadow); }
+			button.hovered { background-color: ${color}; color: white; text-shadow: 2px 2px 3px rgba(0,0,0,.8); box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-hover-highlight), var(--neu-button-hover-shadow); }
 			button:active { background-color: ${color}; box-shadow: inset 0 0 0 var(--border-width) var(--border-color), var(--neu-button-active-highlight), var(--neu-button-active-shadow); }
 		`
+}
+
+function clear_hover(container: Gtk.Widget) {
+	for (
+		let child = container.get_first_child();
+		child;
+		child = child.get_next_sibling()
+	)
+		child.remove_css_class("hovered")
 }
 
 function create_color_popover() {
@@ -218,7 +227,25 @@ function create_color_popover() {
 		Gtk.PositionType.BOTTOM,
 		false,
 	)
-	onCleanup(dispose)
+	let swatches: Gtk.Widget | null = null
+	let settled = false
+	const unsettle = () => {
+		settled = false
+		if (swatches) clear_hover(swatches)
+	}
+	const closed_handler = popover.connect("closed", unsettle)
+	const revealed_handler = revealer.connect("notify::child-revealed", () => {
+		if (revealer.get_child_revealed()) settled = true
+	})
+	const closing_handler = revealer.connect("notify::reveal-child", () => {
+		if (!revealer.get_reveal_child()) unsettle()
+	})
+	onCleanup(() => {
+		popover.disconnect(closed_handler)
+		revealer.disconnect(revealed_handler)
+		revealer.disconnect(closing_handler)
+		dispose()
+	})
 	popover.set_focusable(false)
 	revealer.set_focusable(false)
 	revealer.set_child(
@@ -227,20 +254,39 @@ function create_color_popover() {
 				class="colorpicker vertical"
 				orientation={Gtk.Orientation.VERTICAL}
 				focusable={false}
+				$={(self) => {
+					swatches = self
+				}}
 			>
 				<For each={colors}>
-					{(color) => (
-						<button
-							label={color}
-							css={create_color_css(color)}
-							focusable={false}
-							onClicked={() => {
-								popover.get_root()?.set_focus(null)
-								pick_color(color)
-								popover.popdown()
-							}}
-						/>
-					)}
+					{(color) => {
+						let entered_at = ""
+						return (
+							<button
+								label={color}
+								css={create_color_css(color)}
+								focusable={false}
+								onClicked={() => {
+									popover.get_root()?.set_focus(null)
+									pick_color(color)
+									popover.popdown()
+								}}
+							>
+								<Gtk.EventControllerMotion
+									onEnter={(_controller, x, y) => {
+										entered_at = `${x},${y}`
+									}}
+									onMotion={(controller, x, y) => {
+										if (settled && `${x},${y}` !== entered_at)
+											controller.get_widget()?.add_css_class("hovered")
+									}}
+									onLeave={(controller) =>
+										controller.get_widget()?.remove_css_class("hovered")
+									}
+								/>
+							</button>
+						)
+					}}
 				</For>
 			</box>
 		) as Gtk.Widget,

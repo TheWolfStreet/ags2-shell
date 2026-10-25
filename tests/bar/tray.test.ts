@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import * as icons from "../../lib/icons.ts"
 import { load_module } from "../load_module.ts"
-import { accessor, jsx_runtime, nodes } from "../helpers.ts"
+import { accessor, jsx_runtime, nodes, tick } from "../helpers.ts"
 
 test.afterEach(() => mock.restoreAll())
 
@@ -12,16 +12,25 @@ function capture_warnings() {
 	return warnings
 }
 
+const tray_icon = {
+	get_native: () => ({ get_surface: () => ({}) }),
+	get_root: () => ({}),
+	get_width: () => 40,
+	compute_point: (_root, middle) => [true, { x: 680 + middle.x }],
+}
+
 async function tray_fixture({
 	is_menu = false,
 	has_menu = true,
 	menu_path = "/MenuBar" as string | null,
 	item_id = "org.example.Tray/StatusNotifierItem",
 	call_error = null as Error | null,
+	bridged = false,
 } = {}) {
 	const calls: any[][] = []
 	const popups: boolean[] = []
 	const builds: boolean[] = []
+	const commands: string[] = []
 	const cleanups: (() => void)[] = []
 	let is_menu_reads = 0
 	const item = {
@@ -44,7 +53,16 @@ async function tray_fixture({
 			onCleanup: (fn) => cleanups.push(fn),
 		},
 		"ags/gtk4": {
-			Gdk: { BUTTON_SECONDARY: 3 },
+			Gdk: {
+				BUTTON_SECONDARY: 3,
+				Display: {
+					get_default: () => ({
+						get_monitor_at_surface: () => ({
+							get_geometry: () => ({ x: 0, y: 0, width: 1920, height: 1080 }),
+						}),
+					}),
+				},
+			},
 			Gtk: { Align: { CENTER: 1 }, GestureClick: "gesture-click" },
 		},
 		"ags/gtk4/jsx-runtime": jsx_runtime,
@@ -62,6 +80,15 @@ async function tray_fixture({
 				DBusCallFlags: { NONE: 0 },
 			},
 		},
+		"gi://Graphene": {
+			default: {
+				Point: class {
+					constructor(fields) {
+						Object.assign(this, fields)
+					}
+				},
+			},
+		},
 		"gi://GLib": {
 			default: {
 				Variant: class {
@@ -74,7 +101,27 @@ async function tray_fixture({
 				},
 			},
 		},
-		"$shell/options": { default: { bar: { systray: { ignore: () => [] } } } },
+		"$shell/options": {
+			default: {
+				bar: {
+					systray: { ignore: () => [] },
+					position: { peek: () => "bottom-center" },
+				},
+				theme: { spacing: { peek: () => 6 } },
+				scale: { peek: () => 100 },
+			},
+		},
+		"widget/shared/PopupWindow": { bar_thickness: { peek: () => 40 } },
+		"$lib/hyprland": {
+			hyprland: {
+				get_cursor_position: () => ({ x: 640, y: 1050 }),
+				get_clients: () => (bridged ? [{ class: "xembedsniproxy" }] : []),
+			},
+			hyprland_command: async (message: string) => {
+				commands.push(message)
+				return { ok: true, value: undefined }
+			},
+		},
 		"./tray_menu": {
 			create_tray_menu_popover: () => ({
 				popover: { set_parent() {}, popup: () => popups.push(true) },
@@ -98,6 +145,7 @@ async function tray_fixture({
 		calls,
 		popups,
 		builds,
+		commands,
 		cleanups,
 		is_menu_reads: () => is_menu_reads,
 		complete: (index, connection: object = { call_finish() {} }) =>
@@ -110,7 +158,7 @@ for (const is_menu of [false, true])
 		const fixture = await tray_fixture({ is_menu })
 		assert.equal(fixture.gesture.props.button, 3)
 		fixture.button.props.onClicked()
-		fixture.gesture.props.onPressed()
+		fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
 		assert.equal(fixture.calls.length, 1)
 		assert.equal(fixture.calls[0][0], "org.example.Tray")
 		assert.equal(fixture.calls[0][1], "/MenuBar")
@@ -122,7 +170,7 @@ for (const is_menu of [false, true])
 		fixture.complete(0)
 		assert.equal(fixture.builds.length, 1)
 		assert.equal(fixture.popups.length, 1)
-		fixture.gesture.props.onPressed()
+		fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
 		fixture.complete(1)
 		assert.deepEqual(
 			fixture.calls.map((call) => call[3]),
@@ -132,13 +180,69 @@ for (const is_menu of [false, true])
 		assert.equal(fixture.is_menu_reads(), 0)
 	})
 
-test("tray clicks without a menu do not request activation", async () => {
+test("tray items without a menu are activated and asked for their own context menu under the icon, one popup gap past the bar", async () => {
 	const fixture = await tray_fixture({ has_menu: false })
-	fixture.button.props.onClicked()
-	fixture.gesture.props.onPressed()
-	assert.equal(fixture.calls.length, 0)
+	fixture.button.props.onClicked(tray_icon)
+	await tick()
+	fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
+	await tick()
+	assert.deepEqual(
+		fixture.calls.map(([bus_name, path, iface, method, args]) => [
+			bus_name,
+			path,
+			iface,
+			method,
+			args.value,
+		]),
+		[
+			[
+				"org.example.Tray",
+				"/StatusNotifierItem",
+				"org.kde.StatusNotifierItem",
+				"Activate",
+				[700, 1032],
+			],
+			[
+				"org.example.Tray",
+				"/StatusNotifierItem",
+				"org.kde.StatusNotifierItem",
+				"ContextMenu",
+				[700, 1032],
+			],
+		],
+	)
+	fixture.complete(0)
+	await tick()
+	assert.deepEqual(fixture.commands, [])
 	assert.equal(fixture.popups.length, 0)
 	assert.equal(fixture.is_menu_reads(), 0)
+})
+
+test("a bridged XEmbed icon moves the bridge to the click point before forwarding the click", async () => {
+	const fixture = await tray_fixture({ has_menu: false, bridged: true })
+	fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
+	await tick()
+	assert.deepEqual(fixture.commands, [
+		'dispatch hl.dsp.window.move({ x = 640, y = 1032, window = "class:^(xembedsniproxy)$" })',
+	])
+	assert.equal(fixture.calls[0][3], "ContextMenu")
+	assert.deepEqual(fixture.calls[0][4].value, [640, 1032])
+	fixture.complete(0)
+	await tick()
+	assert.equal(fixture.commands.length, 1)
+	fixture.button.props.onClicked(tray_icon)
+	await tick()
+	assert.equal(fixture.calls[1][3], "Activate")
+	assert.deepEqual(fixture.calls[1][4].value, [640, 1032])
+})
+
+test("a failing ContextMenu call warns", async () => {
+	const warnings = capture_warnings()
+	const failure = new Error("bus gone")
+	const fixture = await tray_fixture({ has_menu: false, call_error: failure })
+	fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
+	await tick()
+	assert.deepEqual(warnings, [["tray: ContextMenu failed", failure]])
 })
 
 for (const [name, options] of [
@@ -421,6 +525,10 @@ async function menu_fixture({
 					dispose: () => popover.events.push("dispose"),
 				}
 			},
+			follow_bar_position: (popover) => {
+				popover.events.push("follow")
+				return () => popover.events.push("unfollow")
+			},
 		},
 	}
 	const { create_tray_menu_popover } = await load_module(
@@ -520,10 +628,10 @@ test("tray menu items activate their action and close the menu", async () => {
 	const [known, missing] = fixture.menu().children
 	known.click()
 	assert.deepEqual(group.activated, [["mode", "b"]])
-	assert.deepEqual(fixture.root.events, ["popdown"])
+	assert.deepEqual(fixture.root.events, ["follow", "popdown"])
 	missing.click()
 	assert.deepEqual(group.activated, [["mode", "b"]])
-	assert.deepEqual(fixture.root.events, ["popdown", "popdown"])
+	assert.deepEqual(fixture.root.events, ["follow", "popdown", "popdown"])
 })
 
 test("tray menu items without an action group are inert", async () => {
@@ -533,7 +641,7 @@ test("tray menu items without an action group are inert", async () => {
 	const [button] = fixture.menu().children
 	assert.equal(button.sensitive, false)
 	button.click()
-	assert.deepEqual(fixture.root.events, ["popdown"])
+	assert.deepEqual(fixture.root.events, ["follow", "popdown"])
 })
 
 test("tray menu sections are separated only after existing items", async () => {
@@ -577,7 +685,7 @@ test("tray submenus open their own popover and close the whole menu", async () =
 	inner.children[0].click()
 	assert.deepEqual(group.activated, [["inner", null]])
 	assert.deepEqual(submenu.events, ["popup", "popdown"])
-	assert.deepEqual(fixture.root.events, ["popdown"])
+	assert.deepEqual(fixture.root.events, ["follow", "popdown"])
 })
 
 test("tray menu traversal stops at cycles, depth 16 and 200 items", async () => {
@@ -736,7 +844,12 @@ test("tray menu cleanup releases every connection and popover", async () => {
 	assert.equal(submodel.connected(), 0)
 	assert.equal(group.connected(), 0)
 	assert.deepEqual(fixture.popovers[2].events, ["dispose", "unparent"])
-	assert.deepEqual(fixture.root.events, ["dispose", "unparent"])
+	assert.deepEqual(fixture.root.events, [
+		"follow",
+		"unfollow",
+		"dispose",
+		"unparent",
+	])
 	assert.deepEqual(old_submenu.events, ["dispose", "unparent"])
 })
 

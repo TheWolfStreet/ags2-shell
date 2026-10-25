@@ -193,15 +193,18 @@ function palette(prefix: string) {
 	}
 }
 
-test("tmux accent sync sets the global and every session accent in order", async () => {
+test("tmux accent sync sets the global accent pair, then every session's pair in order", async () => {
 	const state = await fixture()
 	assert.equal(state.module.default().ok, true)
 	await tick()
 	assert.deepEqual(state.commands, [
 		["tmux", "set", "-g", "@main_accent", "#51a4e7"],
+		["tmux", "set", "-g", "@main_accent_fg", "#000000"],
 		["tmux", "list-sessions", "-F", "#S"],
 		["tmux", "set-option", "-t", "main", "@main_accent", "#51a4e7"],
+		["tmux", "set-option", "-t", "main", "@main_accent_fg", "#000000"],
 		["tmux", "set-option", "-t", "work", "@main_accent", "#51a4e7"],
+		["tmux", "set-option", "-t", "work", "@main_accent_fg", "#000000"],
 	])
 })
 
@@ -211,16 +214,21 @@ test("tmux failures are debug notes and never stop the remaining sessions", asyn
 	const state = await fixture({ failing: ["set", "main"] })
 	state.module.default()
 	await tick()
-	assert.equal(state.commands.length, 4)
+	assert.equal(state.commands.length, 7)
 	assert.deepEqual(
 		debug.mock.calls.map((call) => [
 			call.arguments[0],
 			(call.arguments[1] as Error).message,
 		]),
 		[
-			["startup.tmux: Accent sync skipped", "set failed"],
+			["startup.tmux: @main_accent sync skipped", "set failed"],
+			["startup.tmux: @main_accent_fg sync skipped", "set failed"],
 			[
-				"startup.tmux: Accent sync skipped for session main",
+				"startup.tmux: @main_accent sync skipped for session main",
+				"set-option failed",
+			],
+			[
+				"startup.tmux: @main_accent_fg sync skipped for session main",
 				"set-option failed",
 			],
 		],
@@ -234,7 +242,7 @@ test("missing tmux sessions end the sync after the global accent", async (t) => 
 	const state = await fixture({ failing: ["list-sessions"] })
 	state.module.default()
 	await tick()
-	assert.equal(state.commands.length, 2)
+	assert.equal(state.commands.length, 3)
 	assert.equal(error.mock.calls.length, 0)
 	assert.equal(
 		debug.mock.calls[0].arguments[0],
@@ -243,7 +251,7 @@ test("missing tmux sessions end the sync after the global accent", async (t) => 
 	const empty = await fixture({ sessions: "" })
 	empty.module.default()
 	await tick()
-	assert.equal(empty.commands.length, 2)
+	assert.equal(empty.commands.length, 3)
 })
 
 test("tmux sync follows the accent toggle and the active scheme", async () => {
@@ -264,6 +272,8 @@ test("tmux sync follows the accent toggle and the active scheme", async () => {
 		"@main_accent",
 		"#426ede",
 	])
+	assert.equal(state.commands[1][3], "@main_accent_fg")
+	assert.match(state.commands[1][4], /^#[0-9a-f]{6}$/)
 	const absent = await fixture({ tmux: false })
 	absent.module.default()
 	await tick()

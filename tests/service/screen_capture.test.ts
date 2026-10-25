@@ -66,6 +66,8 @@ async function service_fixture({
 	copy_successful = true,
 	capture_error = null as Error | null,
 	finish_error = null as Error | null,
+	start_error = null as Error | null,
+	selection_successful = true,
 	recording_size = 1024,
 } = {}) {
 	let resolve_pidof
@@ -93,6 +95,12 @@ async function service_fixture({
 			register: () => (value) => value,
 		},
 		"$lib/commands": {
+			communicate: (
+				await load_module("lib/commands.ts", {
+					"gi://Gio": { default: {} },
+					"gi://GLib": { default: {} },
+				})
+			).communicate,
 			run_command: (args: string[]) => {
 				commands.push(args)
 				if (args[0] === "grim" && capture_error)
@@ -152,6 +160,7 @@ async function service_fixture({
 								this.callback?.(this, {})
 							},
 							communicate_utf8_async(_input, _cancel, callback) {
+								if (start_error) throw start_error
 								this.communicated = true
 								this.callback = callback
 							},
@@ -160,7 +169,7 @@ async function service_fixture({
 								return [true, "10,20 30x40", ""]
 							},
 							get_successful() {
-								return true
+								return selection_successful
 							},
 						}
 						processes.push(process)
@@ -339,6 +348,35 @@ test("failed grim capture returns its error without copying or notifying", async
 	])
 	assert.equal(fixture.copies.length, 0)
 	assert.equal(fixture.notifications.length, 0)
+})
+
+test("a selection exchange that cannot start returns its error and frees the selector", async () => {
+	const failure = new Error("bad arguments")
+	const fixture = await service_fixture({ start_error: failure })
+	const result = await fixture.service.screenshot({ scope: "area" })
+	assert.deepEqual(result, { ok: false, err: failure })
+	assert.equal(
+		fixture.commands.some((args) => args[0] === "grim"),
+		false,
+	)
+	assert.equal(
+		(await fixture.service.screenshot({ scope: "area" })).err,
+		failure,
+	)
+	assert.equal(fixture.processes.length, 2)
+})
+
+test("an unsuccessful selector cancels without capturing", async () => {
+	const fixture = await service_fixture({ selection_successful: false })
+	const screenshot = fixture.service.screenshot({ scope: "area" })
+	await Promise.resolve()
+	await Promise.resolve()
+	fixture.processes[0].callback!(fixture.processes[0], {})
+	assert.equal((await screenshot).value, "cancelled")
+	assert.equal(
+		fixture.commands.some((args) => args[0] === "grim"),
+		false,
+	)
 })
 
 test("failed selection finish returns its error and frees the selector", async () => {

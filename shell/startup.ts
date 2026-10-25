@@ -38,9 +38,13 @@ const settings = new Gio.Settings({
 const dark_icon_suffixes = ["-dark", "-Dark", "_dark"]
 const light_icon_suffixes = ["-light", "-Light", "_light", ""]
 
+function primary_colors() {
+	const primary = scheme.peek() === "dark" ? dark.primary : light.primary
+	return { bg: primary.bg.peek(), fg: primary.fg.peek() }
+}
+
 function primary_color() {
-	if (scheme.peek() === "dark") return dark.primary.bg.peek()
-	return light.primary.bg.peek()
+	return primary_colors().bg
 }
 
 function serialized(task: () => Promise<void>, tag: string) {
@@ -98,29 +102,31 @@ function tmux(args: string[]): Promise<result<string>> {
 }
 
 async function sync_tmux_accent() {
-	const hex = primary_color()
-	const global = await tmux(["set", "-g", "@main_accent", hex])
-	if (!global.ok) console.debug("startup.tmux: Accent sync skipped", global.err)
+	const { bg, fg } = primary_colors()
+	const accents: [string, string][] = [
+		["@main_accent", bg],
+		["@main_accent_fg", fg],
+	]
+	for (const [name, value] of accents) {
+		const global = await tmux(["set", "-g", name, value])
+		if (!global.ok)
+			console.debug(`startup.tmux: ${name} sync skipped`, global.err)
+	}
 
 	const sessions = await tmux(["list-sessions", "-F", "#S"])
 	if (!sessions.ok) {
 		console.debug("startup.tmux: No tmux sessions to sync", sessions.err)
 		return
 	}
-	for (const session of sessions.value.split("\n").filter(Boolean)) {
-		const updated = await tmux([
-			"set-option",
-			"-t",
-			session,
-			"@main_accent",
-			hex,
-		])
-		if (!updated.ok)
-			console.debug(
-				`startup.tmux: Accent sync skipped for session ${session}`,
-				updated.err,
-			)
-	}
+	for (const session of sessions.value.split("\n").filter(Boolean))
+		for (const [name, value] of accents) {
+			const updated = await tmux(["set-option", "-t", session, name, value])
+			if (!updated.ok)
+				console.debug(
+					`startup.tmux: ${name} sync skipped for session ${session}`,
+					updated.err,
+				)
+		}
 }
 
 const sync_scheme = debounce(scheme_sync_debounce_ms, () => {
@@ -141,7 +147,9 @@ function start_tmux_accent_sync() {
 	sync_if_enabled()
 	options.tmux.accent.subscribe(sync_if_enabled)
 	dark.primary.bg.subscribe(sync_if_enabled)
+	dark.primary.fg.subscribe(sync_if_enabled)
 	light.primary.bg.subscribe(sync_if_enabled)
+	light.primary.fg.subscribe(sync_if_enabled)
 	scheme.subscribe(sync_if_enabled)
 }
 

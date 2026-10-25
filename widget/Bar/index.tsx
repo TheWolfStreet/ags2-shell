@@ -27,6 +27,7 @@ import {
 	track_monitor_fullscreen,
 } from "$lib/windowing"
 import { screen_capture } from "$service/screen_capture"
+import { set_bar_thickness } from "widget/shared/PopupWindow"
 
 const { CENTER, START, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
@@ -110,6 +111,7 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 
 		const [, height] = panel.measure(VERTICAL, -1)
 		LayerShell.set_exclusive_zone(bar_window, height)
+		set_bar_thickness(height)
 
 		const region = new cairo.Region()
 		region.unionRectangle({

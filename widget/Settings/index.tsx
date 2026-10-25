@@ -5,8 +5,12 @@ import { Gtk } from "ags/gtk4"
 import { create_pages } from "./components/pages"
 
 import icons from "$lib/icons"
-import { hyprland, hyprland_command } from "$lib/hyprland"
-import { log_error } from "$lib/result"
+import { hyprland } from "$lib/hyprland"
+import {
+	focus_client,
+	move_client_to_workspace_silent,
+	raise_client,
+} from "$lib/windowing"
 
 import options, { collect_options, scaled } from "$shell/options"
 
@@ -17,19 +21,27 @@ export namespace Settings {
 
 	let root: (() => void) | null = null
 
-	async function move_to_focused_workspace() {
-		const workspace = hyprland.focusedWorkspace?.id
-		if (workspace == null) return
-		const moved = await hyprland_command(
-			`dispatch hl.dsp.window.move({ workspace = ${workspace}, window = "title:^(Settings)$" })`,
+	function settings_client() {
+		const app_id = app.get_application_id()
+		return hyprland.clients.find(
+			(client) => client.class === app_id && client.title === "Settings",
 		)
-		log_error(moved, "settings: Failed to move window")
+	}
+
+	async function bring_forward() {
+		const client = settings_client()
+		if (!client) return
+		const workspace = hyprland.focusedWorkspace?.id
+		if (workspace != null && client.workspace?.id !== workspace)
+			await move_client_to_workspace_silent(workspace, client)
+		await focus_client(client)
+		await raise_client(client)
 	}
 
 	function open_settings() {
 		const settings = ensure_window()
 		app.get_window("quicksettings")?.hide()
-		if (settings?.visible) void move_to_focused_workspace()
+		if (settings?.visible) void bring_forward()
 		else settings?.show()
 	}
 

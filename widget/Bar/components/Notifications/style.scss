@@ -28,17 +28,16 @@
 	}
 
 	box.content {
-		picture.avatar {
-			border-radius: calc(var(--radius) * 0.8);
+		overlay.avatar,
+		overlay.preview {
 			margin-right: var(--spacing);
+
+			> picture {
+				border-radius: calc(var(--radius) * 0.8);
+			}
 		}
 
-		picture.preview {
-			border-radius: calc(var(--radius) * 0.8);
-			margin-right: var(--spacing);
-		}
-
-		&.history picture.preview {
+		&.history overlay.preview {
 			margin-right: 0;
 			margin-top: var(--spacing);
 		}

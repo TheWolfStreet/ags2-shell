@@ -3,14 +3,17 @@ import GLib from "gi://GLib"
 
 import { attempt, err, ok, type result } from "$lib/result"
 
-function communicate(
+export function communicate(
 	process: Gio.Subprocess,
 ): Promise<result<[boolean, string, string]>> {
-	return new Promise((resolve) =>
-		process.communicate_utf8_async(null, null, (_source, response) =>
-			resolve(attempt(() => process.communicate_utf8_finish(response))),
-		),
-	)
+	return new Promise((resolve) => {
+		const started = attempt(() =>
+			process.communicate_utf8_async(null, null, (_source, response) =>
+				resolve(attempt(() => process.communicate_utf8_finish(response))),
+			),
+		)
+		if (!started.ok) resolve(started)
+	})
 }
 
 export async function run_command(
@@ -33,7 +36,10 @@ export async function run_command(
 	})
 	const finished = await communicate(process)
 	if (!timed_out) GLib.Source.remove(deadline)
-	if (!finished.ok) return finished
+	if (!finished.ok) {
+		process.force_exit()
+		return finished
+	}
 	const [, stdout, stderr] = finished.value
 	if (timed_out) return err(new Error(`Timed out running ${args[0]}`))
 	if (!process.get_successful())

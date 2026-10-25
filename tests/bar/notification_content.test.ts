@@ -92,7 +92,11 @@ async function render_notification(
 		},
 		"ags/gtk4": {
 			Astal: { Exclusivity: { NORMAL: 1 }, WindowAnchor: {} },
-			Gdk: {},
+			Gdk: {
+				Paintable: {
+					new_empty: (width: number, height: number) => ({ width, height }),
+				},
+			},
 			Gtk: {
 				Picture: "picture",
 				Align: { START: 1, CENTER: 2, END: 3 },
@@ -355,7 +359,8 @@ test("archived legacy captures retain their descriptors but never offer stale UU
 		screenshot_path,
 	)
 	assert.equal(
-		screenshot.nodes.find((item) => item.type === "picture").props.tooltipText,
+		screenshot.nodes.find((item) => item.props.class === "preview").children[1]
+			.props.tooltipText,
 		screenshot_path,
 	)
 	assert.equal(action_revealer(screenshot), undefined)
@@ -473,14 +478,14 @@ test("explicit message-image metadata uses compact left-side avatars independent
 			assert.equal(content.props.orientation, 2)
 			assert.equal(content.children.length, 2)
 			assert.equal(content.children[1].type, "box")
-			const avatar = content.children[0]
-			assert.equal(avatar.props.class, "avatar", app_name)
-			assert.equal(avatar.props.widthRequest(), 48)
-			assert.equal(avatar.props.heightRequest(), 48)
-			assert.equal(avatar.props.halign, 1)
+			const frame = content.children[0]
+			const [shape, avatar] = frame.children
+			assert.equal(frame.props.class, "avatar", app_name)
+			assert.equal(shape.props.widthRequest(), 48)
+			assert.equal(shape.props.heightRequest(), 48)
+			assert.equal(frame.props.halign, 1)
 			assert.equal(avatar.props.tooltipText, image)
-			avatar.props.paintable()
-			assert.deepEqual(view.texture_requests, [[image, 48, "contain"]])
+			assert.deepEqual(view.texture_requests, [[image, 128, "contain"]])
 		}
 })
 
@@ -545,31 +550,50 @@ test("explicit attachment paths and cached non-message previews remain attachmen
 			(item) => item.props.class === "content history",
 		)
 		assert.equal(content.props.orientation, 1)
-		assert.equal(content.children[1].props.class, "preview")
-		assert.equal(content.children[1].props.heightRequest(), 160)
+		const frame = content.children[1]
+		assert.equal(frame.props.class, "preview")
+		assert.equal(frame.children[0].props.heightRequest(), 160)
 	}
 })
 
-test("previews fit the texture inside the preview box", async () => {
+function view_texture_size(view) {
+	return view.texture_requests.at(-1)[1]
+}
+
+test("previews keep the old natural size while the texture decodes at a fixed size", async () => {
 	const texture = (width: number, height: number) => ({
 		get_width: () => width,
 		get_height: () => height,
 	})
-	for (const [persistent, size, expected] of [
-		[true, texture(520, 200), 100],
-		[true, texture(100, 400), 160],
-		[true, texture(1, 1000), 160],
-		[true, texture(10000, 1), 1],
-		[false, texture(300, 150), 38],
-		[false, texture(10, 10000), 75],
+	for (const [persistent, size, natural, height] of [
+		[true, texture(520, 200), [260, 100], 100],
+		[true, texture(100, 400), [65, 260], 160],
+		[true, texture(1, 1000), [0, 260], 160],
+		[true, texture(10000, 1), [260, 0], 1],
+		[false, texture(300, 150), [75, 38], 38],
+		[false, texture(10, 10000), [0, 75], 75],
 	] as const) {
 		const view = await render_notification(persistent, [], {
 			image: "/pictures/attachment.png",
 			texture: size,
 		})
-		const preview = view.nodes.find((item) => item.props.class === "preview")
-		assert.equal(preview.props.heightRequest(), expected)
-		assert.equal(preview.props.widthRequest, undefined)
-		assert.equal(preview.props.visible(), true)
+		const frame = view.nodes.find((item) => item.props.class === "preview")
+		const [shape, picture] = frame.children
+		const { width, height: natural_height } = shape.props.paintable()
+		assert.deepEqual([width, natural_height], natural)
+		assert.equal(shape.props.heightRequest(), height)
+		assert.equal(shape.props.widthRequest, undefined)
+		assert.equal(shape.props.canShrink, true)
+		assert.equal(picture.props.paintable(), size)
+		assert.equal(frame.props.visible(), true)
 	}
+	assert.equal(
+		view_texture_size(
+			await render_notification(true, [], {
+				image: "/pictures/attachment.png",
+				texture: texture(1, 1),
+			}),
+		),
+		512,
+	)
 })

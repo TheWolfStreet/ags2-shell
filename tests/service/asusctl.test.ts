@@ -448,9 +448,23 @@ test("policy snaps stored rates to the nearest available mode and Quiet uses bat
 	assert.deepEqual(messages, [rule("1920x1080@59.94")])
 })
 
-test("a disabled or missing internal panel applies nothing and lists no rates", async () => {
+test("a disabled internal panel lists its rates but applies nothing", async () => {
+	const panel = { ...edp_panel(), disabled: true, refreshRate: 60 }
+	const { service, messages, asus, option_changes } = await fixture({
+		run: profile_reader("Balanced", () => [panel]),
+	})
+	assert.deepEqual(service.refreshRates, [60, 120])
+	assert.deepEqual(messages, [])
+	asus.ac_hz.set(60)
+	for (const changed of option_changes) changed()
+	await tick()
+	assert.deepEqual(messages, [])
+	assert.equal(asus.ac_hz.peek(), 60)
+	assert.equal(asus.bat_hz.peek(), 60)
+})
+
+test("a missing or malformed internal panel applies nothing and lists no rates", async () => {
 	for (const monitors of [
-		[{ ...edp_panel(), disabled: true }],
 		[{ ...edp_panel(), name: "DP-1" }],
 		[{ ...edp_panel(), scale: 0 }],
 		[{ ...edp_panel(), transform: 0.5 }],

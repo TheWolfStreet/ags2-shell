@@ -1065,10 +1065,10 @@ test("media cover art prefers the art url and hides without a texture", async ()
 	const m = await media_fixture()
 	const p = player({ coverArt: "file:///cover.png" })
 	const ui = media_parts(m.MediaPlayer({ player: p }))
-	assert.equal(ui.cover.props.paintable(), "file:///cover.png@100")
+	assert.equal(ui.cover.props.paintable(), "file:///cover.png@128")
 	assert.equal(ui.cover.props.visible(), true)
 	p.artUrl = "https://art"
-	assert.equal(ui.cover.props.paintable(), "https://art@100")
+	assert.equal(ui.cover.props.paintable(), "https://art@128")
 	p.artUrl = ""
 	p.coverArt = ""
 	assert.equal(ui.cover.props.visible(), false)

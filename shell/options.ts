@@ -184,9 +184,10 @@ type option_rule =
 	| { kind: "range"; min: number; max: number; integer: boolean }
 	| { kind: "font" }
 	| { kind: "color" }
+	| { kind: "icon" }
 
 export type option_editor =
-	"enum" | "font" | "color" | "boolean" | "number" | "string"
+	"enum" | "font" | "color" | "icon" | "boolean" | "number" | "string"
 
 class Ruled<T> {
 	constructor(
@@ -205,6 +206,10 @@ function range(initial: number, min: number, max: number, integer = true) {
 
 function font(initial: string) {
 	return new Ruled(initial, { kind: "font" })
+}
+
+function icon(initial: string) {
+	return new Ruled(initial, { kind: "icon" })
 }
 
 function inferred_rule(initial: unknown): option_rule | null {
@@ -259,6 +264,7 @@ export class Opt<T> extends Accessor<T> {
 		if (this.rule?.kind === "choice") return "enum"
 		if (this.rule?.kind === "font") return "font"
 		if (this.rule?.kind === "color") return "color"
+		if (this.rule?.kind === "icon") return "icon"
 		if (typeof this.#default === "boolean") return "boolean"
 		if (typeof this.#default === "number") return "number"
 		return "string"
@@ -479,7 +485,7 @@ const options = mk_options({
 		corners: range(50, 0, 100),
 
 		launcher: {
-			icon: default_launcher_icon(),
+			icon: icon(default_launcher_icon()),
 		},
 		workspaces: {
 			count: range(7, 0, 16),
@@ -533,12 +539,12 @@ const options = mk_options({
 	},
 
 	quicksettings: {
-		position: choice("top-right", popup_positions),
+		position: choice("right", ["left", "center", "right"]),
 		width: range(380, 100, 1200),
 	},
 
 	datemenu: {
-		position: choice("center", ["center", "top-center", "bottom-center"]),
+		position: choice("center", ["left", "center", "right"]),
 	},
 
 	powermenu: {

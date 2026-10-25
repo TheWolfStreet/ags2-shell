@@ -124,19 +124,28 @@ function check_image_size(path: string): result<void> {
 	return ok(undefined)
 }
 
+function start_async<T>(
+	start: (finish: (finished: result<T>) => void) => void,
+): Promise<result<T>> {
+	return new Promise((resolve) => {
+		const started = attempt(() => start(resolve))
+		if (!started.ok) resolve(started)
+	})
+}
+
 function read_image_info(path: string) {
-	return new Promise<result<image_info>>((resolve) =>
+	return start_async<image_info>((finish) =>
 		GdkPixbuf.Pixbuf.get_file_info_async(path, null, (_source, result) =>
-			resolve(attempt(() => GdkPixbuf.Pixbuf.get_file_info_finish(result))),
+			finish(attempt(() => GdkPixbuf.Pixbuf.get_file_info_finish(result))),
 		),
 	)
 }
 
 function open_stream(path: string) {
 	const file = Gio.File.new_for_path(path)
-	return new Promise<result<Gio.FileInputStream>>((resolve) =>
+	return start_async<Gio.FileInputStream>((finish) =>
 		file.read_async(GLib.PRIORITY_DEFAULT, null, (_source, result) =>
-			resolve(attempt(() => file.read_finish(result))),
+			finish(attempt(() => file.read_finish(result))),
 		),
 	)
 }
@@ -149,14 +158,14 @@ function finish_preview(result: Gio.AsyncResult): result<void> {
 }
 
 function decode_preview(stream: Gio.InputStream) {
-	return new Promise<result<void>>((resolve) =>
+	return start_async<void>((finish) =>
 		GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(
 			stream,
 			validation_size,
 			validation_size,
 			true,
 			null,
-			(_source, result) => resolve(finish_preview(result)),
+			(_source, result) => finish(finish_preview(result)),
 		),
 	)
 }

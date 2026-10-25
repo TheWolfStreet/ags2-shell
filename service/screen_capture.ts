@@ -9,7 +9,7 @@ import Gio from "gi://Gio"
 import env from "$lib/env"
 import { attempt, err, log_error, ok, type result } from "$lib/result"
 import { ensure_directory, file_size } from "$lib/files"
-import { run_command } from "$lib/commands"
+import { communicate, run_command } from "$lib/commands"
 import { copy_to_clipboard } from "$lib/clipboard"
 import { hyprland } from "$lib/hyprland"
 import { notify, notify_missing_programs } from "$lib/notifications"
@@ -102,24 +102,13 @@ function notify_recording_saved(file: string) {
 	)
 }
 
-function finish_selection(
+async function read_selection(
 	process: Gio.Subprocess,
-	response: Gio.AsyncResult,
-): string {
-	const [, out] = process.communicate_utf8_finish(response)
-	if (!process.get_successful()) return ""
-	return out.trim()
-}
-
-function read_selection(process: Gio.Subprocess): Promise<result<string>> {
-	return new Promise((resolve) => {
-		const started = attempt(() =>
-			process.communicate_utf8_async(null, null, (_source, response) =>
-				resolve(attempt(() => finish_selection(process, response))),
-			),
-		)
-		if (!started.ok) resolve(started)
-	})
+): Promise<result<string>> {
+	const finished = await communicate(process)
+	if (!finished.ok) return finished
+	if (!process.get_successful()) return ok("")
+	return ok(finished.value[1].trim())
 }
 
 function wait_for_exit(

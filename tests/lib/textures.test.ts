@@ -261,16 +261,19 @@ const files_module = await load_module("lib/files.ts", {
 	"gi://Gio": { default: mocks.gio },
 	"gi://GLib": { default: mocks.glib },
 })
-const { create_texture_accessor, texture_from_file_square_contain } =
-	await load_module("lib/textures.ts", {
-		ags: { createState },
-		"ags/gtk4": { Gdk: mocks.gdk.Gdk },
-		"gi://GLib": { default: mocks.glib },
-		"gi://Gio": { default: mocks.gio },
-		"gi://GdkPixbuf": { default: mocks.pixbuf },
-		"$lib/env": { default: mocks.env },
-		"$lib/files": files_module,
-	})
+const {
+	create_display_texture,
+	create_texture_accessor,
+	texture_from_file_square_contain,
+} = await load_module("lib/textures.ts", {
+	ags: { createState },
+	"ags/gtk4": { Gdk: mocks.gdk.Gdk },
+	"gi://GLib": { default: mocks.glib },
+	"gi://Gio": { default: mocks.gio },
+	"gi://GdkPixbuf": { default: mocks.pixbuf },
+	"$lib/env": { default: mocks.env },
+	"$lib/files": files_module,
+})
 
 test("direct square textures also clamp before decoding and caching", () => {
 	files.set("/mock/direct.png", { size: 100 })
@@ -337,6 +340,38 @@ test("HTTP requests above 512 share the same bounded subscriber", () => {
 	cache.set("/mock-cache/artwork/.temporary", { size: 100 })
 	downloads.shift()!(null, {})
 	assert.deepEqual(zoomed(), { image: true })
+})
+
+test("display textures decode at the requested size without the thumbnail cap or cache", () => {
+	files.set("/mock/display.png", { size: 100 })
+	image_dimensions = [2560, 1600]
+	try {
+		const initial = reads.length
+		const preview = create_display_texture("/mock/display.png", 1850)
+		const again = create_display_texture("/mock/display.png", 1850)
+		assert.notEqual(preview, again)
+		assert.equal(reads.length, initial + 2)
+		reads.shift()!.callback(null, {})
+		assert.deepEqual(decode_bounds.at(-1), [1850, 1850])
+		decodes.shift()!(null, {})
+		assert.equal(created.at(-1), pixbuf)
+		assert.deepEqual(preview(), { image: true })
+		reads.shift()!.callback(null, {})
+		decodes.shift()!(null, {})
+		create_display_texture("/mock/display.png", 20000)
+		reads.shift()!.callback(null, {})
+		assert.deepEqual(decode_bounds.at(-1), [8192, 8192])
+		decodes.shift()!(null, {})
+		assert.equal(create_display_texture("/mock/display.png", 0)(), null)
+		assert.equal(create_display_texture("", 1850)(), null)
+		create_texture_accessor("/mock/display.png", 1850, "contain")
+		reads.shift()!.callback(null, {})
+		assert.deepEqual(decode_bounds.at(-1), [512, 512])
+		decodes.shift()!(null, {})
+		assert.equal(reads.length, initial)
+	} finally {
+		image_dimensions = [8, 8]
+	}
 })
 
 test("notification-style preview keeps landscape dimensions without square padding", () => {

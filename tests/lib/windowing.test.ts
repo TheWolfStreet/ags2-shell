@@ -118,9 +118,28 @@ test("client lists keep titled or classed clients, sorted and filtered by worksp
 		workspace: null,
 		get_workspace: () => ({ id: 3 }),
 	})
-	hyprland.clients = [late, null, early, untitled, titled, nowhere]
+	const wine_menu = client({
+		class: "steam_proton",
+		title: "",
+		xwayland: true,
+		floating: true,
+		workspace: { id: 1 },
+	})
+	const untitled_wayland = client({
+		address: "d",
+		title: "",
+		floating: true,
+		workspace: { id: 1 },
+	})
+	hyprland.clients = [late, null, early, untitled, titled, nowhere, wine_menu]
 	assert.deepEqual(module.create_workspace_clients(3)(), [late, nowhere])
 	assert.deepEqual(module.create_workspace_clients(1)(), [early, titled])
+	hyprland.clients = [early, untitled_wayland, wine_menu]
+	assert.deepEqual(module.create_workspace_clients(1)(), [
+		early,
+		untitled_wayland,
+	])
+	hyprland.clients = [late, null, early, untitled, titled, nowhere, wine_menu]
 	const [exclusive, set_exclusive] = create_state(false)
 	const list = module.create_window_client_list(exclusive)
 	assert.deepEqual(list(), [early, titled, late, nowhere])
@@ -191,6 +210,7 @@ test("client dispatches quote the address and report failures with their tag", a
 	})
 	assert.equal((await module.focus_client(" abc ")).ok, true)
 	assert.equal((await module.close_client({ address: "0x12" })).ok, true)
+	assert.equal((await module.raise_client({ address: "0x7" })).ok, true)
 	assert.equal(
 		(
 			await module.move_client_to_workspace_silent(5, {
@@ -206,6 +226,7 @@ test("client dispatches quote the address and report failures with their tag", a
 	assert.deepEqual(hyprland.messages, [
 		'dispatch hl.dsp.focus({ window = "address:0xabc" })',
 		'dispatch hl.dsp.window.close({ window = "address:0x12" })',
+		'dispatch hl.dsp.window.alter_zorder({ mode = "top", window = "address:0x7" })',
 		'dispatch hl.dsp.window.move({ workspace = 5, follow = false, window = "address:0x34" })',
 		'dispatch hl.dsp.focus({ window = "address:0x9" })',
 		'dispatch hl.dsp.window.fullscreen({ window = "address:0x9" })',
@@ -219,7 +240,7 @@ test("client dispatches quote the address and report failures with their tag", a
 		address: "9",
 	})
 	assert.equal(fullscreen.ok, false)
-	assert.equal(hyprland.messages.length, 6)
+	assert.equal(hyprland.messages.length, 7)
 	assert.deepEqual(
 		logged.map(([tag, error]) => [tag, (error as Error).message]),
 		[

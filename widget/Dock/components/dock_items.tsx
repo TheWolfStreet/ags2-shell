@@ -5,7 +5,7 @@ import { timeout } from "$lib/time"
 import AstalApps from "gi://AstalApps"
 import AstalHyprland from "gi://AstalHyprland"
 
-import icons from "$lib/icons"
+import icons, { client_icon_name } from "$lib/icons"
 import { log_error } from "$lib/result"
 import {
 	close_client,
@@ -248,7 +248,7 @@ function GroupedIcon({
 					}}
 				/>
 				<ApplicationIcon
-					icon={icon_name || app_class || icons.fallback.app}
+					icon={client_icon_name(icon_name, app_class)}
 					size={icon_size}
 				/>
 			</button>

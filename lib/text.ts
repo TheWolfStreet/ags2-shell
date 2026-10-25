@@ -9,3 +9,8 @@ export function is_launcher_path(path: string): boolean {
 export function describe_exit(code: number, signaled: boolean): string {
 	return `${signaled ? "signal" : "status"} ${code}`
 }
+
+export function icon_tooltip(icon: string): string {
+	if (!icon) return "Choose icon"
+	return base_name(icon)
+}

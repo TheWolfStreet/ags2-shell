@@ -169,17 +169,9 @@ window#desktop-context-menu {
 }
 
 window.desktop-open-with {
-	background: var(--bg);
-	color: var(--fg);
+	@include dialog-window;
 
 	.header {
-		padding: var(--padding);
-		border-bottom: 1px solid var(--border-color);
-
-		label.title {
-			font-weight: 700;
-		}
-
 		button {
 			@extend %flat-button;
 			padding: calc(var(--padding) / 2) var(--padding);
@@ -252,17 +244,9 @@ window.desktop-open-with {
 }
 
 window.desktop-launcher-creator {
-	background: var(--bg);
-	color: var(--fg);
+	@include dialog-window;
 
 	.header {
-		padding: var(--padding);
-		border-bottom: 1px solid var(--border-color);
-
-		label.title {
-			font-weight: 700;
-		}
-
 		button.back {
 			@extend %flat-button;
 		}
@@ -465,34 +449,6 @@ window.desktop-launcher-creator {
 		> box > *:not(:last-child) {
 			margin-right: calc(var(--spacing) / 2);
 		}
-	}
-
-	gridview.icon-grid {
-		padding: calc(var(--padding) / 2);
-	}
-
-	.icon-grid > child {
-		padding: calc(var(--spacing) / 4);
-		border-radius: calc(var(--radius) * 0.65);
-		transition: var(--transition);
-
-		&:hover {
-			background-color: var(--hover-bg);
-			color: var(--hover-fg);
-		}
-	}
-
-	.icon-option {
-		padding: calc(var(--padding) * 0.75);
-		min-width: calc(74px * var(--scale, 1));
-	}
-
-	.icon-option > *:not(:last-child) {
-		margin-bottom: calc(var(--spacing) / 2);
-	}
-
-	.icon-option label {
-		font-size: 0.8em;
 	}
 
 	.selector-actions {

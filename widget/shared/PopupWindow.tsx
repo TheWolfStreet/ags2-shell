@@ -1,4 +1,10 @@
-import { createComputed, onCleanup, onMount, type Accessor } from "ags"
+import {
+	createComputed,
+	createState,
+	onCleanup,
+	onMount,
+	type Accessor,
+} from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
 
@@ -35,8 +41,22 @@ const { SLIDE_UP, SLIDE_DOWN, SLIDE_LEFT, SLIDE_RIGHT, CROSSFADE } =
 const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 const { ON_DEMAND } = Astal.Keymode
 const { IGNORE } = Astal.Exclusivity
-const { TOP: layer_top } = Astal.Layer
+const { TOP: layer_top, OVERLAY: layer_overlay } = Astal.Layer
 const { KEY_Escape } = Gdk
+
+const [bar_thickness, set_bar_thickness] = createState(0)
+
+export { bar_thickness, set_bar_thickness }
+
+function bar_attachment() {
+	const bar_on_top = options.bar.position.as((value) => value === "top-center")
+	return {
+		exclusivity: IGNORE,
+		layer: layer_overlay,
+		marginTop: createComputed(() => (bar_on_top() ? bar_thickness() : 0)),
+		marginBottom: createComputed(() => (bar_on_top() ? 0 : bar_thickness())),
+	}
+}
 
 export function PopupWindow({
 	name = "popup",
@@ -50,12 +70,14 @@ export function PopupWindow({
 	exclusivity = IGNORE,
 	layer = layer_top,
 	handle_closing = true,
+	attach_to_bar = false,
 	onKey: on_key,
 	children,
 	$,
 	...props
 }: props<PopupWindowImpl, popup_props> & {
 	handle_closing?: boolean
+	attach_to_bar?: boolean
 	onKey?: (
 		controller: Gtk.EventControllerKey,
 		keyval: number,
@@ -111,6 +133,7 @@ export function PopupWindow({
 			anchor={anchor}
 			exclusivity={exclusivity}
 			layer={layer}
+			{...(attach_to_bar ? bar_attachment() : {})}
 			{...props}
 		>
 			<Gtk.EventControllerKey

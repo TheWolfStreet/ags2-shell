@@ -25,16 +25,22 @@ export async function copy_to_clipboard(
 		cancellable.cancel()
 		process.force_exit()
 	})
-	const finished = await new Promise<result<unknown>>((resolve) =>
-		process.communicate_utf8_async(
-			is_text ? content : null,
-			cancellable,
-			(_source, response) => {
-				deadline.cancel()
-				resolve(attempt(() => process.communicate_utf8_finish(response)))
-			},
-		),
-	)
+	const finished = await new Promise<result<unknown>>((resolve) => {
+		const started = attempt(() =>
+			process.communicate_utf8_async(
+				is_text ? content : null,
+				cancellable,
+				(_source, response) => {
+					deadline.cancel()
+					resolve(attempt(() => process.communicate_utf8_finish(response)))
+				},
+			),
+		)
+		if (started.ok) return
+		deadline.cancel()
+		process.force_exit()
+		resolve(started)
+	})
 	if (!finished.ok) return finished
 	if (!process.get_successful()) return err(new Error("wl-copy failed"))
 	return ok(undefined)

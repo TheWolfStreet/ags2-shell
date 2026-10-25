@@ -7,8 +7,9 @@ import {
 	onCleanup,
 } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
+import cairo from "cairo"
 
-import { debounce } from "$lib/time"
+import { debounce, idle } from "$lib/time"
 import {
 	schedule_monitor_window_release,
 	track_monitor_fullscreen,
@@ -49,10 +50,25 @@ const side_config: Record<
 	},
 }
 
+function limit_input_to(window: Gtk.Window, content: Gtk.Widget) {
+	const surface = window.get_surface()
+	if (!surface) return
+	const [valid, bounds] = content.compute_bounds(window)
+	if (!valid) return
+	const region = new cairo.Region()
+	region.unionRectangle({
+		x: Math.floor(bounds.origin.x),
+		y: Math.floor(bounds.origin.y),
+		width: Math.ceil(bounds.size.width),
+		height: Math.ceil(bounds.size.height),
+	})
+	surface.set_input_region(region)
+}
+
 function thickness_request(side: dock_side, thickness: Accessor<number>) {
 	return side === "left"
-		? { widthRequest: thickness, heightRequest: -1 }
-		: { widthRequest: -1, heightRequest: thickness }
+		? { widthRequest: thickness, heightRequest: -1, defaultWidth: 1 }
+		: { widthRequest: -1, heightRequest: thickness, defaultHeight: 1 }
 }
 
 export function dock_window_thickness(dock_scale: number): number {
@@ -181,9 +197,39 @@ export namespace Dock {
 			const config = side_config[side]
 			const active = side_active(side)
 			const zone_id = `dock-${side}`
+			let surface_window: Gtk.Window | null = null
+			let content: Gtk.Widget | null = null
+			const sync_input = () => {
+				if (surface_window && content) limit_input_to(surface_window, content)
+			}
+			const resync = () => idle(sync_input)
+			let layout_surface: Gdk.Surface | null = null
+			let layout_handler = 0
+			const follow_layout = () => {
+				const surface = surface_window?.get_surface() ?? null
+				if (surface === layout_surface) return
+				if (layout_surface) layout_surface.disconnect(layout_handler)
+				layout_surface = surface
+				layout_handler = surface ? surface.connect("layout", sync_input) : 0
+			}
+			const unsubscribe_items = dock_items.subscribe(resync)
+			const unsubscribe_scale = dock_scale.subscribe(resync)
+			onCleanup(() => {
+				unsubscribe_items()
+				unsubscribe_scale()
+				if (layout_surface) layout_surface.disconnect(layout_handler)
+				layout_surface = null
+			})
 			return (
 				<PopupWindow
-					$={(self) => register_zone(self, zone_id)}
+					$={(self) => {
+						register_zone(self, zone_id)
+						surface_window = self
+						self.connect("map", () => {
+							follow_layout()
+							resync()
+						})
+					}}
 					name={zone_id}
 					layer={TOP}
 					keymode={Astal.Keymode.NONE}
@@ -202,6 +248,9 @@ export namespace Dock {
 					onNotifyVisible={(self) => release_hidden_zone(self, zone_id)}
 				>
 					<box
+						$={(self) => {
+							content = self
+						}}
 						class={dock_class_name}
 						css={createComputed(() => `--dock-scale: ${dock_scale()};`)}
 						orientation={config.orientation}

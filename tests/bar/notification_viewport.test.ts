@@ -41,6 +41,7 @@ const notifications = compiled_functions(
 		"Header",
 		"preview_box",
 		"fitted_height",
+		"natural_frame",
 		"Preview",
 		"Content",
 		"Actions",
@@ -136,15 +137,16 @@ const icons = { ui: { close: "window-close-symbolic" } }
 let scale = ${current_scale}, texture
 const minute_ticker = fn => fn()
 const createComputed = fn => Object.assign(() => fn(), { as: transform => () => transform(fn()) })
-const create_texture_accessor = () => () => texture
+const create_texture_accessor = () => Object.assign(() => texture, { as: transform => () => transform(texture) })
+const decode_size = size => size
 const notification_action_available = () => true
 function h(type, props, ...children) {
     if (typeof type === "function" && !type.$gtype) return type({ ...props, children })
     const widget = typeof type === "string" ? ({ box: Gtk.Box, label: Gtk.Label,
-        image: Gtk.Image, revealer: Gtk.Revealer, button: Gtk.Button })[type] : type
+        image: Gtk.Image, revealer: Gtk.Revealer, button: Gtk.Button, overlay: Gtk.Overlay })[type] : type
     const result = new widget()
     for (const [key, raw] of Object.entries(props || {})) {
-        if (key === "children" || key.startsWith("on") || raw === undefined) continue
+        if (key === "children" || key === "$type" || key.startsWith("on") || raw === undefined) continue
         const value = typeof raw === "function" ? raw() : raw
         if (key === "class") for (const name of value.split(/\\s+/)) result.add_css_class(name)
         else result.set_property(key.replace(/[A-Z]/g, letter => "-" + letter.toLowerCase()), value)
@@ -152,7 +154,8 @@ function h(type, props, ...children) {
     for (const child of children.flat(Infinity)) {
         if (!child) continue
         if (result instanceof Gtk.Box) result.append(child)
-        else if (result instanceof Gtk.Revealer || result instanceof Gtk.Button) result.set_child(child)
+        else if (result instanceof Gtk.Overlay && result.get_child()) result.add_overlay(child)
+        else if (result instanceof Gtk.Revealer || result instanceof Gtk.Button || result instanceof Gtk.Overlay) result.set_child(child)
     }
     return result
 }
@@ -240,7 +243,7 @@ function check(width, height, dimensions, summary, body) {
     const root_after = [outer.measure(HORIZONTAL, -1)[1], outer.measure(VERTICAL, -1)[1]]
     const text_box = content.get_first_child()
     const title = text_box.get_first_child(), message = title.get_next_sibling()
-    const picture = text_box.get_next_sibling()
+    const preview_frame = text_box.get_next_sibling(), picture = preview_frame.get_last_child()
     const action_buttons = []
     for (let button = actions.get_child().get_first_child(); button; button = button.get_next_sibling()) action_buttons.push(button)
     const time = card_header.get_first_child().get_next_sibling().get_next_sibling()
@@ -274,7 +277,8 @@ function check(width, height, dimensions, summary, body) {
     const updated_width = Math.round(600 * scale / 100), updated_height = Math.round(100 * scale / 100)
     picture.set_paintable(Gdk.MemoryTexture.new(updated_width, updated_height,
         Gdk.MemoryFormat.R8G8B8A8, new GLib.Bytes(new Uint8Array(updated_width * updated_height * 4)), updated_width * 4))
-    picture.set_size_request(-1, updated_height)
+    preview_frame.get_child().set_paintable(Gdk.Paintable.new_empty(updated_width, updated_height))
+    preview_frame.get_child().set_size_request(-1, updated_height)
     outer.measure(HORIZONTAL, -1)
     outer.measure(VERTICAL, root_before[0])
     outer.allocate(root_before[0], Math.max(height, root_before[1]), -1, null)
@@ -335,7 +339,7 @@ function history_check(width, action_labels) {
     flush()
     const text_box = content.get_first_child()
     const title = text_box.get_first_child(), message = title.get_next_sibling()
-    const picture = text_box.get_next_sibling()
+    const preview_frame = text_box.get_next_sibling(), picture = preview_frame.get_last_child()
     const app_icon = card_header.get_first_child(), app_name = app_icon.get_next_sibling()
     const time = app_name.get_next_sibling(), close = time.get_next_sibling()
     const buttons = []
@@ -386,10 +390,10 @@ const avatar_width = outer.measure(HORIZONTAL, -1)[1]
 const avatar_height = outer.measure(VERTICAL, avatar_width)[1]
 outer.allocate(avatar_width, avatar_height, -1, null)
 flush()
-const avatar_picture = avatar_content.get_first_child()
-const avatar_text = avatar_picture.get_next_sibling()
+const avatar_frame = avatar_content.get_first_child(), avatar_picture = avatar_frame.get_last_child()
+const avatar_text = avatar_frame.get_next_sibling()
 const avatar_text_bounds = bounds(avatar_text, avatar_card), avatar_bounds = bounds(avatar_picture, avatar_card)
-const avatar_result = { orientation: avatar_content.get_orientation(), class: avatar_picture.get_css_classes(),
+const avatar_result = { orientation: avatar_content.get_orientation(), class: avatar_frame.get_css_classes(),
     size: [avatar_picture.get_width(), avatar_picture.get_height()], fit: inside_horizontal(avatar_picture, scroll),
     left: avatar_bounds.x + avatar_bounds.width <= avatar_text_bounds.x }
 list.remove(avatar_card)

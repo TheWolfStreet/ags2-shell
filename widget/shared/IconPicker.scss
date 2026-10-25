@@ -1,0 +1,48 @@
+.icon-picker {
+	padding: var(--padding);
+
+	> *:not(:last-child) {
+		margin-bottom: var(--spacing);
+	}
+
+	entry.selector-search > image {
+		all: unset;
+		color: color-mix(in srgb, var(--fg) 60%, transparent);
+		-gtk-icon-size: var(--icon-size);
+		margin-right: calc(var(--spacing) / 2);
+	}
+
+	.selector-results-surface {
+		background-color: var(--widget-bg);
+		border: var(--border);
+		border-radius: var(--radius);
+	}
+
+	gridview.icon-grid {
+		padding: calc(var(--padding) / 2);
+	}
+
+	.icon-grid > child {
+		padding: calc(var(--spacing) / 4);
+		border-radius: calc(var(--radius) * 0.65);
+		transition: var(--transition);
+
+		&:hover {
+			background-color: var(--hover-bg);
+			color: var(--hover-fg);
+		}
+	}
+
+	.icon-option {
+		padding: calc(var(--padding) * 0.75);
+		min-width: calc(74px * var(--scale, 1));
+	}
+
+	.icon-option > *:not(:last-child) {
+		margin-bottom: calc(var(--spacing) / 2);
+	}
+
+	.icon-option label {
+		font-size: 0.8em;
+	}
+}

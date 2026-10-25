@@ -101,9 +101,9 @@ function filter_valid_window_clients(
 ) {
 	return clients.filter((client): client is AstalHyprland.Client => {
 		if (!client) return false
-		if (client.class !== "") return true
 		const title = client.get_title?.() ?? client.title
-		return typeof title === "string" && title.length > 0
+		if (typeof title === "string" && title.length > 0) return true
+		return client.class !== "" && !(client.xwayland && client.floating)
 	})
 }
 
@@ -219,6 +219,15 @@ export function focus_client(client: client_reference) {
 		client,
 		(window) => `hl.dsp.focus({ window = ${window} })`,
 		"windowing.focus: Failed to focus client",
+	)
+}
+
+export function raise_client(client: client_reference) {
+	return dispatch_to_client(
+		client,
+		(window) =>
+			`hl.dsp.window.alter_zorder({ mode = "top", window = ${window} })`,
+		"windowing.raise: Failed to raise client",
 	)
 }
 

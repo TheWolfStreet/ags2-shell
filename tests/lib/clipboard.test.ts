@@ -16,6 +16,7 @@ async function load({
 	successful = true,
 	spawn_error = null as Error | null,
 	finish_error = null as Error | null,
+	start_error = null as Error | null,
 } = {}) {
 	const processes: fake_process[] = []
 	const deadlines: Array<() => void> = []
@@ -42,6 +43,7 @@ async function load({
 					this.forced = true
 				},
 				communicate_utf8_async(input, cancellable, callback) {
+					if (start_error) throw start_error
 					this.input = input
 					cancellable.process = this
 					this.finish = () => callback(this, {})
@@ -160,4 +162,17 @@ test("a finished exchange disarms its deadline before reporting", async () => {
 	assert.deepEqual(cancelled_deadlines, [0])
 	assert.equal((await pending).ok, false)
 	assert.deepEqual(cancelled_deadlines, [0])
+})
+
+test("an exchange that cannot start disarms its deadline and kills wl-copy", async () => {
+	const start_error = new Error("bad input")
+	const { copy_to_clipboard, processes, cancelled_deadlines } = await load({
+		start_error,
+	})
+	assert.deepEqual(await copy_to_clipboard("text"), {
+		ok: false,
+		err: start_error,
+	})
+	assert.deepEqual(cancelled_deadlines, [0])
+	assert.equal(processes[0].forced, true)
 })

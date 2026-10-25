@@ -119,6 +119,7 @@ test("icon substitutions never return inherited object members", async () => {
 function command_fixture({
 	spawn_error = null as Error | null,
 	finish_error = null as Error | null,
+	start_error = null as Error | null,
 	successful = true,
 	stdout = "  out \n",
 	stderr = "",
@@ -134,6 +135,7 @@ function command_fixture({
 			state.forced = true
 		},
 		communicate_utf8_async(_input, _cancellable, callback) {
+			if (start_error) throw start_error
 			state.finish = () => callback(process, {})
 		},
 		communicate_utf8_finish() {
@@ -199,6 +201,18 @@ test("run command reports spawn and exchange failures", async () => {
 	broken.state.finish()
 	assert.deepEqual(await pending, { ok: false, err: finish_error })
 	assert.deepEqual(broken.state.removed, [42])
+})
+
+test("run command reports an exchange that cannot start and clears its deadline", async () => {
+	const start_error = new Error("bad arguments")
+	const { state, imports } = command_fixture({ start_error })
+	const module = await load_module("lib/commands.ts", imports)
+	assert.deepEqual(await module.run_command(["tool"]), {
+		ok: false,
+		err: start_error,
+	})
+	assert.deepEqual(state.removed, [42])
+	assert.equal(state.forced, true)
 })
 
 test("run command reports a failed exit with stderr or the program name", async () => {

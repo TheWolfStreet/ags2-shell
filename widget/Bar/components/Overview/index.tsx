@@ -31,7 +31,7 @@ import {
 } from "$lib/windowing"
 
 import options, { scaled } from "$shell/options"
-import icons from "$lib/icons"
+import { client_icon_name } from "$lib/icons"
 
 export namespace Overview {
 	export function Button() {
@@ -353,7 +353,7 @@ export namespace Overview {
 					hexpand
 					valign={CENTER}
 					halign={CENTER}
-					iconName={client.get_class() || icons.fallback.app}
+					iconName={client_icon_name(null, client.get_class())}
 					pixelSize={scaled(16)}
 				/>
 				<Gtk.GestureClick
