@@ -1,5 +1,5 @@
 import GObject, { getter, register } from "ags/gobject"
-import { type Timer, timeout } from "$lib/time"
+import { type timer, timeout } from "$lib/time"
 
 import AstalNotifd from "gi://AstalNotifd"
 import Gio from "gi://Gio"
@@ -26,7 +26,7 @@ class NotificationManager extends GObject.Object {
 	#coalesce_source_id: number | null = null
 	#prune_source_id: number | null = null
 	#pruning = false
-	#owner_warning_timer: Timer | null = null
+	#owner_warning_timer: timer | null = null
 	#unsubscribe_blacklist: () => void
 
 	readonly session_start = Math.floor(Date.now() / 1000)
@@ -51,7 +51,7 @@ class NotificationManager extends GObject.Object {
 		const owner = await notification_name_owner()
 		if (!owner.ok) {
 			console.debug(
-				"notifications: could not verify daemon bus ownership",
+				"notifications: Could not verify daemon bus ownership",
 				owner.err,
 			)
 			return
@@ -59,7 +59,7 @@ class NotificationManager extends GObject.Object {
 		const unique_name = Gio.DBus.session.get_unique_name()
 		if (owner.value !== unique_name)
 			console.warn(
-				`notifications: org.freedesktop.Notifications is owned by ${owner.value}, not this shell (${unique_name})`,
+				`notifications: The org.freedesktop.Notifications name is owned by ${owner.value}, not this shell (${unique_name})`,
 			)
 	}
 
@@ -110,23 +110,22 @@ class NotificationManager extends GObject.Object {
 	}
 
 	#prune(): void {
-		const all = notification_daemon
+		const stored = notification_daemon
 			.get_notifications()
 			.filter((notification) => !notification.transient)
-		if (all.length <= (this.#pruning ? persist_keep : persist_trigger)) {
+		const limit = this.#pruning ? persist_keep : persist_trigger
+		if (stored.length <= limit) {
 			this.#pruning = false
 			return
 		}
-		this.#pruning = true
 
-		const oldest = all
-			.slice()
+		const excess = stored
 			.sort((left, right) => left.time - right.time)
-			.slice(0, all.length - persist_keep)
-		for (const notification of oldest.slice(0, prune_budget))
+			.slice(0, stored.length - persist_keep)
+		for (const notification of excess.slice(0, prune_budget))
 			notification.dismiss()
-		if (oldest.length > prune_budget) this.#schedule_prune()
-		else this.#pruning = false
+		this.#pruning = excess.length > prune_budget
+		if (this.#pruning) this.#schedule_prune()
 	}
 
 	vfunc_finalize(): void {

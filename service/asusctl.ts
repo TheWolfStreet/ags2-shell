@@ -8,13 +8,14 @@ import {
 	err,
 	log_error,
 	ok,
-	type Result,
+	type result,
 } from "$lib/result"
-import options from "$shell/options"
+import options, { type Opt } from "$shell/options"
 import {
 	format_monitor_command,
+	is_monitor_settings,
 	type monitor_settings,
-} from "./monitorConfiguration"
+} from "./monitor_configuration"
 import { run_command } from "$lib/commands"
 
 type monitor_configuration = monitor_settings & {
@@ -27,56 +28,44 @@ type monitor_mode = {
 	refresh_rate: number
 }
 
-function parse_profile(raw: string): Result<Asusctl.Profile> {
+const asus_profiles = ["Performance", "Balanced", "Quiet"] as const
+const asus_modes = ["Hybrid", "Integrated"] as const
+const monitor_signals = ["monitor-added", "monitor-removed", "config-reloaded"]
+type asus_profile = (typeof asus_profiles)[number]
+type asus_mode = (typeof asus_modes)[number]
+
+function parse_choice<T extends string>(
+	raw: string,
+	choices: readonly T[],
+	kind: string,
+): result<T> {
 	const value = raw.trim()
-	if (value === "Performance" || value === "Balanced" || value === "Quiet")
-		return ok(value)
-
-	return err(new Error(`Unexpected profile value: ${value}`))
-}
-
-function parse_mode(raw: string): Result<Asusctl.Mode> {
-	const value = raw.trim()
-	if (value === "Hybrid" || value === "Integrated") return ok(value)
-
-	return err(new Error(`Unexpected mode value: ${value}`))
-}
-
-function is_record(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object"
+	const match = choices.find((choice) => choice === value)
+	if (match) return ok(match)
+	return err(new Error(`Unexpected ${kind} value: ${value}`))
 }
 
 function parse_monitor_mode(mode: string): monitor_mode | null {
 	const match = mode.match(/^(\d+)x(\d+)\s*@\s*([0-9]+(?:\.[0-9]+)?)/)
 	if (!match) return null
-
 	const refresh_rate = Number.parseFloat(match[3])
-	return Number.isFinite(refresh_rate) && refresh_rate > 0
-		? { resolution: `${match[1]}x${match[2]}`, refresh_rate }
-		: null
+	if (!Number.isFinite(refresh_rate) || refresh_rate <= 0) return null
+	return { resolution: `${match[1]}x${match[2]}`, refresh_rate }
 }
 
-function is_internal_panel(name: string) {
-	return /^(?:eDP|LVDS)-/i.test(name)
-}
-
-function select_panel(
+function find_internal_panel(
 	monitors: monitor_configuration[],
 ): monitor_configuration | undefined {
-	return monitors.find((monitor) => is_internal_panel(monitor.name))
+	return monitors.find((monitor) => /^(?:eDP|LVDS)-/i.test(monitor.name))
 }
 
-function parse_panel_modes(modes: string[]): monitor_mode[] {
-	return modes
+function panel_modes(panel: monitor_configuration | undefined): monitor_mode[] {
+	if (!panel || panel.disabled) return []
+	const resolution = `${panel.width}x${panel.height}`
+	return (panel.availableModes ?? [])
 		.map(parse_monitor_mode)
 		.filter((mode): mode is monitor_mode => mode !== null)
-}
-
-function get_panel_modes(configuration: monitor_configuration): monitor_mode[] {
-	const resolution = `${configuration.width}x${configuration.height}`
-	return parse_panel_modes(configuration.availableModes ?? []).filter(
-		(mode) => mode.resolution === resolution,
-	)
+		.filter((mode) => mode.resolution === resolution)
 }
 
 function unique_refresh_rates(modes: monitor_mode[]): number[] {
@@ -93,109 +82,92 @@ function nearest_value(values: number[], preferred: number): number {
 	)
 }
 
-function resolve_refresh_rate(
-	modes: monitor_mode[],
-	preferred: number,
-): number {
-	const available = modes.map((mode) => mode.refresh_rate)
-	return nearest_value(available, preferred)
+function is_mode_list(modes: unknown): boolean {
+	if (modes === undefined) return true
+	return Array.isArray(modes) && modes.every((mode) => typeof mode === "string")
 }
 
 function is_monitor_configuration(
 	value: unknown,
 ): value is monitor_configuration {
-	if (!is_record(value)) return false
-
-	return (
-		typeof value.name === "string" &&
-		typeof value.disabled === "boolean" &&
-		typeof value.width === "number" &&
-		value.width > 0 &&
-		typeof value.height === "number" &&
-		value.height > 0 &&
-		typeof value.x === "number" &&
-		Number.isFinite(value.x) &&
-		typeof value.y === "number" &&
-		Number.isFinite(value.y) &&
-		typeof value.scale === "number" &&
-		value.scale > 0 &&
-		Number.isFinite(value.scale) &&
-		typeof value.refreshRate === "number" &&
-		Number.isFinite(value.refreshRate) &&
-		typeof value.transform === "number" &&
-		Number.isInteger(value.transform) &&
-		(value.availableModes === undefined ||
-			(Array.isArray(value.availableModes) &&
-				value.availableModes.every((mode) => typeof mode === "string")))
-	)
+	if (!is_monitor_settings(value)) return false
+	const details = value as { disabled?: unknown; availableModes?: unknown }
+	if (typeof details.disabled !== "boolean") return false
+	if (value.width <= 0 || value.height <= 0 || value.scale <= 0) return false
+	if (!Number.isInteger(value.transform)) return false
+	return is_mode_list(details.availableModes)
 }
 
-const profile_values: Asusctl.Profile[] = ["Performance", "Balanced", "Quiet"]
+function read_monitor_list(output: result<string>): unknown[] | null {
+	if (
+		!log_error(
+			output,
+			"asusctl.update_monitor_configuration: Failed to read monitors",
+		)
+	)
+		return null
+	const parsed = attempt((): unknown => JSON.parse(output.value))
+	if (
+		!log_error(
+			parsed,
+			"asusctl.update_monitor_configuration: Failed to parse monitors",
+		)
+	)
+		return null
+	if (!Array.isArray(parsed.value)) return null
+	return parsed.value
+}
 
-namespace Asusctl {
-	export type Profile = "Performance" | "Balanced" | "Quiet"
-	export type Mode = "Hybrid" | "Integrated"
+async function read_profile(): Promise<result<asus_profile>> {
+	const output = await run_command(["asusctl", "profile", "get"])
+	if (!output.ok) return output
+	const match = output.value.match(/Active profile: (\w+)/)
+	return parse_choice(match?.[1] ?? "", asus_profiles, "profile")
+}
+
+function set_if_changed(option: Opt<number>, value: number) {
+	if (value !== option.peek()) option.set(value)
 }
 
 @register()
 class Asusctl extends GObject.Object {
 	declare static $gtype: GObject.GType<Asusctl>
 
-	#profile: Asusctl.Profile
-	#mode: Asusctl.Mode
-	#available: boolean
-	#installed: boolean
-	#option_disposers: Array<() => void>
-	#monitor_update_sequence: number
+	#installed = GLib.find_program_in_path("asusctl") !== null
+	#profile: asus_profile = "Balanced"
+	#mode: asus_mode = "Hybrid"
+	#available = false
+	#option_disposers: (() => void)[] = []
+	#monitor_handlers: number[] = []
+	#monitor_update_sequence = 0
 	#observed_sequence = 0
 	#observed_panel: monitor_configuration | undefined
 	#policy_sequence = 0
 	#profile_write: Promise<void> = Promise.resolve()
 	#profile_revision = 0
 	#refresh_rates: number[] = []
-	#monitor_handlers: number[] = []
 
 	constructor() {
 		super()
-
-		this.#profile = "Balanced"
-		this.#mode = "Hybrid"
-		this.#installed = GLib.find_program_in_path("asusctl") !== null
-		this.#available = false
-		this.#option_disposers = []
-		this.#monitor_update_sequence = 0
-
-		if (this.#installed) {
-			void this.refresh().then((result) => {
-				if (!result.ok) console.error("asusctl.initialize:", result.err)
-				else void this.#update_monitor_configuration()
-			})
-			this.#option_disposers.push(
-				options.asus.ac_hz.subscribe(
-					() => void this.#update_monitor_configuration(),
-				),
-				options.asus.bat_hz.subscribe(
-					() => void this.#update_monitor_configuration(),
+		if (!this.#installed) return
+		void this.#initialize()
+		const apply_policy = () => void this.#update_monitor_configuration()
+		this.#option_disposers.push(
+			options.asus.ac_hz.subscribe(apply_policy),
+			options.asus.bat_hz.subscribe(apply_policy),
+		)
+		for (const signal of monitor_signals)
+			this.#monitor_handlers.push(
+				hyprland.connect(
+					signal,
+					() =>
+						void this.#update_monitor_configuration({ apply_policy: false }),
 				),
 			)
-			for (const signal of [
-				"monitor-added",
-				"monitor-removed",
-				"config-reloaded",
-			]) {
-				this.#monitor_handlers.push(
-					hyprland.connect(
-						signal,
-						() =>
-							void this.#update_monitor_configuration({ apply_policy: false }),
-					),
-				)
-			}
-		}
 	}
 
-	get profiles(): Asusctl.Profile[] {
-		return [...profile_values]
+	get profiles(): asus_profile[] {
+		return [...asus_profiles]
 	}
 
 	@getter(Array)
@@ -218,40 +190,43 @@ class Asusctl extends GObject.Object {
 		return this.#available
 	}
 
+	async #initialize() {
+		const refreshed = await this.refresh()
+		if (!log_error(refreshed, "asusctl.initialize:")) return
+		await this.#update_monitor_configuration()
+	}
+
 	#set_available(available: boolean) {
 		if (this.#available === available) return
 		this.#available = available
 		this.notify("available")
 	}
 
-	async set_profile(value: string): Promise<Result<void>> {
+	async set_profile(value: string): Promise<result<void>> {
 		if (!this.#installed) return err(new Error("asusctl is unavailable"))
-		const parsed = parse_profile(value)
+		const parsed = parse_choice(value, asus_profiles, "profile")
 		if (!parsed.ok) return parsed
 		this.#profile_revision++
-		let response: Result<void> = ok(undefined)
-		const write = this.#profile_write.then(async () => {
-			const result = await run_command([
-				"asusctl",
-				"profile",
-				"set",
-				parsed.value,
-			])
-			if (!result.ok) {
-				response = result
-				return
-			}
-			this.#profile = parsed.value
-			this.#set_available(true)
-			this.notify("profile")
-			await this.#update_monitor_configuration()
-		})
+		const write = this.#profile_write.then(() =>
+			this.#write_profile(parsed.value),
+		)
 		this.#profile_write = write.then(
 			() => undefined,
 			() => undefined,
 		)
 		const completed = await attempt_async(() => write)
-		return completed.ok ? response : completed
+		if (!completed.ok) return completed
+		return completed.value
+	}
+
+	async #write_profile(profile: asus_profile): Promise<result<void>> {
+		const written = await run_command(["asusctl", "profile", "set", profile])
+		if (!written.ok) return written
+		this.#profile = profile
+		this.#set_available(true)
+		this.notify("profile")
+		await this.#update_monitor_configuration()
+		return ok(undefined)
 	}
 
 	async #update_monitor_configuration({
@@ -264,94 +239,59 @@ class Asusctl extends GObject.Object {
 			: this.#policy_sequence
 		const output = await run_command(["hyprctl", "monitors", "all", "-j"])
 		if (sequence !== this.#monitor_update_sequence && !apply_policy) return
-		if (!output.ok) {
-			console.error(
-				"asusctl.updateMonitorConfiguration: Failed to read monitors",
-				output.err,
-			)
-			return
-		}
+		const monitors = read_monitor_list(output)
+		if (!monitors) return
 
-		const parse_result = attempt((): unknown => JSON.parse(output.value))
-		if (!parse_result.ok) {
-			console.error(
-				"asusctl.updateMonitorConfiguration: Failed to parse monitors",
-				parse_result.err,
-			)
-			return
-		}
-		const parsed = parse_result.value
-		if (!Array.isArray(parsed)) return
-
-		const panel = select_panel(parsed.filter(is_monitor_configuration))
-		if (sequence === this.#monitor_update_sequence) {
-			this.#observed_panel = panel
-			this.#observed_sequence = sequence
-			const observed_modes =
-				panel && !panel.disabled ? get_panel_modes(panel) : []
-			const available_refresh_rates = unique_refresh_rates(observed_modes)
-			if (available_refresh_rates.join(",") !== this.#refresh_rates.join(",")) {
-				this.#refresh_rates = available_refresh_rates
-				this.notify("refresh-rates")
-			}
-		}
+		const panel = find_internal_panel(monitors.filter(is_monitor_configuration))
+		if (sequence === this.#monitor_update_sequence)
+			this.#observe_panel(panel, sequence)
 		if (!apply_policy || policy_sequence !== this.#policy_sequence) return
-		const policy_panel =
+		const newest =
 			this.#observed_sequence > sequence ? this.#observed_panel : panel
-		const panel_modes =
-			policy_panel && !policy_panel.disabled
-				? get_panel_modes(policy_panel)
-				: []
-		const available_refresh_rates = unique_refresh_rates(panel_modes)
-		if (
-			!policy_panel ||
-			policy_panel.disabled ||
-			available_refresh_rates.length === 0
-		)
-			return
-		const ac_hz = nearest_value(
-			available_refresh_rates,
-			options.asus.ac_hz.peek(),
-		)
-		const bat_hz = nearest_value(
-			available_refresh_rates,
-			options.asus.bat_hz.peek(),
-		)
+		await this.#apply_refresh_policy(newest, policy_sequence)
+	}
 
-		if (ac_hz !== options.asus.ac_hz.peek()) options.asus.ac_hz.set(ac_hz)
-		if (bat_hz !== options.asus.bat_hz.peek()) options.asus.bat_hz.set(bat_hz)
+	#observe_panel(panel: monitor_configuration | undefined, sequence: number) {
+		this.#observed_panel = panel
+		this.#observed_sequence = sequence
+		const refresh_rates = unique_refresh_rates(panel_modes(panel))
+		if (refresh_rates.join(",") === this.#refresh_rates.join(",")) return
+		this.#refresh_rates = refresh_rates
+		this.notify("refresh-rates")
+	}
+
+	async #apply_refresh_policy(
+		panel: monitor_configuration | undefined,
+		policy_sequence: number,
+	) {
+		const modes = panel_modes(panel)
+		const refresh_rates = unique_refresh_rates(modes)
+		if (!panel || refresh_rates.length === 0) return
+		const ac_hz = nearest_value(refresh_rates, options.asus.ac_hz.peek())
+		const bat_hz = nearest_value(refresh_rates, options.asus.bat_hz.peek())
+		set_if_changed(options.asus.ac_hz, ac_hz)
+		set_if_changed(options.asus.bat_hz, bat_hz)
 		if (policy_sequence !== this.#policy_sequence) return
 
-		const preferred_refresh_rate = this.#profile === "Quiet" ? bat_hz : ac_hz
-		const refresh_rate = resolve_refresh_rate(
-			panel_modes,
-			preferred_refresh_rate,
+		const preferred = this.#profile === "Quiet" ? bat_hz : ac_hz
+		const refresh_rate = nearest_value(
+			modes.map((mode) => mode.refresh_rate),
+			preferred,
 		)
-		if (Math.abs(policy_panel.refreshRate - refresh_rate) < 0.1) return
+		if (Math.abs(panel.refreshRate - refresh_rate) < 0.1) return
 		const response = await hyprland_command(
-			format_monitor_command(policy_panel, { refresh_rate: refresh_rate }),
+			format_monitor_command(panel, { refresh_rate }),
 		)
 		if (policy_sequence !== this.#policy_sequence) return
 		log_error(response, "asusctl.monitor: Failed to apply refresh rate")
 	}
 
-	async refresh(): Promise<Result<void>> {
+	async refresh(): Promise<result<void>> {
 		if (!this.#installed) return err(new Error("asusctl is unavailable"))
 		const revision = this.#profile_revision
-		const profile_output = await run_command(["asusctl", "profile", "get"])
-		if (!profile_output.ok) {
-			this.#set_available(false)
-			return profile_output
-		}
-
-		const match = profile_output.value.match(/Active profile: (\w+)/)
-		const profile = parse_profile(match?.[1] ?? "")
-		if (!profile.ok) {
-			this.#set_available(false)
-			return profile
-		}
-		this.#set_available(true)
-
+		const profile = await read_profile()
+		this.#set_available(profile.ok)
+		if (!profile.ok) return profile
 		if (
 			revision === this.#profile_revision &&
 			this.#profile !== profile.value
@@ -359,28 +299,19 @@ class Asusctl extends GObject.Object {
 			this.#profile = profile.value
 			this.notify("profile")
 		}
-
-		if (GLib.find_program_in_path("supergfxctl") !== null) {
-			const mode_output = await run_command(["supergfxctl", "-g"])
-			if (!mode_output.ok) {
-				console.error(
-					"asusctl.initialize: Failed to read mode",
-					mode_output.err,
-				)
-			} else {
-				const mode = parse_mode(mode_output.value)
-				if (!mode.ok) {
-					console.error("asusctl.initialize: Failed to parse mode", mode.err)
-				} else {
-					if (this.#mode !== mode.value) {
-						this.#mode = mode.value
-						this.notify("mode")
-					}
-				}
-			}
-		}
-
+		await this.#refresh_mode()
 		return ok(undefined)
+	}
+
+	async #refresh_mode() {
+		if (GLib.find_program_in_path("supergfxctl") === null) return
+		const output = await run_command(["supergfxctl", "-g"])
+		if (!log_error(output, "asusctl.initialize: Failed to read mode")) return
+		const mode = parse_choice(output.value, asus_modes, "mode")
+		if (!log_error(mode, "asusctl.initialize: Failed to parse mode")) return
+		if (this.#mode === mode.value) return
+		this.#mode = mode.value
+		this.notify("mode")
 	}
 
 	vfunc_finalize() {

@@ -6,6 +6,7 @@ import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
 import { attempt_async, log_error } from "$lib/result"
+import type { maybe_accessor } from "$lib/ui"
 import { on_window_toggle } from "$lib/windowing"
 
 import options from "$shell/options"
@@ -14,39 +15,70 @@ const { SLIDE_DOWN } = Gtk.RevealerTransitionType
 const { VERTICAL } = Gtk.Orientation
 const { EllipsizeMode } = Pango
 
+type menu_props = FCProps<
+	Gtk.Widget,
+	{
+		name?: string
+		iconName?: maybe_accessor<string>
+		title?: maybe_accessor<string>
+		header_child?: Node
+		children?: Node | Node[]
+	}
+>
+
+type toggle_button_props = FCProps<
+	Gtk.Widget,
+	{
+		name?: string
+		iconName?: maybe_accessor<string>
+		label?: maybe_accessor<string>
+		connection?: Accessor<boolean>
+		onToggle?: () => void
+		onArrow?: () => void
+		arrow?: boolean
+	}
+>
+
+type arrow_props = FCProps<
+	Gtk.Button,
+	{
+		name?: string
+		onArrow?: () => void
+		visible?: maybe_accessor<boolean>
+		tooltipText?: maybe_accessor<string>
+	}
+>
+
 const [opened_menu_name, set_opened_menu_name] = createState("")
 
 export const quick_settings_submenu = {
 	opened: opened_menu_name,
-	close: () => {
+	close() {
 		set_opened_menu_name("")
 	},
-	toggle: (name: string) => {
+	toggle(name: string) {
 		set_opened_menu_name(opened_menu_name.peek() === name ? "" : name)
 	},
 }
 
 export function Menu({
-	name,
+	name = "",
 	iconName: icon_name,
 	title,
-	headerChild: header_child,
+	header_child,
 	children,
-}: menu_props & {
-	headerChild?: Node
-	children?: Node | Node[]
-}) {
+}: menu_props) {
 	return (
 		<revealer
 			transitionType={SLIDE_DOWN}
 			transitionDuration={options.transition.duration}
 			revealChild={quick_settings_submenu.opened.as(
-				(opened) => opened === (name ?? ""),
+				(opened) => opened === name,
 			)}
 			vexpand={false}
 			hexpand={false}
 		>
-			<box class={`menu ${name ?? ""}`} orientation={VERTICAL}>
+			<box class={`menu ${name}`} orientation={VERTICAL}>
 				<box class="title-box horizontal">
 					<image
 						class="icon"
@@ -83,12 +115,7 @@ export function ToggleButton({
 	onToggle: on_toggle,
 	onArrow: on_arrow,
 	arrow = false,
-}: FCProps<Gtk.Widget, toggle_button_props> & {
-	connection?: Accessor<boolean>
-	onToggle?: () => void
-	onArrow?: () => void
-	arrow?: boolean
-}) {
+}: toggle_button_props) {
 	const base = arrow ? "toggle-button" : "simple-toggle"
 	const class_name =
 		connection?.as((v) => (v ? `${base} active` : base)) ?? base
@@ -120,7 +147,7 @@ export function Arrow({
 	visible,
 	tooltipText: tooltip_text,
 	onArrow: on_arrow,
-}: FCProps<Gtk.Button, arrow_props>) {
+}: arrow_props) {
 	const css = quick_settings_submenu.opened.as((opened) =>
 		opened === name ? "transform: rotate(90deg);" : "transform: rotate(0deg);",
 	)
@@ -145,7 +172,7 @@ export function SettingsButton({ callback }: { callback: () => void }) {
 		<button onClicked={callback} hexpand>
 			<box class="settings horizontal">
 				<image iconName={icons.ui.settings} useFallback />
-				<label label={"Settings"} />
+				<label label="Settings" />
 			</box>
 		</button>
 	)
@@ -170,25 +197,3 @@ export function open_gnome_settings(panel: string) {
 on_window_toggle("quicksettings", (window) => {
 	if (!window.visible) quick_settings_submenu.close()
 })
-
-type arrow_props = {
-	name?: string
-	onArrow?: () => void
-	visible?: boolean | Accessor<boolean>
-	tooltipText?: string | Accessor<string>
-}
-
-type toggle_button_props = {
-	name?: string
-	iconName?: Accessor<string> | string
-	label?: Accessor<string> | string
-}
-
-type menu_props = FCProps<
-	Gtk.Widget,
-	{
-		name?: string
-		iconName?: Accessor<string> | string
-		title?: Accessor<string> | string
-	}
->

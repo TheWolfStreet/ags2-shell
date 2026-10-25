@@ -8,8 +8,10 @@ import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import Pango from "gi://Pango"
 
-import { attempt } from "$lib/result"
+import { attempt, attempt_async, log_error, log_refusal } from "$lib/result"
 import { Placeholder } from "widget/shared/Placeholder"
+import icons from "$lib/icons"
+import { base_name } from "$lib/text"
 
 export namespace DesktopOpenWith {
 	export function open(file_path: string) {
@@ -21,19 +23,11 @@ export namespace DesktopOpenWith {
 			.filter((entry) => entry.app.should_show() && !seen.has(entry.id))
 			.sort((left, right) => left.name.localeCompare(right.name))
 
-		const fallback =
-			Gio.AppInfo.get_default_for_type(type, false)?.get_id() ?? ""
-		const preselected =
-			recommended.some((entry) => entry.id === fallback) ||
-			others.some((entry) => entry.id === fallback)
-				? fallback
-				: (recommended[0]?.id ?? "")
-
 		set_file_path(file_path)
 		set_content_type(type)
 		set_recommended(recommended)
 		set_others(others)
-		set_selected_id(preselected)
+		set_selected_id(preselected_id(type, recommended, others))
 		set_query("")
 		set_always_use(false)
 		ensure_window()?.present()
@@ -50,15 +44,13 @@ export namespace DesktopOpenWith {
 				defaultWidth={500}
 				defaultHeight={620}
 				hideOnClose
-				iconName="application-x-executable-symbolic"
+				iconName={icons.fallback.app}
 			>
 				<Gtk.EventControllerKey
 					onKeyPressed={(_unused, key) => {
-						if (key === KEY_Escape) {
-							hide()
-							return true
-						}
-						return false
+						if (key !== KEY_Escape) return false
+						hide()
+						return true
 					}}
 				/>
 				<box orientation={VERTICAL}>
@@ -82,10 +74,12 @@ export namespace DesktopOpenWith {
 						<entry
 							class="search"
 							placeholderText="Search applications"
-							primaryIconName="system-search-symbolic"
+							primaryIconName={icons.ui.search}
 							text={query}
 							onNotifyText={(self) => set_query(self.text)}
-							$={(self) => (search_entry = self)}
+							$={(self) => {
+								search_entry = self
+							}}
 						/>
 						<label
 							class="prompt"
@@ -119,7 +113,7 @@ export namespace DesktopOpenWith {
 									{(entry) => <AppRow entry={entry} />}
 								</For>
 								<Placeholder
-									iconName="system-search-symbolic"
+									iconName={icons.ui.search}
 									label="No results found"
 									visible={has_no_results}
 								/>
@@ -167,7 +161,7 @@ let search_entry: Gtk.Entry | null = null
 let root: (() => void) | null = null
 
 const prompt_markup = file_path.as((path) => {
-	const name = GLib.markup_escape_text(path.split("/").pop() || path, -1)
+	const name = GLib.markup_escape_text(base_name(path) || path, -1)
 	return `Choose an app to open <b>${name}</b>`
 })
 const type_description = content_type.as((type) =>
@@ -205,6 +199,19 @@ function to_entry(info: Gio.AppInfo): open_with_app {
 	}
 }
 
+function preselected_id(
+	type: string,
+	recommended: open_with_app[],
+	others: open_with_app[],
+): string {
+	const fallback = Gio.AppInfo.get_default_for_type(type, false)?.get_id() ?? ""
+	const listed = [...recommended, ...others].some(
+		(entry) => entry.id === fallback,
+	)
+	if (listed) return fallback
+	return recommended[0]?.id ?? ""
+}
+
 function content_type_of(path: string): string {
 	const queried = attempt(() =>
 		Gio.File.new_for_path(path)
@@ -226,11 +233,7 @@ function AppRow({ entry }: { entry: open_with_app }) {
 				{entry.icon ? (
 					<image gicon={entry.icon} pixelSize={32} />
 				) : (
-					<image
-						iconName="application-x-executable-symbolic"
-						pixelSize={32}
-						useFallback
-					/>
+					<image iconName={icons.fallback.app} pixelSize={32} useFallback />
 				)}
 				<label
 					label={entry.name}
@@ -247,42 +250,32 @@ function confirm() {
 	const entry = selected_app.peek()
 	if (!entry) return
 	const target = Gio.File.new_for_path(file_path.peek())
-	const launched = attempt(() => entry.app.launch([target], null))
-	if (!launched.ok || !launched.value) {
-		console.error(
-			`desktop.openWith: Failed to launch ${target.get_path()}`,
-			launched.ok ? "launch returned false" : launched.err,
-		)
-		return
-	}
-	const last_used = attempt(() =>
-		entry.app.set_as_last_used_for_type(content_type.peek()),
+	const launched = log_refusal(
+		attempt(() => entry.app.launch([target], null)),
+		`desktop.open_with: Failed to launch ${target.get_path()}`,
+		"launch returned false",
 	)
-	if (!last_used.ok || !last_used.value)
-		console.error(
-			"desktop.openWith: Failed to record last used application",
-			last_used.ok ? "operation returned false" : last_used.err,
-		)
+	if (!launched) return
+	log_refusal(
+		attempt(() => entry.app.set_as_last_used_for_type(content_type.peek())),
+		"desktop.open_with: Failed to record last used application",
+		"operation returned false",
+	)
 	if (always_use.peek()) set_as_default(entry)
 	hide()
 }
 
 function set_as_default(entry: open_with_app) {
 	const type = content_type.peek()
+	const failure = `desktop.open_with: Failed to set default for ${type}`
 	const updated = attempt(() => entry.app.set_as_default_for_type(type))
 	if (updated.ok && updated.value) return
-	if (entry.id.endsWith(".desktop")) {
-		void execAsync(["gio", "mime", type, entry.id]).catch((error) =>
-			console.error(
-				`desktop.openWith: Failed to set default for ${type}`,
-				error,
-			),
-		)
+	if (!entry.id.endsWith(".desktop")) {
+		log_refusal(updated, failure, "set_as_default_for_type returned false")
 		return
 	}
-	console.error(
-		`desktop.openWith: Failed to set default for ${type}`,
-		updated.ok ? "set_as_default_for_type returned false" : updated.err,
+	void attempt_async(() => execAsync(["gio", "mime", type, entry.id])).then(
+		(set) => log_error(set, failure),
 	)
 }
 

@@ -15,7 +15,7 @@ import AstalApps from "gi://AstalApps"
 
 import { ApplicationIcon } from "widget/shared/ApplicationIcon"
 import { Placeholder } from "widget/shared/Placeholder"
-import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { PopupWindow } from "widget/shared/PopupWindow"
 import { PanelButton } from "../PanelButton"
 import { rank_apps, display_apps } from "./search"
 
@@ -24,7 +24,8 @@ import { log_error } from "$lib/result"
 import { idle } from "$lib/time"
 import { applications } from "$service/apps"
 import icons from "$lib/icons"
-import options, { Opt, surface_scale, ui_scale } from "$shell/options"
+import options, { surface_scale, ui_scale } from "$shell/options"
+import { scaled_token_overrides } from "style/runtime_css"
 
 const { OVERLAY } = Astal.Layer
 const { NORMAL } = Astal.Exclusivity
@@ -48,7 +49,7 @@ const digit_keys = [
 
 const { position } = options.launcher
 const launcher_scale = createComputed(() =>
-	surface_scale(options.launcher.scale, 0.5),
+	surface_scale(options.launcher.scale),
 )
 const icon_size = createComputed(() =>
 	Math.round(64 * ui_scale() * launcher_scale()),
@@ -67,7 +68,7 @@ export namespace Launcher {
 
 	export function Button() {
 		return (
-			<PanelButton targetWindow="launcher">
+			<PanelButton target_window="launcher">
 				<box class="launcher horizontal">
 					<image iconName={options.bar.launcher.icon} useFallback />
 				</box>
@@ -89,10 +90,9 @@ export namespace Launcher {
 				name: candidate.get_name().toLowerCase(),
 			})),
 		)
-		const ranked_apps = createComputed(() => {
-			const limit = options.launcher.apps.max() || 9
-			return rank_apps(search_index(), text(), limit)
-		})
+		const ranked_apps = createComputed(() =>
+			rank_apps(search_index(), text(), options.launcher.apps.max()),
+		)
 		const displayed_apps = createComputed(() =>
 			display_apps(ranked_apps(), is_on_bottom()),
 		)
@@ -117,14 +117,7 @@ export namespace Launcher {
 				is_on_bottom()
 					? `margin-bottom: ${margin}pt;`
 					: `margin-top: ${margin}pt;`,
-				`--padding: calc(var(--ui-padding) * ${scale});`,
-				`--spacing: calc(var(--ui-spacing) * ${scale});`,
-				`--radius: calc(var(--ui-radius) * ${scale});`,
-				`--border-width: calc(var(--ui-border-width) * ${scale});`,
-				`--font-size: calc(var(--ui-font-size) * ${scale});`,
-				`--icon-size: calc(var(--ui-icon-size) * ${scale});`,
-				`--popover-padding: calc(var(--ui-popover-padding) * ${scale});`,
-				`--popover-radius: calc(var(--ui-popover-radius) * ${scale});`,
+				scaled_token_overrides(scale),
 				`--scale: ${ui_scale() * scale};`,
 			].join("")
 		})
@@ -135,6 +128,10 @@ export namespace Launcher {
 				log_error(result, "launcher: Could not launch application"),
 			)
 		}
+		const launch_ranked = (rank: number) => {
+			const id = visual_entries.peek()[rank]
+			if (id) launch(app_by_entry.peek().get(id))
+		}
 		const SearchEntry = () => (
 			<entry
 				$={(self) => {
@@ -142,12 +139,9 @@ export namespace Launcher {
 				}}
 				text={text}
 				placeholderText="Search"
-				primaryIconName="system-search-symbolic"
+				primaryIconName={icons.ui.search}
 				onNotifyText={(self) => set_text(self.get_text())}
-				onActivate={() => {
-					const first = visual_entries.peek()[0]
-					if (first) launch(app_by_entry.peek().get(first))
-				}}
+				onActivate={() => launch_ranked(0)}
 			/>
 		)
 		const NotFound = () => (
@@ -171,7 +165,7 @@ export namespace Launcher {
 				all_apps.peek().map((candidate) => candidate.get_entry()),
 			)
 			const entries = createComputed(() =>
-				displayed_apps().map((result) => result.app.get_entry()),
+				displayed_apps().map((candidate) => candidate.get_entry()),
 			)
 
 			const update = () => {
@@ -180,31 +174,14 @@ export namespace Launcher {
 				for (const id of ordered) {
 					const row = revealers.get(id)
 					if (!row) continue
-					if (
-						!row.get_reveal_child() &&
-						!row.get_child_revealed() &&
-						row.get_height() === 0
-					)
-						box.reorder_child_after(row, previous)
+					if (is_collapsed(row)) box.reorder_child_after(row, previous)
 					previous = row
 				}
 				for (const [id, row] of revealers)
 					row.set_reveal_child(ordered.includes(id))
 				const wanted = new Set(ordered)
-				const visual: string[] = []
-				for (
-					let row = box.get_first_child();
-					row;
-					row = row.get_next_sibling()
-				) {
-					const id = row.get_name()
-					if (wanted.has(id)) visual.push(id)
-				}
-				const current = visual_entries.peek()
-				if (
-					visual.length !== current.length ||
-					visual.some((id, index) => id !== current[index])
-				)
+				const visual = child_names(box).filter((id) => wanted.has(id))
+				if (!same_order(visual, visual_entries.peek()))
 					set_visual_entries(visual)
 			}
 
@@ -213,24 +190,8 @@ export namespace Launcher {
 				const unsub = entries.subscribe(update)
 				const unsub_catalog = all_apps.subscribe(() => {
 					const next = all_apps.peek().map((candidate) => candidate.get_entry())
-					const wanted = new Set(next)
-					const current = row_ids.peek()
-					if (
-						next.length !== current.length ||
-						current.some((id) => !wanted.has(id))
-					) {
-						const ids: string[] = []
-						for (
-							let row = box.get_first_child();
-							row;
-							row = row.get_next_sibling()
-						) {
-							const id = row.get_name()
-							if (wanted.delete(id)) ids.push(id)
-						}
-						for (const id of next) if (wanted.delete(id)) ids.push(id)
-						set_row_ids(ids)
-					}
+					if (!same_members(next, row_ids.peek()))
+						set_row_ids(retained_order(child_names(box), next))
 					refresh?.cancel()
 					refresh = idle(update)
 				})
@@ -254,14 +215,12 @@ export namespace Launcher {
 							const current = app_by_entry.as(
 								(apps) => apps.get(id) ?? candidate,
 							)
-							const rank = createComputed(() => {
-								const index = visual_entries().indexOf(id)
-								return index < 0 ? undefined : index
-							})
 							return (
 								<AppEntry
 									app={current}
-									rank={rank}
+									hint={visual_entries.as((ids) =>
+										shortcut_hint(ids.indexOf(id)),
+									)}
 									launch={launch}
 									register={(row) => {
 										revealers.set(id, row)
@@ -320,14 +279,13 @@ export namespace Launcher {
 				exclusivity={NORMAL}
 				keymode={ON_DEMAND}
 				layer={OVERLAY}
-				layout={position as Opt<Position>}
+				layout={position}
 				application={app}
 				onKey={(_ctrl, keyval, _code, mod) => {
 					if ((mod & ALT_MASK) !== ALT_MASK) return
 					const rank = digit_keys.indexOf(keyval as (typeof digit_keys)[number])
 					if (rank < 0) return
-					if (visual_entries.peek().length)
-						launch(app_by_entry.peek().get(visual_entries.peek()[rank]))
+					if (visual_entries.peek().length) launch_ranked(rank)
 					else if (show_favorites.peek()) launch(favorites.peek()[rank])
 				}}
 				$={(self) => {
@@ -362,14 +320,49 @@ export namespace Launcher {
 	}
 }
 
+function is_collapsed(row: Gtk.Revealer) {
+	if (row.get_reveal_child() || row.get_child_revealed()) return false
+	return row.get_height() === 0
+}
+
+function child_names(box: Gtk.Widget) {
+	const names: string[] = []
+	for (let row = box.get_first_child(); row; row = row.get_next_sibling())
+		names.push(row.get_name())
+	return names
+}
+
+function same_order(left: string[], right: string[]) {
+	if (left.length !== right.length) return false
+	return left.every((id, index) => id === right[index])
+}
+
+function same_members(next: string[], current: string[]) {
+	if (next.length !== current.length) return false
+	const wanted = new Set(next)
+	return current.every((id) => wanted.has(id))
+}
+
+function retained_order(children: string[], next: string[]) {
+	const pending = new Set(next)
+	const ids: string[] = []
+	for (const id of [...children, ...next]) if (pending.delete(id)) ids.push(id)
+	return ids
+}
+
+function shortcut_hint(rank: number) {
+	if (rank < 0 || rank >= digit_keys.length) return ""
+	return `󰘳 ${rank + 1}`
+}
+
 function AppEntry({
 	app,
-	rank,
+	hint,
 	launch,
 	register,
 }: {
 	app: Accessor<AstalApps.Application>
-	rank: Accessor<number | undefined>
+	hint: Accessor<string>
 	launch: (app: AstalApps.Application) => void
 	register: (row: Gtk.Revealer) => void
 }) {
@@ -417,14 +410,7 @@ function AppEntry({
 								label={app.as((candidate) => candidate.description ?? "")}
 							/>
 						</box>
-						<label
-							class="launch-hint"
-							hexpand
-							halign={END}
-							label={rank.as((value) =>
-								value !== undefined && value < 9 ? `󰘳 ${value + 1}` : "",
-							)}
-						/>
+						<label class="launch-hint" hexpand halign={END} label={hint} />
 					</box>
 				</button>
 				<Gtk.Separator visible={is_on_bottom} />

@@ -15,7 +15,7 @@ import giCairo from "cairo"
 
 import { hyprland, hyprland_command } from "$lib/hyprland"
 import { lua_string } from "$lib/lua"
-import { err, log_error, ok, type Result } from "$lib/result"
+import { err, log_error, ok, type result } from "$lib/result"
 
 const { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_MIDDLE } = Gdk
 
@@ -47,48 +47,49 @@ export function schedule_monitor_window_release(window?: Gtk.Window | null) {
 	idle(() => window.destroy())
 }
 
+function find_hyprland_monitor(target: Gdk.Monitor) {
+	const connector = target.get_connector()
+	const geometry = target.get_geometry()
+	return (
+		hyprland.monitors.find((monitor) => monitor.name === connector) ??
+		hyprland.monitors.find(
+			(monitor) => monitor.x === geometry.x && monitor.y === geometry.y,
+		)
+	)
+}
+
+function visible_workspace_id(monitor: AstalHyprland.Monitor) {
+	const special = monitor.specialWorkspace?.id
+	if (special) return special
+	return monitor.activeWorkspace?.id
+}
+
+function is_fullscreen(client: AstalHyprland.Client) {
+	const { FULLSCREEN } = AstalHyprland.Fullscreen
+	return (
+		client.fullscreen === FULLSCREEN || client.fullscreenClient === FULLSCREEN
+	)
+}
+
+function has_fullscreen_client(monitor: AstalHyprland.Monitor) {
+	const workspace = visible_workspace_id(monitor)
+	if (typeof workspace !== "number") return false
+	return hyprland.clients.some(
+		(client) =>
+			client.mapped &&
+			!client.hidden &&
+			client.monitor?.id === monitor.id &&
+			client.workspace?.id === workspace &&
+			is_fullscreen(client),
+	)
+}
+
 export function track_monitor_fullscreen(target: Gdk.Monitor) {
 	const [fullscreen, set_fullscreen] = createState(false)
-
-	const find_monitor = () => {
-		const connector = target.get_connector()
-		const geometry = target.get_geometry()
-
-		return (
-			hyprland.monitors.find((monitor) => monitor.name === connector) ??
-			hyprland.monitors.find(
-				(monitor) => monitor.x === geometry.x && monitor.y === geometry.y,
-			)
-		)
-	}
-
 	const sync = () => {
-		const monitor = find_monitor()
-		if (!monitor) {
-			set_fullscreen(false)
-			return
-		}
-
-		const special_workspace = monitor.specialWorkspace?.id
-		const workspace =
-			special_workspace && special_workspace !== 0
-				? special_workspace
-				: monitor.activeWorkspace?.id
-
-		set_fullscreen(
-			typeof workspace === "number" &&
-				hyprland.clients.some(
-					(client) =>
-						client.mapped &&
-						!client.hidden &&
-						client.monitor?.id === monitor.id &&
-						client.workspace?.id === workspace &&
-						(client.fullscreen === AstalHyprland.Fullscreen.FULLSCREEN ||
-							client.fullscreenClient === AstalHyprland.Fullscreen.FULLSCREEN),
-				),
-		)
+		const monitor = find_hyprland_monitor(target)
+		set_fullscreen(monitor ? has_fullscreen_client(monitor) : false)
 	}
-
 	const event_handler = hyprland.connect("event", sync)
 	sync()
 	onCleanup(() => hyprland.disconnect(event_handler))
@@ -123,39 +124,32 @@ export function get_client_workspace_id(client: AstalHyprland.Client) {
 }
 
 const [client_placement_version, set_client_placement_version] = createState(0)
-let placement_tracker_installed = false
 let placement_handlers: number[] = []
 
+function bump_client_placement() {
+	set_client_placement_version(client_placement_version.peek() + 1)
+}
+
 function install_placement_tracker() {
-	if (placement_tracker_installed) return
-	placement_tracker_installed = true
-	const bump = () =>
-		set_client_placement_version(client_placement_version.peek() + 1)
+	if (placement_handlers.length > 0) return
 	placement_handlers = [
-		hyprland.connect("client-moved", bump),
-		hyprland.connect("client-added", bump),
-		hyprland.connect("client-removed", bump),
+		hyprland.connect("client-moved", bump_client_placement),
+		hyprland.connect("client-added", bump_client_placement),
+		hyprland.connect("client-removed", bump_client_placement),
 	]
 }
 
 app.connect("shutdown", () => {
 	for (const handler of placement_handlers) hyprland.disconnect(handler)
 	placement_handlers = []
-	placement_tracker_installed = false
 })
 
 export function refresh_client_placement() {
 	install_placement_tracker()
-	set_client_placement_version(client_placement_version.peek() + 1)
+	bump_client_placement()
 }
 
-export function read_client_placement_version() {
-	return client_placement_version()
-}
-
-export function subscribe_client_placement(callback: () => void) {
-	return client_placement_version.subscribe(callback)
-}
+export { client_placement_version }
 
 export function create_workspace_clients(workspace_id: number) {
 	install_placement_tracker()
@@ -176,9 +170,10 @@ export function create_workspace_clients(workspace_id: number) {
 }
 
 function sort_by_workspace(clients: AstalHyprland.Client[]) {
-	return [...clients].sort((a, b) => {
-		return (get_client_workspace_id(a) ?? 0) - (get_client_workspace_id(b) ?? 0)
-	})
+	return [...clients].sort(
+		(a, b) =>
+			(get_client_workspace_id(a) ?? 0) - (get_client_workspace_id(b) ?? 0),
+	)
 }
 
 function filter_window_clients_for_workspace(
@@ -194,25 +189,23 @@ function filter_window_clients_for_workspace(
 
 type client_reference = AstalHyprland.Client | string | null | undefined
 
-function client_window(client: client_reference): Result<string> {
-	const raw =
-		typeof client === "string"
-			? client
-			: (client?.get_address?.() ?? client?.address)
-	const address = String(raw ?? "").trim()
+function client_address(client: client_reference): string {
+	if (typeof client === "string") return client.trim()
+	return String(client?.get_address?.() ?? client?.address ?? "").trim()
+}
+
+function client_window(client: client_reference): result<string> {
+	const address = client_address(client)
 	if (!address) return err(new Error("Client has no address"))
-	return ok(
-		lua_string(
-			`address:${address.startsWith("0x") ? address : `0x${address}`}`,
-		),
-	)
+	const hex = address.startsWith("0x") ? address : `0x${address}`
+	return ok(lua_string(`address:${hex}`))
 }
 
 async function dispatch_to_client(
 	client: client_reference,
 	dispatcher: (window: string) => string,
 	context: string,
-): Promise<Result<void>> {
+): Promise<result<void>> {
 	const window = client_window(client)
 	const result = window.ok
 		? await hyprland_command(`dispatch ${dispatcher(window.value)}`)
@@ -239,7 +232,7 @@ export function close_client(client: client_reference) {
 
 export async function focus_client_and_toggle_fullscreen(
 	client: AstalHyprland.Client,
-): Promise<Result<void>> {
+): Promise<result<void>> {
 	const focused = await focus_client(client)
 	if (!focused.ok) return focused
 	return dispatch_to_client(
@@ -252,7 +245,7 @@ export async function focus_client_and_toggle_fullscreen(
 export function move_client_to_workspace_silent(
 	workspace_id: number,
 	client: client_reference,
-): Promise<Result<void>> {
+): Promise<result<void>> {
 	return dispatch_to_client(
 		client,
 		(window) =>

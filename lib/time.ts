@@ -1,70 +1,64 @@
 import GLib from "gi://GLib"
-import { attempt, log_error } from "$lib/result"
+import { attempt, attempt_async, log_error } from "$lib/result"
 
-export type Timer = { cancel(): void }
+export type timer = { cancel(): void }
 
-function schedule(
-	ms: number,
-	callback: () => unknown,
-	repeat: boolean,
-	immediate = false,
-): Timer {
+function run_callback(callback: () => unknown) {
+	const result = attempt(callback)
+	if (!log_error(result, "timer: Callback failed")) return
+	if (!(result.value instanceof Promise)) return
+	const pending = result.value
+	void attempt_async(() => pending).then((settled) =>
+		log_error(settled, "timer: Callback failed"),
+	)
+}
+
+function schedule(ms: number, callback: () => unknown, repeat: boolean): timer {
 	let source = 0
-	let first = 0
 	let cancelled = false
-	const invoke = () => {
-		if (cancelled) return
-		const result = attempt(callback)
-		if (!log_error(result, "timer: Callback failed")) return
-		if (result.value instanceof Promise)
-			void result.value.catch((error) =>
-				console.error("timer: Callback failed", error),
-			)
-	}
 	const dispatch = () => {
 		if (!repeat) source = 0
-		invoke()
+		if (!cancelled) run_callback(callback)
 		return repeat && !cancelled ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE
 	}
 	if (ms === 0 && !repeat)
 		source = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, dispatch)
 	else
 		source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(1, ms), dispatch)
-	if (immediate)
-		first = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-			first = 0
-			invoke()
-			return GLib.SOURCE_REMOVE
-		})
 	return {
 		cancel() {
 			if (cancelled) return
 			cancelled = true
 			if (source) GLib.Source.remove(source)
-			if (first) GLib.Source.remove(first)
 			source = 0
-			first = 0
 		},
 	}
 }
 
-export function timeout(ms: number, callback: () => unknown): Timer {
+export function timeout(ms: number, callback: () => unknown): timer {
 	return schedule(ms, callback, false)
 }
 
-export function idle(callback: () => unknown): Timer {
+export function idle(callback: () => unknown): timer {
 	return schedule(0, callback, false)
 }
 
-export function interval(ms: number, callback: () => unknown): Timer {
-	return schedule(ms, callback, true, true)
+export function interval(ms: number, callback: () => unknown): timer {
+	const repeating = schedule(ms, callback, true)
+	const first = idle(callback)
+	return {
+		cancel() {
+			repeating.cancel()
+			first.cancel()
+		},
+	}
 }
 
 export function debounce<Args extends unknown[]>(
 	ms: number,
 	fn: (...args: Args) => void | Promise<void>,
 ) {
-	let timer: Timer | null = null
+	let timer: timer | null = null
 	return {
 		get pending() {
 			return timer !== null

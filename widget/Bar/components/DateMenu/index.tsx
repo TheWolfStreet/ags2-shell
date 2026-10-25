@@ -1,7 +1,7 @@
 import app from "$lib/app"
 import { Astal, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
-import { createBinding, createComputed, createState, onCleanup } from "ags"
+import { createComputed, createState, onCleanup } from "ags"
 import { createPoll } from "ags/time"
 import { readFile } from "ags/file"
 
@@ -14,11 +14,10 @@ import { create_popup_position, PopupWindow } from "widget/shared/PopupWindow"
 import { Notifications } from "../Notifications"
 import { PanelButton } from "../PanelButton"
 
-import { notification_manager } from "$service/notifications"
 import icons from "$lib/icons"
 import { on_window_toggle } from "$lib/windowing"
 import { attempt, log_error } from "$lib/result"
-import { interval, type Timer } from "$lib/time"
+import { interval, type timer } from "$lib/time"
 
 import options from "$shell/options"
 
@@ -44,6 +43,11 @@ class DateMenuColumns extends Gtk.Widget {
 		})
 	}
 
+	side_width(width: number) {
+		const [, separator] = this.separator.measure(Gtk.Orientation.HORIZONTAL, -1)
+		return Math.max(0, Math.floor((width - separator) / 2))
+	}
+
 	override vfunc_measure(
 		orientation: Gtk.Orientation,
 		for_size: number,
@@ -61,14 +65,7 @@ class DateMenuColumns extends Gtk.Widget {
 				-1,
 			]
 		}
-		const [, separator_width] = this.separator.measure(
-			Gtk.Orientation.HORIZONTAL,
-			-1,
-		)
-		const date_width =
-			for_size < 0
-				? -1
-				: Math.max(0, Math.floor((for_size - separator_width) / 2))
+		const date_width = for_size < 0 ? -1 : this.side_width(for_size)
 		const [minimum, natural] = this.date.measure(orientation, date_width)
 		return [minimum, natural, -1, -1]
 	}
@@ -78,11 +75,7 @@ class DateMenuColumns extends Gtk.Widget {
 		height: number,
 		baseline: number,
 	) {
-		const [, separator_width] = this.separator.measure(
-			Gtk.Orientation.HORIZONTAL,
-			-1,
-		)
-		const side = Math.max(0, Math.floor((width - separator_width) / 2))
+		const side = this.side_width(width)
 		this.notifications.measure(Gtk.Orientation.HORIZONTAL, height)
 		this.notifications.measure(Gtk.Orientation.VERTICAL, side)
 		this.notifications.allocate(side, height, baseline, null)
@@ -108,7 +101,7 @@ const RegisteredDateMenuColumns = GObject.registerClass(DateMenuColumns)
 export namespace DateMenu {
 	export function Button() {
 		return (
-			<PanelButton targetWindow="datemenu" halign={CENTER}>
+			<PanelButton target_window="datemenu" halign={CENTER}>
 				<label
 					valign={CENTER}
 					label={createComputed(
@@ -147,26 +140,31 @@ export namespace DateMenu {
 		return columns
 	}
 
-	const notification_list = createBinding(notification_manager, "notifications")
 	const clock = createPoll<GLib.DateTime>(
 		GLib.DateTime.new_now_local(),
 		1000,
 		() => GLib.DateTime.new_now_local(),
 	)
-	function format_uptime(up: number) {
-		const h = Math.floor(up / 60)
-		const m = up % 60
-		return `uptime: ${h}:${m < 10 ? "0" + m : m}`
+	function format_uptime(minutes: number) {
+		const hours = Math.floor(minutes / 60)
+		const rest = String(minutes % 60).padStart(2, "0")
+		return `uptime: ${hours}:${rest}`
+	}
+
+	function read_uptime_minutes() {
+		return attempt(() =>
+			Math.floor(Number(readFile("/proc/uptime").split(" ")[0]) / 60),
+		)
 	}
 
 	function ClearButton() {
-		const trash_icon = notification_list.as(
+		const trash_icon = Notifications.pending.as(
 			(entries) => icons.trash[entries.length ? "full" : "empty"],
 		)
 		return (
 			<button
 				onClicked={Notifications.animate_dismiss_all}
-				sensitive={notification_list.as((entries) => entries.length > 0)}
+				sensitive={Notifications.pending.as((entries) => entries.length > 0)}
 				valign={CENTER}
 			>
 				<box>
@@ -187,7 +185,7 @@ export namespace DateMenu {
 	}
 
 	function NotifyColumn() {
-		const no_notifications = notification_list.as(
+		const no_notifications = Notifications.pending.as(
 			(entries) => entries.length === 0,
 		)
 		return (
@@ -208,7 +206,7 @@ export namespace DateMenu {
 						>
 							<Placeholder
 								iconName={icons.notifications.silent}
-								label={"No new notifications"}
+								label="No new notifications"
 							/>
 						</revealer>
 					</box>
@@ -220,16 +218,11 @@ export namespace DateMenu {
 	function DateColumn() {
 		const [uptime, set_uptime] = createState(0)
 		const [shown, set_shown] = createState(false)
-		let uptime_timer: Timer | null = null
+		let uptime_timer: timer | null = null
 		const update = () => {
-			const result = attempt(() =>
-				Math.floor(Number(readFile("/proc/uptime").split(" ")[0]) / 60),
-			)
-			if (
-				log_error(result, "datemenu.uptime: Failed to read uptime") &&
-				Number.isFinite(result.value)
-			)
-				set_uptime(result.value)
+			const minutes = read_uptime_minutes()
+			if (!log_error(minutes, "datemenu.uptime: Failed to read uptime")) return
+			if (Number.isFinite(minutes.value)) set_uptime(minutes.value)
 		}
 		const unsubscribe = on_window_toggle("datemenu", (window) => {
 			uptime_timer?.cancel()

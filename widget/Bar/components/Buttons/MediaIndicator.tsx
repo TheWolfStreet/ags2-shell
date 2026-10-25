@@ -6,13 +6,14 @@ import {
 	With,
 } from "ags"
 import { Gtk } from "ags/gtk4"
-import { timeout, type Timer } from "$lib/time"
+import { timeout, type timer } from "$lib/time"
 
 import AstalMpris from "gi://AstalMpris"
 import Pango from "gi://Pango"
 
 import options from "$shell/options"
 import { PanelButton } from "../PanelButton"
+import icons from "$lib/icons"
 
 const media = AstalMpris.get_default()
 
@@ -30,14 +31,7 @@ export function MediaIndicator() {
 						<PanelButton
 							visible
 							class="media"
-							onClicked={() => {
-								if (
-									current_player.get_playback_status() ===
-									AstalMpris.PlaybackStatus.PLAYING
-								)
-									current_player.pause()
-								else current_player.play()
-							}}
+							onClicked={() => toggle_playback(current_player)}
 						>
 							<box class="media-content">
 								<Gtk.EventControllerMotion
@@ -71,6 +65,12 @@ export function MediaIndicator() {
 	)
 }
 
+function toggle_playback(player: AstalMpris.Player) {
+	if (player.get_playback_status() === AstalMpris.PlaybackStatus.PLAYING)
+		player.pause()
+	else player.play()
+}
+
 function create_preferred_player() {
 	const players = createBinding(media, "players")
 	return createComputed(() => {
@@ -85,7 +85,7 @@ function create_preferred_player() {
 
 function create_media_reveal() {
 	const [reveal, set_reveal] = createState(false)
-	let track_time: Timer | undefined
+	let track_time: timer | undefined
 
 	function cancel_track_time() {
 		track_time?.cancel()
@@ -134,12 +134,14 @@ function create_player_label(player: AstalMpris.Player) {
 	const artist = createBinding(player, "artist")
 	return createComputed(() => {
 		const track_title = title() || "Untitled"
-		return artist() ? `${artist()} - ${track_title}` : track_title
+		const track_artist = artist()
+		if (!track_artist) return track_title
+		return `${track_artist} - ${track_title}`
 	})
 }
 
 function create_player_icon(player: AstalMpris.Player) {
 	return createBinding(player, "entry").as(
-		(entry) => entry || "audio-x-generic-symbolic",
+		(entry) => entry || icons.fallback.audio,
 	)
 }

@@ -243,7 +243,7 @@
           rm templates/templates
           rmdir templates .gir-generator/work .gir-generator
           test -f @girs/index.d.ts
-          test -f tests/types-contract.ts
+          test -f tests/types_contract.ts
           test -f ${self.checks.${system}.native}/passed
           export AGS2SHELL_NODE_TYPES=${node_types}/node_modules
           npm run typecheck

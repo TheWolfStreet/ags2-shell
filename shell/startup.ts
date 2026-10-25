@@ -7,11 +7,18 @@ import GLib from "gi://GLib"
 import { begin_css_batch, end_css_batch, init_css } from "style"
 import {
 	build_wallpaper_palette,
-	type Rgb,
-	type WallpaperPalette,
+	type rgb,
+	type wallpaper_palette,
 } from "$lib/colors"
 import env from "$lib/env"
-import { attempt, log_error, type Result } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type result,
+} from "$lib/result"
 import { debounce } from "$lib/time"
 import { get_file_size } from "$lib/textures"
 import { max_image_bytes, valid_image_dimensions } from "$lib/files"
@@ -22,11 +29,29 @@ import { wallpaper_path, wallpaper_revision } from "$lib/wallpaper"
 import options, { subscribe_options } from "$shell/options"
 
 const { scheme, dark, light } = options.theme
-const SCHEME_SYNC_DEBOUNCE_MS = 200
+const scheme_sync_debounce_ms = 200
 
 const settings = new Gio.Settings({
 	schema: "org.gnome.desktop.interface",
 })
+
+const dark_icon_suffixes = ["-dark", "-Dark", "_dark"]
+const light_icon_suffixes = ["-light", "-Light", "_light", ""]
+
+function primary_color() {
+	if (scheme.peek() === "dark") return dark.primary.bg.peek()
+	return light.primary.bg.peek()
+}
+
+function serialized(task: () => Promise<void>, tag: string) {
+	let queue = Promise.resolve()
+	return () => {
+		queue = queue.then(async () => {
+			log_error(await attempt_async(task), tag)
+		})
+		return queue
+	}
+}
 
 function sync_color_scheme() {
 	const desired = `prefer-${scheme.peek()}`
@@ -59,159 +84,143 @@ function sync_icon_theme() {
 	if (!current_theme) return
 
 	const base_theme = get_base_icon_theme(current_theme)
-	const is_dark = scheme.peek() === "dark"
-	const suffixes = is_dark
-		? ["-dark", "-Dark", "_dark"]
-		: ["-light", "-Light", "_light", ""]
+	const suffixes =
+		scheme.peek() === "dark" ? dark_icon_suffixes : light_icon_suffixes
+	const candidate = suffixes
+		.map((suffix) => base_theme + suffix)
+		.find((theme) => icon_theme_exists(theme))
+	if (candidate !== undefined && candidate !== current_theme)
+		settings.set_string("icon-theme", candidate)
+}
 
-	for (const suffix of suffixes) {
-		const candidate = base_theme + suffix
-		if (icon_theme_exists(candidate)) {
-			if (current_theme !== candidate)
-				settings.set_string("icon-theme", candidate)
-			return
-		}
-	}
-
-	if (!is_dark && icon_theme_exists(base_theme) && current_theme !== base_theme)
-		settings.set_string("icon-theme", base_theme)
+function tmux(args: string[]): Promise<result<string>> {
+	return attempt_async(() => execAsync(["tmux", ...args]))
 }
 
 async function sync_tmux_accent() {
-	const hex =
-		scheme.peek() === "dark" ? dark.primary.bg.peek() : light.primary.bg.peek()
+	const hex = primary_color()
+	const global = await tmux(["set", "-g", "@main_accent", hex])
+	if (!global.ok) console.debug("startup.tmux: Accent sync skipped", global.err)
 
-	await execAsync(["tmux", "set", "-g", "@main_accent", hex]).catch((error) => {
-		console.debug("startup.tmux: tmux accent sync skipped", error)
-	})
-
-	const raw_sessions = await execAsync([
-		"tmux",
-		"list-sessions",
-		"-F",
-		"#S",
-	]).catch((error) => {
-		console.debug("startup.tmux: no tmux sessions to sync", error)
-		return ""
-	})
-	if (!raw_sessions) return
-
-	const sessions = raw_sessions.split("\n").filter(Boolean)
-	for (const session of sessions) {
-		await execAsync([
-			"tmux",
+	const sessions = await tmux(["list-sessions", "-F", "#S"])
+	if (!sessions.ok) {
+		console.debug("startup.tmux: No tmux sessions to sync", sessions.err)
+		return
+	}
+	for (const session of sessions.value.split("\n").filter(Boolean)) {
+		const updated = await tmux([
 			"set-option",
 			"-t",
 			session,
 			"@main_accent",
 			hex,
-		]).catch((error) =>
+		])
+		if (!updated.ok)
 			console.debug(
-				`startup.tmux: accent sync skipped for session ${session}`,
-				error,
-			),
-		)
+				`startup.tmux: Accent sync skipped for session ${session}`,
+				updated.err,
+			)
 	}
 }
 
-const sync_scheme = debounce(SCHEME_SYNC_DEBOUNCE_MS, () => {
+const sync_scheme = debounce(scheme_sync_debounce_ms, () => {
 	sync_color_scheme()
 	sync_icon_theme()
 })
 
-let tmux_sync = Promise.resolve()
-const sync_tmux = debounce(60, () => {
-	tmux_sync = tmux_sync
-		.then(sync_tmux_accent)
-		.catch((error) =>
-			console.error("startup.tmux: Failed to synchronize accent", error),
-		)
-	return tmux_sync
-})
+const sync_tmux = debounce(
+	60,
+	serialized(sync_tmux_accent, "startup.tmux: Failed to synchronize accent"),
+)
+
+function start_tmux_accent_sync() {
+	if (GLib.find_program_in_path("tmux") === null) return
+	const sync_if_enabled = () => {
+		if (options.tmux.accent.peek()) sync_tmux.call()
+	}
+	sync_if_enabled()
+	options.tmux.accent.subscribe(sync_if_enabled)
+	dark.primary.bg.subscribe(sync_if_enabled)
+	light.primary.bg.subscribe(sync_if_enabled)
+	scheme.subscribe(sync_if_enabled)
+}
+
+function hyprland_color(color: string) {
+	return lua_string(`rgba(${color}ff)`.replace("#", ""))
+}
+
+async function apply_hyprland_appearance() {
+	const { gaps, inactiveBorder } = options.hyprland
+	const { spacing, roundness, border, blur, shadows } = options.theme
+	const gaps_out = Math.floor(gaps.peek() * spacing.peek())
+	const colors = `col = { active_border = ${hyprland_color(primary_color())}, inactive_border = ${hyprland_color(inactiveBorder.peek())} }`
+	const general = `general = { border_size = ${border.width.peek()}, gaps_out = ${gaps_out}, gaps_in = ${Math.floor(gaps_out / 2)}, ${colors} }`
+	const decoration = `decoration = { rounding = ${roundness.peek()}, shadow = { enabled = ${shadows.peek()} }, blur = { enabled = ${blur.peek()} } }`
+	log_error(
+		await hyprland_command(`eval hl.config({ ${general}, ${decoration} })`),
+		"startup.hyprland: Failed to apply appearance",
+	)
+}
 
 function start_hyprland_appearance_sync() {
-	const {
-		hyprland: hyprland_options,
-		theme: {
-			spacing,
-			roundness,
-			border: { width },
-			blur,
-			shadows,
-		},
-	} = options
-	const dark_active = dark.primary.bg
-	const light_active = light.primary.bg
+	const { spacing, roundness, border, blur, shadows } = options.theme
 	const dependencies = [
 		"hyprland",
 		spacing.id,
 		roundness.id,
-		width.id,
+		border.width.id,
 		blur.id,
 		shadows.id,
-		dark_active.id,
-		light_active.id,
+		dark.primary.bg.id,
+		light.primary.bg.id,
 		scheme.id,
 	]
-
-	const primary = () =>
-		scheme.peek() === "dark" ? dark_active.peek() : light_active.peek()
-	const rgba = (color: string) => `rgba(${color}ff)`.replace("#", "")
-
-	const apply_hyprland_appearance = async () => {
-		const gaps = Math.floor(hyprland_options.gaps.peek() * spacing.peek())
-		const active_border = lua_string(rgba(primary()))
-		const inactive_border = lua_string(
-			rgba(hyprland_options.inactiveBorder.peek()),
-		)
-		const general = `general = { border_size = ${width.peek()}, gaps_out = ${gaps}, gaps_in = ${Math.floor(gaps / 2)}, col = { active_border = ${active_border}, inactive_border = ${inactive_border} } }`
-		const decoration = `decoration = { rounding = ${roundness.peek()}, shadow = { enabled = ${shadows.peek() ? "true" : "false"} }, blur = { enabled = ${blur.peek() ? "true" : "false"} } }`
-		log_error(
-			await hyprland_command(`eval hl.config({ ${general}, ${decoration} })`),
-			"startup.hyprland: Failed to apply appearance",
-		)
-	}
-
-	let pending = Promise.resolve()
-	const update = debounce(100, () => {
-		pending = pending
-			.then(apply_hyprland_appearance)
-			.catch((error) =>
-				console.error(
-					"startup.hyprland: Failed to synchronize appearance",
-					error,
-				),
-			)
-		return pending
-	})
+	const update = debounce(
+		100,
+		serialized(
+			apply_hyprland_appearance,
+			"startup.hyprland: Failed to synchronize appearance",
+		),
+	)
 	hyprland.connect("config-reloaded", () => update.call())
 	subscribe_options(options, dependencies, () => update.call())
 	update.call()
 }
 
-const SAMPLE_SIZE = 96
-const WALLPAPER_THEME_DELAY_MS = 180
+const sample_size = 96
+const wallpaper_theme_delay_ms = 180
 let last_wallpaper_revision = -1
 
-function sample_wallpaper_pixels(path: string): Rgb[] {
-	const [, source_width, source_height] = GdkPixbuf.Pixbuf.get_file_info(path)
+function sample_wallpaper_pixels(path: string): result<rgb[]> {
+	const info = attempt(() => GdkPixbuf.Pixbuf.get_file_info(path))
+	if (!info.ok) return info
+
+	const [, source_width, source_height] = info.value
 	if (!valid_image_dimensions(source_width, source_height))
-		throw new Error("Wallpaper dimensions exceed palette sampling limit")
-	const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-		path,
-		SAMPLE_SIZE,
-		SAMPLE_SIZE,
-		true,
+		return err(new Error("Wallpaper dimensions exceed palette sampling limit"))
+
+	const pixbuf = attempt(() =>
+		GdkPixbuf.Pixbuf.new_from_file_at_scale(
+			path,
+			sample_size,
+			sample_size,
+			true,
+		),
 	)
+	if (!pixbuf.ok) return pixbuf
+	return ok(collect_samples(pixbuf.value))
+}
+
+function collect_samples(pixbuf: GdkPixbuf.Pixbuf): rgb[] {
 	const pixels = pixbuf.get_pixels()
 	const width = pixbuf.get_width()
 	const height = pixbuf.get_height()
 	const rowstride = pixbuf.get_rowstride()
 	const channels = pixbuf.get_n_channels()
 	const has_alpha = pixbuf.get_has_alpha()
-	const samples: Rgb[] = []
+	const samples: rgb[] = []
 
-	for (let y = 0; y < height; y++) {
+	for (let y = 0; y < height; y++)
 		for (let x = 0; x < width; x++) {
 			const offset = y * rowstride + x * channels
 			if (has_alpha && pixels[offset + 3] < 32) continue
@@ -221,35 +230,30 @@ function sample_wallpaper_pixels(path: string): Rgb[] {
 				b: pixels[offset + 2] / 255,
 			})
 		}
-	}
 
 	return samples
 }
 
-function apply_wallpaper_palette(colors: WallpaperPalette) {
-	const { dark, light } = options.theme
+function apply_wallpaper_palette(palette: wallpaper_palette) {
 	begin_css_batch()
 	try {
-		dark.bg.set(colors.dark.bg)
-		dark.fg.set(colors.dark.fg)
-		dark.widget.set(colors.dark.widget)
-		dark.border.set(colors.dark.border)
-		dark.primary.bg.set(colors.dark.primary_bg)
-		dark.primary.fg.set(colors.dark.primary_fg)
-		dark.error.bg.set(colors.dark.error_bg)
-		light.bg.set(colors.light.bg)
-		light.fg.set(colors.light.fg)
-		light.widget.set(colors.light.widget)
-		light.border.set(colors.light.border)
-		light.primary.bg.set(colors.light.primary_bg)
-		light.primary.fg.set(colors.light.primary_fg)
-		light.error.bg.set(colors.light.error_bg)
+		for (const name of ["dark", "light"] as const) {
+			const target = options.theme[name]
+			const colors = palette[name]
+			target.bg.set(colors.bg)
+			target.fg.set(colors.fg)
+			target.widget.set(colors.widget)
+			target.border.set(colors.border)
+			target.primary.bg.set(colors.primary_bg)
+			target.primary.fg.set(colors.primary_fg)
+			target.error.bg.set(colors.error_bg)
+		}
 	} finally {
 		end_css_batch()
 	}
 }
 
-const update_wallpaper_theme = debounce(WALLPAPER_THEME_DELAY_MS, () => {
+const update_wallpaper_theme = debounce(wallpaper_theme_delay_ms, () => {
 	if (!options.autotheme.peek()) return
 	const path = wallpaper_path
 	const size = get_file_size(path)
@@ -261,16 +265,16 @@ const update_wallpaper_theme = debounce(WALLPAPER_THEME_DELAY_MS, () => {
 	const revision = wallpaper_revision.peek()
 	if (revision === last_wallpaper_revision) return
 
-	const result = attempt(() =>
-		build_wallpaper_palette(sample_wallpaper_pixels(path)),
-	)
-	if (!log_error(result, "wallpaper.theme: Failed to sample wallpaper")) return
-	if (!result.value) {
+	const samples = sample_wallpaper_pixels(path)
+	if (!log_error(samples, "wallpaper.theme: Failed to sample wallpaper")) return
+
+	const palette = build_wallpaper_palette(samples.value)
+	if (!palette) {
 		console.error("wallpaper.theme: Wallpaper contained no usable pixels")
 		return
 	}
 
-	apply_wallpaper_palette(result.value)
+	apply_wallpaper_palette(palette)
 	last_wallpaper_revision = revision
 })
 
@@ -287,7 +291,7 @@ function start_wallpaper_theme() {
 	update_wallpaper_theme.call()
 }
 
-export default function start_shell(): Result<void> {
+export default function start_shell(): result<void> {
 	const initialized = env.init()
 	if (!initialized.ok) return initialized
 	return attempt(() => {
@@ -296,15 +300,7 @@ export default function start_shell(): Result<void> {
 		sync_icon_theme()
 		scheme.subscribe(() => sync_scheme.call())
 
-		if (GLib.find_program_in_path("tmux") !== null) {
-			tmux_sync = sync_tmux_accent().catch((error) =>
-				console.error("startup.tmux: Failed to synchronize accent", error),
-			)
-			options.theme.dark.primary.bg.subscribe(() => sync_tmux.call())
-			options.theme.light.primary.bg.subscribe(() => sync_tmux.call())
-			options.theme.scheme.subscribe(() => sync_tmux.call())
-		}
-
+		start_tmux_accent_sync()
 		start_wallpaper_theme()
 		start_hyprland_appearance_sync()
 	})

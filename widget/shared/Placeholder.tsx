@@ -1,7 +1,8 @@
 import { Gtk } from "ags/gtk4"
-import { FCProps, Accessor } from "ags"
+import { FCProps } from "ags"
 
-import options from "$shell/options"
+import { type maybe_accessor } from "$lib/ui"
+import { scaled } from "$shell/options"
 
 const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
@@ -9,10 +10,10 @@ const { VERTICAL } = Gtk.Orientation
 type placeholder_props = FCProps<
 	Gtk.Box,
 	{
-		iconName?: Accessor<string> | string
-		iconSize?: Accessor<number> | number
-		label?: Accessor<string> | string
-		visible?: Accessor<boolean> | boolean
+		iconName?: maybe_accessor<string>
+		iconSize?: maybe_accessor<number>
+		label?: maybe_accessor<string>
+		visible?: maybe_accessor<boolean>
 	}
 >
 
@@ -35,10 +36,7 @@ export function Placeholder({
 			<image
 				iconName={icon_name}
 				useFallback
-				pixelSize={
-					icon_size ??
-					options.scale.as((scale) => Math.round((64 * scale) / 100))
-				}
+				pixelSize={icon_size ?? scaled(64)}
 			/>
 			<label label={label} />
 		</box>

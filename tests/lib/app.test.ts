@@ -1,24 +1,13 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import { stripTypeScriptTypes } from "node:module"
 import { test } from "node:test"
-import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
-import * as result from "../../lib/result.ts"
+import { load_module } from "../load_module.ts"
 
-type ShutdownListener = { callback: () => void; after: boolean }
+type shutdown_listener = { callback: () => void; after: boolean }
 
 async function shell_app() {
 	const events: string[] = []
-	const context = createContext({ console })
-	const source = stripTypeScriptTypes(
-		readFileSync(new URL("../../lib/app.ts", import.meta.url), "utf8").replace(
-			/^@register\(\)\n/m,
-			"",
-		),
-	)
-	const module = new SourceTextModule(source, { context })
 	class BaseApp {
-		listeners: ShutdownListener[] = []
+		listeners: shutdown_listener[] = []
 		dbus_quit: (code?: number) => void
 		constructor() {
 			this.dbus_quit = this.quit.bind(this)
@@ -35,7 +24,7 @@ async function shell_app() {
 			this.listeners.push(listener)
 			return listener
 		}
-		disconnect(listener: ShutdownListener) {
+		disconnect(listener: shutdown_listener) {
 			this.listeners.splice(this.listeners.indexOf(listener), 1)
 		}
 		quit(code?: number) {
@@ -68,22 +57,9 @@ async function shell_app() {
 			},
 		},
 		"ags/gobject": { default: { Object: class {} }, register: () => () => {} },
-		"$lib/result": result,
 	}
-	await module.link(
-		(name) =>
-			new SyntheticModule(
-				Object.keys(imports[name]),
-				function () {
-					for (const [key, value] of Object.entries(imports[name]))
-						this.setExport(key, value)
-				},
-				{ context },
-			),
-	)
-	await module.evaluate()
-	const namespace: Record<string, any> = module.namespace
-	return { app: namespace.default, events }
+	const module = await load_module("lib/app.ts", imports)
+	return { app: module.default, events }
 }
 
 test("constructor-bound DBus quit awaits flush and recorder before native shutdown and exit", async () => {
@@ -127,4 +103,27 @@ test("failed guard does not shut down and allows a later DBus quit", async () =>
 	app.dbus_quit()
 	for (let i = 0; i < 5; i++) await Promise.resolve()
 	assert.deepEqual(events, ["flush", "flush", "native-quit", "exit:0"])
+})
+
+test("a throwing guard is logged, leaves no shutdown hook and allows a later quit", async (t) => {
+	const { app, events } = await shell_app()
+	const logged: unknown[][] = []
+	t.mock.method(console, "error", (...args: unknown[]) => {
+		if (!String(args[0]).includes("ExperimentalWarning")) logged.push(args)
+	})
+	const failure = new Error("guard broke")
+	app.before_quit = async () => {
+		events.push("flush")
+		throw failure
+	}
+	app.quit(3)
+	for (let i = 0; i < 5; i++) await Promise.resolve()
+	assert.deepEqual(logged, [
+		["shell.quit: Failed to quit application", failure],
+	])
+	assert.equal(app.listeners.length, 0)
+	app.before_quit = undefined
+	app.quit(4)
+	for (let i = 0; i < 5; i++) await Promise.resolve()
+	assert.deepEqual(events, ["flush", "native-quit", "exit:4"])
 })

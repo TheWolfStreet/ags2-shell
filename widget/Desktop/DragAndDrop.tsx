@@ -6,22 +6,22 @@ import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import Graphene from "gi://Graphene"
 
-import { attempt_async, log_error } from "$lib/result"
+import { attempt_async, err, log_error, ok, type result } from "$lib/result"
 import { hidden_drag_icon } from "$lib/textures"
 import options from "$shell/options"
 import {
 	build_file_content_provider,
 	read_file_text,
 	uri_list_paths,
-} from "./FileOperations"
+} from "./file_operations"
 import {
 	desktop_interaction,
 	import_files_to_desktop,
 	monitor_of_desktop_path,
 	move_desktop_files,
-	type DesktopGridData,
-} from "./Desktop"
-import { nearest_slot_index_for_point } from "./GridGeometry"
+	type desktop_grid_data,
+} from "./desktop"
+import { nearest_slot_index_for_point } from "./grid_geometry"
 
 const { DragAction, ModifierType } = Gdk
 
@@ -45,6 +45,20 @@ type hover = {
 	y: number
 }
 
+type preview_item = {
+	paintable: Gdk.Paintable
+	x: number
+	y: number
+	width: number
+	height: number
+}
+
+type drag_session = {
+	handled: boolean
+	canceled: boolean
+	hover: hover | null
+}
+
 const empty_drag: drag_state = { paths: [], anchor: null, source: null }
 const [active_drag, set_active_drag] = createState<drag_state>(empty_drag)
 const [drag_preview, set_drag_preview] = createState<drag_preview | null>(null)
@@ -52,14 +66,55 @@ const targets = new Map<
 	string,
 	(paths: string[], anchor: string, x: number, y: number) => void
 >()
-const drag_session: {
-	handled: boolean
-	canceled: boolean
-	hover: hover | null
-} = {
-	handled: false,
-	canceled: false,
-	hover: null,
+const session: drag_session = { handled: false, canceled: false, hover: null }
+
+function reset_session(): void {
+	session.handled = false
+	session.canceled = false
+	session.hover = null
+}
+
+function size_or(intrinsic: number | undefined, allocated: number): number {
+	const size = intrinsic ?? -1
+	return Math.max(1, size > 0 ? size : allocated)
+}
+
+function preview_item(
+	widget: Gtk.Widget,
+	anchor_widget: Gtk.Widget,
+): preview_item | null {
+	const [translated, x, y] = widget.translate_coordinates(anchor_widget, 0, 0)
+	if (!translated) return null
+	const live = Gtk.WidgetPaintable.new(widget)
+	const paintable = live.get_current_image() ?? live
+	return {
+		paintable,
+		x,
+		y,
+		width: size_or(paintable.get_intrinsic_width?.(), widget.get_width()),
+		height: size_or(paintable.get_intrinsic_height?.(), widget.get_height()),
+	}
+}
+
+function compose_preview(
+	items: preview_item[],
+	origin_x: number,
+	origin_y: number,
+	width: number,
+	height: number,
+): Gdk.Paintable | null {
+	const snapshot = new Gtk.Snapshot()
+	snapshot.push_opacity(0.9)
+	for (const item of items) {
+		snapshot.save()
+		snapshot.translate(
+			new Graphene.Point({ x: item.x - origin_x, y: item.y - origin_y }),
+		)
+		item.paintable.snapshot(snapshot, item.width, item.height)
+		snapshot.restore()
+	}
+	snapshot.pop()
+	return snapshot.to_paintable(new Graphene.Size({ width, height }))
 }
 
 function create_preview(
@@ -68,64 +123,26 @@ function create_preview(
 	anchor: string,
 	cursor_x: number,
 	cursor_y: number,
-) {
+): drag_preview | null {
 	const anchor_widget = widgets.get(anchor)
 	if (!anchor_widget) return null
 
-	const preview_items: Array<{
-		paintable: Gdk.Paintable
-		x: number
-		y: number
-		width: number
-		height: number
-	}> = []
-	let min_x = 0
-	let min_y = 0
-	let max_x = 0
-	let max_y = 0
-
+	const items: preview_item[] = []
 	for (const path of paths) {
 		const widget = widgets.get(path)
 		if (!widget) continue
-		const [ok, x, y] = widget.translate_coordinates(anchor_widget, 0, 0)
-		if (!ok) continue
-
-		const live = Gtk.WidgetPaintable.new(widget)
-		const paintable = live.get_current_image() ?? live
-		const intrinsic_width = paintable.get_intrinsic_width?.() ?? -1
-		const intrinsic_height = paintable.get_intrinsic_height?.() ?? -1
-		const width = Math.max(
-			1,
-			intrinsic_width > 0 ? intrinsic_width : widget.get_width(),
-		)
-		const height = Math.max(
-			1,
-			intrinsic_height > 0 ? intrinsic_height : widget.get_height(),
-		)
-		preview_items.push({ paintable, x, y, width, height })
-		min_x = Math.min(min_x, x)
-		min_y = Math.min(min_y, y)
-		max_x = Math.max(max_x, x + width)
-		max_y = Math.max(max_y, y + height)
+		const item = preview_item(widget, anchor_widget)
+		if (item) items.push(item)
 	}
+	if (items.length === 0) return null
 
-	if (preview_items.length === 0) return null
-
+	const min_x = Math.min(0, ...items.map((item) => item.x))
+	const min_y = Math.min(0, ...items.map((item) => item.y))
+	const max_x = Math.max(0, ...items.map((item) => item.x + item.width))
+	const max_y = Math.max(0, ...items.map((item) => item.y + item.height))
 	const width = Math.max(1, max_x - min_x)
 	const height = Math.max(1, max_y - min_y)
-	const snapshot = new Gtk.Snapshot()
-	snapshot.push_opacity(0.9)
-	for (const item of preview_items) {
-		snapshot.save()
-		snapshot.translate(
-			new Graphene.Point({ x: item.x - min_x, y: item.y - min_y }),
-		)
-		item.paintable.snapshot(snapshot, item.width, item.height)
-		snapshot.restore()
-	}
-	snapshot.pop()
-
-	const paintable = snapshot.to_paintable(new Graphene.Size({ width, height }))
+	const paintable = compose_preview(items, min_x, min_y, width, height)
 	if (!paintable) return null
 	return {
 		paintable,
@@ -136,17 +153,23 @@ function create_preview(
 	}
 }
 
-function drop_action(drop: Gdk.Drop, control_held: boolean): Gdk.DragAction {
+function control_held(controller: Gtk.EventController): boolean {
+	return (
+		(controller.get_current_event_state() & ModifierType.CONTROL_MASK) !== 0
+	)
+}
+
+function drop_action(drop: Gdk.Drop, control: boolean): Gdk.DragAction {
 	const actions = drop.get_actions()
 	const internal = active_drag.peek().paths.length > 0
 	if (internal && actions & DragAction.MOVE) return DragAction.MOVE
-	if (control_held && actions & DragAction.COPY) return DragAction.COPY
+	if (control && actions & DragAction.COPY) return DragAction.COPY
 	if (actions & DragAction.MOVE) return DragAction.MOVE
 	if (actions & DragAction.COPY) return DragAction.COPY
 	return 0
 }
 
-export type DesktopDragController = {
+export type desktop_drag_controller = {
 	state: Accessor<drag_state>
 	preview: Accessor<drag_preview | null>
 	position: Accessor<{ x: number; y: number }>
@@ -157,9 +180,26 @@ export type DesktopDragController = {
 	leave(): void
 }
 
+async function read_drop_paths(
+	drop: Gdk.Drop,
+	cancellable: Gio.Cancellable,
+): Promise<result<string[]>> {
+	const opened = await attempt_async(() =>
+		drop.read_async(["text/uri-list"], GLib.PRIORITY_DEFAULT, cancellable),
+	)
+	if (!opened.ok) return opened
+
+	const [stream] = opened.value
+	if (!stream) return err(new Error("Drop provided no file URI list"))
+
+	const text = await read_file_text(stream, cancellable)
+	if (!text.ok) return text
+	return ok([...new Set(uri_list_paths(text.value))])
+}
+
 export function create_desktop_drag_controller(
-	grid: Accessor<DesktopGridData>,
-): DesktopDragController {
+	grid: Accessor<desktop_grid_data>,
+): desktop_drag_controller {
 	const [position, set_position] = createState({ x: 0, y: 0 })
 	const [hovered, set_hovered] = createState(false)
 	const widgets = new Map<string, Gtk.Widget>()
@@ -176,30 +216,28 @@ export function create_desktop_drag_controller(
 		desktop_interaction.select(paths)
 	}
 
-	function finish(snapshot: drag_state, delete_data: boolean) {
-		const hover = drag_session.hover
-		const hovered_another_monitor =
-			delete_data &&
-			!drag_session.handled &&
-			!drag_session.canceled &&
-			snapshot.paths.length > 0 &&
-			snapshot.source !== null &&
-			hover !== null &&
-			hover.monitor_id !== snapshot.source
+	function unhandled_foreign_hover(
+		snapshot: drag_state,
+		delete_data: boolean,
+	): hover | null {
+		const hover = session.hover
+		if (!delete_data || session.handled || session.canceled) return null
+		if (snapshot.paths.length === 0 || snapshot.source === null) return null
+		if (hover === null || hover.monitor_id === snapshot.source) return null
+		return hover
+	}
 
-		if (hovered_another_monitor) {
-			drag_session.handled = true
+	function finish(snapshot: drag_state, delete_data: boolean) {
+		const hover = unhandled_foreign_hover(snapshot, delete_data)
+		if (hover)
 			targets.get(hover.monitor_id)?.(
 				snapshot.paths,
 				snapshot.anchor ?? snapshot.paths[0],
 				hover.x,
 				hover.y,
 			)
-		}
 
-		drag_session.handled = false
-		drag_session.canceled = false
-		drag_session.hover = null
+		reset_session()
 		desktop_interaction.press(null)
 		set_active_drag(empty_drag)
 		set_drag_preview(null)
@@ -221,16 +259,14 @@ export function create_desktop_drag_controller(
 			controller.set_icon(hidden_drag_icon(), 0, 0)
 			const preview = create_preview(widgets, paths, path, x, y)
 			on_begin()
-			drag_session.handled = false
-			drag_session.canceled = false
-			drag_session.hover = null
+			reset_session()
 			desktop_interaction.select(paths)
 			set_active_drag({ paths, anchor: path, source: grid.peek().id })
 			set_drag_preview(preview)
-			return build_file_content_provider(paths, "cut")
+			return build_file_content_provider({ paths, operation: "cut" })
 		})
 		source.connect("drag-cancel", () => {
-			drag_session.canceled = true
+			session.canceled = true
 			set_drag_preview(null)
 			set_active_drag({ ...active_drag.peek() })
 			return true
@@ -242,6 +278,86 @@ export function create_desktop_drag_controller(
 		onCleanup(() => {
 			if (widgets.get(path) === widget) widgets.delete(path)
 		})
+	}
+
+	async function place_drop(
+		drop: Gdk.Drop,
+		action: Gdk.DragAction,
+		x: number,
+		y: number,
+		cancellable: Gio.Cancellable,
+	): Promise<result<boolean>> {
+		const read = await read_drop_paths(drop, cancellable)
+		if (!read.ok) return read
+
+		const paths = read.value
+		if (!paths.length) {
+			console.error("desktop.drop: Drop contains no local files")
+			return ok(false)
+		}
+
+		const state = active_drag.peek()
+		const internal = paths.every(
+			(path) => state.paths.includes(path) && !!monitor_of_desktop_path(path),
+		)
+		if (internal && action === DragAction.MOVE) {
+			session.handled = true
+			move(state.paths, state.anchor ?? paths[0], slot_at(x, y))
+			return ok(true)
+		}
+
+		const imported = await import_files_to_desktop({
+			paths,
+			to: grid.peek().id,
+			operation: action === DragAction.COPY ? "copy" : "move",
+		})
+		return ok(
+			imported.failures.length === 0 && imported.created_paths.length > 0,
+		)
+	}
+
+	async function complete_drop(
+		drop: Gdk.Drop,
+		action: Gdk.DragAction,
+		x: number,
+		y: number,
+	) {
+		const cancellable = new Gio.Cancellable()
+		const deadline = timeout(30_000, () => cancellable.cancel())
+		const completed = await place_drop(drop, action, x, y, cancellable)
+		deadline.cancel()
+		const placed =
+			log_error(completed, "desktop.drop: Failed to complete drop") &&
+			completed.value
+		if (!placed) {
+			drop.finish(0)
+			return
+		}
+		set_drag_preview(null)
+		drop.finish(action)
+	}
+
+	function note_hover(
+		controller: Gtk.DropTargetAsync,
+		drop: Gdk.Drop,
+		x: number,
+		y: number,
+	): Gdk.DragAction {
+		const state = active_drag.peek()
+		const monitor_id = grid.peek().id
+		if (state.paths.length > 0 && state.source && state.source !== monitor_id)
+			session.hover = { monitor_id, x, y }
+		return drop_action(drop, control_held(controller))
+	}
+
+	function track(x: number, y: number) {
+		set_position({ x, y })
+		set_hovered(true)
+	}
+
+	function leave() {
+		if (session.hover?.monitor_id === grid.peek().id) session.hover = null
+		set_hovered(false)
 	}
 
 	function attach_target(widget: Gtk.Fixed) {
@@ -258,89 +374,17 @@ export function create_desktop_drag_controller(
 				drop.get_formats().contain_mime_type("text/uri-list"),
 		)
 
-		const hover = (
-			controller: Gtk.DropTargetAsync,
-			drop: Gdk.Drop,
-			x: number,
-			y: number,
-		) => {
-			const state = active_drag.peek()
-			const monitor_id = grid.peek().id
-			if (state.paths.length > 0 && state.source && state.source !== monitor_id)
-				drag_session.hover = { monitor_id: monitor_id, x, y }
-			return drop_action(
-				drop,
-				(controller.get_current_event_state() & ModifierType.CONTROL_MASK) !==
-					0,
-			)
-		}
-
-		target.connect("drag-enter", hover)
+		target.connect("drag-enter", note_hover)
 		target.connect("drag-motion", (controller, drop, x, y) => {
-			const action = hover(controller, drop, x, y)
-			set_position({ x, y })
-			set_hovered(true)
+			const action = note_hover(controller, drop, x, y)
+			track(x, y)
 			return action
 		})
-		target.connect("drag-leave", () => {
-			if (drag_session.hover?.monitor_id === grid.peek().id)
-				drag_session.hover = null
-			set_hovered(false)
-		})
+		target.connect("drag-leave", leave)
 		target.connect("drop", (controller, drop, x, y) => {
-			const action = drop_action(
-				drop,
-				(controller.get_current_event_state() & ModifierType.CONTROL_MASK) !==
-					0,
-			)
+			const action = drop_action(drop, control_held(controller))
 			if (!action) return false
-			void (async () => {
-				const cancellable = new Gio.Cancellable()
-				const deadline = timeout(30_000, () => cancellable.cancel())
-				const completed = await attempt_async(async () => {
-					const [stream] = await drop.read_async(
-						["text/uri-list"],
-						GLib.PRIORITY_DEFAULT,
-						cancellable,
-					)
-					if (!stream) throw new Error("Drop provided no file URI list")
-					const paths = [
-						...new Set(
-							uri_list_paths(await read_file_text(stream, cancellable)),
-						),
-					]
-					if (!paths.length) {
-						console.error("desktop.drop: Drop contains no local files")
-						return false
-					}
-					const state = active_drag.peek()
-					const internal = paths.every(
-						(path) =>
-							state.paths.includes(path) && !!monitor_of_desktop_path(path),
-					)
-					if (internal && action === DragAction.MOVE) {
-						drag_session.handled = true
-						move(state.paths, state.anchor ?? paths[0], slot_at(x, y))
-						return true
-					}
-					const result = await import_files_to_desktop({
-						paths,
-						to: grid.peek().id,
-						operation: action === DragAction.COPY ? "copy" : "move",
-					})
-					return result.failures.length === 0 && result.createdPaths.length > 0
-				})
-				deadline.cancel()
-				if (
-					log_error(completed, "desktop.drop: Failed to complete drop") &&
-					completed.value
-				) {
-					set_drag_preview(null)
-					drop.finish(action)
-					return
-				}
-				drop.finish(0)
-			})()
+			void complete_drop(drop, action, x, y)
 			return true
 		})
 		widget.add_controller(target)
@@ -349,7 +393,7 @@ export function create_desktop_drag_controller(
 	function register_target() {
 		const monitor_id = grid.peek().id
 		targets.set(monitor_id, (paths, anchor, x, y) => {
-			drag_session.handled = true
+			session.handled = true
 			set_drag_preview(null)
 			move(paths, anchor, slot_at(x, y))
 		})
@@ -375,19 +419,12 @@ export function create_desktop_drag_controller(
 		hovered,
 		attach_source,
 		attach_target,
-		track(x, y) {
-			set_position({ x, y })
-			set_hovered(true)
-		},
-		leave() {
-			if (drag_session.hover?.monitor_id === grid.peek().id)
-				drag_session.hover = null
-			set_hovered(false)
-		},
+		track,
+		leave,
 	}
 }
 
-export function DragLayer({ drag }: { drag: DesktopDragController }) {
+export function DragLayer({ drag }: { drag: desktop_drag_controller }) {
 	const picture = new Gtk.Picture({ canTarget: false, visible: false })
 	return (
 		<Gtk.Fixed

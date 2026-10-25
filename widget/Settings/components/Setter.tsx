@@ -1,11 +1,12 @@
-import { Accessor, createComputed } from "ags"
+import { createComputed } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
+import GObject from "gi://GObject"
 import Pango from "gi://Pango"
 
 import icons from "$lib/icons"
 import { attempt } from "$lib/result"
-import { is_dialog_dismissed } from "$lib/ui"
+import { is_dialog_dismissed, read_value, type maybe_accessor } from "$lib/ui"
 import { Opt } from "$shell/options"
 
 const { CENTER } = Gtk.Align
@@ -13,83 +14,56 @@ const { FONT } = Gtk.FontLevel
 const { RGBA } = Gdk
 const { FontDescription, FontFamily, FontFace, SCALE } = Pango
 
-type EnumValue = string | number
+type enum_value = string | number
 
-export type EditorType =
-	"number" | "color" | "string" | "enum" | "boolean" | "font"
-
-type SetterProps = {
+export type setter_props = {
 	opt: Opt<any>
-	type?: EditorType
-	enums?: readonly EnumValue[] | Accessor<readonly EnumValue[]>
-	max?: number
-	min?: number
+	enums?: maybe_accessor<readonly enum_value[]>
 }
 
-type EnumSetterProps = {
+type enum_setter_props = {
 	opt: Opt<any>
-	values: readonly EnumValue[] | Accessor<readonly EnumValue[]>
+	values: maybe_accessor<readonly enum_value[]>
 }
 
-function resolve_setter_type(
-	opt: SetterProps["opt"],
-	type: SetterProps["type"],
-): EditorType {
-	if (type) {
-		return type
-	}
-
-	const value_type = typeof opt.peek()
-	if (value_type === "boolean") return "boolean"
-	if (value_type === "number") return "number"
-	return "string"
+function is_regular_font(item: GObject.Object) {
+	if (item instanceof FontFamily) return true
+	if (!(item instanceof FontFace)) return false
+	const face_name = item.get_face_name().toLowerCase()
+	return face_name === "regular" || face_name === "normal"
 }
 
-const font_dialog = (() => {
+function create_font_dialog() {
 	const filter = new Gtk.CustomFilter()
-	filter.set_filter_func((item) => {
-		if (item instanceof FontFamily) {
-			return true
-		}
-		if (item instanceof FontFace) {
-			const face_name = item.get_face_name().toLowerCase()
-			return face_name === "regular" || face_name === "normal"
-		}
-		return false
-	})
+	filter.set_filter_func(is_regular_font)
 	const dialog = new Gtk.FontDialog()
 	dialog.set_filter(filter)
 	return dialog
-})()
-
-const to_hex = (rgba: Gdk.RGBA) => {
-	const { red, green, blue } = rgba
-	return `#${[red, green, blue]
-		.map((n) =>
-			Math.round(255 * n)
-				.toString(16)
-				.padStart(2, "0"),
-		)
-		.join("")}`
 }
 
-const EnumSetter = ({ opt, values }: EnumSetterProps) => {
-	const available = createComputed(
-		() => (values instanceof Accessor ? values() : values).length > 0,
-	)
+const font_dialog = create_font_dialog()
+
+function channel_hex(channel: number) {
+	return Math.round(255 * channel)
+		.toString(16)
+		.padStart(2, "0")
+}
+
+function to_hex({ red, green, blue }: Gdk.RGBA) {
+	return `#${[red, green, blue].map(channel_hex).join("")}`
+}
+
+function EnumSetter({ opt, values }: enum_setter_props) {
+	const available = createComputed(() => read_value(values).length > 0)
 	const step = (dir: 1 | -1) => {
-		const choices = values instanceof Accessor ? values.peek() : values
+		const choices = read_value(values)
 		if (!choices.length) return
 		const current_index = choices.findIndex((value) => value === opt.peek())
 		if (current_index < 0) {
 			opt.set(choices[0])
 			return
 		}
-		const next_index =
-			dir > 0
-				? (current_index + 1) % choices.length
-				: (current_index - 1 + choices.length) % choices.length
-		opt.set(choices[next_index])
+		opt.set(choices[(current_index + dir + choices.length) % choices.length])
 	}
 	return (
 		<box class="enum-setter">
@@ -108,12 +82,74 @@ const EnumSetter = ({ opt, values }: EnumSetterProps) => {
 	)
 }
 
-export default function Setter(props: SetterProps) {
-	const { opt, type, enums, max = 1000, min = 0 } = props
-	const resolved_type = resolve_setter_type(opt, type)
+function FontSetter({ opt }: { opt: Opt<any> }) {
+	function store_font(self: Gtk.FontDialogButton) {
+		const desc = self.get_font_desc()
+		if (!desc) return
+		opt.set(`${desc.get_family()} ${desc.get_size() / SCALE}`)
+	}
 
-	switch (resolved_type) {
+	return (
+		<Gtk.FontDialogButton
+			class="setting-setter"
+			valign={CENTER}
+			tooltipText="Select a font"
+			useSize
+			level={FONT}
+			dialog={font_dialog}
+			fontDesc={createComputed(() =>
+				FontDescription.from_string(String(opt())),
+			)}
+			onNotifyFontDesc={store_font}
+		/>
+	)
+}
+
+function ColorSetter({ opt }: { opt: Opt<any> }) {
+	const dialog = new Gtk.ColorDialog()
+
+	function choose_color(self: Gtk.Button) {
+		const initial = new RGBA()
+		initial.parse(String(opt.peek()))
+		const root = self.get_root()
+		dialog.choose_rgba(
+			root instanceof Gtk.Window ? root : null,
+			initial,
+			null,
+			(_source, result) => {
+				const chosen = attempt(() =>
+					opt.set(to_hex(dialog.choose_rgba_finish(result))),
+				)
+				if (!chosen.ok && !is_dialog_dismissed(chosen.err))
+					console.error(
+						"settings.color_dialog: Failed to choose color",
+						chosen.err,
+					)
+			},
+		)
+	}
+
+	return (
+		<button
+			class="color-setter"
+			valign={CENTER}
+			tooltipText="Select a color"
+			onClicked={choose_color}
+		>
+			<box
+				class="color-swatch"
+				css={createComputed(() => `background-color: ${String(opt())};`)}
+			/>
+		</button>
+	)
+}
+
+export default function Setter({ opt, enums }: setter_props) {
+	const editor = enums ? "enum" : opt.editor()
+
+	switch (editor) {
 		case "number": {
+			const { min, max } = opt.bounds()
 			return (
 				<Gtk.SpinButton
 					valign={CENTER}
@@ -131,7 +167,7 @@ export default function Setter(props: SetterProps) {
 				/>
 			)
 		}
-		case "string": {
+		case "string":
 			return (
 				<entry
 					valign={CENTER}
@@ -140,11 +176,9 @@ export default function Setter(props: SetterProps) {
 					onNotifyText={(self) => opt.set(self.get_text())}
 				/>
 			)
-		}
-		case "enum": {
-			return <EnumSetter opt={opt} values={enums ?? []} />
-		}
-		case "boolean": {
+		case "enum":
+			return <EnumSetter opt={opt} values={enums ?? opt.choices() ?? []} />
+		case "boolean":
 			return (
 				<switch
 					valign={CENTER}
@@ -153,67 +187,9 @@ export default function Setter(props: SetterProps) {
 					onNotifyState={(self) => opt.set(self.get_state())}
 				/>
 			)
-		}
-		case "font": {
-			return (
-				<Gtk.FontDialogButton
-					class="setting-setter"
-					valign={CENTER}
-					tooltipText="Select a font"
-					useSize={true}
-					level={FONT}
-					dialog={font_dialog}
-					fontDesc={createComputed(() =>
-						FontDescription.from_string(String(opt())),
-					)}
-					onNotifyFontDesc={(self) => {
-						const desc = self.get_font_desc()
-						if (desc) {
-							const family = desc.get_family()
-							const size = desc.get_size() / SCALE
-							opt.set(`${family} ${size}`)
-						}
-					}}
-				/>
-			)
-		}
-		case "color": {
-			const dialog = new Gtk.ColorDialog()
-			const choose_color = (self: Gtk.Button) => {
-				const initial = new RGBA()
-				initial.parse(String(opt.peek()))
-				const root = self.get_root()
-
-				dialog.choose_rgba(
-					root instanceof Gtk.Window ? root : null,
-					initial,
-					null,
-					(_source, result) => {
-						const outcome = attempt(() => {
-							opt.set(to_hex(dialog.choose_rgba_finish(result)))
-						})
-						if (!outcome.ok && !is_dialog_dismissed(outcome.err))
-							console.error(
-								"settings.color_dialog: Failed to choose color",
-								outcome.err,
-							)
-					},
-				)
-			}
-
-			return (
-				<button
-					class="color-setter"
-					valign={CENTER}
-					tooltipText="Select a color"
-					onClicked={choose_color}
-				>
-					<box
-						class="color-swatch"
-						css={createComputed(() => `background-color: ${String(opt())};`)}
-					/>
-				</button>
-			)
-		}
+		case "font":
+			return <FontSetter opt={opt} />
+		case "color":
+			return <ColorSetter opt={opt} />
 	}
 }

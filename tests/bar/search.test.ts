@@ -21,7 +21,7 @@ test("query changes reorder existing results and preserve distinct desktop entri
 	)
 })
 
-test("bottom display numbering matches shortcut order", () => {
+test("bottom display order reverses a copy of the ranking", () => {
 	const results = rank_apps(
 		[
 			{ app: "ab", name: "ab" },
@@ -30,14 +30,9 @@ test("bottom display numbering matches shortcut order", () => {
 		"a",
 		9,
 	)
-	assert.deepEqual(display_apps(results, false), [
-		{ app: "ab", rank: 0 },
-		{ app: "ba", rank: 1 },
-	])
-	assert.deepEqual(display_apps(results, true), [
-		{ app: "ba", rank: 0 },
-		{ app: "ab", rank: 1 },
-	])
+	assert.deepEqual(display_apps(results, false), ["ab", "ba"])
+	assert.deepEqual(display_apps(results, true), ["ba", "ab"])
+	assert.deepEqual(results, ["ab", "ba"])
 })
 
 test("zero preserves the legacy nine-result fallback and explicit counts are honored", () => {

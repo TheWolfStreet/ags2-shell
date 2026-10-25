@@ -1,13 +1,13 @@
 import app from "$lib/app"
 import { createRoot } from "ags"
 import { Gdk } from "ags/gtk4"
-import { interval, timeout, type Timer } from "$lib/time"
+import { interval, timeout, type timer } from "$lib/time"
 
 import GLib from "gi://GLib"
 import { programArgs } from "system"
 
 import env from "$lib/env"
-import { watch_live_monitors } from "$lib/hyprland"
+import { live_monitors, watch_live_monitors } from "$lib/hyprland"
 import { attempt, log_error } from "$lib/result"
 import { Wallpaper } from "widget/Wallpaper"
 
@@ -19,29 +19,35 @@ function monitor_key(monitor: Gdk.Monitor, index: number) {
 	)
 }
 
+type wallpaper_slot = {
+	monitor: Gdk.Monitor
+	wallpaper: ReturnType<typeof Wallpaper.Window>
+	dispose: () => void
+}
+
+function mount_wallpaper(monitor: Gdk.Monitor): wallpaper_slot {
+	const [wallpaper, dispose] = createRoot(
+		(dispose) => [Wallpaper.Window({ gdkmonitor: monitor }), dispose] as const,
+	)
+	return { monitor, wallpaper, dispose }
+}
+
 function start_wallpaper_windows() {
-	const active = new Map<
-		string,
-		{
-			monitor: Gdk.Monitor
-			retarget: (monitor: Gdk.Monitor) => void
-			rearrange: () => void
-			dispose: () => void
-		}
-	>()
+	const active = new Map<string, wallpaper_slot>()
 	let stopped = false
-	let rearrange_timer: Timer | null = null
+	let rearrange_timer: timer | null = null
+
+	const rearrange = () => {
+		for (const slot of active.values()) slot.wallpaper.rearrange()
+	}
 
 	const sync = (live_connectors: Set<string>) => {
 		if (stopped) return
 		const current = new Map(
-			app
-				.get_monitors()
-				.filter((monitor) => {
-					const connector = monitor.get_connector()
-					return connector == null || live_connectors.has(connector)
-				})
-				.map((monitor, index) => [monitor_key(monitor, index), monitor]),
+			live_monitors(live_connectors).map((monitor, index) => [
+				monitor_key(monitor, index),
+				monitor,
+			]),
 		)
 
 		for (const [key, slot] of active) {
@@ -50,27 +56,14 @@ function start_wallpaper_windows() {
 				slot.dispose()
 				active.delete(key)
 			} else if (monitor !== slot.monitor) {
-				slot.retarget(monitor)
+				slot.wallpaper.retarget(monitor)
 				slot.monitor = monitor
 			}
 		}
 
-		for (const [key, monitor] of current) {
-			if (active.has(key)) continue
-			let retarget: (monitor: Gdk.Monitor) => void = () => {}
-			let rearrange = () => {}
-			const dispose = createRoot((dispose) => {
-				const wallpaper = Wallpaper.Window({ gdkmonitor: monitor })
-				retarget = wallpaper.retarget
-				rearrange = wallpaper.rearrange
-				return dispose
-			})
-			active.set(key, { monitor, retarget, rearrange, dispose })
-		}
+		for (const [key, monitor] of current)
+			if (!active.has(key)) active.set(key, mount_wallpaper(monitor))
 
-		const rearrange = () => {
-			for (const slot of active.values()) slot.rearrange()
-		}
 		rearrange()
 		rearrange_timer?.cancel()
 		rearrange_timer = timeout(300, () => {
@@ -94,7 +87,7 @@ const parent_pid = programArgs
 	?.slice("--parent-pid=".length)
 
 app.start({
-	instanceName: `${env.appName}-wallpaper-${parent_pid ?? GLib.uuid_string_random()}`,
+	instanceName: `${env.app_name}-wallpaper-${parent_pid ?? GLib.uuid_string_random()}`,
 	main() {
 		const initialized = env.init()
 		if (

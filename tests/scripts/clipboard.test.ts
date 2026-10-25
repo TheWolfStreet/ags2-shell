@@ -12,6 +12,8 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
+import { attempt } from "../../lib/result.ts"
+import { shell_quote } from "../helpers.ts"
 
 const sway =
 	process.env.SWAY_HEADLESS_BIN ||
@@ -22,8 +24,14 @@ const png = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/tXcAAAAASUVORK5CYII=",
 	"base64",
 )
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`
+function wait(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms))
+}
+function signal_group(pid: number, signal: NodeJS.Signals) {
+	const sent = attempt(() => process.kill(-pid, signal))
+	if (sent.ok) return
+	if ((sent.err as NodeJS.ErrnoException).code !== "ESRCH") throw sent.err
+}
 
 test(
 	"detached screenshot PNG provider survives its sender group",
@@ -86,12 +94,12 @@ test(
 			const socket = socket_name()
 			assert.ok(socket, `headless Sway did not start: ${log}`)
 			const isolated = { ...env, WAYLAND_DISPLAY: socket }
-			const command = `setsid wl-copy --type image/png < ${quote(image)}`
+			const command = `setsid wl-copy --type image/png < ${shell_quote(image)}`
 			sender = spawn(
 				"bash",
 				[
 					"-c",
-					`bash -c ${quote(command)}; code=$?; printf 'copy-status=%s\n' "$code"; sleep 30`,
+					`bash -c ${shell_quote(command)}; code=$?; printf 'copy-status=%s\n' "$code"; sleep 30`,
 				],
 				{ env: isolated, detached: true, stdio: ["ignore", "pipe", "pipe"] },
 			)
@@ -162,28 +170,13 @@ test(
 			assert.deepEqual(received.stdout, png)
 			spawnSync("wl-copy", ["--clear"], { env: isolated, timeout: 2000 })
 		} finally {
-			if (sender?.pid) {
-				try {
-					process.kill(-sender.pid, "SIGKILL")
-				} catch (error: any) {
-					if (error.code !== "ESRCH") throw error
-				}
-			}
+			if (sender?.pid) signal_group(sender.pid, "SIGKILL")
 			if (compositor.pid) {
-				try {
-					process.kill(-compositor.pid, "SIGTERM")
-				} catch (error: any) {
-					if (error.code !== "ESRCH") throw error
-				}
+				signal_group(compositor.pid, "SIGTERM")
 				if (compositor.exitCode === null && compositor.signalCode === null)
 					await Promise.race([once(compositor, "exit"), wait(1500)])
-				if (compositor.exitCode === null && compositor.signalCode === null) {
-					try {
-						process.kill(-compositor.pid, "SIGKILL")
-					} catch (error: any) {
-						if (error.code !== "ESRCH") throw error
-					}
-				}
+				if (compositor.exitCode === null && compositor.signalCode === null)
+					signal_group(compositor.pid, "SIGKILL")
 			}
 			rmSync(root, { recursive: true, force: true })
 		}

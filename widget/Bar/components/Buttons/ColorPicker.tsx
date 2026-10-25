@@ -2,123 +2,150 @@ import { createState, For, onCleanup } from "ags"
 import { readFile, writeFileAsync } from "ags/file"
 import { Gdk, Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
-import { debounce, idle } from "$lib/time"
+import { debounce, idle, type timer } from "$lib/time"
 
 import Gio from "gi://Gio"
 
 import env from "$lib/env"
-import { ensure_file } from "$lib/files"
+import { ensure_file, file_size } from "$lib/files"
 import { copy_to_clipboard } from "$lib/clipboard"
 import icons from "$lib/icons"
-import { attempt, attempt_async, log_error, unwrap_or } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type result,
+	unwrap_or,
+} from "$lib/result"
 import { notify, notify_missing_programs } from "$lib/notifications"
 import { PanelButton } from "../PanelButton"
-import { create_animated_popover } from "widget/shared/AnimatedPopover"
+import {
+	create_animated_popover,
+	follow_bar_position,
+} from "widget/shared/animated_popover"
 import options from "$shell/options"
 
 const color_history_file = `${env.paths.cache.base}/colors.json`
+const hex_color = /^#[0-9a-fA-F]{6}$/
+const max_pending_picks = 8
 
-function color_limit() {
-	return options.colorpicker.maxColors.peek()
+function keep_recent(list: string[]) {
+	const limit = options.colorpicker.maxColors.peek()
+	if (!limit) return []
+	return list.slice(-limit)
 }
 
-function load_color_history() {
-	const result = attempt(() => {
-		const file = Gio.File.new_for_path(color_history_file)
-		if (!file.query_exists(null)) return []
-		const info = file.query_info(
-			"standard::size",
-			Gio.FileQueryInfoFlags.NONE,
-			null,
-		)
-		if (info.get_size() > 64_000) throw new Error("Color history exceeds 64 KB")
-		const parsed: unknown = JSON.parse(readFile(color_history_file) || "[]")
-		if (!Array.isArray(parsed)) return []
-		const valid = parsed.filter(
-			(color): color is string =>
-				typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color),
-		)
-		const limit = color_limit()
-		return limit ? valid.slice(-limit) : []
-	})
-	return unwrap_or(result, [], "colorpicker.load: Failed to load saved colors")
+function read_color_history(): result<string[]> {
+	const file = Gio.File.new_for_path(color_history_file)
+	if (!file.query_exists(null)) return ok([])
+
+	const size = file_size(color_history_file)
+	if (!size.ok) return size
+	if (size.value > 64_000) return err(new Error("Color history exceeds 64 KB"))
+
+	const parsed = attempt((): unknown =>
+		JSON.parse(readFile(color_history_file) || "[]"),
+	)
+	if (!parsed.ok) return parsed
+	if (!Array.isArray(parsed.value)) return ok([])
+
+	const valid = parsed.value.filter(
+		(color): color is string =>
+			typeof color === "string" && hex_color.test(color),
+	)
+	return ok(keep_recent(valid))
 }
 
-const [colors, set_colors] = createState(load_color_history())
+const [colors, set_colors] = createState(
+	unwrap_or(
+		read_color_history(),
+		[],
+		"colorpicker.load: Failed to load saved colors",
+	),
+)
 let notification_id = 0
 let pending_pick: Promise<void> = Promise.resolve()
 let queued_picks = 0
 let saving = false
 let dirty = false
+
+async function write_color_history(snapshot: string): Promise<result<void>> {
+	const ready = ensure_file(color_history_file)
+	if (!ready.ok) return ready
+	return attempt_async(async () => {
+		await writeFileAsync(color_history_file, snapshot)
+	})
+}
+
+async function flush_color_history() {
+	while (dirty) {
+		dirty = false
+		const written = await write_color_history(JSON.stringify(colors.peek()))
+		if (!log_error(written, "colorpicker.save: Failed to save colors")) return
+	}
+}
+
 const save_colors = debounce(1000, async () => {
 	if (saving) return
 	saving = true
 	try {
-		while (dirty) {
-			dirty = false
-			const snapshot = JSON.stringify(colors.peek())
-			const ready = ensure_file(color_history_file)
-			const result = ready.ok
-				? await attempt_async(async () => {
-						await writeFileAsync(color_history_file, snapshot)
-					})
-				: ready
-			if (!log_error(result, "colorpicker.save: Failed to save colors")) break
-		}
+		await flush_color_history()
 	} finally {
 		saving = false
 		if (dirty) save_colors.call()
 	}
 })
 
+function store_colors(next: string[]) {
+	set_colors(next)
+	dirty = true
+	save_colors.call()
+}
+
 function pick_color(existing?: string) {
-	if (queued_picks >= 8) {
+	if (queued_picks >= max_pending_picks) {
 		console.warn("colorpicker.pick: Too many pending requests")
-		return pending_pick
+		return
 	}
 	queued_picks++
-	const next = pending_pick
-		.then(() => run_pick(existing))
-		.finally(() => {
-			queued_picks--
-		})
-	pending_pick = next.catch((error) =>
-		console.error("colorpicker.pick: Failed to pick color", error),
+	pending_pick = pending_pick.then(async () => {
+		const picked = await attempt_async(() => run_pick(existing))
+		queued_picks--
+		log_error(picked, "colorpicker.pick: Failed to pick color")
+	})
+}
+
+async function read_screen_color() {
+	const picked = await attempt_async(() =>
+		execAsync(["hyprpicker", "-r", "--format=hex"]),
 	)
-	return pending_pick
+	if (!picked.ok) return null
+	const color = picked.value
+		.replace("[ERR] renderSurface: PBUFFER null", "")
+		.trim()
+	if (!hex_color.test(color)) return null
+	return color
+}
+
+function required_programs(existing?: string) {
+	if (existing) return ["wl-copy"]
+	return ["wl-copy", "hyprpicker"]
 }
 
 async function run_pick(existing?: string) {
-	if (!existing && !notify_missing_programs("wl-copy", "hyprpicker")) return
-	if (existing && !notify_missing_programs("wl-copy")) return
-
-	let color = existing
-	if (!color) {
-		const result = await attempt_async(async () =>
-			execAsync(["hyprpicker", "-r", "--format=hex"]),
-		)
-		if (!result.ok) return
-		color = result.value.replace("[ERR] renderSurface: PBUFFER null", "").trim()
-		if (!/^#[0-9a-fA-F]{6}$/.test(color)) return
-	}
+	if (!notify_missing_programs(...required_programs(existing))) return
+	const color = existing || (await read_screen_color())
+	if (!color) return
 
 	const copied = await copy_to_clipboard(color)
-	if (!copied.ok) {
-		console.error("colorpicker.copy: Failed to copy color", copied.err)
-		return
-	}
+	if (!log_error(copied, "colorpicker.copy: Failed to copy color")) return
 
-	if (!existing) {
-		const limit = color_limit()
-		const next_colors = limit
-			? [...colors.peek().filter((value) => value !== color), color].slice(
-					-limit,
-				)
-			: []
-		set_colors(next_colors)
-		dirty = true
-		save_colors.call()
-	}
+	if (!existing)
+		store_colors(
+			keep_recent([...colors.peek().filter((value) => value !== color), color]),
+		)
 
 	const notified = await notify({
 		id: notification_id,
@@ -127,61 +154,51 @@ async function run_pick(existing?: string) {
 		summary: "Copied to clipboard",
 		body: color,
 	})
-	if (notified.ok) notification_id = notified.value
-	else
-		console.error(
-			"colorpicker.notify: Failed to announce copied color",
-			notified.err,
-		)
+	const announced = log_error(
+		notified,
+		"colorpicker.notify: Failed to announce copied color",
+	)
+	if (announced) notification_id = notified.value
+}
+
+function trim_to_limit() {
+	if (colors.peek().length <= options.colorpicker.maxColors.peek()) return
+	store_colors(keep_recent(colors.peek()))
 }
 
 export function ColorPicker() {
 	const popover = create_color_popover()
-	let popup_timer: ReturnType<typeof idle> | null = null
-	const update_position = () =>
-		popover.set_position(
-			options.bar.position.peek() === "top-center"
-				? Gtk.PositionType.BOTTOM
-				: Gtk.PositionType.TOP,
-		)
-	update_position()
-	const position_unsubscribe = options.bar.position.subscribe(update_position)
-	const limit_unsubscribe = options.colorpicker.maxColors.subscribe(() => {
-		const limit = color_limit()
-		if (colors.peek().length <= limit) return
-		set_colors(limit ? colors.peek().slice(-limit) : [])
-		dirty = true
-		save_colors.call()
-	})
+	let popup_timer: timer | null = null
+	const stop_following = follow_bar_position(popover)
+	const limit_unsubscribe =
+		options.colorpicker.maxColors.subscribe(trim_to_limit)
 	onCleanup(() => {
-		position_unsubscribe()
+		stop_following()
 		limit_unsubscribe()
 		popup_timer?.cancel()
 		popover.unparent()
 	})
-	const tooltip = colors.as(
-		(value) => `${value.length} color${value.length === 1 ? "" : "s"}`,
-	)
+
+	function open_history() {
+		if (colors.peek().length === 0) return
+		popup_timer?.cancel()
+		popup_timer = idle(() => {
+			popup_timer = null
+			popover.popup()
+		})
+	}
 
 	return (
 		<PanelButton
-			tooltipText={tooltip}
-			onClicked={() => {
-				void pick_color()
-			}}
+			tooltipText={colors.as(
+				(value) => `${value.length} color${value.length === 1 ? "" : "s"}`,
+			)}
+			onClicked={() => pick_color()}
 			$={(self) => popover.set_parent(self)}
 		>
 			<Gtk.GestureClick
 				button={Gdk.BUTTON_SECONDARY}
-				onReleased={() => {
-					if (colors.peek().length > 0) {
-						popup_timer?.cancel()
-						popup_timer = idle(() => {
-							popup_timer = null
-							popover.popup()
-						})
-					}
-				}}
+				onReleased={open_history}
 			/>
 			<image iconName={icons.ui.colorpicker} useFallback />
 		</PanelButton>
@@ -219,7 +236,7 @@ function create_color_popover() {
 							focusable={false}
 							onClicked={() => {
 								popover.get_root()?.set_focus(null)
-								void pick_color(color)
+								pick_color(color)
 								popover.popdown()
 							}}
 						/>

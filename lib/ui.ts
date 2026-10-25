@@ -2,16 +2,15 @@ import { Accessor, CCProps } from "ags"
 import { Gtk } from "ags/gtk4"
 import Pango from "gi://Pango"
 
-export type Props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
+export type props<T extends Gtk.Widget, Props> = CCProps<T, Partial<Props>>
 
 export function toggle_class(
 	widget: Gtk.Widget,
 	name: string,
 	enable?: boolean,
 ) {
-	if (enable === undefined) enable = !widget.has_css_class(name)
-
-	if (enable) widget.add_css_class(name)
+	const enabled = enable ?? !widget.has_css_class(name)
+	if (enabled) widget.add_css_class(name)
 	else widget.remove_css_class(name)
 }
 
@@ -24,14 +23,18 @@ export function is_dialog_dismissed(error: unknown) {
 	)
 }
 
-export type MaybeAccessor<T> = Accessor<T> | T
+export type maybe_accessor<T> = Accessor<T> | T
 
 export function is_accessor<T>(value: unknown): value is Accessor<T> {
 	return typeof value === "function" && "peek" in value
 }
 
-export function read_value<T>(value: MaybeAccessor<T>): T {
+export function read_value<T>(value: maybe_accessor<T>): T {
 	return is_accessor(value) ? value() : value
+}
+
+export function peek_value<T>(value: maybe_accessor<T>): T {
+	return is_accessor(value) ? value.peek() : value
 }
 
 export function font_size(font: string): number {

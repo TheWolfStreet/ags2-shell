@@ -5,7 +5,7 @@ import app from "$lib/app"
 import { createRoot } from "ags"
 import { Gdk } from "ags/gtk4"
 import { Process, subprocess } from "ags/process"
-import { idle, timeout, Timer } from "$lib/time"
+import { idle, timeout, timer } from "$lib/time"
 
 import GLib from "gi://GLib"
 
@@ -20,27 +20,126 @@ import { Bar } from "widget/Bar"
 import { Dock } from "widget/Dock"
 import { Desktop } from "widget/Desktop"
 
-import { watch_live_monitors } from "$lib/hyprland"
-import { screen_capture } from "$service/screenCapture"
+import { live_monitors, watch_live_monitors } from "$lib/hyprland"
+import { screen_capture } from "$service/screen_capture"
 import { flush_options } from "$shell/options"
 import { attempt, log_error } from "$lib/result"
 
-const deferred_roots: Array<() => void> = []
+type monitor_windows = { monitor: Gdk.Monitor; dispose: (() => void)[] }
+
+const deferred_roots: (() => void)[] = []
 let wallpaper_child: Process | null = null
-let wallpaper_restart: Timer | null = null
+let wallpaper_restart: timer | null = null
 let wallpaper_failures = 0
 let stopping = false
 let ready = false
 let quitting = false
 let startup_failed = false
 
+function mount(build: () => void): () => void {
+	return createRoot((dispose) => {
+		build()
+		return dispose
+	})
+}
+
 function mount_deferred_windows(build: () => void) {
-	deferred_roots.push(
-		createRoot((dispose) => {
-			build()
-			return dispose
-		}),
-	)
+	deferred_roots.push(mount(build))
+}
+
+function mount_monitor_windows(monitor: Gdk.Monitor): monitor_windows {
+	return {
+		monitor,
+		dispose: [
+			mount(() => Bar({ gdkmonitor: monitor })),
+			mount(() => Desktop.Window({ gdkmonitor: monitor })),
+			mount(() => Dock.Window({ gdkmonitor: monitor })),
+			mount(() => Desktop.ContextMenuWindow({ gdkmonitor: monitor })),
+		],
+	}
+}
+
+function dispose_monitor_windows(windows: monitor_windows) {
+	for (const dispose of windows.dispose) dispose()
+}
+
+function monitor_key(monitor: Gdk.Monitor) {
+	const geometry = monitor.get_geometry()
+	return monitor.get_connector() ?? `mon-${geometry.x}x${geometry.y}`
+}
+
+function start_monitor_windows() {
+	const active = new Map<string, monitor_windows>()
+	let stopped = false
+	let shutdown_handler = 0
+
+	const sync = (live_connectors: Set<string>) => {
+		const current = new Map(
+			live_monitors(live_connectors).map(
+				(monitor) => [monitor_key(monitor), monitor] as const,
+			),
+		)
+		for (const [key, windows] of active)
+			if (current.get(key) !== windows.monitor) {
+				dispose_monitor_windows(windows)
+				active.delete(key)
+			}
+		for (const [key, monitor] of current)
+			if (!active.has(key)) active.set(key, mount_monitor_windows(monitor))
+	}
+
+	const cleanup = () => {
+		if (stopped) return
+		stopped = true
+		stop_watch()
+		if (shutdown_handler) app.disconnect(shutdown_handler)
+		for (const windows of active.values()) dispose_monitor_windows(windows)
+		active.clear()
+	}
+
+	shutdown_handler = app.connect("shutdown", cleanup)
+	const stop_watch = watch_live_monitors(sync)
+}
+
+function mount_popup_windows() {
+	idle(() => {
+		idle(() => {
+			mount_deferred_windows(() => {
+				DateMenu.Window()
+				PowerMenu.Window()
+				if (!app.get_window("verification")) PowerMenu.VerificationModal()
+				Notifications.Window()
+				QuickSettings.Window()
+				OSD.Window()
+			})
+			idle(() => {
+				mount_deferred_windows(() => {
+					Launcher.Window()
+					Overview.Window()
+				})
+			})
+		})
+	})
+}
+
+function stop_shell_children() {
+	ready = false
+	stopping = true
+	wallpaper_restart?.cancel()
+	wallpaper_restart = null
+	const child = wallpaper_child
+	wallpaper_child = null
+	if (child)
+		log_error(
+			attempt(() => child.kill()),
+			"wallpaper: Failed to stop child",
+		)
+	for (const dispose of deferred_roots.splice(0)) dispose()
+}
+
+async function take_screenshot(scope: "focused" | "area") {
+	const taken = await screen_capture.screenshot({ scope })
+	return taken.ok ? taken.value : `Screenshot failed: ${taken.err}`
 }
 
 async function toggle_recording(scope: "focused" | "area") {
@@ -142,7 +241,7 @@ function start_wallpaper() {
 }
 
 app.start({
-	instanceName: env.appName,
+	instanceName: env.app_name,
 	async main() {
 		const started = start_shell()
 		if (!log_error(started, "shell.startup: Failed to initialize")) {
@@ -151,108 +250,9 @@ app.start({
 			return
 		}
 		start_wallpaper()
-
-		const active_monitor_windows = new Map<
-			string,
-			{ monitor: Gdk.Monitor; dispose: Array<() => void> }
-		>()
-		let monitor_windows_stopped = false
-		const sync_monitor_windows = (live_connectors: Set<string>) => {
-			const current = new Map(
-				app
-					.get_monitors()
-					.filter((monitor) => {
-						const connector = monitor.get_connector()
-						return connector == null || live_connectors.has(connector)
-					})
-					.map((monitor) => {
-						const geometry = monitor.get_geometry()
-						const key =
-							monitor.get_connector() ?? `mon-${geometry.x}x${geometry.y}`
-						return [key, monitor] as const
-					}),
-			)
-
-			for (const [key, windows] of active_monitor_windows) {
-				if (current.get(key) !== windows.monitor) {
-					windows.dispose.forEach((dispose) => dispose())
-					active_monitor_windows.delete(key)
-				}
-			}
-
-			for (const [key, monitor] of current) {
-				if (!active_monitor_windows.has(key)) {
-					active_monitor_windows.set(key, {
-						monitor,
-						dispose: [
-							createRoot((dispose) => {
-								Bar({ gdkmonitor: monitor })
-								return dispose
-							}),
-							createRoot((dispose) => {
-								Desktop.Window({ gdkmonitor: monitor })
-								return dispose
-							}),
-							createRoot((dispose) => {
-								Dock.Window({ gdkmonitor: monitor })
-								return dispose
-							}),
-							createRoot((dispose) => {
-								Desktop.ContextMenuWindow({ gdkmonitor: monitor })
-								return dispose
-							}),
-						],
-					})
-				}
-			}
-		}
-
-		let monitor_shutdown_handler = 0
-		const cleanup_monitor_windows = () => {
-			if (monitor_windows_stopped) return
-			monitor_windows_stopped = true
-			stop_monitor_watch()
-			if (monitor_shutdown_handler) app.disconnect(monitor_shutdown_handler)
-			for (const windows of active_monitor_windows.values())
-				windows.dispose.forEach((dispose) => dispose())
-			active_monitor_windows.clear()
-		}
-
-		monitor_shutdown_handler = app.connect("shutdown", cleanup_monitor_windows)
-		const stop_monitor_watch = watch_live_monitors(sync_monitor_windows)
-
-		idle(() => {
-			idle(() => {
-				mount_deferred_windows(() => {
-					DateMenu.Window()
-					PowerMenu.Window()
-					if (!app.get_window("verification")) PowerMenu.VerificationModal()
-					Notifications.Window()
-					QuickSettings.Window()
-					OSD.Window()
-				})
-				idle(() => {
-					mount_deferred_windows(() => {
-						Launcher.Window()
-						Overview.Window()
-					})
-				})
-			})
-		})
-		app.connect("shutdown", () => {
-			ready = false
-			stopping = true
-			wallpaper_restart?.cancel()
-			wallpaper_restart = null
-			const child = wallpaper_child
-			wallpaper_child = null
-			if (child)
-				log_error(
-					attempt(() => child.kill()),
-					"wallpaper: Failed to stop child",
-				)
-			for (const dispose of deferred_roots.splice(0)) dispose()
-		})
+		start_monitor_windows()
+		mount_popup_windows()
+		app.connect("shutdown", stop_shell_children)
 		ready = true
 	},
 	requestHandler(argv: string[], res: (response: string) => void) {
@@ -286,18 +286,10 @@ app.start({
 				void toggle_recording("area").then(res)
 				return
 			case "screenshot":
-				void screen_capture
-					.screenshot({ scope: "focused" })
-					.then((result) =>
-						res(result.ok ? result.value : `Screenshot failed: ${result.err}`),
-					)
+				void take_screenshot("focused").then(res)
 				return
 			case "screenshot-area":
-				void screen_capture
-					.screenshot({ scope: "area" })
-					.then((result) =>
-						res(result.ok ? result.value : `Screenshot failed: ${result.err}`),
-					)
+				void take_screenshot("area").then(res)
 				return
 			default:
 				res(`Unknown request: ${request}`)

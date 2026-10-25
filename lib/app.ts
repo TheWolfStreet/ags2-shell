@@ -14,10 +14,10 @@ class ShellApplication extends UpstreamApplication {
 
 	override quit(code = 0): void {
 		if (this.#quit_pending) return
-		this.#quit_pending = Promise.resolve().then(() => this.finish_quit(code))
+		this.#quit_pending = Promise.resolve().then(() => this.#finish_quit(code))
 	}
 
-	private async finish_quit(code: number): Promise<void> {
+	async #finish_quit(code: number): Promise<void> {
 		let handler = 0
 		const quit = await attempt_async(async () => {
 			if (this.before_quit && !(await this.before_quit())) {

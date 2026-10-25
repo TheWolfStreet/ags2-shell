@@ -14,14 +14,16 @@ import { debounce, idle } from "$lib/time"
 import AstalApps from "gi://AstalApps"
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
+import Pango from "gi://Pango"
 
 import { applications } from "$service/apps"
-import { attempt } from "$lib/result"
+import { attempt, err, ok, type result } from "$lib/result"
 import icons from "$lib/icons"
 import { is_dialog_dismissed } from "$lib/ui"
 import { ApplicationIcon } from "widget/shared/ApplicationIcon"
 import { Placeholder } from "widget/shared/Placeholder"
-import { create_desktop_entry, desktop_interaction } from "../Desktop"
+import { create_desktop_entry, desktop_interaction } from "../desktop"
+import { base_name } from "$lib/text"
 
 export namespace DesktopLauncherCreator {
 	export function open(monitor_id: string) {
@@ -45,49 +47,8 @@ export namespace DesktopLauncherCreator {
 		const create_tooltip = create_blocked_reason.as(
 			(reason) => reason || "Create the launcher on the desktop",
 		)
-		const volume_monitor = Gio.VolumeMonitor.get()
-		const [volume_options, set_volume_options] = createState<volume_option[]>(
-			[],
-		)
+		const { volume_options, sync_volumes } = watch_volumes()
 		const [mounting_volume, set_mounting_volume] = createState("")
-		function sync_volumes() {
-			set_volume_options(
-				volume_monitor
-					.get_volumes()
-					.map((volume) => {
-						const mount = volume.get_mount()
-						const root = mount?.get_root()
-						const target = root?.get_path() ?? root?.get_uri() ?? ""
-						const can_mount = volume.can_mount()
-						return {
-							key:
-								volume.get_uuid() ??
-								volume.get_identifier(Gio.VOLUME_IDENTIFIER_KIND_UNIX_DEVICE) ??
-								volume.get_name(),
-							volume,
-							name: volume.get_name(),
-							detail: target || (can_mount ? "Not mounted" : "Unavailable"),
-							icon: volume.get_symbolic_icon(),
-							target,
-							can_mount,
-						}
-					})
-					.filter((option) => option.target || option.can_mount)
-					.sort((left, right) => left.name.localeCompare(right.name)),
-			)
-		}
-		sync_volumes()
-		const volume_handlers = [
-			volume_monitor.connect("volume-added", sync_volumes),
-			volume_monitor.connect("volume-removed", sync_volumes),
-			volume_monitor.connect("volume-changed", sync_volumes),
-			volume_monitor.connect("mount-added", sync_volumes),
-			volume_monitor.connect("mount-removed", sync_volumes),
-			volume_monitor.connect("mount-changed", sync_volumes),
-		]
-		onCleanup(() =>
-			volume_handlers.forEach((handler) => volume_monitor.disconnect(handler)),
-		)
 		const all_applications = createBinding(applications, "list")
 		const application_model = Gio.ListStore.new(AstalApps.Application.$gtype)
 		let application_query = ""
@@ -95,41 +56,27 @@ export namespace DesktopLauncherCreator {
 			AstalApps.Application,
 			string
 		>()
-		const catalog_sorter = Gtk.CustomSorter.new((left, right) => {
-			const left_application = left as unknown as AstalApps.Application
-			const right_application = right as unknown as AstalApps.Application
-
-			const frequency_difference =
-				right_application.get_frequency() - left_application.get_frequency()
-			if (frequency_difference < 0) return Gtk.Ordering.SMALLER
-			if (frequency_difference > 0) return Gtk.Ordering.LARGER
-			const name_difference = left_application
-				.get_name()
-				.localeCompare(right_application.get_name())
-			if (name_difference < 0) return Gtk.Ordering.SMALLER
-			if (name_difference > 0) return Gtk.Ordering.LARGER
-			return Gtk.Ordering.EQUAL
-		})
+		const catalog_sorter = Gtk.CustomSorter.new((left, right) =>
+			compare_applications(
+				left as unknown as AstalApps.Application,
+				right as unknown as AstalApps.Application,
+			),
+		)
 		const sorted_applications = Gtk.SortListModel.new(
 			application_model,
 			catalog_sorter,
 		)
 		sorted_applications.set_incremental(true)
+		function indexed_search_text(application: AstalApps.Application) {
+			const cached = application_search_index.get(application)
+			if (cached !== undefined) return cached
+			const text = search_text(application)
+			application_search_index.set(application, text)
+			return text
+		}
 		const catalog_filter = Gtk.CustomFilter.new((item) => {
 			if (!(item instanceof AstalApps.Application)) return false
-			let searchable = application_search_index.get(item)
-			if (searchable === undefined) {
-				searchable = [
-					item.get_name(),
-					item.get_description(),
-					item.get_executable(),
-				]
-					.filter(Boolean)
-					.join("\n")
-					.toLowerCase()
-				application_search_index.set(item, searchable)
-			}
-			return !application_query || searchable.includes(application_query)
+			return indexed_search_text(item).includes(application_query)
 		})
 		const filtered_applications = Gtk.FilterListModel.new(
 			sorted_applications,
@@ -137,11 +84,10 @@ export namespace DesktopLauncherCreator {
 		)
 		filtered_applications.set_incremental(false)
 		const application_selection = Gtk.NoSelection.new(filtered_applications)
-		const application_factory = Gtk.SignalListItemFactory.new()
-		const application_cells = new WeakMap<
-			Gtk.ListItem,
-			ReturnType<typeof create_application_cell>
-		>()
+		const application_factory = create_application_factory(
+			application_selection,
+			select_application,
+		)
 		let application_grid: Gtk.GridView | null = null
 		let application_open_pending = false
 
@@ -169,41 +115,12 @@ export namespace DesktopLauncherCreator {
 		const icon_filtered_selection = Gtk.NoSelection.new(null)
 		const [icon_results_page, set_icon_results_page] =
 			createState<icon_results_page>("all")
-		const icon_factory = Gtk.SignalListItemFactory.new()
-		const icon_cells = new WeakMap<
-			Gtk.ListItem,
-			{ image: Gtk.Image; label: Gtk.Label }
-		>()
+		const icon_factory = create_icon_factory()
 		let icon_base_grid: Gtk.GridView | null = null
 		let icon_filtered_grid: Gtk.GridView | null = null
 		let icon_query = ""
 		let pending_icon_model: Gtk.FilterListModel | null = null
 		let pending_icon_handler = 0
-
-		icon_factory.connect("setup", (_factory, object) => {
-			const item = object as Gtk.ListItem
-			const image = new Gtk.Image({ pixelSize: 32 })
-			const label = new Gtk.Label({ ellipsize: 3 })
-			const cell = new Gtk.Box({ orientation: VERTICAL })
-			cell.add_css_class("icon-option")
-			cell.set_halign(CENTER)
-			cell.set_valign(CENTER)
-			cell.append(image)
-			cell.append(label)
-			item.set_activatable(true)
-			item.set_child(cell)
-			icon_cells.set(item, { image, label })
-		})
-		icon_factory.connect("bind", (_factory, object) => {
-			const item = object as Gtk.ListItem
-			const value = item.get_item()
-			const cell = icon_cells.get(item)
-			if (!(value instanceof Gtk.StringObject) || !cell) return
-			const icon_name = value.get_string()
-			cell.image.set_from_icon_name(icon_name)
-			cell.label.set_label(icon_name)
-			item.get_child()?.set_tooltip_text(icon_name)
-		})
 
 		function update_icon_query(value: string) {
 			set_icon_search(value)
@@ -216,7 +133,7 @@ export namespace DesktopLauncherCreator {
 			cancel_pending_icon_filter()
 			if (!next_query) {
 				set_icon_results_page("all")
-				icon_base_grid?.scroll_to(0, Gtk.ListScrollFlags.NONE, null)
+				scroll_to_top(icon_base_grid)
 				return
 			}
 
@@ -238,7 +155,7 @@ export namespace DesktopLauncherCreator {
 					set_icon_results_page("empty")
 					return
 				}
-				icon_filtered_grid?.scroll_to(0, Gtk.ListScrollFlags.NONE, null)
+				scroll_to_top(icon_filtered_grid)
 				set_icon_results_page("filtered")
 			}
 			pending_icon_handler = candidate.connect("notify::pending", finish)
@@ -255,10 +172,8 @@ export namespace DesktopLauncherCreator {
 		}
 		function reset_active_icon_anchor() {
 			const current = icon_results_page.peek()
-			if (current === "all")
-				icon_base_grid?.scroll_to(0, Gtk.ListScrollFlags.NONE, null)
-			if (current === "filtered")
-				icon_filtered_grid?.scroll_to(0, Gtk.ListScrollFlags.NONE, null)
+			if (current === "all") scroll_to_top(icon_base_grid)
+			if (current === "filtered") scroll_to_top(icon_filtered_grid)
 		}
 		function open_icon_selector() {
 			application_open_pending = false
@@ -279,7 +194,7 @@ export namespace DesktopLauncherCreator {
 		}
 		function reset_application_anchor() {
 			if (application_selection.get_n_items() > 0)
-				application_grid?.scroll_to(0, Gtk.ListScrollFlags.NONE, null)
+				scroll_to_top(application_grid)
 		}
 		function open_application_selector() {
 			cancel_pending_icon_filter()
@@ -324,30 +239,9 @@ export namespace DesktopLauncherCreator {
 			(value) => value.trim() || "Choose",
 		)
 		const working_directory_label = working_directory.as(
-			(path) => path.trim().split("/").pop() || "Choose",
+			(path) => base_name(path.trim()) || "Choose",
 		)
-		const [command_directory, set_command_directory] = createState(false)
-		let command_query: Gio.Cancellable | null = null
-		const check_command = debounce(250, () => {
-			command_query?.cancel()
-			const cancellable = new Gio.Cancellable()
-			command_query = cancellable
-			void query_command_directory(command.peek(), cancellable).then(
-				(directory) => {
-					if (command_query !== cancellable) return
-					command_query = null
-					set_command_directory(directory)
-				},
-			)
-		})
-		check_command.call()
-		const unsubscribe_command = command.subscribe(() => check_command.call())
-		onCleanup(() => {
-			unsubscribe_command()
-			check_command.cancel()
-			command_query?.cancel()
-			command_query = null
-		})
+		const command_directory = watch_command_directory()
 		const directory_target = createComputed(
 			() => target_kind() === "location" || command_directory(),
 		)
@@ -383,113 +277,10 @@ export namespace DesktopLauncherCreator {
 			set_page("form")
 		}
 
-		function create_application_cell() {
-			return createRoot((dispose) => {
-				const [cell_icon, set_cell_icon] = createState(
-					"application-x-executable-symbolic",
-				)
-				let current_application: AstalApps.Application | null = null
-				let title!: Gtk.Label
-				let detail!: Gtk.Label
-				const widget = (
-					<button
-						class="application-option"
-						halign={FILL}
-						hexpand
-						onClicked={() => {
-							if (current_application) select_application(current_application)
-						}}
-					>
-						<box orientation={HORIZONTAL}>
-							<ApplicationIcon icon={cell_icon} size={40} />
-							<box
-								class="option-copy"
-								orientation={VERTICAL}
-								valign={CENTER}
-								hexpand
-							>
-								<label
-									$={(self) => (title = self)}
-									class="option-title"
-									xalign={0}
-									ellipsize={3}
-								/>
-								<label
-									$={(self) => (detail = self)}
-									class="option-detail"
-									xalign={0}
-									ellipsize={3}
-								/>
-							</box>
-						</box>
-					</button>
-				) as Gtk.Button
-
-				return {
-					widget,
-					bind(
-						application: AstalApps.Application,
-						position: number,
-						count: number,
-					) {
-						current_application = application
-						widget.remove_css_class("first")
-						widget.remove_css_class("last")
-						if (position === 0) widget.add_css_class("first")
-						if (position === count - 1) widget.add_css_class("last")
-						set_cell_icon(
-							application.get_icon_name() ||
-								"application-x-executable-symbolic",
-						)
-						title.set_label(application.get_name())
-						detail.set_label(
-							application.get_description() || application.get_executable(),
-						)
-					},
-					clear() {
-						current_application = null
-					},
-					dispose,
-				}
-			})
-		}
-
-		application_factory.connect("setup", (_factory, object) => {
-			const item = object as Gtk.ListItem
-			const cell = create_application_cell()
-			item.set_activatable(false)
-			item.set_selectable(false)
-			item.set_child(cell.widget)
-			application_cells.set(item, cell)
-		})
-		application_factory.connect("bind", (_factory, object) => {
-			const item = object as Gtk.ListItem
-			const application = item.get_item()
-			const cell = application_cells.get(item)
-			if (!(application instanceof AstalApps.Application) || !cell) return
-			cell.bind(
-				application,
-				item.get_position(),
-				application_selection.get_n_items(),
-			)
-		})
-		application_factory.connect("unbind", (_factory, object) => {
-			const item = object as Gtk.ListItem
-			application_cells.get(item)?.clear()
-		})
-		application_factory.connect("teardown", (_factory, object) => {
-			const item = object as Gtk.ListItem
-			const cell = application_cells.get(item)
-			if (!cell) return
-			cell.dispose()
-			item.set_child(null)
-			application_cells.delete(item)
-		})
-
 		function IconResultsGrid({
 			selection,
 			visible,
-			set_grid: set_grid,
+			set_grid,
 		}: {
 			selection: Gtk.NoSelection
 			visible: Accessor<boolean>
@@ -527,9 +318,9 @@ export namespace DesktopLauncherCreator {
 				"file",
 				"Choose application",
 				(path) => {
-					const base_name = path.split("/").pop() || "Application"
-					set_application_label(base_name)
-					if (!name.peek().trim()) set_name(base_name)
+					const fallback_name = base_name(path) || "Application"
+					set_application_label(fallback_name)
+					if (!name.peek().trim()) set_name(fallback_name)
 					set_command(quote_exec_argument(path))
 					if (!icon.peek().trim()) set_icon("application-x-executable")
 					set_target_kind("application")
@@ -550,13 +341,26 @@ export namespace DesktopLauncherCreator {
 			set_page("form")
 		}
 
+		function select_volume_location(option: volume_option, target: string) {
+			select_location(option.name, target, volume_icon_name(option.icon))
+		}
+
+		function finish_mount(
+			option: volume_option,
+			session: number,
+			response: Gio.AsyncResult,
+		) {
+			const mounted = mounted_location(option.volume, response)
+			if (session !== creator_session) return
+			if (mounted.ok) select_volume_location(option, mounted.value)
+			else set_error_message(mount_failure(option, mounted.err))
+			set_mounting_volume("")
+			sync_volumes()
+		}
+
 		function select_volume(option: volume_option) {
 			if (option.target) {
-				select_location(
-					option.name,
-					option.target,
-					launcher_icon_name(option.icon, "drive-harddisk-symbolic"),
-				)
+				select_volume_location(option, option.target)
 				return
 			}
 			if (!option.can_mount || mounting_volume.peek()) return
@@ -564,7 +368,7 @@ export namespace DesktopLauncherCreator {
 			set_mounting_volume(option.key)
 			set_error_message("")
 			const session = creator_session
-			const parent = app.get_window("desktop-launcher-creator")
+			const parent = creator_window()
 			if (!parent) {
 				set_mounting_volume("")
 				set_error_message("Launcher window is no longer available")
@@ -575,35 +379,12 @@ export namespace DesktopLauncherCreator {
 					Gio.MountMountFlags.NONE,
 					Gtk.MountOperation.new(parent),
 					null,
-					(_volume, result) => {
-						const mounted = attempt(() => {
-							if (!option.volume.mount_finish(result))
-								throw new Error("Mount returned false")
-							const root = option.volume.get_mount()?.get_root()
-							const target = root?.get_path() ?? root?.get_uri()
-							if (!target)
-								throw new Error("Mounted volume has no accessible location")
-							return target
-						})
-						if (session !== creator_session) return
-						if (mounted.ok)
-							select_location(
-								option.name,
-								mounted.value,
-								launcher_icon_name(option.icon, "drive-harddisk-symbolic"),
-							)
-						else
-							set_error_message(
-								`Could not mount ${option.name}. ${mounted.err}`,
-							)
-						set_mounting_volume("")
-						sync_volumes()
-					},
+					(_volume, response) => finish_mount(option, session, response),
 				),
 			)
 			if (started.ok) return
 			set_mounting_volume("")
-			set_error_message(`Could not mount ${option.name}. ${started.err}`)
+			set_error_message(mount_failure(option, started.err))
 		}
 
 		function select_folder_shortcut() {
@@ -611,15 +392,12 @@ export namespace DesktopLauncherCreator {
 				const mounted = volume_options
 					.peek()
 					.find((option) => option.target === path)
-				const folder_name =
-					path.replace(/\/+$/, "").split("/").pop() || "Filesystem"
-				select_location(
-					mounted?.name ?? folder_name,
-					path,
-					mounted
-						? launcher_icon_name(mounted.icon, "drive-harddisk-symbolic")
-						: folder_icon_name(path),
-				)
+				if (mounted) {
+					select_volume_location(mounted, path)
+					return
+				}
+				const folder_name = base_name(path.replace(/\/+$/, "")) || "Filesystem"
+				select_location(folder_name, path, folder_icon_name(path))
 			})
 		}
 
@@ -650,7 +428,7 @@ export namespace DesktopLauncherCreator {
 				comment: comment.peek(),
 				command: command.peek(),
 				icon: icon.peek(),
-				workingDirectory: is_directory ? "" : working_directory.peek(),
+				working_directory: is_directory ? "" : working_directory.peek(),
 				terminal: is_directory ? false : terminal.peek(),
 			})
 			if (!path) {
@@ -661,7 +439,7 @@ export namespace DesktopLauncherCreator {
 			}
 
 			desktop_interaction.select([path])
-			app.get_window("desktop-launcher-creator")?.hide()
+			hide_creator()
 			reset()
 		}
 
@@ -688,9 +466,7 @@ export namespace DesktopLauncherCreator {
 									onClicked={open_icon_selector}
 								>
 									<ApplicationIcon
-										icon={icon.as(
-											(value) => value || "application-x-executable-symbolic",
-										)}
+										icon={icon.as((value) => value || icons.fallback.app)}
 										size={48}
 									/>
 								</button>
@@ -722,8 +498,11 @@ export namespace DesktopLauncherCreator {
 								onClicked={open_application_selector}
 							>
 								<box orientation={HORIZONTAL}>
-									<label label={selected_application_name} ellipsize={3} />
-									<image iconName="go-next-symbolic" />
+									<label
+										label={selected_application_name}
+										ellipsize={EllipsizeMode.END}
+									/>
+									<image iconName={icons.ui.next} />
 								</box>
 							</button>
 						</box>
@@ -763,8 +542,11 @@ export namespace DesktopLauncherCreator {
 									}
 								>
 									<box orientation={HORIZONTAL}>
-										<image iconName="folder-symbolic" />
-										<label label={working_directory_label} ellipsize={3} />
+										<image iconName={icons.ui.folder} />
+										<label
+											label={working_directory_label}
+											ellipsize={EllipsizeMode.END}
+										/>
 									</box>
 								</button>
 								<button
@@ -773,7 +555,7 @@ export namespace DesktopLauncherCreator {
 									visible={working_directory.as(Boolean)}
 									onClicked={() => set_working_directory("")}
 								>
-									<image iconName="edit-clear-symbolic" />
+									<image iconName={icons.ui.clear} />
 								</button>
 							</box>
 						</box>
@@ -793,22 +575,13 @@ export namespace DesktopLauncherCreator {
 						</box>
 					</box>
 
-					<label
-						class="error"
-						label={error_message}
-						visible={error_message.as(Boolean)}
-						xalign={0}
-						wrap
-					/>
+					<ErrorLabel />
 				</box>
 
 				<box vexpand />
 				<box class="actions" orientation={HORIZONTAL} halign={FILL} hexpand>
 					<box hexpand />
-					<button
-						label="Cancel"
-						onClicked={() => app.get_window("desktop-launcher-creator")?.hide()}
-					/>
+					<button label="Cancel" onClicked={hide_creator} />
 					<box tooltipText={create_tooltip}>
 						<button
 							class="suggested-action"
@@ -827,7 +600,7 @@ export namespace DesktopLauncherCreator {
 					<entry
 						class="selector-search"
 						placeholderText="Search installed applications"
-						primaryIconName="system-search-symbolic"
+						primaryIconName={icons.ui.search}
 						text={application_search}
 						onNotifyText={(self) => update_application_query(self.text)}
 					/>
@@ -843,7 +616,9 @@ export namespace DesktopLauncherCreator {
 								factory={application_factory}
 								minColumns={1}
 								maxColumns={1}
-								$={(self) => (application_grid = self)}
+								$={(self) => {
+									application_grid = self
+								}}
 							/>
 						</Gtk.ScrolledWindow>
 						<Placeholder
@@ -855,18 +630,16 @@ export namespace DesktopLauncherCreator {
 				</box>
 				<box class="selector-actions" orientation={HORIZONTAL} hexpand>
 					<box hexpand />
-					<button onClicked={open_location_selector}>
-						<box orientation={HORIZONTAL}>
-							<image iconName="drive-harddisk-symbolic" />
-							<label label="Choose Folder or Disk" />
-						</box>
-					</button>
-					<button onClicked={select_another_application}>
-						<box orientation={HORIZONTAL}>
-							<image iconName="document-open-symbolic" />
-							<label label="Choose Another Application" />
-						</box>
-					</button>
+					<SelectorAction
+						icon={icons.fallback.drive}
+						label="Choose Folder or Disk"
+						onClicked={open_location_selector}
+					/>
+					<SelectorAction
+						icon={icons.ui.open}
+						label="Choose Another Application"
+						onClicked={select_another_application}
+					/>
 				</box>
 			</box>
 		)
@@ -900,7 +673,7 @@ export namespace DesktopLauncherCreator {
 														class="option-title"
 														label={option.name}
 														xalign={0}
-														ellipsize={3}
+														ellipsize={EllipsizeMode.END}
 													/>
 													<label
 														class="option-detail"
@@ -910,10 +683,10 @@ export namespace DesktopLauncherCreator {
 																: option.detail,
 														)}
 														xalign={0}
-														ellipsize={3}
+														ellipsize={EllipsizeMode.END}
 													/>
 												</box>
-												<image iconName="go-next-symbolic" />
+												<image iconName={icons.ui.next} />
 											</box>
 										</button>
 									)}
@@ -921,27 +694,20 @@ export namespace DesktopLauncherCreator {
 							</box>
 						</Gtk.ScrolledWindow>
 						<Placeholder
-							iconName="drive-harddisk-symbolic"
+							iconName={icons.fallback.drive}
 							label="No disks or volumes found"
 							visible={has_volume_options.as((has_options) => !has_options)}
 						/>
 					</box>
-					<label
-						class="error"
-						label={error_message}
-						visible={error_message.as(Boolean)}
-						xalign={0}
-						wrap
-					/>
+					<ErrorLabel />
 				</box>
 				<box class="selector-actions" orientation={HORIZONTAL} hexpand>
 					<box hexpand />
-					<button onClicked={select_folder_shortcut}>
-						<box orientation={HORIZONTAL}>
-							<image iconName="folder-open-symbolic" />
-							<label label="Choose a Folder" />
-						</box>
-					</button>
+					<SelectorAction
+						icon={icons.ui.folder_open}
+						label="Choose a Folder"
+						onClicked={select_folder_shortcut}
+					/>
 				</box>
 			</box>
 		)
@@ -952,8 +718,8 @@ export namespace DesktopLauncherCreator {
 					<box class="icon-search-row" orientation={HORIZONTAL}>
 						<entry
 							class="selector-search"
-							placeholderText="Search GTK icons"
-							primaryIconName="system-search-symbolic"
+							placeholderText="Search icons"
+							primaryIconName={icons.ui.search}
 							text={icon_search}
 							hexpand
 							onNotifyText={(self) => update_icon_query(self.text)}
@@ -963,14 +729,18 @@ export namespace DesktopLauncherCreator {
 						<IconResultsGrid
 							selection={icon_base_selection}
 							visible={icon_results_page.as((current) => current === "all")}
-							set_grid={(grid) => (icon_base_grid = grid)}
+							set_grid={(grid) => {
+								icon_base_grid = grid
+							}}
 						/>
 						<IconResultsGrid
 							selection={icon_filtered_selection}
 							visible={icon_results_page.as(
 								(current) => current === "filtered",
 							)}
-							set_grid={(grid) => (icon_filtered_grid = grid)}
+							set_grid={(grid) => {
+								icon_filtered_grid = grid
+							}}
 						/>
 						<Placeholder
 							iconName={icons.ui.search}
@@ -981,12 +751,11 @@ export namespace DesktopLauncherCreator {
 				</box>
 				<box class="selector-actions" orientation={HORIZONTAL} hexpand>
 					<box hexpand />
-					<button onClicked={select_image_icon}>
-						<box orientation={HORIZONTAL}>
-							<image iconName="image-x-generic-symbolic" />
-							<label label="Choose an Image" />
-						</box>
-					</button>
+					<SelectorAction
+						icon={icons.fallback.image}
+						label="Choose an Image"
+						onClicked={select_image_icon}
+					/>
 				</box>
 			</box>
 		)
@@ -994,14 +763,14 @@ export namespace DesktopLauncherCreator {
 		return (
 			<Gtk.Window
 				title="Create Launcher"
-				name="desktop-launcher-creator"
+				name={window_name}
 				class="desktop-launcher-creator"
 				application={app}
 				defaultWidth={600}
 				defaultHeight={640}
 				heightRequest={640}
 				hideOnClose
-				iconName="application-x-executable-symbolic"
+				iconName={icons.fallback.app}
 				$={(self) => {
 					self.connect("hide", () => {
 						creator_session += 1
@@ -1017,17 +786,11 @@ export namespace DesktopLauncherCreator {
 							visible={page.as((current) => current !== "form")}
 							onClicked={() => set_page("form")}
 						>
-							<image iconName="go-previous-symbolic" />
+							<image iconName={icons.ui.previous} />
 						</button>
 						<label $type="center" class="title" label={header_title} />
-						<button
-							$type="end"
-							class="close"
-							onClicked={() =>
-								app.get_window("desktop-launcher-creator")?.hide()
-							}
-						>
-							<image iconName="window-close-symbolic" />
+						<button $type="end" class="close" onClicked={hide_creator}>
+							<image iconName={icons.ui.close} />
 						</button>
 					</centerbox>
 
@@ -1057,6 +820,16 @@ export namespace DesktopLauncherCreator {
 const { CENTER, FILL } = Gtk.Align
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
+const { EllipsizeMode } = Pango
+const window_name = "desktop-launcher-creator"
+const volume_signals = [
+	"volume-added",
+	"volume-removed",
+	"volume-changed",
+	"mount-added",
+	"mount-removed",
+	"mount-changed",
+]
 
 type creator_page = "form" | "applications" | "locations" | "icons"
 type creator_target = "custom" | "application" | "location"
@@ -1087,24 +860,302 @@ const [icon_search, set_icon_search] = createState("")
 let root: (() => void) | null = null
 let creator_session = 0
 
-const image_filter = (() => {
-	const filter = new Gtk.FileFilter({ name: "Images" })
-	filter.add_mime_type("image/*")
+function file_filter(name: string, mime_types: string[]) {
+	const filter = new Gtk.FileFilter({ name })
+	for (const mime_type of mime_types) filter.add_mime_type(mime_type)
 	return filter
-})()
+}
 
-const application_filter = (() => {
-	const filter = new Gtk.FileFilter({ name: "Applications" })
-	filter.add_mime_type("application/x-executable")
-	filter.add_mime_type("application/x-elf")
-	filter.add_mime_type("application/vnd.appimage")
-	filter.add_mime_type("application/x-shellscript")
-	filter.add_mime_type("text/x-shellscript")
-	return filter
-})()
+const image_filter = file_filter("Images", ["image/*"])
+const application_filter = file_filter("Applications", [
+	"application/x-executable",
+	"application/x-elf",
+	"application/vnd.appimage",
+	"application/x-shellscript",
+	"text/x-shellscript",
+])
+
+function creator_window() {
+	return app.get_window(window_name)
+}
+
+function hide_creator() {
+	creator_window()?.hide()
+}
+
+function scroll_to_top(grid: Gtk.GridView | null) {
+	grid?.scroll_to(0, Gtk.ListScrollFlags.NONE, null)
+}
+
+function to_volume_option(volume: Gio.Volume): volume_option {
+	const root = volume.get_mount()?.get_root()
+	const target = root?.get_path() ?? root?.get_uri() ?? ""
+	const can_mount = volume.can_mount()
+	return {
+		key:
+			volume.get_uuid() ??
+			volume.get_identifier(Gio.VOLUME_IDENTIFIER_KIND_UNIX_DEVICE) ??
+			volume.get_name(),
+		volume,
+		name: volume.get_name(),
+		detail: target || (can_mount ? "Not mounted" : "Unavailable"),
+		icon: volume.get_symbolic_icon(),
+		target,
+		can_mount,
+	}
+}
+
+function watch_volumes() {
+	const volume_monitor = Gio.VolumeMonitor.get()
+	const [volume_options, set_volume_options] = createState<volume_option[]>([])
+	function sync_volumes() {
+		set_volume_options(
+			volume_monitor
+				.get_volumes()
+				.map(to_volume_option)
+				.filter((option) => option.target || option.can_mount)
+				.sort((left, right) => left.name.localeCompare(right.name)),
+		)
+	}
+	sync_volumes()
+	const handlers = volume_signals.map((signal) =>
+		volume_monitor.connect(signal, sync_volumes),
+	)
+	onCleanup(() => {
+		for (const handler of handlers) volume_monitor.disconnect(handler)
+	})
+	return { volume_options, sync_volumes }
+}
+
+function watch_command_directory() {
+	const [command_directory, set_command_directory] = createState(false)
+	let command_query: Gio.Cancellable | null = null
+	const check_command = debounce(250, () => {
+		command_query?.cancel()
+		const cancellable = new Gio.Cancellable()
+		command_query = cancellable
+		void query_command_directory(command.peek(), cancellable).then(
+			(directory) => {
+				if (command_query !== cancellable) return
+				command_query = null
+				set_command_directory(directory)
+			},
+		)
+	})
+	check_command.call()
+	const unsubscribe_command = command.subscribe(() => check_command.call())
+	onCleanup(() => {
+		unsubscribe_command()
+		check_command.cancel()
+		command_query?.cancel()
+		command_query = null
+	})
+	return command_directory
+}
+
+function gtk_ordering(difference: number) {
+	if (difference < 0) return Gtk.Ordering.SMALLER
+	if (difference > 0) return Gtk.Ordering.LARGER
+	return Gtk.Ordering.EQUAL
+}
+
+function compare_applications(
+	left: AstalApps.Application,
+	right: AstalApps.Application,
+) {
+	const by_frequency = right.get_frequency() - left.get_frequency()
+	if (by_frequency !== 0) return gtk_ordering(by_frequency)
+	return gtk_ordering(left.get_name().localeCompare(right.get_name()))
+}
+
+function search_text(application: AstalApps.Application) {
+	return [
+		application.get_name(),
+		application.get_description(),
+		application.get_executable(),
+	]
+		.filter(Boolean)
+		.join("\n")
+		.toLowerCase()
+}
+
+function create_icon_factory() {
+	const factory = Gtk.SignalListItemFactory.new()
+	const cells = new WeakMap<
+		Gtk.ListItem,
+		{ image: Gtk.Image; label: Gtk.Label }
+	>()
+	factory.connect("setup", (_factory, object) => {
+		const item = object as Gtk.ListItem
+		const image = new Gtk.Image({ pixelSize: 32 })
+		const label = new Gtk.Label({ ellipsize: EllipsizeMode.END })
+		const cell = new Gtk.Box({ orientation: VERTICAL })
+		cell.add_css_class("icon-option")
+		cell.set_halign(CENTER)
+		cell.set_valign(CENTER)
+		cell.append(image)
+		cell.append(label)
+		item.set_activatable(true)
+		item.set_child(cell)
+		cells.set(item, { image, label })
+	})
+	factory.connect("bind", (_factory, object) => {
+		const item = object as Gtk.ListItem
+		const value = item.get_item()
+		const cell = cells.get(item)
+		if (!(value instanceof Gtk.StringObject) || !cell) return
+		const icon_name = value.get_string()
+		cell.image.set_from_icon_name(icon_name)
+		cell.label.set_label(icon_name)
+		item.get_child()?.set_tooltip_text(icon_name)
+	})
+	return factory
+}
+
+function create_application_cell(
+	on_select: (application: AstalApps.Application) => void,
+) {
+	return createRoot((dispose) => {
+		const [cell_icon, set_cell_icon] = createState(icons.fallback.app)
+		let current_application: AstalApps.Application | null = null
+		let title!: Gtk.Label
+		let detail!: Gtk.Label
+		const widget = (
+			<button
+				class="application-option"
+				halign={FILL}
+				hexpand
+				onClicked={() => {
+					if (current_application) on_select(current_application)
+				}}
+			>
+				<box orientation={HORIZONTAL}>
+					<ApplicationIcon icon={cell_icon} size={40} />
+					<box
+						class="option-copy"
+						orientation={VERTICAL}
+						valign={CENTER}
+						hexpand
+					>
+						<label
+							$={(self) => {
+								title = self
+							}}
+							class="option-title"
+							xalign={0}
+							ellipsize={EllipsizeMode.END}
+						/>
+						<label
+							$={(self) => {
+								detail = self
+							}}
+							class="option-detail"
+							xalign={0}
+							ellipsize={EllipsizeMode.END}
+						/>
+					</box>
+				</box>
+			</button>
+		) as Gtk.Button
+
+		return {
+			widget,
+			bind(
+				application: AstalApps.Application,
+				position: number,
+				count: number,
+			) {
+				current_application = application
+				widget.remove_css_class("first")
+				widget.remove_css_class("last")
+				if (position === 0) widget.add_css_class("first")
+				if (position === count - 1) widget.add_css_class("last")
+				set_cell_icon(application.get_icon_name() || icons.fallback.app)
+				title.set_label(application.get_name())
+				detail.set_label(
+					application.get_description() || application.get_executable(),
+				)
+			},
+			clear() {
+				current_application = null
+			},
+			dispose,
+		}
+	})
+}
+
+function create_application_factory(
+	selection: Gtk.NoSelection,
+	on_select: (application: AstalApps.Application) => void,
+) {
+	const factory = Gtk.SignalListItemFactory.new()
+	const cells = new WeakMap<
+		Gtk.ListItem,
+		ReturnType<typeof create_application_cell>
+	>()
+	factory.connect("setup", (_factory, object) => {
+		const item = object as Gtk.ListItem
+		const cell = create_application_cell(on_select)
+		item.set_activatable(false)
+		item.set_selectable(false)
+		item.set_child(cell.widget)
+		cells.set(item, cell)
+	})
+	factory.connect("bind", (_factory, object) => {
+		const item = object as Gtk.ListItem
+		const application = item.get_item()
+		const cell = cells.get(item)
+		if (!(application instanceof AstalApps.Application) || !cell) return
+		cell.bind(application, item.get_position(), selection.get_n_items())
+	})
+	factory.connect("unbind", (_factory, object) => {
+		const item = object as Gtk.ListItem
+		cells.get(item)?.clear()
+	})
+	factory.connect("teardown", (_factory, object) => {
+		const item = object as Gtk.ListItem
+		const cell = cells.get(item)
+		if (!cell) return
+		cell.dispose()
+		item.set_child(null)
+		cells.delete(item)
+	})
+	return factory
+}
+
+function ErrorLabel() {
+	return (
+		<label
+			class="error"
+			label={error_message}
+			visible={error_message.as(Boolean)}
+			xalign={0}
+			wrap
+		/>
+	)
+}
+
+function SelectorAction({
+	icon,
+	label,
+	onClicked,
+}: {
+	icon: string
+	label: string
+	onClicked: () => void
+}) {
+	return (
+		<button onClicked={onClicked}>
+			<box orientation={HORIZONTAL}>
+				<image iconName={icon} />
+				<label label={label} />
+			</box>
+		</button>
+	)
+}
 
 function ensure_window() {
-	const existing = app.get_window("desktop-launcher-creator")
+	const existing = creator_window()
 	if (existing) return existing
 
 	let window: Gtk.Window | null = null
@@ -1136,53 +1187,52 @@ function quote_exec_argument(value: string) {
 		.replace(/[`"$\\]/g, (character) => `\\${character}`)}"`
 }
 
-function launcher_icon_name(icon: Gio.Icon, fallback: string) {
-	if (icon instanceof Gio.ThemedIcon) return icon.get_names()[0] || fallback
-	return icon.to_string() || fallback
+function volume_icon_name(icon: Gio.Icon) {
+	if (icon instanceof Gio.ThemedIcon)
+		return icon.get_names()[0] || icons.fallback.drive
+	return icon.to_string() || icons.fallback.drive
 }
 
+function mount_failure(option: volume_option, reason: unknown) {
+	return `Could not mount ${option.name}. ${reason}`
+}
+
+function mounted_location(
+	volume: Gio.Volume,
+	response: Gio.AsyncResult,
+): result<string> {
+	const finished = attempt(() => volume.mount_finish(response))
+	if (!finished.ok) return finished
+	if (!finished.value) return err(new Error("Mount returned false"))
+
+	const root = volume.get_mount()?.get_root()
+	const target = root?.get_path() ?? root?.get_uri()
+	if (!target)
+		return err(new Error("Mounted volume has no accessible location"))
+	return ok(target)
+}
+
+const special_folder_icons: [GLib.UserDirectory, string][] = [
+	[GLib.UserDirectory.DIRECTORY_DESKTOP, "folder-desktop"],
+	[GLib.UserDirectory.DIRECTORY_DOCUMENTS, "folder-documents"],
+	[GLib.UserDirectory.DIRECTORY_DOWNLOAD, "folder-download"],
+	[GLib.UserDirectory.DIRECTORY_MUSIC, "folder-music"],
+	[GLib.UserDirectory.DIRECTORY_PICTURES, "folder-pictures"],
+	[GLib.UserDirectory.DIRECTORY_PUBLIC_SHARE, "folder-public"],
+	[GLib.UserDirectory.DIRECTORY_TEMPLATES, "folder-templates"],
+	[GLib.UserDirectory.DIRECTORY_VIDEOS, "folder-videos"],
+]
+
 function folder_icon_name(path: string) {
-	const folders: Array<[string | null, string]> = [
-		[
-			GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP),
-			"folder-desktop",
-		],
-		[
-			GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS),
-			"folder-documents",
-		],
-		[
-			GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOWNLOAD),
-			"folder-download",
-		],
-		[
-			GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_MUSIC),
-			"folder-music",
-		],
-		[
-			GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES),
-			"folder-pictures",
-		],
-		[
-			GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PUBLIC_SHARE),
-			"folder-public",
-		],
-		[
-			GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_TEMPLATES),
-			"folder-templates",
-		],
-		[
-			GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_VIDEOS),
-			"folder-videos",
-		],
-		[GLib.get_home_dir(), "folder-home"],
-	]
-	const selected = Gio.File.new_for_path(path)
-	return (
-		folders.find(
-			([folder]) => folder && selected.equal(Gio.File.new_for_path(folder)),
-		)?.[1] ?? "folder"
+	const folders: [string | null, string][] = special_folder_icons.map(
+		([directory, icon]) => [GLib.get_user_special_dir(directory), icon],
 	)
+	folders.push([GLib.get_home_dir(), "folder-home"])
+	const selected = Gio.File.new_for_path(path)
+	const match = folders.find(
+		([folder]) => folder && selected.equal(Gio.File.new_for_path(folder)),
+	)
+	return match?.[1] ?? "folder"
 }
 
 function choose_path(
@@ -1193,7 +1243,7 @@ function choose_path(
 ) {
 	const session = creator_session
 	const dialog = new Gtk.FileDialog({ title, modal: true })
-	const parent = app.get_window("desktop-launcher-creator")
+	const parent = creator_window()
 	if (!parent) return
 	if (filter) {
 		const filters = Gio.ListStore.new(Gtk.FileFilter.$gtype)
@@ -1210,13 +1260,13 @@ function choose_path(
 			return file?.get_path()
 		})
 		if (session !== creator_session) return
+		if (!chosen.ok && is_dialog_dismissed(chosen.err)) return
 		if (!chosen.ok) {
-			if (!is_dialog_dismissed(chosen.err))
-				console.error(`desktop.launcherChooser: ${title} failed`, chosen.err)
+			console.error(`desktop.launcher_chooser: ${title} failed`, chosen.err)
 			return
 		}
 		if (!chosen.value) {
-			console.error(`desktop.launcherChooser: ${title} has no local path`)
+			console.error(`desktop.launcher_chooser: ${title} has no local path`)
 			return
 		}
 		on_selected(chosen.value)

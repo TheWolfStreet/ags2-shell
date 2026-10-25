@@ -12,6 +12,9 @@ const icon_list = {
 		notification: "dialog-information-symbolic",
 		video: "video-x-generic-symbolic",
 		image: "image-x-generic-symbolic",
+		app: "application-x-executable-symbolic",
+		audio: "audio-x-generic-symbolic",
+		drive: "drive-harddisk-symbolic",
 	},
 	ui: {
 		close: "window-close-symbolic",
@@ -29,6 +32,13 @@ const icon_list = {
 			right: "go-right-symbolic",
 			left: "go-left-symbolic",
 		},
+		next: "go-next-symbolic",
+		previous: "go-previous-symbolic",
+		folder: "folder-symbolic",
+		folder_open: "folder-open-symbolic",
+		clear: "edit-clear-symbolic",
+		open: "document-open-symbolic",
+		link: "emblem-symbolic-link-symbolic",
 	},
 	audio: {
 		mixer: "window-sound-source-symbolic",
@@ -120,7 +130,7 @@ const icon_list = {
 
 export function substitute_icon_name(
 	name: string,
-	fallback = "image-missing-symbolic",
+	fallback = icon_list.missing,
 ): string {
 	if (Object.hasOwn(substitutes, name))
 		return substitutes[name as keyof typeof substitutes]

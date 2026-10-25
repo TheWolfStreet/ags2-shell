@@ -1,18 +1,23 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import { stripTypeScriptTypes } from "node:module"
-import test from "node:test"
-import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
+import test, { mock } from "node:test"
+import { createContext } from "node:vm"
+import * as result from "../../lib/result.ts"
+import { load_module } from "../load_module.ts"
+import { tick } from "../helpers.ts"
 
-const source = stripTypeScriptTypes(
-	readFileSync(new URL("../../shell/options.ts", import.meta.url), "utf8"),
-	{ mode: "transform" },
-)
+const logged: unknown[][] = []
+
+test.beforeEach(() => {
+	logged.length = 0
+	mock.method(console, "error", (...args: unknown[]) => logged.push(args))
+})
+
+test.afterEach(() => mock.restoreAll())
 
 async function load_options(
 	initial,
 	on_write?: () => unknown,
-	{ move_fails = false } = {},
+	{ move_fails = false, ensure_fails = false } = {},
 ) {
 	let file = typeof initial === "string" ? initial : JSON.stringify(initial)
 	const writes: any[] = []
@@ -52,14 +57,6 @@ async function load_options(
 				for (const subscriber of [...subscribers]) subscriber()
 			},
 		]
-	}
-
-	function attempt(fn) {
-		try {
-			return { ok: true, value: fn() }
-		} catch (err) {
-			return { ok: false, err }
-		}
 	}
 
 	const modules = {
@@ -104,21 +101,9 @@ async function load_options(
 		},
 		"$lib/files": {
 			ensure_file() {
-				return { ok: true, value: undefined }
+				if (ensure_fails) return result.err(new Error("read-only cache"))
+				return result.ok(undefined)
 			},
-		},
-		"$lib/result": {
-			attempt,
-			attempt_async: async (fn) => {
-				try {
-					return { ok: true, value: await fn() }
-				} catch (err) {
-					return { ok: false, err }
-				}
-			},
-			err: (err) => ({ ok: false, err }),
-			ok: (value) => ({ ok: true, value }),
-			log_error: (result) => result.ok,
 		},
 		"$lib/time": {
 			debounce: () => {
@@ -138,27 +123,17 @@ async function load_options(
 		},
 	}
 
-	const entry = new SourceTextModule(source, { context })
-	await entry.link((name) => {
-		const exports = modules[name]
-		if (!exports) throw new Error(`Unknown module: ${name}`)
-		return new SyntheticModule(
-			Object.keys(exports),
-			function () {
-				for (const [key, value] of Object.entries(exports))
-					this.setExport(key, value)
-			},
-			{ context },
-		)
-	})
-	await entry.evaluate()
-	const namespace = entry.namespace as {
-		default: any
-		flush_options: () => Promise<{ ok: boolean; err?: any }>
-	}
+	const namespace = await load_module("shell/options.ts", modules, context)
 	return {
 		options: namespace.default,
-		flush: namespace.flush_options,
+		ui_scale: namespace.ui_scale as () => number,
+		collect_options: namespace.collect_options,
+		subscribe_options: namespace.subscribe_options,
+		surface_scale: namespace.surface_scale,
+		flush: namespace.flush_options as () => Promise<{
+			ok: boolean
+			err?: any
+		}>,
 		writes,
 		moves,
 	}
@@ -362,7 +337,7 @@ test("flush waits for queued writes and saves the latest state last", async () =
 	})
 	options.scale.set(120)
 	const first = flush()
-	await new Promise((resolve) => setImmediate(resolve))
+	await tick()
 	options.scale.set(140)
 	const second = flush()
 	assert.equal(started, 1)
@@ -400,4 +375,108 @@ test("an explicit flush retries a failed write without another edit", async () =
 	assert.equal((await flush()).ok, true)
 	assert.equal(attempts, 2)
 	assert.equal(writes[0].scale, 120)
+})
+
+test("each option names the editor its default and rule imply", async () => {
+	const { options } = await load_options({})
+	assert.equal(options.theme.scheme.editor(), "enum")
+	assert.equal(options.font.editor(), "font")
+	assert.equal(options.theme.dark.bg.editor(), "color")
+	assert.equal(options.hyprland.inactiveBorder.editor(), "color")
+	assert.equal(options.theme.blur.editor(), "boolean")
+	assert.equal(options.scale.editor(), "number")
+	assert.equal(options.bar.date.format.editor(), "string")
+	assert.equal(options.theme.dark.bg.set("#12345g").ok, false)
+	assert.equal(options.font.set("Sans").ok, false)
+})
+
+function log_heads() {
+	return logged.map((entry) => {
+		const [tag, error] = entry
+		if (entry.length > 1) return [tag, (error as Error).constructor.name]
+		return [tag]
+	})
+}
+
+test("store recovery logs why the store was unreadable and where it went", async () => {
+	await load_options("{broken")
+	assert.deepEqual(log_heads(), [
+		["option.store.load: Failed to load options store", "SyntaxError"],
+		["option.store.load: Unreadable options moved to /cache/options.json.bad"],
+	])
+	logged.length = 0
+	await load_options("[1, 2]")
+	assert.deepEqual(log_heads(), [
+		["option.store.load: Options store does not contain an object"],
+		["option.store.load: Unreadable options moved to /cache/options.json.bad"],
+	])
+	logged.length = 0
+	await load_options("{broken", undefined, { move_fails: true })
+	assert.deepEqual(log_heads(), [
+		["option.store.load: Failed to load options store", "SyntaxError"],
+		["option.store.load: Failed to set aside unreadable options", "Error"],
+	])
+})
+
+test("an unpreparable store loads defaults and reports every failed save", async () => {
+	const { options, flush, writes } = await load_options(
+		{ scale: 150 },
+		undefined,
+		{ ensure_fails: true },
+	)
+	assert.equal(options.scale.peek(), 100)
+	assert.deepEqual(log_heads(), [
+		["option.store.load: Failed to prepare options store", "Error"],
+	])
+	logged.length = 0
+	options.scale.set(120)
+	const saved = await flush()
+	assert.equal(saved.ok, false)
+	assert.equal(saved.err.message, "read-only cache")
+	assert.deepEqual(writes, [])
+	assert.deepEqual(log_heads(), [
+		["option.store.save: Failed to save options store", "Error"],
+	])
+})
+
+test("rejected values are logged with the option id", async () => {
+	const { options } = await load_options({})
+	const rejected = options.theme.scheme.set("sepia")
+	assert.equal(rejected.err.message, "Invalid value for option theme.scheme")
+	assert.deepEqual(log_heads(), [["option.set: Rejected value", "Error"]])
+})
+
+test("scale helpers turn percentages into factors", async () => {
+	const { options, ui_scale, surface_scale } = await load_options({
+		scale: 150,
+	})
+	assert.equal(ui_scale(), 1.5)
+	options.scale.set(50)
+	assert.equal(ui_scale(), 0.5)
+	assert.equal(surface_scale(options.dock.scale), 1)
+	options.dock.scale.set(200)
+	assert.equal(surface_scale(options.dock.scale), 2)
+})
+
+test("options are collected by id and subscriptions follow prefixes", async () => {
+	const { options, collect_options, subscribe_options } = await load_options({})
+	const ids = collect_options(options).map((opt) => opt.id)
+	assert.equal(new Set(ids).size, ids.length)
+	assert.ok(ids.includes("theme.dark.primary.bg"))
+	assert.ok(ids.includes("asus.bat_hz"))
+	assert.deepEqual(
+		[...collect_options(options.theme.border).map((opt) => opt.id)],
+		["theme.border.width", "theme.border.opacity"],
+	)
+	let calls = 0
+	const dispose = subscribe_options(options, ["theme.border", "scale"], () => {
+		calls++
+	})
+	options.theme.border.width.set(3)
+	options.scale.set(120)
+	options.theme.padding.set(4)
+	assert.equal(calls, 2)
+	dispose()
+	options.scale.set(130)
+	assert.equal(calls, 2)
 })

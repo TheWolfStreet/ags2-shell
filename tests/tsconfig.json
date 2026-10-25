@@ -11,6 +11,7 @@
 		"./**/*.test.ts",
 		"./typescript.ts",
 		"./hyprland.ts",
+		"./helpers.ts",
 		"../env.d.ts",
 		"../@girs/*.d.ts"
 	],

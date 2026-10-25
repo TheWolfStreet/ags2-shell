@@ -1,14 +1,20 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
 import test from "node:test"
-import { SourceTextModule, SyntheticModule } from "node:vm"
-import ts from "../typescript.ts"
+import { load_module } from "../load_module.ts"
+import { tick } from "../helpers.ts"
 
-const app = (entry, name) => ({ get_entry: () => entry, get_name: () => name })
+function app(entry, name) {
+	return { get_entry: () => entry, get_name: () => name }
+}
 
-async function service_fixture(catalog, variants) {
+async function service_fixture(catalog, variants, { failed_watches = 0 } = {}) {
 	const commands: unknown[] = []
-	const reads: ((value: string) => void)[] = []
+	const reads: {
+		resolve: (value: string) => void
+		reject: (error: Error) => void
+	}[] = []
+	const timeouts: { delay: number; callback: () => void }[] = []
+	let on_exit
 	const notifications: string[] = []
 	const parsed: string[] = []
 	let on_catalog_change
@@ -33,14 +39,17 @@ async function service_fixture(catalog, variants) {
 		"ags/process": {
 			execAsync: (args) => {
 				commands.push(args)
-				return new Promise((resolve) => reads.push(resolve))
+				return new Promise((resolve, reject) => reads.push({ resolve, reject }))
 			},
 			Process: class {},
 			subprocess: (args, callback) => {
 				commands.push(args)
+				if (failed_watches-- > 0) throw new Error("dconf missing")
 				on_favorites_change = callback
 				return {
-					connect() {},
+					connect: (_signal, callback) => {
+						on_exit = callback
+					},
 					kill() {
 						kills++
 					},
@@ -60,7 +69,10 @@ async function service_fixture(catalog, variants) {
 				on_idle = callback
 				return { cancel() {} }
 			},
-			timeout: () => ({ cancel() {} }),
+			timeout: (delay, callback) => {
+				timeouts.push({ delay, callback })
+				return { cancel() {} }
+			},
 			debounce: (_delay, callback) => ({ call: callback, cancel() {} }),
 		},
 		"gi://AstalApps": {
@@ -101,47 +113,25 @@ async function service_fixture(catalog, variants) {
 				},
 			},
 		},
-		"$lib/result": {
-			attempt: (fn) => {
-				try {
-					return { ok: true, value: fn() }
-				} catch (err) {
-					return { ok: false, err }
-				}
-			},
-		},
 	}
-	const source = readFileSync(
-		new URL("../../service/apps.ts", import.meta.url),
-		"utf8",
-	)
-	const compiled = ts.transpileModule(source, {
-		compilerOptions: {
-			module: ts.ModuleKind.ESNext,
-			target: ts.ScriptTarget.ES2022,
-			experimentalDecorators: true,
-		},
-	}).outputText
-	const module = new SourceTextModule(compiled)
-	await module.link((name) => {
-		assert.ok(imports[name], name)
-		return new SyntheticModule(Object.keys(imports[name]), function () {
-			for (const [key, value] of Object.entries(imports[name]))
-				this.setExport(key, value)
-		})
-	})
-	await module.evaluate()
+	const { applications } = await load_module("service/apps.ts", imports)
 	return {
-		service: (module.namespace as { applications: any }).applications,
+		service: applications,
 		commands,
 		reads,
 		notifications,
 		parsed,
 		async read(raw) {
 			assert.ok(reads.length)
-			reads.shift()!(raw)
-			await Promise.resolve()
+			reads.shift()!.resolve(raw)
+			await tick()
 		},
+		async fail(error) {
+			reads.shift()!.reject(error)
+			await tick()
+		},
+		exit: (code, signaled) => on_exit({}, code, signaled),
+		timeouts,
 		watch: () => on_favorites_change(),
 		shutdown: () => shutdown_handlers.forEach((handler) => handler()),
 		get kills() {
@@ -318,4 +308,82 @@ test("shell shutdown kills the dconf watch exactly once", async () => {
 	assert.equal(fixture.kills, 1)
 	fixture.shutdown()
 	assert.equal(fixture.kills, 1)
+})
+
+async function capture_errors(run: () => Promise<void> | void) {
+	const errors: unknown[][] = []
+	const original_error = console.error
+	console.error = (...args) => errors.push(args)
+	try {
+		await run()
+	} finally {
+		console.error = original_error
+	}
+	return errors
+}
+
+test("a failed favorites read is logged and keeps the previous favorites", async () => {
+	const kept = app("foo.desktop", "Foo")
+	const raw = "['Foo']"
+	const fixture = await service_fixture([kept], new Map([[raw, ["Foo"]]]))
+	await fixture.read(raw)
+	const failure = new Error("dconf failed")
+	const errors = await capture_errors(async () => {
+		fixture.watch()
+		await fixture.fail(failure)
+	})
+	assert.deepEqual(errors, [
+		["applications.refresh_favorites: Failed to read favorites", failure],
+	])
+	assert.deepEqual(fixture.service.favorites, [kept])
+})
+
+test("a stale favorites read is ignored once a newer read started", async () => {
+	const first = app("foo.desktop", "Foo")
+	const second = app("bar.desktop", "Bar")
+	const fixture = await service_fixture(
+		[first, second],
+		new Map([
+			["['Foo']", ["Foo"]],
+			["['Bar']", ["Bar"]],
+		]),
+	)
+	fixture.watch()
+	const [stale, fresh] = fixture.reads.splice(0)
+	fresh.resolve("['Bar']")
+	stale.resolve("['Foo']")
+	await tick()
+	assert.deepEqual(fixture.service.favorites, [second])
+	assert.deepEqual(fixture.notifications, ["favorites"])
+})
+
+test("a watch that cannot start or exits is logged and retried with backoff", async () => {
+	let fixture
+	const errors = await capture_errors(async () => {
+		fixture = await service_fixture([], new Map(), { failed_watches: 1 })
+	})
+	assert.equal(errors.length, 1)
+	assert.equal(errors[0][0], "applications.favorites_watch:")
+	assert.equal((errors[0][1] as Error).message, "dconf missing")
+	assert.deepEqual(
+		fixture.timeouts.map((timer) => timer.delay),
+		[5000],
+	)
+	fixture.timeouts[0].callback()
+	assert.equal(fixture.commands.filter((args) => args[1] === "watch").length, 2)
+	assert.equal(fixture.commands.filter((args) => args[1] === "read").length, 2)
+	const exited = await capture_errors(() => fixture.exit(1, false))
+	assert.deepEqual(exited, [
+		["applications.favorites_watch: Dconf watch exited with status 1"],
+	])
+	const signaled = await capture_errors(() => fixture.exit(9, true))
+	assert.deepEqual(signaled, [
+		["applications.favorites_watch: Dconf watch exited with signal 9"],
+	])
+	assert.deepEqual(
+		fixture.timeouts.map((timer) => timer.delay),
+		[5000, 15000],
+	)
+	fixture.shutdown()
+	assert.deepEqual(await capture_errors(() => fixture.exit(1, false)), [])
 })

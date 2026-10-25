@@ -18,25 +18,31 @@ import Pango from "gi://Pango"
 import { PanelButton } from "../PanelButton"
 
 import icons, { substitute_icon_name } from "$lib/icons"
-import env from "$lib/env"
 import { classify_image_uri, create_texture_accessor } from "$lib/textures"
 import {
 	notification_action_available,
 	notification_daemon,
 } from "$lib/notifications"
 import { notification_manager } from "$service/notifications"
-import { create_entry_lifecycle, type entry_lifecycle } from "./EntryLifecycle"
+import {
+	create_entry_lifecycle,
+	is_live,
+	type entry_lifecycle,
+} from "./entry_lifecycle"
 
-import options from "$shell/options"
+import options, { scaled } from "$shell/options"
+import { capture_kinds } from "$service/screen_capture"
 
 export namespace Notifications {
+	export const pending = createBinding(notification_manager, "notifications")
+
 	export function Button() {
 		return (
 			<PanelButton
-				targetWindow="datemenu"
+				target_window="datemenu"
 				class="messages"
-				visible={notifications.as((v) => v.length > 0)}
-				tooltipText={notifications.as(
+				visible={pending.as((v) => v.length > 0)}
+				tooltipText={pending.as(
 					(v) => `${v.length} pending notification${v.length === 1 ? "" : "s"}`,
 				)}
 			>
@@ -46,9 +52,7 @@ export namespace Notifications {
 	}
 
 	export function Window() {
-		const anchor = createComputed(() =>
-			anchor_for_position(options.notifications.position()),
-		)
+		const anchor = options.notifications.position.as(anchor_for_position)
 		const [popup_count, set_popup_count] = createState(0)
 		return (
 			<window
@@ -82,24 +86,16 @@ export namespace Notifications {
 	}
 
 	export function animate_dismiss_all() {
-		const all = notification_daemon
-			.get_notifications()
-			.sort((left, right) => right.time - left.time)
-		let index = 0
-		const dismiss_next = () => {
-			const notification = all[index++]
-			if (
-				notification_daemon.get_notification(notification.id) === notification
-			)
-				notification.dismiss()
-			if (index < all.length) timeout(50, dismiss_next)
+		const queue = notification_daemon.get_notifications().sort(newest_first)
+		const dismiss_from = (index: number) => {
+			const notification = queue[index]
+			if (is_live(notification)) notification.dismiss()
+			if (index + 1 < queue.length) timeout(50, () => dismiss_from(index + 1))
 		}
-		if (all.length) timeout(Math.random() * 100, dismiss_next)
+		if (queue.length) timeout(Math.random() * 100, () => dismiss_from(0))
 	}
 
-	const popup_width = options.scale.as((scale) =>
-		Math.round((350 * scale) / 100),
-	)
+	const popup_width = scaled(350)
 
 	type transition_type =
 		Accessor<Gtk.RevealerTransitionType> | Gtk.RevealerTransitionType
@@ -140,25 +136,21 @@ export namespace Notifications {
 		on_action_click: (action_id: string) => void
 	}
 
-	const notifications = createBinding(notification_manager, "notifications")
 	const minute_ticker = createPoll(0, 60_000, (tick) => tick + 1)
 
 	function anchor_for_position(position: string) {
-		switch (position) {
-			case "top-left":
-				return TOP | LEFT
-			case "top-center":
-				return TOP
-			case "bottom-left":
-				return BOTTOM | LEFT
-			case "bottom-center":
-				return BOTTOM
-			case "bottom-right":
-				return BOTTOM | RIGHT
-			case "top-right":
-			default:
-				return TOP | RIGHT
-		}
+		const [vertical, horizontal] = position.split("-")
+		const edge = vertical === "bottom" ? BOTTOM : TOP
+		if (horizontal === "left") return edge | LEFT
+		if (horizontal === "right") return edge | RIGHT
+		return edge
+	}
+
+	function newest_first(
+		left: AstalNotifd.Notification,
+		right: AstalNotifd.Notification,
+	) {
+		return right.time - left.time
 	}
 
 	const urgency_class: Record<number, string> = {
@@ -183,24 +175,25 @@ export namespace Notifications {
 			/&(#(?:[xX][\da-fA-F]+|\d+)|amp|apos|gt|lt|quot);/g,
 			(_entity, name: string) => {
 				if (!name.startsWith("#")) return named[name]
-
-				const hexadecimal = name[1]?.toLowerCase() === "x"
-				const code_point = Number.parseInt(
-					name.slice(hexadecimal ? 2 : 1),
-					hexadecimal ? 16 : 10,
-				)
-				const valid_control =
-					code_point === 9 || code_point === 10 || code_point === 13
-				if (
-					!Number.isInteger(code_point) ||
-					code_point > 0x10ffff ||
-					(code_point < 0x20 && !valid_control)
-				)
-					return "\uFFFD"
-
-				return String.fromCodePoint(code_point)
+				return decode_character_reference(name)
 			},
 		)
+	}
+
+	function decode_character_reference(reference: string) {
+		const hexadecimal = reference[1]?.toLowerCase() === "x"
+		const code_point = Number.parseInt(
+			reference.slice(hexadecimal ? 2 : 1),
+			hexadecimal ? 16 : 10,
+		)
+		if (!printable_code_point(code_point)) return "\uFFFD"
+		return String.fromCodePoint(code_point)
+	}
+
+	function printable_code_point(code_point: number) {
+		if (!Number.isInteger(code_point) || code_point > 0x10ffff) return false
+		if (code_point >= 0x20) return true
+		return code_point === 9 || code_point === 10 || code_point === 13
 	}
 
 	function body_text(body: string) {
@@ -267,6 +260,59 @@ export namespace Notifications {
 		)
 	}
 
+	function preview_box(persistent: boolean, avatar: boolean) {
+		if (avatar) return { width: 48, height: 48 }
+		if (persistent) return { width: 260, height: 160 }
+		return { width: 75, height: 75 }
+	}
+
+	function fitted_height(
+		texture: Gdk.Texture | null,
+		width: number,
+		height: number,
+	) {
+		if (!texture) return height
+		const ratio = Math.min(
+			width / texture.get_width(),
+			height / texture.get_height(),
+		)
+		return Math.max(1, Math.round(texture.get_height() * ratio))
+	}
+
+	function Preview({
+		image_path,
+		persistent,
+		avatar,
+	}: {
+		image_path: string
+		persistent: boolean
+		avatar: boolean
+	}) {
+		const box = preview_box(persistent, avatar)
+		const width = scaled(box.width)
+		const height = scaled(box.height)
+		const texture = createComputed(() =>
+			create_texture_accessor(image_path, width(), "contain"),
+		)
+		const paintable = createComputed(() => texture()())
+		const height_request = avatar
+			? height
+			: createComputed(() => fitted_height(paintable(), width(), height()))
+		return (
+			<Gtk.Picture
+				class={avatar ? "avatar" : "preview"}
+				tooltipText={image_path}
+				widthRequest={avatar ? width : undefined}
+				heightRequest={height_request}
+				halign={START}
+				valign={CENTER}
+				visible={paintable.as((value) => value !== null)}
+				paintable={paintable as unknown as Accessor<Gdk.Paintable>}
+				canShrink
+			/>
+		)
+	}
+
 	function Content({
 		notification,
 		image_path,
@@ -274,50 +320,13 @@ export namespace Notifications {
 		avatar = false,
 	}: content_props) {
 		const body = body_text(notification.body)
-		let image_size = persistent ? 260 : 75
-		let image_height = persistent ? 160 : 75
-		if (avatar) {
-			image_size = 48
-			image_height = 48
-		}
-		const preview_size = options.scale.as((scale) =>
-			Math.round((image_size * scale) / 100),
-		)
-		const preview_height = options.scale.as((scale) =>
-			Math.round((image_height * scale) / 100),
-		)
-		const preview_texture = image_path
-			? createComputed(() =>
-					create_texture_accessor(image_path, preview_size(), "contain"),
-				)
-			: null
-		const preview_paintable = preview_texture
-			? createComputed(() => preview_texture()())
-			: null
-		const fitted_height = preview_paintable
-			? createComputed(() => {
-					const texture = preview_paintable()
-					if (!texture) return preview_height()
-					const ratio = Math.min(
-						preview_size() / texture.get_width(),
-						preview_height() / texture.get_height(),
-					)
-					return Math.max(1, Math.round(texture.get_height() * ratio))
-				})
-			: null
-		const preview = preview_paintable && (
-			<Gtk.Picture
-				class={avatar ? "avatar" : "preview"}
-				tooltipText={image_path ?? undefined}
-				widthRequest={avatar ? preview_size : undefined}
-				heightRequest={avatar ? preview_height : fitted_height!}
-				halign={START}
-				valign={CENTER}
-				visible={preview_paintable.as((texture) => texture !== null)}
-				paintable={preview_paintable as unknown as Accessor<Gdk.Paintable>}
-				canShrink
+		const preview = image_path ? (
+			<Preview
+				image_path={image_path}
+				persistent={persistent}
+				avatar={avatar}
 			/>
-		)
+		) : null
 
 		return (
 			<box
@@ -388,6 +397,73 @@ export namespace Notifications {
 		)
 	}
 
+	function preview_path(notification: AstalNotifd.Notification) {
+		const image = notification.get_image()
+		if (!image || classify_image_uri(image) === "unknown") return null
+		return image
+	}
+
+	function is_avatar(
+		notification: AstalNotifd.Notification,
+		image_path: string | null,
+	) {
+		const cache = `${GLib.get_user_cache_dir()}/astal/notifd/`
+		if (!image_path?.startsWith(cache)) return false
+		if (!/^\d+\.png$/.test(image_path.slice(cache.length))) return false
+		return notification.get_category()?.startsWith("im.") === true
+	}
+
+	function app_icon_name(
+		notification: AstalNotifd.Notification,
+		image_path: string | null,
+	) {
+		const image = notification.get_image()
+		const named_image = image && !image_path ? image : ""
+		return substitute_icon_name(
+			notification.get_app_icon() ||
+				named_image ||
+				notification.get_desktop_entry() ||
+				icons.fallback.notification,
+			icons.fallback.notification,
+		)
+	}
+
+	function app_label(notification: AstalNotifd.Notification) {
+		const name =
+			notification.get_app_name() ||
+			notification.get_desktop_entry() ||
+			"Notification"
+		return name.toUpperCase()
+	}
+
+	function capture_directory(notification: AstalNotifd.Notification) {
+		const capture = Object.values(capture_kinds).find(
+			({ app_name, summary }) =>
+				notification.get_app_name() === app_name &&
+				notification.summary === summary,
+		)
+		return capture?.directory ?? null
+	}
+
+	function archived_capture(
+		notification: AstalNotifd.Notification,
+		persistent: boolean,
+	) {
+		if (!persistent) return false
+		if (notification.time >= notification_manager.session_start) return false
+		const directory = capture_directory(notification)
+		if (!directory) return false
+		if (notification.body.startsWith(directory)) return true
+		return notification.get_image()?.startsWith(directory) === true
+	}
+
+	function labelled_actions(notification: AstalNotifd.Notification) {
+		return notification
+			.get_actions()
+			.filter((action) => action.label?.trim())
+			.map((action) => ({ label: action.label!, id: action.id }))
+	}
+
 	function Notification({
 		entry: notification,
 		state,
@@ -395,53 +471,10 @@ export namespace Notifications {
 		transition_type,
 	}: notification_props) {
 		const [show_actions, set_show_actions] = createState(false)
-
-		const image_value = notification.get_image()
-		const image_path =
-			image_value && classify_image_uri(image_value) !== "unknown"
-				? image_value
-				: null
-		const cached_image_prefix = `${GLib.get_user_cache_dir()}/astal/notifd/`
-		const avatar =
-			!!image_path &&
-			image_path.startsWith(cached_image_prefix) &&
-			/^\d+\.png$/.test(image_path.slice(cached_image_prefix.length)) &&
-			notification.get_category()?.startsWith("im.") === true
-		const app_icon = substitute_icon_name(
-			notification.get_app_icon() ||
-				(image_value && !image_path ? image_value : "") ||
-				notification.get_desktop_entry() ||
-				icons.fallback.notification,
-			icons.fallback.notification,
-		)
-		const app_name = (
-			notification.get_app_name() ||
-			notification.get_desktop_entry() ||
-			"Notification"
-		).toUpperCase()
-		let saved_path = ""
-		if (
-			notification.get_app_name() === "Screenshot" &&
-			notification.summary === "Screenshot taken"
-		)
-			saved_path = `${env.paths.home}/Pictures/Screenshots/`
-		else if (
-			notification.get_app_name() === "Recorder" &&
-			notification.summary === "Recording saved"
-		)
-			saved_path = `${env.paths.home}/Videos/Screencasting/`
-		const archived_capture =
-			persistent &&
-			notification.time < notification_manager.session_start &&
-			!!saved_path &&
-			(notification.body.startsWith(saved_path) ||
-				image_value?.startsWith(saved_path) === true)
-		const valid_actions = archived_capture
+		const image_path = preview_path(notification)
+		const actions = archived_capture(notification, persistent)
 			? []
-			: notification
-					.get_actions()
-					.filter((a) => a.label?.trim())
-					.map((a) => ({ label: a.label!, id: a.id }))
+			: labelled_actions(notification)
 
 		return (
 			<revealer
@@ -470,8 +503,8 @@ export namespace Notifications {
 					/>
 					<Header
 						notification={notification}
-						app_icon={app_icon}
-						app_name={app_name}
+						app_icon={app_icon_name(notification, image_path)}
+						app_name={app_label(notification)}
 						show_actions={show_actions}
 						on_dismiss={state.dismiss}
 					/>
@@ -479,10 +512,10 @@ export namespace Notifications {
 						notification={notification}
 						image_path={image_path}
 						persistent={persistent}
-						avatar={avatar}
+						avatar={is_avatar(notification, image_path)}
 					/>
 					<Actions
-						actions={valid_actions}
+						actions={actions}
 						show_actions={show_actions}
 						on_action_click={state.on_action_click}
 					/>
@@ -512,18 +545,23 @@ export namespace Notifications {
 			return persistent || !notification_manager.do_not_disturb
 		}
 
+		function entry_for(id: number) {
+			return entries.find((entry) => entry.notification.id === id)
+		}
+
+		function retire(entry: list_entry) {
+			entry.next = undefined
+			entry.state.close()
+		}
+
 		function remove(entry: list_entry) {
 			const index = entries.indexOf(entry)
 			if (index < 0) return
 			entries.splice(index, 1)
 			entry.dispose()
 			on_count_changed?.(entries.length)
-			if (
-				entry.next &&
-				notification_daemon.get_notification(entry.next.id) === entry.next
-			)
-				show(entry.next)
-			if (persistent) reconcile()
+			if (entry.next && is_live(entry.next)) show(entry.next)
+			reconcile()
 		}
 
 		function reconcile() {
@@ -531,24 +569,15 @@ export namespace Notifications {
 			const desired = notification_daemon
 				.get_notifications()
 				.filter(accepts)
-				.sort((left, right) => right.time - left.time)
+				.sort(newest_first)
 				.slice(0, list_limit)
+			const desired_ids = new Set(desired.map(({ id }) => id))
 			for (const entry of [...entries])
-				if (
-					!desired.some(
-						(notification) => notification.id === entry.notification.id,
-					)
-				)
-					entry.state.close()
+				if (!desired_ids.has(entry.notification.id)) entry.state.close()
 			for (const notification of desired) show(notification)
 		}
 
-		function mount(notification: AstalNotifd.Notification) {
-			let index = entries.findIndex(
-				(entry) => entry.notification.time <= notification.time,
-			)
-			if (index < 0) index = entries.length
-
+		function create_entry(notification: AstalNotifd.Notification) {
 			const entry: list_entry = createRoot((dispose) => {
 				const state = create_entry_lifecycle({
 					notification,
@@ -574,26 +603,31 @@ export namespace Notifications {
 					},
 				}
 			})
+			return entry
+		}
 
-			container.insert_child_after(
-				entry.widget,
-				index > 0 ? entries[index - 1].widget : null,
-			)
-			entries.splice(index, 0, entry)
-			on_count_changed?.(entries.length)
-
-			const open = entries.filter((other) => !other.state.is_closing())
+		function close_overflow() {
+			const open = entries.filter((entry) => !entry.state.is_closing())
 			if (open.length > list_limit) open[open.length - 1].state.close()
 		}
 
-		function show(notification: AstalNotifd.Notification) {
-			const entry = entries.find(
-				(other) => other.notification.id === notification.id,
+		function mount(notification: AstalNotifd.Notification) {
+			const older = entries.findIndex(
+				(entry) => entry.notification.time <= notification.time,
 			)
+			const index = older < 0 ? entries.length : older
+			const entry = create_entry(notification)
+			const previous = index > 0 ? entries[index - 1].widget : null
+			container.insert_child_after(entry.widget, previous)
+			entries.splice(index, 0, entry)
+			on_count_changed?.(entries.length)
+			close_overflow()
+		}
+
+		function show(notification: AstalNotifd.Notification) {
+			const entry = entry_for(notification.id)
 			if (!accepts(notification)) {
-				if (!entry) return
-				entry.next = undefined
-				entry.state.close()
+				if (entry) retire(entry)
 				return
 			}
 			if (!entry) {
@@ -604,6 +638,12 @@ export namespace Notifications {
 				return
 			entry.next = notification
 			entry.state.close()
+		}
+
+		function show_session_popups() {
+			for (const notification of notification_daemon.get_notifications())
+				if (notification.time >= notification_manager.session_start)
+					show(notification)
 		}
 
 		const notified_handler = notification_daemon.connect(
@@ -617,15 +657,12 @@ export namespace Notifications {
 		const resolved_handler = notification_daemon.connect(
 			"resolved",
 			(_daemon, id: number) => {
-				const entry = entries.find((other) => other.notification.id === id)
-				if (!entry) {
-					reconcile()
-					return
-				}
-				entry.next = undefined
-				entry.state.close()
+				const entry = entry_for(id)
+				if (entry) retire(entry)
+				else reconcile()
 			},
 		)
+
 		const blacklist_unsubscribe = options.notifications.blacklist.subscribe(
 			() => {
 				for (const entry of [...entries])
@@ -636,10 +673,7 @@ export namespace Notifications {
 		)
 
 		if (persistent) reconcile()
-		else
-			for (const notification of notification_daemon.get_notifications())
-				if (notification.time >= notification_manager.session_start)
-					show(notification)
+		else show_session_popups()
 
 		onCleanup(() => {
 			notification_daemon.disconnect(notified_handler)

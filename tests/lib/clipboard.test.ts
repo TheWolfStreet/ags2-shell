@@ -1,11 +1,8 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import { stripTypeScriptTypes } from "node:module"
 import test from "node:test"
-import { SourceTextModule, SyntheticModule } from "node:vm"
-import * as result from "../../lib/result.ts"
+import { load_module } from "../load_module.ts"
 
-type FakeProcess = {
+type fake_process = {
 	args: string[]
 	flags: number
 	stdin_path: string | null
@@ -15,9 +12,14 @@ type FakeProcess = {
 	finish: () => void
 }
 
-async function load({ successful = true } = {}) {
-	const processes: FakeProcess[] = []
+async function load({
+	successful = true,
+	spawn_error = null as Error | null,
+	finish_error = null as Error | null,
+} = {}) {
+	const processes: fake_process[] = []
 	const deadlines: Array<() => void> = []
+	const cancelled_deadlines: number[] = []
 	class SubprocessLauncher {
 		flags: number
 		stdin_path: string | null = null
@@ -28,7 +30,8 @@ async function load({ successful = true } = {}) {
 			this.stdin_path = path
 		}
 		spawnv(args: string[]) {
-			const process: FakeProcess & Record<string, unknown> = {
+			if (spawn_error) throw spawn_error
+			const process: fake_process & Record<string, unknown> = {
 				args,
 				flags: this.flags,
 				stdin_path: this.stdin_path,
@@ -44,6 +47,7 @@ async function load({ successful = true } = {}) {
 					this.finish = () => callback(this, {})
 				},
 				communicate_utf8_finish() {
+					if (finish_error) throw finish_error
 					return [true, "", ""]
 				},
 				get_successful: () => successful,
@@ -58,41 +62,27 @@ async function load({ successful = true } = {}) {
 				SubprocessLauncher,
 				SubprocessFlags: { NONE: 0, STDIN_PIPE: 1 },
 				Cancellable: class {
-					process: FakeProcess | null = null
+					process: fake_process | null = null
 					cancel() {
 						if (this.process) this.process.cancelled = true
 					}
 				},
 			},
 		},
-		"$lib/result": result,
 		"$lib/time": {
 			timeout: (ms: number, callback: () => void) => {
 				assert.equal(ms, 5000)
-				deadlines.push(callback)
-				return { cancel() {} }
+				const index = deadlines.push(callback) - 1
+				return { cancel: () => cancelled_deadlines.push(index) }
 			},
 		},
 	}
-	const module = new SourceTextModule(
-		stripTypeScriptTypes(
-			readFileSync(new URL("../../lib/clipboard.ts", import.meta.url), "utf8"),
-		),
-	)
-	await module.link((name) => {
-		const exports = imports[name]
-		assert.ok(exports, name)
-		return new SyntheticModule(Object.keys(exports), function () {
-			for (const [key, value] of Object.entries(exports))
-				this.setExport(key, value)
-		})
-	})
-	await module.evaluate()
+	const module = await load_module("lib/clipboard.ts", imports)
 	return {
-		copy_to_clipboard: (module.namespace as Record<string, any>)
-			.copy_to_clipboard,
+		copy_to_clipboard: module.copy_to_clipboard,
 		processes,
 		deadlines,
+		cancelled_deadlines,
 	}
 }
 
@@ -140,4 +130,34 @@ test("the deadline cancels the exchange and kills a hung wl-copy", async () => {
 	deadlines[0]()
 	assert.equal(processes[0].cancelled, true)
 	assert.equal(processes[0].forced, true)
+})
+
+test("a wl-copy that cannot start is reported without arming the deadline", async () => {
+	const spawn_error = new Error("setsid missing")
+	const { copy_to_clipboard, deadlines } = await load({ spawn_error })
+	assert.deepEqual(await copy_to_clipboard("text"), {
+		ok: false,
+		err: spawn_error,
+	})
+	assert.equal(deadlines.length, 0)
+})
+
+test("a failed wl-copy exchange is reported with its cause", async () => {
+	const finish_error = new Error("operation was cancelled")
+	const { copy_to_clipboard, processes } = await load({ finish_error })
+	const pending = copy_to_clipboard("text")
+	processes[0].finish()
+	assert.deepEqual(await pending, { ok: false, err: finish_error })
+})
+
+test("a finished exchange disarms its deadline before reporting", async () => {
+	const { copy_to_clipboard, processes, cancelled_deadlines } = await load({
+		successful: false,
+	})
+	const pending = copy_to_clipboard("text")
+	assert.deepEqual(cancelled_deadlines, [])
+	processes[0].finish()
+	assert.deepEqual(cancelled_deadlines, [0])
+	assert.equal((await pending).ok, false)
+	assert.deepEqual(cancelled_deadlines, [0])
 })

@@ -11,8 +11,14 @@ import { Arrow, Menu, SettingsButton } from "./MenuControls"
 import icons, { substitute_icon_name } from "$lib/icons"
 import { notify_missing_programs } from "$lib/notifications"
 import { attempt_async, log_error } from "$lib/result"
+import type { maybe_accessor } from "$lib/ui"
 
 const audio = AstalWp.get_default()
+const { CENTER, END } = Gtk.Align
+const { VERTICAL } = Gtk.Orientation
+const { EllipsizeMode } = Pango
+const { STREAM_OUTPUT_AUDIO, AUDIO_SINK } = AstalWp.MediaClass
+
 async function open_audio_settings() {
 	if (!notify_missing_programs("pavucontrol")) return
 	log_error(
@@ -21,54 +27,63 @@ async function open_audio_settings() {
 	)
 }
 
+function media_nodes(media_class: AstalWp.MediaClass) {
+	return createBinding(audio, "nodes").as((nodes) =>
+		(nodes ?? []).filter((node) => node.get_media_class() === media_class),
+	)
+}
+
+function AudioMenu({
+	name,
+	title,
+	iconName: icon_name,
+	children,
+}: {
+	name: string
+	title: string
+	iconName: string
+	children: JSX.Element
+}) {
+	return (
+		<Menu name={name} title={title} iconName={icon_name}>
+			<box orientation={VERTICAL}>
+				<box orientation={VERTICAL}>{children}</box>
+				<Gtk.Separator />
+				<SettingsButton callback={() => void open_audio_settings()} />
+			</box>
+		</Menu>
+	)
+}
+
 export namespace Audio {
 	export function AppMixer() {
-		const app_streams = createBinding(audio, "nodes").as((audio_nodes) =>
-			(audio_nodes ?? []).filter(
-				(node) => node.get_media_class() === STREAM_OUTPUT_AUDIO,
-			),
-		)
 		return (
-			<Menu name="app-mixer" title="App Mixer" iconName={icons.audio.mixer}>
-				<box orientation={VERTICAL}>
-					<box orientation={VERTICAL}>
-						<For each={app_streams}>
-							{(app_stream: AstalWp.Node) => <MixerEntry node={app_stream} />}
-						</For>
-					</box>
-					<Gtk.Separator />
-					<SettingsButton callback={() => void open_audio_settings()} />
-				</box>
-			</Menu>
+			<AudioMenu
+				name="app-mixer"
+				title="App Mixer"
+				iconName={icons.audio.mixer}
+			>
+				<For each={media_nodes(STREAM_OUTPUT_AUDIO)}>
+					{(stream: AstalWp.Node) => <MixerEntry node={stream} />}
+				</For>
+			</AudioMenu>
 		)
 	}
 
 	export function SinkSelector() {
-		const sinks = createBinding(audio, "nodes").as((audio_nodes) =>
-			(audio_nodes ?? []).filter(
-				(node): node is AstalWp.Endpoint =>
-					node instanceof AstalWp.Endpoint &&
-					node.get_media_class() === AUDIO_SINK,
-			),
+		const sinks = media_nodes(AUDIO_SINK).as((nodes) =>
+			nodes.filter((node) => node instanceof AstalWp.Endpoint),
 		)
 		return (
-			<Menu
+			<AudioMenu
 				name="device-selector"
 				title="Device Selector"
 				iconName={icons.audio.devices}
 			>
-				<box orientation={VERTICAL}>
-					<box orientation={VERTICAL}>
-						<For each={sinks}>
-							{(endpoint: AstalWp.Endpoint) => (
-								<SinkEntry endpoint={endpoint} />
-							)}
-						</For>
-					</box>
-					<Gtk.Separator />
-					<SettingsButton callback={() => void open_audio_settings()} />
-				</box>
-			</Menu>
+				<For each={sinks}>
+					{(endpoint: AstalWp.Endpoint) => <SinkEntry endpoint={endpoint} />}
+				</For>
+			</AudioMenu>
 		)
 	}
 
@@ -105,28 +120,19 @@ export namespace Audio {
 	export namespace Sliders {
 		export function Volume() {
 			const speaker = createBinding(audio, "defaultSpeaker")
-
-			const has_audio_speaker = createBinding(audio, "nodes").as(
-				(audio_nodes) =>
-					(audio_nodes ?? []).some(
-						(node) => node.get_media_class() === AUDIO_SINK,
-					),
-			)
-
-			const has_audio_stream = createBinding(audio, "nodes").as((audio_nodes) =>
-				(audio_nodes ?? []).some(
-					(node) => node.get_media_class() === STREAM_OUTPUT_AUDIO,
-				),
+			const has_sink = media_nodes(AUDIO_SINK).as((sinks) => sinks.length > 0)
+			const has_stream = media_nodes(STREAM_OUTPUT_AUDIO).as(
+				(streams) => streams.length > 0,
 			)
 
 			return (
 				<box>
 					<ControlUnit device={speaker} />
-					<box class="volume" valign={CENTER} visible={has_audio_speaker}>
+					<box class="volume" valign={CENTER} visible={has_sink}>
 						<Arrow name="device-selector" tooltipText="Device Selector" />
 						<Arrow
 							name="app-mixer"
-							visible={has_audio_stream}
+							visible={has_stream}
 							tooltipText="App Mixer"
 						/>
 					</box>
@@ -147,15 +153,16 @@ export namespace Audio {
 			show = true,
 		}: {
 			device: Accessor<AstalWp.Node | null>
-			show?: Accessor<boolean> | boolean
+			show?: maybe_accessor<boolean>
 		}) {
 			return (
 				<With value={device}>
 					{(node: AstalWp.Node | null) => {
 						if (!node) return <box visible={false} />
 
-						const volume_tooltip = createBinding(node, "volume").as(
-							(volume) => `Volume: ${Math.floor((volume ?? 0) * 100)}%`,
+						const volume = createBinding(node, "volume")
+						const volume_tooltip = volume.as(
+							(level) => `Volume: ${Math.floor((level ?? 0) * 100)}%`,
 						)
 
 						return (
@@ -173,7 +180,7 @@ export namespace Audio {
 								<slider
 									hexpand
 									drawValue={false}
-									value={createBinding(node, "volume")}
+									value={volume}
 									class={createBinding(node, "mute").as((muted) =>
 										muted ? "muted" : "",
 									)}
@@ -190,18 +197,12 @@ export namespace Audio {
 		}
 	}
 
-	const { CENTER, END } = Gtk.Align
-	const { VERTICAL } = Gtk.Orientation
-	const { EllipsizeMode } = Pango
-	const { STREAM_OUTPUT_AUDIO, AUDIO_SINK } = AstalWp.MediaClass
-
 	function MixerEntry({ node }: { node: AstalWp.Node }) {
+		const name = createBinding(node, "name")
 		return (
 			<box hexpand class="mixer-item horizontal">
 				<image
-					iconName={createBinding(node, "name").as((name) =>
-						substitute_icon_name(name ?? ""),
-					)}
+					iconName={name.as((value) => substitute_icon_name(value ?? ""))}
 					tooltipText={createBinding(node, "description").as(
 						(description) => description || "",
 					)}
@@ -212,7 +213,7 @@ export namespace Audio {
 						xalign={0}
 						maxWidthChars={28}
 						ellipsize={EllipsizeMode.END}
-						label={createBinding(node, "name").as((name) => name || "")}
+						label={name.as((value) => value || "")}
 					/>
 					<slider
 						hexpand

@@ -18,6 +18,6 @@ export function rank_apps<T>(
 }
 
 export function display_apps<T>(apps: T[], bottom: boolean) {
-	const ordered = bottom ? [...apps].reverse() : apps
-	return ordered.map((app, rank) => ({ app, rank }))
+	if (bottom) return [...apps].reverse()
+	return apps
 }

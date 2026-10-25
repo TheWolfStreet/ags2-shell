@@ -25,11 +25,20 @@ import {
 } from "./MenuControls"
 
 import icons from "$lib/icons"
-import { attempt, attempt_async, log_error } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type result,
+} from "$lib/result"
 
 import options from "$shell/options"
 
 const network = AstalNetwork.get_default()
+const menu_name = "wifi-selector"
+const authentication_window = "wifi-auth"
 
 export namespace Network {
 	export namespace Wifi {
@@ -42,9 +51,9 @@ export namespace Network {
 							return (
 								<ToggleButton
 									arrow
-									name="wifi-selector"
+									name={menu_name}
 									iconName={icons.wifi.offline}
-									label={"No device"}
+									label="No device"
 								/>
 							)
 						const enable_and_scan = () => {
@@ -62,14 +71,13 @@ export namespace Network {
 						return (
 							<ToggleButton
 								arrow
-								name="wifi-selector"
+								name={menu_name}
 								iconName={createBinding(w, "iconName")}
 								label={createBinding(w, "activeAccessPoint").as(
 									(ap) => ap?.ssid || "Not Connected",
 								)}
 								onArrow={() => {
-									if (quick_settings_submenu.opened.peek() !== "wifi-selector")
-										return
+									if (quick_settings_submenu.opened.peek() !== menu_name) return
 									enable_and_scan()
 								}}
 								onToggle={() => {
@@ -93,7 +101,7 @@ export namespace Network {
 
 			return (
 				<Menu
-					name="wifi-selector"
+					name={menu_name}
 					iconName={wifi.as((w) => (w ? w.iconName : icons.wifi.offline))}
 					title="Visible networks"
 					children={
@@ -107,22 +115,9 @@ export namespace Network {
 										/>
 									)
 
-								const aps = createBinding(wifi, "accessPoints").as((aps) => {
-									const best = new Map()
-
-									for (const ap of aps) {
-										if (!ap.ssid) continue
-
-										const prev = best.get(ap.ssid)
-										if (!prev || ap.strength > prev.strength) {
-											best.set(ap.ssid, ap)
-										}
-									}
-
-									return Array.from(best.values()).sort(
-										(a, b) => b.strength - a.strength,
-									)
-								})
+								const aps = createBinding(wifi, "accessPoints").as(
+									strongest_per_network,
+								)
 
 								const has_aps = aps.as((aps) => aps.length > 0)
 
@@ -174,33 +169,28 @@ export namespace Network {
 				(state) => authentication_message[state.phase],
 			)
 			const handle_connect = async () => {
-				let sequence = activation_sequence
-				const result = await attempt_async(async () => {
-					const { ap, password } = authentication.peek()
-					if (!ap) return
-
-					sequence = await begin_activation()
-					if (sequence !== activation_sequence) return
+				const { ap, password } = authentication.peek()
+				if (!ap) return
+				const activated = await run_activation((sequence) => {
 					set_authentication((state) => ({
 						...state,
 						phase: "checking",
 						shake: false,
 					}))
-
-					await activate_and_watch(ap, password || null, sequence, true)
+					return activate_and_watch(ap, password || null, sequence, true)
 				})
-				if (result.ok || sequence !== activation_sequence) return
-				if (is_invalid_password_error(result.err)) {
+				if (activated.ok) return
+				if (is_invalid_password_error(activated.err)) {
 					reject_password()
 					return
 				}
-				set_authentication((state) => ({ ...state, phase: "failed" }))
-				log_error(result, "Failed to connect to WiFi:")
+				fail_authentication()
+				log_error(activated, "network.connect: Failed to connect to Wi-Fi")
 			}
 
 			const handle_cancel = () => {
 				void begin_activation()
-				app.get_window("wifi-auth")?.hide()
+				app.get_window(authentication_window)?.hide()
 				set_authentication(idle_authentication)
 			}
 			onCleanup(() => {
@@ -211,7 +201,7 @@ export namespace Network {
 			return (
 				<Gtk.Window
 					title="WIFI Authentication"
-					name="wifi-auth"
+					name={authentication_window}
 					application={app}
 					hideOnClose
 					onCloseRequest={() => {
@@ -309,33 +299,17 @@ export namespace Network {
 					find_saved_access_point(ap) ? "Middle click to forget network" : "",
 			)
 			const handle_click = async () => {
-				let sequence = activation_sequence
-				const result = await attempt_async(async () => {
-					sequence = await begin_activation()
-					if (sequence !== activation_sequence) return
-					const current = resolve_access_point(ap)
-					if (!current) {
-						set_authentication(idle_authentication)
-						console.warn("Wi-Fi access point is no longer available")
-						return
-					}
-					const saved = find_saved_access_point(current)
-
-					if (is_personal_network(current) && !saved) {
-						show_authentication(current)
-						return
-					}
-
-					await activate_and_watch(saved ?? current, null, sequence, false)
-				})
-				if (result.ok || sequence !== activation_sequence) return
-				if (is_invalid_password_error(result.err)) {
+				const activated = await run_activation((sequence) =>
+					connect_access_point(ap, sequence),
+				)
+				if (activated.ok) return
+				if (is_invalid_password_error(activated.err)) {
 					const current = resolve_access_point(ap)
 					if (current) show_authentication(current)
 					return
 				}
 				set_authentication(idle_authentication)
-				log_error(result, "Failed to connect to WiFi:")
+				log_error(activated, "network.connect: Failed to connect to Wi-Fi")
 			}
 
 			return (
@@ -343,14 +317,7 @@ export namespace Network {
 					<Gtk.GestureClick
 						button={BUTTON_MIDDLE}
 						onPressed={(gesture) => {
-							const current = resolve_access_point(ap)
-							const saved = current && find_saved_access_point(current)
-							const connection = saved && find_saved_connection(saved)
-							if (connection)
-								void attempt_async(() => delete_connection(connection)).then(
-									(result) =>
-										log_error(result, "Failed to forget Wi-Fi network:"),
-								)
+							forget_access_point(ap)
 							gesture.reset()
 						}}
 					/>
@@ -446,8 +413,8 @@ const authentication_message: Record<authentication_phase, string> = {
 
 type activation_transaction = {
 	active: NM.ActiveConnection
-	persist: () => Promise<void>
-	rollback: () => Promise<void>
+	persist: () => Promise<result<void>>
+	rollback: () => Promise<result<void>>
 }
 
 const ap_security_flags = (
@@ -464,13 +431,62 @@ let activation_sequence = 0
 let password_entry: Gtk.Entry | null = null
 let pending_transaction: activation_transaction | null = null
 let activation_cancellable: Gio.Cancellable | null = null
-let pending_settlement: Promise<void> = Promise.resolve()
+let pending_settlement: Promise<unknown> = Promise.resolve()
 let pending_activation: Promise<void> = Promise.resolve()
 
 function disconnect_activation_watcher() {
 	const cleanup = activation_watcher_cleanup
 	activation_watcher_cleanup = null
 	cleanup?.()
+}
+
+async function run_activation(
+	activate: (sequence: number) => Promise<result<void>>,
+): Promise<result<void>> {
+	const started = await attempt_async(begin_activation)
+	if (!started.ok || started.value !== activation_sequence) return ok(undefined)
+	const sequence = started.value
+	const activated = flatten(await attempt_async(() => activate(sequence)))
+	if (sequence !== activation_sequence) return ok(undefined)
+	return activated
+}
+
+async function connect_access_point(
+	ap: AstalNetwork.AccessPoint,
+	sequence: number,
+): Promise<result<void>> {
+	const current = resolve_access_point(ap)
+	if (!current) {
+		set_authentication(idle_authentication)
+		console.warn("network.connect: Wi-Fi access point is no longer available")
+		return ok(undefined)
+	}
+	const saved = find_saved_access_point(current)
+	if (is_personal_network(current) && !saved) {
+		show_authentication(current)
+		return ok(undefined)
+	}
+	return activate_and_watch(saved ?? current, null, sequence, false)
+}
+
+function forget_access_point(ap: AstalNetwork.AccessPoint) {
+	const current = resolve_access_point(ap)
+	const saved = current && find_saved_access_point(current)
+	const connection = saved && find_saved_connection(saved)
+	if (!connection) return
+	void delete_connection(connection).then((result) =>
+		log_error(result, "network.forget: Failed to forget Wi-Fi network"),
+	)
+}
+
+function strongest_per_network(aps: AstalNetwork.AccessPoint[]) {
+	const best = new Map<string, AstalNetwork.AccessPoint>()
+	for (const ap of aps) {
+		if (!ap.ssid) continue
+		const known = best.get(ap.ssid)
+		if (!known || ap.strength > known.strength) best.set(ap.ssid, ap)
+	}
+	return [...best.values()].sort((a, b) => b.strength - a.strength)
 }
 
 async function begin_activation() {
@@ -486,8 +502,8 @@ async function begin_activation() {
 	pending_transaction = null
 	if (transaction)
 		log_error(
-			await attempt_async(() => transaction.rollback()),
-			"Failed to cancel superseded Wi-Fi activation:",
+			await transaction.rollback(),
+			"network.activate: Failed to cancel superseded Wi-Fi activation",
 		)
 	return sequence
 }
@@ -562,6 +578,10 @@ function find_saved_access_point(ap: AstalNetwork.AccessPoint) {
 	return best
 }
 
+function fail_authentication() {
+	set_authentication((state) => ({ ...state, phase: "failed" }))
+}
+
 function reject_password() {
 	set_authentication((state) => ({
 		...state,
@@ -589,7 +609,7 @@ function show_authentication(ap: AstalNetwork.AccessPoint) {
 	}
 
 	set_authentication({ ...idle_authentication, ap: current })
-	app.get_window("wifi-auth")?.show()
+	app.get_window(authentication_window)?.show()
 }
 
 function is_credential_failure(
@@ -598,13 +618,14 @@ function is_credential_failure(
 	reason: NM.DeviceStateReason,
 ) {
 	if (!is_personal_network(ap)) return false
-
+	if (reason === NM.DeviceStateReason.NO_SECRETS)
+		return (
+			state === AstalNetwork.DeviceState.NEED_AUTH ||
+			state === AstalNetwork.DeviceState.FAILED
+		)
 	return (
-		(state === AstalNetwork.DeviceState.NEED_AUTH &&
-			(reason === NM.DeviceStateReason.SUPPLICANT_DISCONNECT ||
-				reason === NM.DeviceStateReason.NO_SECRETS)) ||
-		(state === AstalNetwork.DeviceState.FAILED &&
-			reason === NM.DeviceStateReason.NO_SECRETS)
+		state === AstalNetwork.DeviceState.NEED_AUTH &&
+		reason === NM.DeviceStateReason.SUPPLICANT_DISCONNECT
 	)
 }
 
@@ -616,114 +637,124 @@ function is_invalid_password_error(error: unknown) {
 	)
 }
 
-function commit_connection(connection: NM.RemoteConnection) {
-	const cancellable = new Gio.Cancellable()
-	const deadline = timeout(10_000, () => cancellable.cancel())
-	return new Promise<void>((resolve, reject) => {
-		connection.commit_changes_async(true, cancellable, (_source, result) => {
-			deadline.cancel()
-			try {
-				connection.commit_changes_finish(result)
-				resolve()
-			} catch (error) {
-				reject(error)
-			}
-		})
+type ready_callback = (_source: unknown, res: Gio.AsyncResult) => void
+
+function flatten<T>(attempted: result<result<T>>): result<T> {
+	if (!attempted.ok) return attempted
+	return attempted.value
+}
+
+function settle_async<T>(
+	start: (ready: ready_callback) => void,
+	finish: (res: Gio.AsyncResult) => T,
+): Promise<result<T>> {
+	return new Promise((settle) => {
+		const ready: ready_callback = (_source, res) =>
+			settle(attempt(() => finish(res)))
+		const started = attempt(() => start(ready))
+		if (!started.ok) settle(started)
 	})
+}
+
+function with_deadline<T>(
+	ms: number,
+	start: (cancellable: Gio.Cancellable, ready: ready_callback) => void,
+	finish: (res: Gio.AsyncResult) => T,
+): Promise<result<T>> {
+	const cancellable = new Gio.Cancellable()
+	const deadline = timeout(ms, () => cancellable.cancel())
+	return settle_async(
+		(ready) => start(cancellable, ready),
+		(res) => {
+			deadline.cancel()
+			return finish(res)
+		},
+	)
+}
+
+function commit_connection(connection: NM.RemoteConnection) {
+	return with_deadline<void>(
+		10_000,
+		(cancellable, ready) =>
+			connection.commit_changes_async(true, cancellable, ready),
+		(res) => connection.commit_changes_finish(res),
+	)
 }
 
 function delete_connection(connection: NM.RemoteConnection) {
-	const cancellable = new Gio.Cancellable()
-	const deadline = timeout(10_000, () => cancellable.cancel())
-	return new Promise<void>((resolve, reject) => {
-		connection.delete_async(cancellable, (_source, result) => {
-			deadline.cancel()
-			try {
-				connection.delete_finish(result)
-				resolve()
-			} catch (error) {
-				reject(error)
-			}
-		})
-	})
+	return with_deadline<void>(
+		10_000,
+		(cancellable, ready) => connection.delete_async(cancellable, ready),
+		(res) => connection.delete_finish(res),
+	)
 }
 
-function activate_connection(
+function deactivate_connection(active: NM.ActiveConnection) {
+	return with_deadline<void>(
+		10_000,
+		(cancellable, ready) =>
+			network.client.deactivate_connection_async(active, cancellable, ready),
+		(res) => network.client.deactivate_connection_finish(res),
+	)
+}
+
+async function activate_connection(
 	connection: NM.Connection,
 	ap: AstalNetwork.AccessPoint,
 	cancellable: Gio.Cancellable,
-) {
+): Promise<result<NM.ActiveConnection>> {
 	const wifi = network.wifi
-	if (!wifi) return Promise.reject(new Error("No Wi-Fi device available"))
+	if (!wifi) return err(new Error("No Wi-Fi device available"))
 
-	return new Promise<NM.ActiveConnection>((resolve, reject) => {
-		network.client.activate_connection_async(
-			connection,
-			wifi.device,
-			ap.get_path(),
-			cancellable,
-			(_source, result) => {
-				try {
-					resolve(network.client.activate_connection_finish(result))
-				} catch (error) {
-					reject(error)
-				}
-			},
-		)
-	})
+	return settle_async(
+		(ready) =>
+			network.client.activate_connection_async(
+				connection,
+				wifi.device,
+				ap.get_path(),
+				cancellable,
+				ready,
+			),
+		(res) => network.client.activate_connection_finish(res),
+	)
 }
 
-function add_and_activate_connection(
+async function add_and_activate_connection(
 	connection: NM.Connection | null,
 	ap: AstalNetwork.AccessPoint,
 	cancellable: Gio.Cancellable,
 	volatile = false,
-) {
+): Promise<result<NM.ActiveConnection>> {
 	const wifi = network.wifi
-	if (!wifi) return Promise.reject(new Error("No Wi-Fi device available"))
+	if (!wifi) return err(new Error("No Wi-Fi device available"))
 
-	return new Promise<NM.ActiveConnection>((resolve, reject) => {
-		const options = new GLib.Variant(
-			"a{sv}",
-			volatile ? { persist: new GLib.Variant("s", "volatile") } : {},
-		)
-		network.client.add_and_activate_connection2(
-			connection,
-			wifi.device,
-			ap.get_path(),
-			options,
-			cancellable,
-			(_source, result) => {
-				try {
-					const [active] =
-						network.client.add_and_activate_connection2_finish(result)
-					resolve(active)
-				} catch (error) {
-					reject(error)
-				}
-			},
-		)
-	})
+	return settle_async(
+		(ready) => {
+			const options = new GLib.Variant(
+				"a{sv}",
+				volatile ? { persist: new GLib.Variant("s", "volatile") } : {},
+			)
+			network.client.add_and_activate_connection2(
+				connection,
+				wifi.device,
+				ap.get_path(),
+				options,
+				cancellable,
+				ready,
+			)
+		},
+		(res) => network.client.add_and_activate_connection2_finish(res)[0],
+	)
 }
 
-function deactivate_connection(active: NM.ActiveConnection): Promise<void> {
-	const cancellable = new Gio.Cancellable()
-	const deadline = timeout(10_000, () => cancellable.cancel())
-	return new Promise((resolve, reject) => {
-		network.client.deactivate_connection_async(
-			active,
-			cancellable,
-			(_source, result) => {
-				deadline.cancel()
-				try {
-					network.client.deactivate_connection_finish(result)
-					resolve()
-				} catch (error) {
-					reject(error)
-				}
-			},
-		)
-	})
+async function deactivate_and_delete(
+	active: NM.ActiveConnection,
+	connection: NM.RemoteConnection,
+): Promise<result<void>> {
+	const deactivated = await deactivate_connection(active)
+	const deleted = await delete_connection(connection)
+	if (!deleted.ok) return deleted
+	return deactivated
 }
 
 function create_personal_connection(
@@ -747,99 +778,146 @@ function create_personal_connection(
 	return connection
 }
 
+async function nothing_to_persist(): Promise<result<void>> {
+	return ok(undefined)
+}
+
+async function save_password(
+	connection: NM.RemoteConnection,
+	security: NM.SettingWirelessSecurity,
+	password: string,
+): Promise<result<void>> {
+	const old_password = security.get_psk()
+	security.set_property("psk", password)
+	const committed = await commit_connection(connection)
+	if (!committed.ok) security.set_property("psk", old_password)
+	return committed
+}
+
+async function activate_with_new_password(
+	connection: NM.RemoteConnection,
+	ap: AstalNetwork.AccessPoint,
+	password: string,
+	cancellable: Gio.Cancellable,
+): Promise<result<activation_transaction>> {
+	const candidate = NM.SimpleConnection.new_clone(connection)
+	const candidate_settings = candidate.get_setting_connection()
+	const candidate_security = candidate.get_setting_wireless_security()
+	const saved_security = connection.get_setting_wireless_security()
+	if (!candidate_settings || !candidate_security || !saved_security)
+		return err(new Error("Saved Wi-Fi connection has incomplete settings"))
+
+	candidate_settings.set_property("uuid", GLib.uuid_string_random())
+	candidate_security.set_property("psk", password)
+	const activated = await add_and_activate_connection(
+		candidate,
+		ap,
+		cancellable,
+		true,
+	)
+	if (!activated.ok) return activated
+
+	const active = activated.value
+	const temporary = active.get_connection()
+	return ok({
+		active,
+		persist: () => save_password(connection, saved_security, password),
+		rollback: () => deactivate_and_delete(active, temporary),
+	})
+}
+
+async function activate_saved(
+	connection: NM.RemoteConnection,
+	ap: AstalNetwork.AccessPoint,
+	cancellable: Gio.Cancellable,
+): Promise<result<activation_transaction>> {
+	const activated = await activate_connection(connection, ap, cancellable)
+	if (!activated.ok) return activated
+
+	const active = activated.value
+	return ok({
+		active,
+		persist: nothing_to_persist,
+		rollback: () => deactivate_connection(active),
+	})
+}
+
+async function activate_personal(
+	ap: AstalNetwork.AccessPoint,
+	password: string,
+	cancellable: Gio.Cancellable,
+): Promise<result<activation_transaction>> {
+	const activated = await add_and_activate_connection(
+		create_personal_connection(ap, password),
+		ap,
+		cancellable,
+		true,
+	)
+	if (!activated.ok) return activated
+
+	const active = activated.value
+	const created = active.get_connection()
+	return ok({
+		active,
+		persist: () => commit_connection(created),
+		rollback: () => deactivate_and_delete(active, created),
+	})
+}
+
+async function activate_open(
+	ap: AstalNetwork.AccessPoint,
+	cancellable: Gio.Cancellable,
+): Promise<result<activation_transaction>> {
+	const activated = await add_and_activate_connection(null, ap, cancellable)
+	if (!activated.ok) return activated
+
+	const active = activated.value
+	const created = active.get_connection()
+	return ok({
+		active,
+		persist: nothing_to_persist,
+		rollback: () => deactivate_and_delete(active, created),
+	})
+}
+
 async function activate_access_point(
 	ap: AstalNetwork.AccessPoint,
 	password: string | null,
 	cancellable: Gio.Cancellable,
-): Promise<activation_transaction> {
+): Promise<result<activation_transaction>> {
 	const current = resolve_access_point(ap)
-	if (!current) throw new Error("Wi-Fi access point is no longer available")
+	if (!current)
+		return err(new Error("Wi-Fi access point is no longer available"))
+
 	const connection = find_saved_connection(current)
-
-	if (connection) {
-		if (password) {
-			const candidate = NM.SimpleConnection.new_clone(connection)
-			const candidate_settings = candidate.get_setting_connection()
-			const candidate_security = candidate.get_setting_wireless_security()
-			const saved_security = connection.get_setting_wireless_security()
-			if (!candidate_settings || !candidate_security || !saved_security)
-				throw new Error("Saved Wi-Fi connection has incomplete settings")
-
-			candidate_settings.set_property("uuid", GLib.uuid_string_random())
-			candidate_security.set_property("psk", password)
-			const active = await add_and_activate_connection(
-				candidate,
-				current,
-				cancellable,
-				true,
-			)
-			const temporary = active.get_connection()
-			return {
-				active,
-				persist: async () => {
-					const old_password = saved_security.get_psk()
-					saved_security.set_property("psk", password)
-					const committed = await attempt_async(() =>
-						commit_connection(connection),
-					)
-					if (committed.ok) return
-					saved_security.set_property("psk", old_password)
-					throw committed.err
-				},
-				rollback: async () => {
-					try {
-						await deactivate_connection(active)
-					} finally {
-						await delete_connection(temporary)
-					}
-				},
-			} satisfies activation_transaction
-		}
-
-		const active = await activate_connection(connection, current, cancellable)
-		return {
-			active,
-			persist: async () => {},
-			rollback: () => deactivate_connection(active),
-		}
-	}
-
-	if (is_personal_network(current)) {
-		if (!password)
-			throw new Error("A password is required for this Wi-Fi network")
-		const active = await add_and_activate_connection(
-			create_personal_connection(current, password),
+	if (connection && password)
+		return activate_with_new_password(
+			connection,
 			current,
+			password,
 			cancellable,
-			true,
 		)
-		const created = active.get_connection()
-		return {
-			active,
-			persist: () => commit_connection(created),
-			rollback: async () => {
-				try {
-					await deactivate_connection(active)
-				} finally {
-					await delete_connection(created)
-				}
-			},
-		} satisfies activation_transaction
-	}
+	if (connection) return activate_saved(connection, current, cancellable)
+	if (!is_personal_network(current)) return activate_open(current, cancellable)
+	if (!password)
+		return err(new Error("A password is required for this Wi-Fi network"))
+	return activate_personal(current, password, cancellable)
+}
 
-	const active = await add_and_activate_connection(null, current, cancellable)
-	const created = active.get_connection()
-	return {
-		active,
-		persist: async () => {},
-		rollback: async () => {
-			try {
-				await deactivate_connection(active)
-			} finally {
-				await delete_connection(created)
-			}
-		},
-	}
+async function start_activation(
+	ap: AstalNetwork.AccessPoint,
+	password: string | null,
+	cancellable: Gio.Cancellable,
+	sequence: number,
+	authentication_open: boolean,
+): Promise<result<void>> {
+	const activated = await activate_access_point(ap, password, cancellable)
+	if (!activated.ok) return activated
+
+	const transaction = activated.value
+	if (sequence !== activation_sequence) return transaction.rollback()
+	watch_activation(ap, sequence, authentication_open, transaction)
+	return ok(undefined)
 }
 
 async function activate_and_watch(
@@ -847,25 +925,65 @@ async function activate_and_watch(
 	password: string | null,
 	sequence: number,
 	authentication_open: boolean,
-) {
+): Promise<result<void>> {
 	const cancellable = activation_cancellable
-	if (!cancellable) return
+	if (!cancellable) return ok(undefined)
+
 	const deadline = timeout(25_000, () => cancellable.cancel())
-	const activation = (async () => {
-		try {
-			const transaction = await activate_access_point(ap, password, cancellable)
-			if (sequence === activation_sequence)
-				watch_activation(ap, sequence, authentication_open, transaction)
-			else await transaction.rollback()
-		} finally {
-			deadline.cancel()
-		}
-	})()
-	pending_activation = activation.then(
-		() => undefined,
-		() => undefined,
+	const activation = start_activation(
+		ap,
+		password,
+		cancellable,
+		sequence,
+		authentication_open,
+	).finally(() => deadline.cancel())
+	pending_activation = settled(activation)
+	return activation
+}
+
+async function settled(promise: Promise<unknown>) {
+	await attempt_async(() => promise)
+}
+
+async function settle_transaction(
+	transaction: activation_transaction,
+	persist: boolean,
+): Promise<result<void>> {
+	if (!persist) return transaction.rollback()
+
+	const persisted = await transaction.persist()
+	if (persisted.ok) return persisted
+
+	log_error(
+		await transaction.rollback(),
+		"network.activate: Failed to cancel unsaved Wi-Fi connection",
 	)
-	await activation
+	return persisted
+}
+
+function finish_authentication(
+	succeeded: boolean,
+	authentication_open: boolean,
+) {
+	if (succeeded) {
+		if (authentication_open) app.get_window(authentication_window)?.hide()
+		set_authentication(idle_authentication)
+		return
+	}
+	if (authentication_open) fail_authentication()
+	else set_authentication(idle_authentication)
+}
+
+function abandon_activation(
+	transaction: activation_transaction,
+	sequence: number,
+	authentication_open: boolean,
+) {
+	pending_settlement = transaction.rollback().then((result) => {
+		log_error(result, "network.activate: Failed to cancel Wi-Fi activation")
+		if (sequence === activation_sequence && authentication_open)
+			fail_authentication()
+	})
 }
 
 function watch_activation(
@@ -878,35 +996,19 @@ function watch_activation(
 	disconnect_activation_watcher()
 	const wifi = network.wifi
 	if (!wifi) {
-		pending_settlement = attempt_async(() => transaction.rollback()).then(
-			(result) => {
-				log_error(result, "Failed to cancel Wi-Fi activation:")
-				if (sequence === activation_sequence && authentication_open)
-					set_authentication((state) => ({ ...state, phase: "failed" }))
-			},
-		)
+		abandon_activation(transaction, sequence, authentication_open)
 		return
 	}
 	pending_transaction = transaction
 	const settle = async (persist: boolean) => {
 		if (pending_transaction === transaction) pending_transaction = null
-		pending_settlement = (async () => {
-			const settled = await attempt_async(() =>
-				transaction[persist ? "persist" : "rollback"](),
-			)
-			if (settled.ok) return
-			if (persist)
-				log_error(
-					await attempt_async(() => transaction.rollback()),
-					"Failed to cancel unsaved Wi-Fi connection:",
-				)
-			throw settled.err
-		})()
-		const result = await attempt_async(() => pending_settlement)
+		const settlement = settle_transaction(transaction, persist)
+		pending_settlement = settlement
+		const result = await settlement
 		pending_settlement = Promise.resolve()
 		return log_error(
 			result,
-			`Failed to ${persist ? "save" : "restore"} Wi-Fi connection:`,
+			`network.settle: Failed to ${persist ? "save" : "restore"} Wi-Fi connection`,
 		)
 	}
 	const update = async (
@@ -932,18 +1034,12 @@ function watch_activation(
 		if (!activated && state !== AstalNetwork.DeviceState.FAILED) return
 
 		disconnect_activation_watcher()
-		const settled = await settle(activated)
+		const saved = await settle(activated)
 		if (sequence !== activation_sequence) return
-
-		if (activated && settled) {
-			if (authentication_open) app.get_window("wifi-auth")?.hide()
-			set_authentication(idle_authentication)
-		} else if (authentication_open) {
-			set_authentication((state) => ({ ...state, phase: "failed" }))
-		} else {
-			set_authentication(idle_authentication)
-		}
+		finish_authentication(activated && saved, authentication_open)
 	}
+	const fail = () =>
+		void update(AstalNetwork.DeviceState.FAILED, NM.DeviceStateReason.UNKNOWN)
 
 	const state_changed_id = wifi.connect(
 		"state-changed",
@@ -952,21 +1048,12 @@ function watch_activation(
 		},
 	)
 	const enabled_id = wifi.connect("notify::enabled", () => {
-		if (!wifi.enabled)
-			void update(AstalNetwork.DeviceState.FAILED, NM.DeviceStateReason.UNKNOWN)
+		if (!wifi.enabled) fail()
 	})
 	const wifi_id = network.connect("notify::wifi", () => {
-		if (network.wifi !== wifi)
-			void update(AstalNetwork.DeviceState.FAILED, NM.DeviceStateReason.UNKNOWN)
+		if (network.wifi !== wifi) fail()
 	})
-	const deadline = timeout(
-		25_000,
-		() =>
-			void update(
-				AstalNetwork.DeviceState.FAILED,
-				NM.DeviceStateReason.UNKNOWN,
-			),
-	)
+	const deadline = timeout(25_000, fail)
 	activation_watcher_cleanup = () => {
 		wifi.disconnect(state_changed_id)
 		wifi.disconnect(enabled_id)

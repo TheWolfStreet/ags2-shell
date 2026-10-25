@@ -5,13 +5,21 @@ import { Placeholder } from "widget/shared/Placeholder"
 import { ToggleButton, Menu, quick_settings_submenu } from "./MenuControls"
 
 import icons from "$lib/icons"
-import { attempt_async, log_error, type Result } from "$lib/result"
+import {
+	attempt,
+	attempt_async,
+	err,
+	log_error,
+	ok,
+	type result,
+} from "$lib/result"
 import { hyprland, hyprland_command } from "$lib/hyprland"
 import {
 	format_monitor_command,
+	is_monitor_settings,
 	type monitor_settings,
-} from "$service/monitorConfiguration"
-import options from "$shell/options"
+} from "$service/monitor_configuration"
+import options, { scaled } from "$shell/options"
 
 type monitor_configuration = monitor_settings & {
 	model: string
@@ -19,68 +27,68 @@ type monitor_configuration = monitor_settings & {
 }
 
 function is_monitor(value: unknown): value is monitor_configuration {
-	if (value === null || typeof value !== "object") return false
-	const monitor = value as Record<string, unknown>
-	if (
-		typeof monitor.name !== "string" ||
-		typeof monitor.model !== "string" ||
-		typeof monitor.disabled !== "boolean"
-	)
-		return false
+	if (!is_monitor_settings(value)) return false
+	const monitor = value as monitor_settings & Record<string, unknown>
+	if (typeof monitor.model !== "string") return false
+	if (typeof monitor.disabled !== "boolean") return false
 	if (monitor.mirrorOf != null && typeof monitor.mirrorOf !== "string")
 		return false
-	if (
-		!["x", "y", "width", "height", "refreshRate", "scale", "transform"].every(
-			(key) =>
-				typeof monitor[key] === "number" && Number.isFinite(monitor[key]),
-		)
-	)
-		return false
-	return (
-		monitor.disabled ||
-		(Number(monitor.width) > 0 &&
-			Number(monitor.height) > 0 &&
-			Number(monitor.scale) > 0)
-	)
+	if (monitor.disabled) return true
+	return monitor.width > 0 && monitor.height > 0 && monitor.scale > 0
 }
 
-function read_monitors(): Promise<Result<monitor_configuration[]>> {
-	return attempt_async(async () => {
-		const parsed: unknown = JSON.parse(
-			await hyprland.message_async("j/monitors all"),
-		)
-		if (!Array.isArray(parsed) || !parsed.every(is_monitor))
-			throw new Error("Invalid monitor configuration")
-		return parsed as monitor_configuration[]
-	})
+async function read_monitors(): Promise<result<monitor_configuration[]>> {
+	const reply = await attempt_async(() =>
+		hyprland.message_async("j/monitors all"),
+	)
+	if (!reply.ok) return reply
+
+	const parsed = attempt((): unknown => JSON.parse(reply.value))
+	if (!parsed.ok) return parsed
+	if (!Array.isArray(parsed.value) || !parsed.value.every(is_monitor))
+		return err(new Error("Invalid monitor configuration"))
+	return ok(parsed.value as monitor_configuration[])
+}
+
+function is_mirrored(monitor: monitor_configuration) {
+	return Boolean(monitor.mirrorOf && monitor.mirrorOf !== "none")
+}
+
+function enabled_monitor(monitors: monitor_configuration[], name: string) {
+	return monitors.find((monitor) => monitor.name === name && !monitor.disabled)
 }
 
 function source_monitor(monitors: monitor_configuration[], excluded = "") {
 	const eligible = monitors.filter(
 		(monitor) =>
-			!monitor.disabled &&
-			monitor.name !== excluded &&
-			(!monitor.mirrorOf || monitor.mirrorOf === "none"),
+			!monitor.disabled && monitor.name !== excluded && !is_mirrored(monitor),
 	)
-	return (
-		eligible.find((monitor) => monitor.name === hyprland.focusedMonitor?.name)
-			?.name ?? eligible[0]?.name
+	const focused = hyprland.focusedMonitor?.name
+	const preferred = eligible.find((monitor) => monitor.name === focused)
+	return (preferred ?? eligible[0])?.name
+}
+
+function mirror_targets(monitors: monitor_configuration[]) {
+	const source = source_monitor(monitors)
+	return monitors.filter(
+		(monitor) => !monitor.disabled && monitor.name !== source,
 	)
 }
 
 export namespace DisplayMirroring {
+	const menu_name = "mirror-selector"
 	const original = new Map<string, monitor_configuration>()
 
 	export function Toggle() {
 		return (
 			<ToggleButton
 				arrow
-				name="mirror-selector"
+				name={menu_name}
 				iconName={icons.ui.projector}
 				label="Mirror"
-				onToggle={() => quick_settings_submenu.toggle("mirror-selector")}
+				onToggle={() => quick_settings_submenu.toggle(menu_name)}
 				connection={quick_settings_submenu.opened.as(
-					(name) => name === "mirror-selector",
+					(name) => name === menu_name,
 				)}
 			/>
 		)
@@ -90,30 +98,27 @@ export namespace DisplayMirroring {
 		const [monitors, set_monitors] = createState<monitor_configuration[]>([])
 		let active = true
 		let revision = 0
-		const refresh = () => {
-			const current = ++revision
-			void read_monitors().then((result) => {
-				if (!active || current !== revision) return
-				if (!log_error(result, "DisplayMirroring.read:")) return
-				for (const name of original.keys())
-					if (
-						!result.value.some((item) => item.name === name && !item.disabled)
-					)
-						original.delete(name)
-				set_monitors(result.value)
-			})
+		const refresh = async () => {
+			revision += 1
+			const current = revision
+			const read = await read_monitors()
+			if (!active || current !== revision) return
+			if (!log_error(read, "display_mirroring.read:")) return
+			forget_vanished(read.value)
+			set_monitors(read.value)
+		}
+		const refresh_if_open = () => {
+			if (quick_settings_submenu.opened.peek() === menu_name) void refresh()
 		}
 		const handlers = [
-			hyprland.connect("monitor-added", refresh),
-			hyprland.connect("monitor-removed", refresh),
+			hyprland.connect("monitor-added", () => void refresh()),
+			hyprland.connect("monitor-removed", () => void refresh()),
 		]
-		const unsubscribe = quick_settings_submenu.opened.subscribe(() => {
-			if (quick_settings_submenu.opened.peek() === "mirror-selector") refresh()
-		})
-		if (quick_settings_submenu.opened.peek() === "mirror-selector") refresh()
+		const unsubscribe = quick_settings_submenu.opened.subscribe(refresh_if_open)
+		refresh_if_open()
 		onCleanup(() => {
 			active = false
-			revision++
+			revision += 1
 			unsubscribe()
 			for (const handler of handlers) hyprland.disconnect(handler)
 		})
@@ -123,7 +128,7 @@ export namespace DisplayMirroring {
 		)
 		return (
 			<Menu
-				name="mirror-selector"
+				name={menu_name}
 				iconName={icons.ui.projector}
 				title="Display devices"
 			>
@@ -147,14 +152,7 @@ export namespace DisplayMirroring {
 							hscrollbarPolicy={Gtk.PolicyType.NEVER}
 						>
 							<box orientation={Gtk.Orientation.VERTICAL} vexpand hexpand>
-								<For
-									each={monitors.as((list) => {
-										const source = source_monitor(list)
-										return list.filter(
-											(monitor) => !monitor.disabled && monitor.name !== source,
-										)
-									})}
-								>
+								<For each={monitors.as(mirror_targets)}>
 									{(monitor: monitor_configuration) => (
 										<Entry monitor={monitor} refresh={refresh} />
 									)}
@@ -167,72 +165,70 @@ export namespace DisplayMirroring {
 		)
 	}
 
+	function forget_vanished(monitors: monitor_configuration[]) {
+		for (const name of original.keys())
+			if (!enabled_monitor(monitors, name)) original.delete(name)
+	}
+
+	function mirror_command(
+		target: monitor_configuration,
+		monitors: monitor_configuration[],
+	) {
+		if (is_mirrored(target))
+			return format_monitor_command(original.get(target.name) ?? target, {
+				mirror: "none",
+			})
+		const source = source_monitor(monitors, target.name)
+		if (!source) return null
+		return format_monitor_command(target, { mirror: source })
+	}
+
+	async function toggle_mirror(name: string, refresh: () => Promise<void>) {
+		const current = await read_monitors()
+		if (!log_error(current, "display_mirroring.read:")) return
+		const target = enabled_monitor(current.value, name)
+		if (!target) return
+		const command = mirror_command(target, current.value)
+		if (!command) {
+			console.error("display_mirroring: No source monitor available")
+			return
+		}
+		const applied = await hyprland_command(command)
+		if (
+			!log_error(
+				applied,
+				"display_mirroring: Failed to change display configuration",
+			)
+		)
+			return
+		if (is_mirrored(target)) original.delete(target.name)
+		else original.set(target.name, target)
+		void refresh()
+	}
+
 	function Entry({
 		monitor,
 		refresh,
 	}: {
 		monitor: monitor_configuration
-		refresh: () => void
+		refresh: () => Promise<void>
 	}) {
 		let pending = false
-		const mirrored = Boolean(monitor.mirrorOf && monitor.mirrorOf !== "none")
 		const click = async () => {
 			if (pending) return
 			pending = true
 			try {
-				const current = await read_monitors()
-				if (!log_error(current, "DisplayMirroring.read:")) return
-				const target = current.value.find(
-					(item) => item.name === monitor.name && !item.disabled,
-				)
-				if (!target) return
-				let command: string
-				if (target.mirrorOf && target.mirrorOf !== "none") {
-					command = format_monitor_command(
-						original.get(target.name) ?? target,
-						{ mirror: "none" },
-					)
-				} else {
-					const source = source_monitor(current.value, target.name)
-					if (
-						!source ||
-						!current.value.some(
-							(item) => item.name === source && !item.disabled,
-						)
-					) {
-						console.error("DisplayMirroring: No source monitor available")
-						return
-					}
-					command = format_monitor_command(target, { mirror: source })
-				}
-				const applied = await hyprland_command(command)
-				if (
-					!log_error(
-						applied,
-						"DisplayMirroring: Failed to change display configuration",
-					)
-				)
-					return
-				if (target.mirrorOf && target.mirrorOf !== "none")
-					original.delete(target.name)
-				else original.set(target.name, target)
-				refresh()
+				await toggle_mirror(monitor.name, refresh)
 			} finally {
 				pending = false
 			}
 		}
+		const mirrored = is_mirrored(monitor) ? "(Mirrored)" : ""
 		return (
 			<button onClicked={() => void click()}>
 				<box class="mirror-item horizontal">
-					<image
-						iconName={icons.ui.projector}
-						pixelSize={options.scale.as((scale) =>
-							Math.round((16 * scale) / 100),
-						)}
-					/>
-					<label
-						label={`${monitor.model} (${monitor.name}) ${mirrored ? "(Mirrored)" : ""}`}
-					/>
+					<image iconName={icons.ui.projector} pixelSize={scaled(16)} />
+					<label label={`${monitor.model} (${monitor.name}) ${mirrored}`} />
 				</box>
 			</button>
 		)

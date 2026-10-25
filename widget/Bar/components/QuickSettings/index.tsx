@@ -25,8 +25,9 @@ import {
 	err,
 	log_error,
 	ok,
-	type Result,
+	type result,
 } from "$lib/result"
+import { is_record } from "$lib/json"
 import { texture_from_file_square_contain } from "$lib/textures"
 import { hyprland } from "$lib/hyprland"
 import { notification_daemon } from "$lib/notifications"
@@ -37,32 +38,34 @@ import options, { ui_scale } from "$shell/options"
 const audio = AstalWp.get_default()
 const media = AstalMpris.get_default()
 
+function nudge_volume(delta: number) {
+	const speaker = audio?.get_default_speaker()
+	if (!speaker) return
+	const current = speaker.get_volume() ?? 0
+	speaker.set_volume(Math.min(1, Math.max(0, current + delta)))
+}
+
+function toggle_speaker_mute() {
+	const speaker = audio?.get_default_speaker()
+	if (speaker) speaker.set_mute(!speaker.get_mute())
+}
+
 export namespace QuickSettings {
 	export function Button() {
 		const handle_scroll = (_controller: unknown, _dx: number, dy: number) => {
-			const speaker = audio?.get_default_speaker()
-			if (speaker) {
-				const current = speaker.get_volume() ?? 0
-				speaker.set_volume(Math.min(1, Math.max(0, current - dy * 0.025)))
-			}
+			nudge_volume(-dy * 0.025)
 			return true
 		}
 
 		const handle_press = (self: Gtk.GestureClick) => {
-			if (self.get_current_button() === BUTTON_MIDDLE) {
-				const speaker = audio?.get_default_speaker()
-				if (speaker) {
-					speaker.set_mute(!speaker.get_mute())
-				}
-			}
-
+			if (self.get_current_button() === BUTTON_MIDDLE) toggle_speaker_mute()
 			self.reset()
 		}
 
 		return (
-			<PanelButton targetWindow="quicksettings">
+			<PanelButton target_window="quicksettings">
 				<Gtk.EventControllerScroll
-					flags={SCROLL_VERTICAL}
+					flags={scroll_vertical}
 					onScroll={handle_scroll}
 				/>
 				<Gtk.GestureClick button={0} onPressed={handle_press} />
@@ -150,10 +153,13 @@ export namespace QuickSettings {
 		)
 
 		const [monitors, set_monitors] = createState(app.get_monitors())
-		let geometry_handlers: Array<[Gdk.Monitor, number]> = []
-		const refresh_monitors = () => {
+		let geometry_handlers: [Gdk.Monitor, number][] = []
+		const disconnect_geometry = () => {
 			for (const [monitor, handler] of geometry_handlers)
 				monitor.disconnect(handler)
+		}
+		const refresh_monitors = () => {
+			disconnect_geometry()
 			const current = app.get_monitors()
 			geometry_handlers = current.map((monitor) => [
 				monitor,
@@ -165,8 +171,7 @@ export namespace QuickSettings {
 		refresh_monitors()
 		onCleanup(() => {
 			app.disconnect(monitors_handler)
-			for (const [monitor, handler] of geometry_handlers)
-				monitor.disconnect(handler)
+			disconnect_geometry()
 		})
 		const max_content_height = createComputed(() => {
 			const heights = monitors().map((monitor) => monitor.get_geometry().height)
@@ -232,7 +237,7 @@ export namespace QuickSettings {
 
 const { CENTER } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
-const { VERTICAL: SCROLL_VERTICAL } = Gtk.EventControllerScrollFlags
+const { VERTICAL: scroll_vertical } = Gtk.EventControllerScrollFlags
 const { COVER } = Gtk.ContentFit
 
 const { EXCLUSIVE } = Astal.Exclusivity
@@ -359,74 +364,85 @@ function layout_code(keymap: string): string {
 	return layout_codes[name] || name || "unk"
 }
 
-async function query_keyboard_layout(): Promise<Result<string>> {
-	const result = await attempt_async(async () => {
-		const output = await hyprland.message_async("j/devices")
-		return JSON.parse(output) as {
-			keyboards?: Array<{ active_keymap?: string; main?: boolean }>
-		}
-	})
-	if (!result.ok) return result
-
-	const keyboards = Array.isArray(result.value?.keyboards)
-		? result.value.keyboards
-		: []
-	for (const keyboard of keyboards) {
-		if (!keyboard?.main) continue
-		if (typeof keyboard.active_keymap !== "string")
-			return err("Main keyboard has no active keymap")
-		const keymap = keyboard.active_keymap.trim().toLowerCase()
-		if (!keymap || keymap === "error" || keymap === "none")
-			return err(`Invalid main keyboard layout: ${keymap}`)
-		return ok(layout_code(keymap))
-	}
-	return err("No main keyboard layout")
+async function read_devices(): Promise<result<unknown>> {
+	const reply = await attempt_async(() => hyprland.message_async("j/devices"))
+	if (!reply.ok) return reply
+	return attempt((): unknown => JSON.parse(reply.value))
 }
 
-function KeyboardLayout() {
-	if (++keyboard_users === 1) {
-		refresh_keyboard_layout()
-		keyboard_handler = hyprland.connect(
-			"keyboard-layout",
-			refresh_keyboard_layout,
-		)
-	}
-	onCleanup(() => {
-		if (--keyboard_users === 0) {
-			keyboard_revision++
-			hyprland.disconnect(keyboard_handler)
-		}
-	})
-	return <label label={keyboard_layout} />
+function main_keyboard(devices: unknown): Record<string, unknown> | null {
+	if (!is_record(devices) || !Array.isArray(devices.keyboards)) return null
+	for (const keyboard of devices.keyboards)
+		if (is_record(keyboard) && keyboard.main) return keyboard
+	return null
+}
+
+function keymap_code(keyboard: Record<string, unknown>): result<string> {
+	if (typeof keyboard.active_keymap !== "string")
+		return err("Main keyboard has no active keymap")
+	const keymap = keyboard.active_keymap.trim().toLowerCase()
+	if (!keymap || keymap === "error" || keymap === "none")
+		return err(`Invalid main keyboard layout: ${keymap}`)
+	return ok(layout_code(keymap))
+}
+
+async function query_keyboard_layout(): Promise<result<string>> {
+	const devices = await read_devices()
+	if (!devices.ok) return devices
+	const keyboard = main_keyboard(devices.value)
+	if (!keyboard) return err("No main keyboard layout")
+	return keymap_code(keyboard)
 }
 
 const [keyboard_layout, set_keyboard_layout] = createState("")
 let keyboard_users = 0
 let keyboard_handler = 0
 let keyboard_revision = 0
-function refresh_keyboard_layout() {
-	const revision = ++keyboard_revision
-	void query_keyboard_layout().then((result) => {
-		if (!keyboard_users || revision !== keyboard_revision) return
-		if (log_error(result, "KeyboardLayout: failed to read layout"))
-			set_keyboard_layout(result.value)
-	})
+
+async function refresh_keyboard_layout() {
+	keyboard_revision += 1
+	const revision = keyboard_revision
+	const layout = await query_keyboard_layout()
+	if (!keyboard_users || revision !== keyboard_revision) return
+	if (log_error(layout, "keyboard_layout.read: Failed to read layout"))
+		set_keyboard_layout(layout.value)
+}
+
+function watch_keyboard_layout() {
+	void refresh_keyboard_layout()
+	keyboard_handler = hyprland.connect(
+		"keyboard-layout",
+		() => void refresh_keyboard_layout(),
+	)
+}
+
+function release_keyboard_layout() {
+	keyboard_users -= 1
+	if (keyboard_users !== 0) return
+	hyprland.disconnect(keyboard_handler)
+}
+
+function KeyboardLayout() {
+	keyboard_users += 1
+	if (keyboard_users === 1) watch_keyboard_layout()
+	onCleanup(release_keyboard_layout)
+	return <label label={keyboard_layout} />
+}
+
+function set_display_brightness(value: number, tag: string) {
+	void brightness.set_display(value).then((result) => log_error(result, tag))
 }
 
 function BrightnessSlider() {
-	let prev_brightness = 1
+	let restore_level = 1
 
 	const toggle_brightness_mute = () => {
 		if (brightness.display > 0) {
-			prev_brightness = brightness.display
-			void brightness
-				.set_display(0)
-				.then((result) => log_error(result, "brightness.toggle:"))
-		} else {
-			void brightness
-				.set_display(prev_brightness)
-				.then((result) => log_error(result, "brightness.toggle:"))
+			restore_level = brightness.display
+			set_display_brightness(0, "brightness.toggle:")
+			return
 		}
+		set_display_brightness(restore_level, "brightness.toggle:")
 	}
 
 	const display = createBinding(brightness, "display")
@@ -452,11 +468,9 @@ function BrightnessSlider() {
 				drawValue={false}
 				hexpand
 				value={display}
-				onChangeValue={({ value }) => {
-					void brightness
-						.set_display(value)
-						.then((result) => log_error(result, "brightness.slider:"))
-				}}
+				onChangeValue={({ value }) =>
+					set_display_brightness(value, "brightness.slider:")
+				}
 			/>
 		</box>
 	)

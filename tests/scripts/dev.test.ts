@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
+import { attempt } from "../../lib/result.ts"
 
 const source = new URL("../../dev.sh", import.meta.url)
 const bash_path = execFileSync("which", ["bash"], { encoding: "utf8" }).trim()
@@ -97,23 +98,19 @@ async function until(check) {
 	throw new Error("Timed out waiting for development shell")
 }
 
-function alive(pid) {
-	try {
-		process.kill(pid, 0)
-		return true
-	} catch {
-		return false
-	}
+function alive(pid: number) {
+	return attempt(() => process.kill(pid, 0)).ok
 }
 
-async function stopped(child) {
-	if (child.exitCode !== null || child.signalCode !== null) return
-	await new Promise((resolve) => child.once("exit", resolve))
+function kill_group(pid: number) {
+	if (pid) attempt(() => process.kill(-pid, "SIGKILL"))
 }
 
-async function verify_reload(no_owner) {
-	const { root, state, env } = fixture()
-	if (no_owner) writeFileSync(join(state, "no_owner"), "")
+function read_pid(state: string, name: string) {
+	return Number(readFileSync(join(state, name), "utf8"))
+}
+
+function start_dev(root: string, env: NodeJS.ProcessEnv) {
 	const dev = spawn("bash", [join(root, "dev.sh")], {
 		cwd: root,
 		env,
@@ -126,24 +123,34 @@ async function verify_reload(no_owner) {
 	dev.stderr.on("data", (chunk) => {
 		output += chunk
 	})
+	return { dev, output: () => output }
+}
+
+async function stopped(child) {
+	if (child.exitCode !== null || child.signalCode !== null) return
+	await new Promise((resolve) => child.once("exit", resolve))
+}
+
+async function verify_reload(no_owner) {
+	const { root, state, env } = fixture()
+	if (no_owner) writeFileSync(join(state, "no_owner"), "")
+	const { dev, output } = start_dev(root, env)
 	let group = 0
 	let second = 0
 	try {
 		await until(() => existsSync(join(state, "owner"))).catch((error) => {
-			throw new Error(`${error.message}: ${output}`)
+			throw new Error(`${error.message}: ${output()}`)
 		})
-		const first = Number(readFileSync(join(state, "owner"), "utf8"))
-		group = Number(readFileSync(join(state, "group"), "utf8"))
+		const first = read_pid(state, "owner")
+		group = read_pid(state, "group")
 		writeFileSync(join(state, "trigger"), "")
 		await until(() => {
-			try {
-				return Number(readFileSync(join(state, "owner"), "utf8")) !== first
-			} catch (error: any) {
-				if (error.code === "ENOENT") return false
-				throw error
-			}
+			const owner = attempt(() => read_pid(state, "owner"))
+			if (owner.ok) return owner.value !== first
+			if ((owner.err as NodeJS.ErrnoException).code === "ENOENT") return false
+			throw owner.err
 		})
-		second = Number(readFileSync(join(state, "owner"), "utf8"))
+		second = read_pid(state, "owner")
 		await until(() => !alive(first))
 		assert.equal(existsSync(join(state, "requests")), !no_owner)
 	} finally {
@@ -154,15 +161,10 @@ async function verify_reload(no_owner) {
 				new Promise((resolve) => setTimeout(resolve, 1000)),
 			])
 			const latest_group = existsSync(join(state, "group"))
-				? Number(readFileSync(join(state, "group"), "utf8"))
+				? read_pid(state, "group")
 				: 0
-			for (const owned_group of new Set([group, latest_group])) {
-				if (owned_group) {
-					try {
-						process.kill(-owned_group, "SIGKILL")
-					} catch {}
-				}
-			}
+			for (const owned_group of new Set([group, latest_group]))
+				kill_group(owned_group)
 			if (dev.exitCode === null && dev.signalCode === null) dev.kill("SIGKILL")
 			await stopped(dev)
 			if (second) await until(() => !alive(second))
@@ -182,31 +184,19 @@ test("unavailable D-Bus ownership falls back to its own process group", async ()
 
 test("an acknowledged quit that cannot finish preserves the running instance", async () => {
 	const { root, state, env } = fixture()
-	const dev = spawn("bash", [join(root, "dev.sh")], {
-		cwd: root,
-		env: { ...env, HOLD_QUIT: "1" },
-		stdio: ["ignore", "pipe", "pipe"],
-	})
-	let output = ""
-	dev.stderr.on("data", (chunk) => {
-		output += chunk
-	})
+	const { dev, output } = start_dev(root, { ...env, HOLD_QUIT: "1" })
 	let group = 0
 	try {
 		await until(() => existsSync(join(state, "owner")))
-		const owner = Number(readFileSync(join(state, "owner"), "utf8"))
-		group = Number(readFileSync(join(state, "group"), "utf8"))
+		const owner = read_pid(state, "owner")
+		group = read_pid(state, "group")
 		writeFileSync(join(state, "trigger"), "")
 		await until(() => dev.exitCode !== null || dev.signalCode !== null)
 		assert.equal(alive(owner), true)
-		assert.match(output, /preserving its running process/)
+		assert.match(output(), /preserving its running process/)
 	} finally {
 		dev.kill("SIGTERM")
-		if (group) {
-			try {
-				process.kill(-group, "SIGKILL")
-			} catch {}
-		}
+		kill_group(group)
 		await stopped(dev)
 		rmSync(root, { recursive: true, force: true })
 	}
@@ -223,6 +213,7 @@ test("an unrelated registered instance is never requested or signaled", async ()
 	})
 	try {
 		await stopped(dev)
+		assert.ok(foreign.pid)
 		assert.equal(alive(foreign.pid), true)
 		assert.equal(existsSync(join(state, "requests")), false)
 	} finally {

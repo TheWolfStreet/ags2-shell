@@ -5,6 +5,7 @@ import { idle, timeout } from "$lib/time"
 import Graphene from "gi://Graphene"
 
 import { attempt, attempt_async, log_error } from "$lib/result"
+import type { maybe_accessor } from "$lib/ui"
 import { schedule_monitor_window_release } from "$lib/windowing"
 import options from "$shell/options"
 import {
@@ -16,7 +17,8 @@ import {
 	open_desktop_files,
 	paste_desktop_files,
 	remove_desktop_files,
-} from "../Desktop"
+} from "../desktop"
+import { directory_type } from "../file_operations"
 import { DesktopLauncherCreator } from "./LauncherCreator"
 import { DesktopOpenWith } from "./OpenWith"
 
@@ -78,8 +80,7 @@ export const desktop_context_menu = {
 			return
 		}
 
-		let handler = 0
-		handler = window.connect("notify::visible", (self) => {
+		const handler = window.connect("notify::visible", (self) => {
 			if (self.get_visible()) return
 			self.disconnect(handler)
 			idle(run)
@@ -112,32 +113,67 @@ export const desktop_context_menu = {
 	},
 }
 
+type action = () => void | Promise<void>
+
+function run_action(run: action) {
+	const outcome = attempt(run)
+	desktop_context_menu.hide()
+	if (!log_error(outcome, "desktop.menu: Action failed")) return
+	const pending = outcome.value
+	if (!(pending instanceof Promise)) return
+	void attempt_async(() => pending).then((result) =>
+		log_error(result, "desktop.menu: Action failed"),
+	)
+}
+
+function selected_paths() {
+	return desktop_interaction.selected.peek()
+}
+
+function with_single_selection(run: (path: string) => void) {
+	const path = selected_paths()[0]
+	if (path) run(path)
+}
+
+function create_then_rename(monitor_id: string, kind: "folder" | "file") {
+	const path = create_desktop_entry(monitor_id, { kind })
+	if (!path) return
+	desktop_context_menu.hide_then(() => desktop_interaction.rename.begin(path))
+}
+
+function is_shift(key: number) {
+	return key === KEY_Shift_L || key === KEY_Shift_R
+}
+
+function is_inside(
+	content: Gtk.Widget | undefined,
+	widget: Gtk.Widget | null,
+	x: number,
+	y: number,
+) {
+	if (!content || !widget) return false
+	const [computed, bounds] = content.compute_bounds(widget)
+	if (!computed) return false
+	return bounds.contains_point(new Graphene.Point({ x, y }))
+}
+
 function Action({
 	label,
 	shortcut = "",
 	visible = true,
 	run,
 }: {
-	label: string | Accessor<string>
-	shortcut?: string | Accessor<string>
-	visible?: boolean | Accessor<boolean>
-	run: () => void | Promise<void>
+	label: maybe_accessor<string>
+	shortcut?: maybe_accessor<string>
+	visible?: maybe_accessor<boolean>
+	run: action
 }) {
 	return (
 		<button
 			halign={FILL}
 			hexpand
 			visible={visible}
-			onClicked={() => {
-				const outcome = attempt(run)
-				desktop_context_menu.hide()
-				if (!log_error(outcome, "desktop.menu: Action failed")) return
-				const pending = outcome.value
-				if (pending instanceof Promise)
-					void attempt_async(() => pending).then((result) =>
-						log_error(result, "desktop.menu: Action failed"),
-					)
-			}}
+			onClicked={() => run_action(run)}
 		>
 			<box orientation={HORIZONTAL} hexpand>
 				<label label={label} halign={START} hexpand xalign={0} />
@@ -173,7 +209,7 @@ function MenuContent({
 		const paths = desktop_interaction.selected()
 		if (paths.length !== 1) return false
 		const selected = desktop_file_by_path(paths[0])
-		return !!selected && selected.contentType !== "inode/directory"
+		return !!selected && selected.content_type !== directory_type
 	})
 
 	return (
@@ -182,36 +218,30 @@ function MenuContent({
 				label="Open"
 				shortcut="↩"
 				visible={single_selection}
-				run={() => open_desktop_files(desktop_interaction.selected.peek())}
+				run={() => open_desktop_files(selected_paths())}
 			/>
 			<Action
 				label="Open With…"
 				visible={open_with_visible}
-				run={() => {
-					const path = desktop_interaction.selected.peek()[0]
-					if (path) DesktopOpenWith.open(path)
-				}}
+				run={() => with_single_selection(DesktopOpenWith.open)}
 			/>
 			<Action
 				label="Rename"
 				shortcut="F2"
 				visible={single_selection}
-				run={() => {
-					const path = desktop_interaction.selected.peek()[0]
-					if (path) desktop_interaction.rename.begin(path)
-				}}
+				run={() => with_single_selection(desktop_interaction.rename.begin)}
 			/>
 			<Action
 				label="Cut"
 				shortcut="Ctrl+X"
 				visible={has_selection}
-				run={() => cut_desktop_files(desktop_interaction.selected.peek())}
+				run={() => cut_desktop_files(selected_paths())}
 			/>
 			<Action
 				label="Copy"
 				shortcut="Ctrl+C"
 				visible={has_selection}
-				run={() => copy_desktop_files(desktop_interaction.selected.peek())}
+				run={() => copy_desktop_files(selected_paths())}
 			/>
 			<Action
 				label="Paste"
@@ -225,7 +255,7 @@ function MenuContent({
 				shortcut={shift_held.as((shift) => (shift ? "⇧⌫" : "⌫"))}
 				visible={has_selection}
 				run={() =>
-					remove_desktop_files(desktop_interaction.selected.peek(), {
+					remove_desktop_files(selected_paths(), {
 						permanently: shift_held.peek(),
 					})
 				}
@@ -239,24 +269,12 @@ function MenuContent({
 			<Action
 				label="New Folder"
 				visible={background_menu}
-				run={() => {
-					const path = create_desktop_entry(id.peek(), { kind: "folder" })
-					if (path)
-						desktop_context_menu.hide_then(() =>
-							desktop_interaction.rename.begin(path),
-						)
-				}}
+				run={() => create_then_rename(id.peek(), "folder")}
 			/>
 			<Action
 				label="New Text File"
 				visible={background_menu}
-				run={() => {
-					const path = create_desktop_entry(id.peek(), { kind: "file" })
-					if (path)
-						desktop_context_menu.hide_then(() =>
-							desktop_interaction.rename.begin(path),
-						)
-				}}
+				run={() => create_then_rename(id.peek(), "file")}
 			/>
 		</box>
 	)
@@ -304,19 +322,13 @@ export function DesktopContextMenu({
 		>
 			<Gtk.EventControllerKey
 				onKeyPressed={(_unused, key) => {
-					if (key === KEY_Shift_L || key === KEY_Shift_R) {
-						desktop_context_menu.set_shift_held(true)
-						return false
-					}
-					if (key === KEY_Escape) {
-						desktop_context_menu.hide()
-						return true
-					}
-					return false
+					if (is_shift(key)) desktop_context_menu.set_shift_held(true)
+					if (key !== KEY_Escape) return false
+					desktop_context_menu.hide()
+					return true
 				}}
 				onKeyReleased={(_unused, key) => {
-					if (key === KEY_Shift_L || key === KEY_Shift_R)
-						desktop_context_menu.set_shift_held(false)
+					if (is_shift(key)) desktop_context_menu.set_shift_held(false)
 					return false
 				}}
 			/>
@@ -326,14 +338,7 @@ export function DesktopContextMenu({
 			/>
 			<Gtk.GestureClick
 				onPressed={(controller, _count, x, y) => {
-					const widget = controller.get_widget()
-					if (!content || !widget) {
-						desktop_context_menu.hide()
-						return
-					}
-
-					const [ok, bounds] = content.compute_bounds(widget)
-					if (!ok || !bounds.contains_point(new Graphene.Point({ x, y })))
+					if (!is_inside(content, controller.get_widget(), x, y))
 						desktop_context_menu.hide()
 				}}
 			/>

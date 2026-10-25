@@ -23,6 +23,8 @@ import options from "$shell/options"
 const bluetooth = AstalBluetooth.get_default()
 
 export namespace Bluetooth {
+	const menu_name = "bluetooth-selector"
+
 	export function Toggle() {
 		const powered = createBinding(bluetooth, "isPowered")
 		const connected = createBinding(bluetooth, "isConnected")
@@ -30,7 +32,7 @@ export namespace Bluetooth {
 		const devices = createBinding(bluetooth, "devices")
 
 		const label = createComputed(() => {
-			if (adapters().length == 0) return "No Device"
+			if (adapters().length === 0) return "No Device"
 			if (!powered()) return "Disabled"
 			if (connected())
 				return (
@@ -43,7 +45,7 @@ export namespace Bluetooth {
 		return (
 			<ToggleButton
 				arrow
-				name="bluetooth-selector"
+				name={menu_name}
 				label={label}
 				iconName={powered.as((p) =>
 					p ? icons.bluetooth.enabled : icons.bluetooth.disabled,
@@ -70,7 +72,7 @@ export namespace Bluetooth {
 				)
 		}
 		const unsubscribe_opened = quick_settings_submenu.opened.subscribe(() => {
-			if (quick_settings_submenu.opened.peek() !== "bluetooth-selector")
+			if (quick_settings_submenu.opened.peek() !== menu_name)
 				stop_owned_discovery()
 		})
 		const unsubscribe_window = on_window_toggle("quicksettings", (window) => {
@@ -81,48 +83,43 @@ export namespace Bluetooth {
 			unsubscribe_window()
 			stop_owned_discovery()
 		})
-		const devices = createBinding(bluetooth, "devices").as((d) =>
-			(d ?? []).slice().sort((a, b) => {
-				const a_name = a.name && a.name.trim() !== ""
-				const b_name = b.name && b.name.trim() !== ""
-				return (b_name ? 1 : 0) - (a_name ? 1 : 0)
-			}),
+		const toggle_discovery = (adapter: AstalBluetooth.Adapter) => {
+			if (owned_discovery && owned_discovery !== adapter) stop_owned_discovery()
+			const changed = attempt(() => {
+				if (adapter.discovering) {
+					adapter.stop_discovery()
+					if (owned_discovery === adapter) owned_discovery = null
+					return
+				}
+				if (!adapter.powered) adapter.set_powered(true)
+				adapter.start_discovery()
+				owned_discovery = adapter
+			})
+			log_error(changed, "bluetooth.discovery: Failed to change scan state")
+		}
+		const devices = createBinding(bluetooth, "devices").as((list) =>
+			(list ?? [])
+				.slice()
+				.sort((a, b) => Number(has_name(b)) - Number(has_name(a))),
 		)
 
 		return (
 			<Menu
-				name="bluetooth-selector"
+				name={menu_name}
 				iconName={icons.bluetooth.disabled}
 				title="Bluetooth devices"
-				headerChild={
+				header_child={
 					<With value={adapter}>
 						{(adapter) => {
 							if (!adapter) return <box visible={false} />
 
 							const discovering = createBinding(adapter, "discovering")
-
-							const on_toggle_discover = () => {
-								if (owned_discovery && owned_discovery !== adapter)
-									stop_owned_discovery()
-								const result = attempt(() => {
-									if (discovering.peek()) {
-										adapter.stop_discovery()
-										if (owned_discovery === adapter) owned_discovery = null
-									} else {
-										if (!adapter.powered) adapter.set_powered(true)
-										adapter.start_discovery()
-										owned_discovery = adapter
-									}
-								})
-								log_error(
-									result,
-									"bluetooth.discovery: Failed to change scan state",
-								)
-							}
-
 							return (
 								<centerbox hexpand>
-									<button $type="end" onClicked={on_toggle_discover}>
+									<button
+										$type="end"
+										onClicked={() => toggle_discovery(adapter)}
+									>
 										<label
 											label={discovering.as((d) => (d ? "Cancel" : "Scan"))}
 										/>
@@ -211,64 +208,26 @@ export namespace Bluetooth {
 		const label = createComputed(
 			() => `${name() || address()}${paired() ? " • Paired" : ""}`,
 		)
-		const battery_label = createComputed(() =>
-			paired() && battery() != undefined && battery() >= 0
-				? `${Math.round(battery() * 100)}%`
-				: "",
-		)
+		const battery_label = createComputed(() => {
+			if (!paired()) return ""
+			const level = battery()
+			if (level == undefined || level < 0) return ""
+			return `${Math.round(level * 100)}%`
+		})
 
 		return (
 			<button
 				class={connected.as((value) => (value ? "active" : ""))}
-				tooltipText={createBinding(device, "paired").as((p) =>
-					p ? "Right-click to unpair" : "",
+				tooltipText={paired.as((value) =>
+					value ? "Right-click to unpair" : "",
 				)}
 			>
 				<Gtk.GestureClick
 					button={0}
 					onPressed={(self) => {
-						const m_btn = self.get_current_button()
-						switch (m_btn) {
-							case BUTTON_PRIMARY: {
-								if (device.get_connected()) {
-									log_error(
-										attempt(() =>
-											device.disconnect_device((_source_device, result) => {
-												log_error(
-													attempt(() =>
-														device.disconnect_device_finish(result),
-													),
-													"bluetooth.device: Failed to disconnect",
-												)
-											}),
-										),
-										"bluetooth.device: Failed to start disconnect",
-									)
-								} else {
-									log_error(
-										attempt(() =>
-											device.connect_device((_source_device, result) => {
-												log_error(
-													attempt(() => device.connect_device_finish(result)),
-													"bluetooth.device: Failed to connect",
-												)
-											}),
-										),
-										"bluetooth.device: Failed to start connection",
-									)
-								}
-								break
-							}
-							case BUTTON_SECONDARY:
-								if (device.paired && notify_missing_programs("bluetoothctl")) {
-									void attempt_async(() =>
-										execAsync(["bluetoothctl", "remove", device.get_address()]),
-									).then((result) =>
-										log_error(result, "bluetooth.device: Failed to unpair"),
-									)
-								}
-								break
-						}
+						const button = self.get_current_button()
+						if (button === BUTTON_PRIMARY) toggle_connection(device)
+						if (button === BUTTON_SECONDARY) unpair(device)
 						self.reset()
 					}}
 				/>
@@ -288,6 +247,46 @@ export namespace Bluetooth {
 				</box>
 			</button>
 		)
+	}
+
+	function has_name(device: AstalBluetooth.Device) {
+		return Boolean(device.name) && device.name.trim() !== ""
+	}
+
+	function connect(device: AstalBluetooth.Device) {
+		const started = attempt(() =>
+			device.connect_device((_source, result) =>
+				log_error(
+					attempt(() => device.connect_device_finish(result)),
+					"bluetooth.device: Failed to connect",
+				),
+			),
+		)
+		log_error(started, "bluetooth.device: Failed to start connection")
+	}
+
+	function disconnect(device: AstalBluetooth.Device) {
+		const started = attempt(() =>
+			device.disconnect_device((_source, result) =>
+				log_error(
+					attempt(() => device.disconnect_device_finish(result)),
+					"bluetooth.device: Failed to disconnect",
+				),
+			),
+		)
+		log_error(started, "bluetooth.device: Failed to start disconnect")
+	}
+
+	function toggle_connection(device: AstalBluetooth.Device) {
+		if (device.get_connected()) disconnect(device)
+		else connect(device)
+	}
+
+	function unpair(device: AstalBluetooth.Device) {
+		if (!device.paired || !notify_missing_programs("bluetoothctl")) return
+		void attempt_async(() =>
+			execAsync(["bluetoothctl", "remove", device.get_address()]),
+		).then((result) => log_error(result, "bluetooth.device: Failed to unpair"))
 	}
 
 	function set_bluetooth_powered(on: boolean) {

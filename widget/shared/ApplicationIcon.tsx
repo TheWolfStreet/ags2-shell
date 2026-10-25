@@ -1,8 +1,19 @@
-import { createComputed, With } from "ags"
+import { createBinding, createComputed, With } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
+import type AstalHyprland from "gi://AstalHyprland"
+
 import { create_texture_accessor } from "$lib/textures"
-import { type MaybeAccessor, read_value } from "$lib/ui"
+import { type maybe_accessor, read_value } from "$lib/ui"
+
+export function client_identity(client: AstalHyprland.Client) {
+	return {
+		class: createBinding(client, "class")(),
+		initialClass: createBinding(client, "initialClass")(),
+		title: createBinding(client, "title")(),
+		initialTitle: createBinding(client, "initialTitle")(),
+	}
+}
 
 function render_icon(icon: string, size: number) {
 	if (icon.includes("/")) {
@@ -40,8 +51,8 @@ export function ApplicationIcon({
 	halign = Gtk.Align.CENTER,
 	valign = Gtk.Align.CENTER,
 }: {
-	icon: MaybeAccessor<string>
-	size: MaybeAccessor<number>
+	icon: maybe_accessor<string>
+	size: maybe_accessor<number>
 	halign?: Gtk.Align
 	valign?: Gtk.Align
 }) {

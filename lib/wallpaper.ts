@@ -1,24 +1,31 @@
 import app from "$lib/app"
 import { createState } from "ags"
 import { run_command } from "$lib/commands"
-import { interval, type Timer } from "$lib/time"
+import { debounce, interval, type timer } from "$lib/time"
 
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import GdkPixbuf from "gi://GdkPixbuf"
 
 import env from "$lib/env"
-import { attempt, attempt_async, err, ok, type Result } from "$lib/result"
-import { debounce } from "$lib/time"
+import {
+	attempt,
+	err,
+	log_error,
+	ok,
+	with_context,
+	type result,
+} from "$lib/result"
 import {
 	ensure_directory,
 	max_image_bytes,
 	query_file_signature,
 	valid_image_dimensions,
+	file_size,
 } from "$lib/files"
 
 export const wallpaper_path = `${env.paths.home}/.config/background`
-const VALIDATION_SIZE = 256
+const validation_size = 256
 const [wallpaper_revision, set_wallpaper_revision] = createState(0)
 export { wallpaper_revision }
 
@@ -26,34 +33,36 @@ let generation = 0
 let signature: string | null = null
 let signature_error: string | null = null
 let monitor: Gio.FileMonitor | null = null
-let poll_timer: Timer | null = null
+let poll_timer: timer | null = null
 
-function update_polling() {
-	if (!monitor || GLib.file_test(wallpaper_path, GLib.FileTest.IS_SYMLINK)) {
-		poll_timer ??= interval(1000, () => {
-			refresh_wallpaper.call()
-			update_polling()
-		})
-	} else {
-		poll_timer?.cancel()
-		poll_timer = null
-	}
+function needs_polling() {
+	if (!monitor) return true
+	return GLib.file_test(wallpaper_path, GLib.FileTest.IS_SYMLINK)
 }
 
-function file_signature(): Result<string | null> {
-	const result = query_file_signature(wallpaper_path)
-	return result.ok ? ok(result.value?.value ?? null) : result
+function update_polling() {
+	if (!needs_polling()) {
+		poll_timer?.cancel()
+		poll_timer = null
+		return
+	}
+	if (!poll_timer) poll_timer = interval(1000, refresh)
+}
+
+function refresh() {
+	refresh_wallpaper.call()
+	update_polling()
 }
 
 function read_signature(): string | null {
-	const result = file_signature()
-	if (result.ok) {
+	const found = query_file_signature(wallpaper_path)
+	if (found.ok) {
 		signature_error = null
-		return result.value
+		return found.value?.value ?? null
 	}
-	const message = String(result.err)
+	const message = String(found.err)
 	if (signature_error !== message)
-		console.error("wallpaper: Failed to inspect wallpaper", result.err)
+		console.error("wallpaper: Failed to inspect wallpaper", found.err)
 	signature_error = message
 	return signature
 }
@@ -66,25 +75,31 @@ const refresh_wallpaper = debounce(75, () => {
 	set_wallpaper_revision((revision) => revision + 1)
 })
 
-const watched = attempt(() =>
-	Gio.File.new_for_path(
-		GLib.path_get_dirname(wallpaper_path),
-	).monitor_directory(Gio.FileMonitorFlags.NONE, null),
-)
-if (watched.ok) {
-	monitor = watched.value
-	monitor.connect("changed", (_monitor, file, other) => {
-		if (
-			file.get_path() === wallpaper_path ||
-			other?.get_path() === wallpaper_path
-		) {
-			refresh_wallpaper.call()
-			update_polling()
-		}
-	})
-} else {
-	console.error("wallpaper: Failed to monitor wallpaper directory", watched.err)
+function names_wallpaper(file: Gio.File, other: Gio.File | null) {
+	if (file.get_path() === wallpaper_path) return true
+	return other?.get_path() === wallpaper_path
 }
+
+function watch_wallpaper_directory(): Gio.FileMonitor | null {
+	const watched = attempt(() =>
+		Gio.File.new_for_path(
+			GLib.path_get_dirname(wallpaper_path),
+		).monitor_directory(Gio.FileMonitorFlags.NONE, null),
+	)
+	if (!watched.ok) {
+		console.error(
+			"wallpaper: Failed to monitor wallpaper directory",
+			watched.err,
+		)
+		return null
+	}
+	watched.value.connect("changed", (_monitor, file, other) => {
+		if (names_wallpaper(file, other)) refresh()
+	})
+	return watched.value
+}
+
+monitor = watch_wallpaper_directory()
 update_polling()
 
 app.connect("shutdown", () => {
@@ -95,157 +110,193 @@ app.connect("shutdown", () => {
 	monitor = null
 })
 
-function check_image_size(file: Gio.File) {
-	const size = file
-		.query_info("standard::size", Gio.FileQueryInfoFlags.NONE, null)
-		.get_size()
-	if (size <= 0 || size > max_image_bytes)
-		throw new Error(
-			`Wallpaper must be nonempty and no larger than ${max_image_bytes} bytes`,
+type image_info = [GdkPixbuf.PixbufFormat | null, number, number]
+
+function check_image_size(path: string): result<void> {
+	const size = file_size(path)
+	if (!size.ok) return size
+	if (size.value <= 0 || size.value > max_image_bytes)
+		return err(
+			new Error(
+				`Wallpaper must be nonempty and no larger than ${max_image_bytes} bytes`,
+			),
 		)
+	return ok(undefined)
 }
 
-async function validate_image(file: Gio.File, path: string) {
-	check_image_size(file)
-	const [format, width, height] = await new Promise<
-		[GdkPixbuf.PixbufFormat | null, number, number]
-	>((resolve, reject) => {
-		GdkPixbuf.Pixbuf.get_file_info_async(path, null, (_source, result) => {
-			const info = attempt(() => GdkPixbuf.Pixbuf.get_file_info_finish(result))
-			if (info.ok) resolve(info.value)
-			else reject(info.err)
-		})
-	})
-	if (!format || !valid_image_dimensions(width, height))
-		throw new Error("Wallpaper format or dimensions are unsupported")
-
-	const stream = await new Promise<Gio.FileInputStream>((resolve, reject) => {
-		file.read_async(GLib.PRIORITY_DEFAULT, null, (_source, result) => {
-			const opened = attempt(() => file.read_finish(result))
-			if (opened.ok) resolve(opened.value)
-			else reject(opened.err)
-		})
-	})
-	const decoded = await attempt_async(
-		() =>
-			new Promise<void>((resolve, reject) => {
-				GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(
-					stream,
-					VALIDATION_SIZE,
-					VALIDATION_SIZE,
-					true,
-					null,
-					(_source, result) => {
-						const image = attempt(() =>
-							GdkPixbuf.Pixbuf.new_from_stream_finish(result),
-						)
-						if (image.ok && image.value) resolve()
-						else
-							reject(
-								image.ok
-									? new Error("Wallpaper decoder returned no image")
-									: image.err,
-							)
-					},
-				)
-			}),
+function read_image_info(path: string) {
+	return new Promise<result<image_info>>((resolve) =>
+		GdkPixbuf.Pixbuf.get_file_info_async(path, null, (_source, result) =>
+			resolve(attempt(() => GdkPixbuf.Pixbuf.get_file_info_finish(result))),
+		),
 	)
-	const closed = attempt(() => stream.close(null))
-	if (!closed.ok || !closed.value) {
-		if (!decoded.ok)
-			console.error(
-				"wallpaper.validate: Failed to decode wallpaper",
-				decoded.err,
-			)
-		throw new Error("Failed to close wallpaper validation stream", {
-			cause: closed.ok ? undefined : closed.err,
-		})
-	}
-	if (!decoded.ok) throw decoded.err
 }
 
-export function clear_wallpaper(): Result<void> {
-	generation++
-	const result = attempt(() => {
-		const [replaced] = Gio.File.new_for_path(wallpaper_path).replace_contents(
+function open_stream(path: string) {
+	const file = Gio.File.new_for_path(path)
+	return new Promise<result<Gio.FileInputStream>>((resolve) =>
+		file.read_async(GLib.PRIORITY_DEFAULT, null, (_source, result) =>
+			resolve(attempt(() => file.read_finish(result))),
+		),
+	)
+}
+
+function finish_preview(result: Gio.AsyncResult): result<void> {
+	const image = attempt(() => GdkPixbuf.Pixbuf.new_from_stream_finish(result))
+	if (!image.ok) return image
+	if (!image.value) return err(new Error("Wallpaper decoder returned no image"))
+	return ok(undefined)
+}
+
+function decode_preview(stream: Gio.InputStream) {
+	return new Promise<result<void>>((resolve) =>
+		GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(
+			stream,
+			validation_size,
+			validation_size,
+			true,
+			null,
+			(_source, result) => resolve(finish_preview(result)),
+		),
+	)
+}
+
+function close_stream(stream: Gio.InputStream): result<void> {
+	const closed = attempt(() => stream.close(null))
+	if (closed.ok && closed.value) return ok(undefined)
+	return err(
+		new Error("Failed to close wallpaper validation stream", {
+			cause: closed.ok ? undefined : closed.err,
+		}),
+	)
+}
+
+async function validate_image(path: string): Promise<result<void>> {
+	const size = check_image_size(path)
+	if (!size.ok) return size
+	const info = await read_image_info(path)
+	if (!info.ok) return info
+	const [format, width, height] = info.value
+	if (!format || !valid_image_dimensions(width, height))
+		return err(new Error("Wallpaper format or dimensions are unsupported"))
+	const stream = await open_stream(path)
+	if (!stream.ok) return stream
+	const decoded = await decode_preview(stream.value)
+	const closed = close_stream(stream.value)
+	if (closed.ok) return decoded
+	log_error(decoded, "wallpaper.validate: Failed to decode wallpaper")
+	return closed
+}
+
+function empty_wallpaper(): result<void> {
+	const file = Gio.File.new_for_path(wallpaper_path)
+	const replaced = attempt(() =>
+		file.replace_contents(
 			"",
 			null,
 			false,
 			Gio.FileCreateFlags.REPLACE_DESTINATION,
 			null,
-		)
-		if (!replaced) throw new Error("Failed to clear wallpaper")
-		refresh_wallpaper.call()
-		update_polling()
-	})
-	if (!result.ok)
-		console.error("wallpaper.clear: Failed to clear wallpaper", result.err)
-	return result
+		),
+	)
+	if (!replaced.ok) return replaced
+	if (!replaced.value[0]) return err(new Error("Failed to clear wallpaper"))
+	return ok(undefined)
 }
 
-export async function set_wallpaper(path: string): Promise<Result<void>> {
-	const current = ++generation
-	let temporary: Gio.File | null = null
-	let created = false
-	let moved = false
-	let result = await attempt_async(async () => {
-		const destination = Gio.File.new_for_path(wallpaper_path)
-		const directory = destination.get_parent()
-		if (!directory)
-			throw new Error("Wallpaper destination has no parent directory")
-		const directory_path = directory.get_path()
-		if (!directory_path)
-			throw new Error("Wallpaper destination is not a local directory")
-		const ready = ensure_directory(directory_path)
-		if (!ready.ok) throw ready.err
-		const temporary_path = `${directory_path}/.background-${GLib.uuid_string_random()}.png`
-		temporary = Gio.File.new_for_path(temporary_path)
-		const stream = temporary.create(Gio.FileCreateFlags.PRIVATE, null)
-		created = true
-		if (!stream.close(null))
-			throw new Error("Failed to close temporary wallpaper")
-		check_image_size(Gio.File.new_for_path(path))
+export function clear_wallpaper(): result<void> {
+	generation++
+	const cleared = empty_wallpaper()
+	if (!log_error(cleared, "wallpaper.clear: Failed to clear wallpaper"))
+		return cleared
+	refresh()
+	return cleared
+}
 
-		const lower = path.toLowerCase()
-		let command = ["cp", "--", path, temporary_path]
-		if (lower.endsWith(".heic")) {
-			if (GLib.find_program_in_path("heif-dec") === null)
-				throw new Error("heif-dec not found")
-			command = ["heif-dec", path, temporary_path]
-		} else if (lower.endsWith(".webp")) {
-			if (GLib.find_program_in_path("dwebp") === null)
-				throw new Error("dwebp not found")
-			command = ["dwebp", path, "-o", temporary_path]
-		}
-		const converted = await run_command(command, { timeout_ms: 60_000 })
-		if (!converted.ok) throw converted.err
-		if (current !== generation) return
-		await validate_image(temporary, temporary_path)
-		if (current !== generation) return
-		if (!temporary.move(destination, Gio.FileCopyFlags.OVERWRITE, null, null))
-			throw new Error("Failed to replace wallpaper")
-		moved = true
-		refresh_wallpaper.call()
-		update_polling()
-	})
-	if (temporary && created && !moved) {
-		const removed = attempt(() => {
-			if (!temporary!.delete(null))
-				throw new Error("Temporary wallpaper was not removed")
-		})
-		if (!removed.ok) {
-			if (result.ok)
-				result = err(
-					new Error("Failed to remove temporary wallpaper", {
-						cause: removed.err,
-					}),
-				)
-			else
-				console.error(
-					"wallpaper.set: Failed to remove temporary wallpaper",
-					removed.err,
-				)
-		}
+function staging_directory(destination: Gio.File): result<string> {
+	const directory = destination.get_parent()
+	if (!directory)
+		return err(new Error("Wallpaper destination has no parent directory"))
+	const path = directory.get_path()
+	if (!path)
+		return err(new Error("Wallpaper destination is not a local directory"))
+	const ready = ensure_directory(path)
+	if (!ready.ok) return ready
+	return ok(path)
+}
+
+function conversion_command(path: string, output: string): result<string[]> {
+	const lower = path.toLowerCase()
+	if (lower.endsWith(".heic")) {
+		if (GLib.find_program_in_path("heif-dec") === null)
+			return err(new Error("heif-dec not found"))
+		return ok(["heif-dec", path, output])
 	}
-	return result
+	if (lower.endsWith(".webp")) {
+		if (GLib.find_program_in_path("dwebp") === null)
+			return err(new Error("dwebp not found"))
+		return ok(["dwebp", path, "-o", output])
+	}
+	return ok(["cp", "--", path, output])
+}
+
+async function stage_wallpaper(
+	path: string,
+	stream: Gio.OutputStream,
+	staged_path: string,
+	current: number,
+): Promise<result<void>> {
+	const closed = attempt(() => stream.close(null))
+	if (!closed.ok) return closed
+	if (!closed.value)
+		return err(new Error("Failed to close temporary wallpaper"))
+	const size = check_image_size(path)
+	if (!size.ok) return size
+	const command = conversion_command(path, staged_path)
+	if (!command.ok) return command
+	const converted = await run_command(command.value, { timeout_ms: 60_000 })
+	if (!converted.ok) return converted
+	if (current !== generation) return ok(undefined)
+	return validate_image(staged_path)
+}
+
+function remove_staged(staged: Gio.File): result<void> {
+	const removed = attempt(() => staged.delete(null))
+	if (!removed.ok) return removed
+	if (!removed.value)
+		return err(new Error("Temporary wallpaper was not removed"))
+	return ok(undefined)
+}
+
+function discard_staged(staged: Gio.File, outcome: result<void>): result<void> {
+	const removed = remove_staged(staged)
+	if (removed.ok) return outcome
+	if (outcome.ok)
+		return with_context(removed, "Failed to remove temporary wallpaper")
+	console.error(
+		"wallpaper.set: Failed to remove temporary wallpaper",
+		removed.err,
+	)
+	return outcome
+}
+
+export async function set_wallpaper(path: string): Promise<result<void>> {
+	const current = ++generation
+	const destination = Gio.File.new_for_path(wallpaper_path)
+	const directory = staging_directory(destination)
+	if (!directory.ok) return directory
+	const staged_path = `${directory.value}/.background-${GLib.uuid_string_random()}.png`
+	const staged = Gio.File.new_for_path(staged_path)
+	const stream = attempt(() => staged.create(Gio.FileCreateFlags.PRIVATE, null))
+	if (!stream.ok) return stream
+	const ready = await stage_wallpaper(path, stream.value, staged_path, current)
+	if (!ready.ok || current !== generation) return discard_staged(staged, ready)
+	const moved = attempt(() =>
+		staged.move(destination, Gio.FileCopyFlags.OVERWRITE, null, null),
+	)
+	if (!moved.ok) return discard_staged(staged, moved)
+	if (!moved.value)
+		return discard_staged(staged, err(new Error("Failed to replace wallpaper")))
+	refresh()
+	return ok(undefined)
 }

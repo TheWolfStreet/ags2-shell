@@ -14,38 +14,42 @@ import {
 	track_monitor_fullscreen,
 } from "$lib/windowing"
 import options, { surface_scale, ui_scale } from "$shell/options"
-import { PopupWindow, type Position } from "widget/shared/PopupWindow"
+import { PopupWindow, type position } from "widget/shared/PopupWindow"
 
 import {
 	create_dock_items,
 	render_dock_item,
-	type DockSide,
-} from "./components/DockItems"
-import * as Trash from "./components/Trash"
+	side_class,
+	type dock_side,
+} from "./components/dock_items"
+import * as Trash from "./components/trash"
 
 const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 const { CENTER } = Gtk.Align
-const { BOTTOM, LEFT, RIGHT, TOP: TOP_ANCHOR } = Astal.WindowAnchor
+const { BOTTOM, LEFT, RIGHT, TOP: top_anchor } = Astal.WindowAnchor
 const { TOP } = Astal.Layer
 const { EXCLUSIVE, IGNORE } = Astal.Exclusivity
 
-const hotzone_bg = "rgba(0, 0, 0, 0.01)"
+const hotzone_css = "background: rgba(0, 0, 0, 0.01);"
 const hide_delay_ms = 250
 
-const side_config = {
+const side_config: Record<
+	dock_side,
+	{ anchor: Astal.WindowAnchor; layout: position; orientation: Gtk.Orientation }
+> = {
 	left: {
-		anchor: LEFT | TOP_ANCHOR | BOTTOM,
-		layout: "center-left" as Position,
+		anchor: LEFT | top_anchor | BOTTOM,
+		layout: "center-left",
 		orientation: VERTICAL,
 	},
 	bottom: {
 		anchor: BOTTOM | LEFT | RIGHT,
-		layout: "bottom-center" as Position,
+		layout: "bottom-center",
 		orientation: HORIZONTAL,
 	},
 }
 
-function thickness_request(side: DockSide, thickness: Accessor<number>) {
+function thickness_request(side: dock_side, thickness: Accessor<number>) {
 	return side === "left"
 		? { widthRequest: thickness, heightRequest: -1 }
 		: { widthRequest: -1, heightRequest: thickness }
@@ -58,8 +62,8 @@ export function dock_window_thickness(dock_scale: number): number {
 export namespace Dock {
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 		const { mode, position, scale } = options.dock
-		const dock_side = position.as(
-			(value) => (value === "center-left" ? "left" : "bottom") as DockSide,
+		const dock_side = position.as((value): dock_side =>
+			value === "center-left" ? "left" : "bottom",
 		)
 		const is_autohide = mode.as((value) => value === "autohide")
 		const is_static = mode.as((value) => value === "static")
@@ -74,7 +78,7 @@ export namespace Dock {
 			const needed = options.dock.trash.peek()
 			if (needed && !release_trash_watcher)
 				release_trash_watcher = Trash.acquire_trash_watcher()
-			else if (!needed && release_trash_watcher) {
+			if (!needed && release_trash_watcher) {
 				release_trash_watcher()
 				release_trash_watcher = null
 			}
@@ -113,8 +117,7 @@ export namespace Dock {
 			Math.max(16, Math.round(64 * pixel_scale())),
 		)
 		const dock_class_name = dock_side.as(
-			(side) =>
-				`dock-container ${side === "left" ? "dock-vertical" : "dock-horizontal"}`,
+			(side) => `dock-container ${side_class(side)}`,
 		)
 
 		const [hovered, set_hovered] = createState(false)
@@ -132,29 +135,31 @@ export namespace Dock {
 			if (hover_zones.size === 0) hide.call()
 		}
 
-		function bind_hover_zone(window: Gtk.Window, zone_id: string) {
+		function register_zone(window: Gtk.Window, zone_id: string) {
+			windows.push(window)
 			const motion = new Gtk.EventControllerMotion()
 			motion.connect("enter", () => enter_hover_zone(zone_id))
 			motion.connect("leave", () => leave_hover_zone(zone_id))
 			window.add_controller(motion)
 		}
 
-		function side_active(side: DockSide) {
+		function release_hidden_zone(window: Gtk.Window, zone_id: string) {
+			if (!window.get_visible()) leave_hover_zone(zone_id)
+		}
+
+		function side_active(side: dock_side) {
 			return createComputed(
 				() =>
 					is_dock_location() && dock_items().length > 0 && dock_side() === side,
 			)
 		}
 
-		function Hotzone({ side }: { side: DockSide }) {
+		function Hotzone({ side }: { side: dock_side }) {
 			const active = side_active(side)
 			const zone_id = `hotzone-${side}`
 			return (
 				<window
-					$={(self) => {
-						windows.push(self)
-						bind_hover_zone(self, zone_id)
-					}}
+					$={(self) => register_zone(self, zone_id)}
 					name={`dock-hotzone-${side}`}
 					layer={TOP}
 					exclusivity={IGNORE}
@@ -164,35 +169,21 @@ export namespace Dock {
 					visible={createComputed(() => shown() && active() && is_autohide())}
 					{...thickness_request(side, hotzone_thickness)}
 					gdkmonitor={gdkmonitor}
-					css={`
-						background: ${hotzone_bg};
-					`}
-					onNotifyVisible={(self) => {
-						if (!self.get_visible()) leave_hover_zone(zone_id)
-					}}
+					css={hotzone_css}
+					onNotifyVisible={(self) => release_hidden_zone(self, zone_id)}
 				>
-					<box
-						class="dock-hotzone"
-						hexpand
-						vexpand
-						css={`
-							background: ${hotzone_bg};
-						`}
-					/>
+					<box class="dock-hotzone" hexpand vexpand css={hotzone_css} />
 				</window>
 			)
 		}
 
-		function DockSurface({ side }: { side: DockSide }) {
+		function DockSurface({ side }: { side: dock_side }) {
 			const config = side_config[side]
 			const active = side_active(side)
 			const zone_id = `dock-${side}`
 			return (
 				<PopupWindow
-					$={(self) => {
-						windows.push(self)
-						bind_hover_zone(self, zone_id)
-					}}
+					$={(self) => register_zone(self, zone_id)}
 					name={zone_id}
 					layer={TOP}
 					keymode={Astal.Keymode.NONE}
@@ -207,10 +198,8 @@ export namespace Dock {
 					{...thickness_request(side, window_thickness)}
 					gdkmonitor={gdkmonitor}
 					layout={config.layout}
-					handleClosing={false}
-					onNotifyVisible={(self) => {
-						if (!self.get_visible()) leave_hover_zone(zone_id)
-					}}
+					handle_closing={false}
+					onNotifyVisible={(self) => release_hidden_zone(self, zone_id)}
 				>
 					<box
 						class={dock_class_name}

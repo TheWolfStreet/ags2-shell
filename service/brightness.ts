@@ -1,6 +1,6 @@
 import GObject, { getter, register } from "ags/gobject"
 import { monitorFile, readFileAsync } from "ags/file"
-import { idle, timeout, type Timer } from "$lib/time"
+import { debounce, idle, timeout, type timer } from "$lib/time"
 
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
@@ -11,36 +11,80 @@ import {
 	err,
 	log_error,
 	ok,
-	type Result,
+	type result,
 	unwrap_or,
 } from "$lib/result"
-import { debounce } from "$lib/time"
 import { hyprland } from "$lib/hyprland"
-import { brightness_target, parse_ddc_brightness } from "./brightnessMath"
 import { run_command } from "$lib/commands"
+
+type ddc_display = { maximum: number; applied: number | null }
+type display_scan = {
+	displays: Map<number, ddc_display>
+	first_value: number | null
+	read_failed: boolean
+}
+
+type pending_write = {
+	target: number
+	resolve: (result: result<"applied" | "superseded">) => void
+}
+
+const display_write_debounce_ms = 10
+const external_refresh_debounce_ms = 60
+
+export function parse_ddc_brightness(
+	raw: string,
+): { current: number; maximum: number } | null {
+	const match = raw.match(/^VCP\s+10\s+C\s+(\d+)\s+(\d+)\s*$/im)
+	if (!match) return null
+	const current = Number(match[1])
+	const maximum = Number(match[2])
+	if (!Number.isSafeInteger(current) || !Number.isSafeInteger(maximum))
+		return null
+	if (maximum <= 0 || current < 0 || current > maximum) return null
+	return { current, maximum }
+}
+
+function has_ddcutil() {
+	return GLib.find_program_in_path("ddcutil") !== null
+}
+
+function clamp01(value: number) {
+	return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+}
+
+export function brightness_target(percent: number, maximum = 100): number {
+	return Math.round(clamp01(percent) * maximum)
+}
+
+function list_children(directory: string): string[] {
+	const enumerator = Gio.File.new_for_path(directory).enumerate_children(
+		"standard::name",
+		Gio.FileQueryInfoFlags.NONE,
+		null,
+	)
+	const names: string[] = []
+	try {
+		while (true) {
+			const info = enumerator.next_file(null)
+			if (!info) break
+			names.push(info.get_name())
+		}
+	} finally {
+		enumerator.close(null)
+	}
+	return names
+}
 
 function first_sysfs_device(
 	directory: string,
 	filter: (name: string) => boolean = () => true,
 ): string {
-	const result = attempt(() => {
-		const enumerator = Gio.File.new_for_path(directory).enumerate_children(
-			"standard::name",
-			Gio.FileQueryInfoFlags.NONE,
-			null,
-		)
-		const names: string[] = []
-		try {
-			let info: Gio.FileInfo | null
-			while ((info = enumerator.next_file(null)) !== null)
-				if (filter(info.get_name())) names.push(info.get_name())
-		} finally {
-			enumerator.close(null)
-		}
-		return names.sort()[0] ?? ""
-	})
+	const found = attempt(
+		() => list_children(directory).filter(filter).sort()[0] ?? "",
+	)
 	return unwrap_or(
-		result,
+		found,
 		"",
 		`brightness.devices: Failed to enumerate ${directory}`,
 	)
@@ -48,18 +92,23 @@ function first_sysfs_device(
 
 async function read_sysfs_level(
 	base: string,
-): Promise<{ max: number; current: number }> {
-	const [max, current] = await Promise.all([
-		readFileAsync(`${base}/max_brightness`).then(Number),
-		readFileAsync(`${base}/brightness`).then(Number),
-	])
+): Promise<result<{ max: number; current: number }>> {
+	const read = await attempt_async(() =>
+		Promise.all([
+			readFileAsync(`${base}/max_brightness`).then(Number),
+			readFileAsync(`${base}/brightness`).then(Number),
+		]),
+	)
+	if (!read.ok) return read
+
+	const [max, current] = read.value
 	if (!Number.isFinite(max) || max <= 0 || !Number.isFinite(current))
-		throw new Error(`Invalid brightness from ${base}`)
-	return { max, current }
+		return err(new Error(`Invalid brightness from ${base}`))
+	return ok({ max, current })
 }
 
 let ddc_work: Promise<void> = Promise.resolve()
-function run_ddc(args: string[]): Promise<Result<string>> {
+function run_ddc(args: string[]): Promise<result<string>> {
 	const work = ddc_work.then(() =>
 		run_command(["ddcutil", ...args], { timeout_ms: 20_000 }),
 	)
@@ -67,53 +116,53 @@ function run_ddc(args: string[]): Promise<Result<string>> {
 	return work
 }
 
-async function discover_ddc_displays(): Promise<Result<number[]>> {
-	const result = await run_ddc(["detect"])
-	if (!result.ok) return result
+function external_display(block: string): number | null {
+	const display = block.match(/^Display\s+(\d+)/m)
+	if (!display) return null
+	const connector =
+		block.match(/DRM connector:\s+([^\n]+)/i)?.[1]?.toLowerCase() ?? ""
+	if (connector.includes("edp") || connector.includes("lvds")) return null
+	return Number(display[1])
+}
+
+async function discover_ddc_displays(): Promise<result<number[]>> {
+	const detected = await run_ddc(["detect"])
+	if (!detected.ok) return detected
 
 	const displays: number[] = []
-	for (const block of result.value
-		.split(/\n\s*\n/)
-		.map((part) => part.trim())
-		.filter(Boolean)) {
-		const display_match = block.match(/^Display\s+(\d+)/m)
-		if (!display_match) continue
-
-		const connector =
-			block.match(/DRM connector:\s+([^\n]+)/i)?.[1]?.toLowerCase() ?? ""
-		if (!connector.includes("edp") && !connector.includes("lvds"))
-			displays.push(Number(display_match[1]))
+	for (const block of detected.value.split(/\n\s*\n/)) {
+		const display = external_display(block.trim())
+		if (display !== null) displays.push(display)
 	}
 	return ok(displays)
 }
 
-type ddc_display = { maximum: number; applied: number | null }
-
 async function read_ddc_brightness(
 	display: number,
-): Promise<Result<{ current: number; maximum: number }>> {
-	const result = await run_ddc([
+): Promise<result<{ current: number; maximum: number }>> {
+	const read = await run_ddc([
 		"getvcp",
 		"10",
 		"--brief",
 		"--display",
 		String(display),
 	])
-	if (!result.ok) return result
-	const parsed = parse_ddc_brightness(result.value)
-	return parsed
-		? ok(parsed)
-		: err(
-				new Error(
-					`Invalid DDC brightness for display ${display}: ${result.value}`,
-				),
-			)
+	if (!read.ok) return read
+	const parsed = parse_ddc_brightness(read.value)
+	if (parsed) return ok(parsed)
+	return err(
+		new Error(`Invalid DDC brightness for display ${display}: ${read.value}`),
+	)
 }
 
-const clamp01 = (value: number) =>
-	Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
-const display_write_debounce_ms = 10
-const external_refresh_debounce_ms = 60
+async function read_device(
+	path: string,
+	kind: string,
+	apply: (raw: string) => void,
+) {
+	const read = await attempt_async(async () => apply(await readFileAsync(path)))
+	log_error(read, `brightness.monitor: Failed to read ${kind} brightness`)
+}
 
 @register()
 class Brightness extends GObject.Object {
@@ -132,8 +181,8 @@ class Brightness extends GObject.Object {
 
 	#hyprland_signal_ids: number[] = []
 	#device_monitors: Gio.FileMonitor[] = []
-	#external_discovery_idle: Timer | null = null
-	#discovery_retry: Timer | null = null
+	#external_discovery_idle: timer | null = null
+	#discovery_retry: timer | null = null
 	#retries = 0
 
 	#display_write = debounce(display_write_debounce_ms, () =>
@@ -144,10 +193,7 @@ class Brightness extends GObject.Object {
 	)
 	#display_write_in_flight = false
 	#queued_display_target: number | null = null
-	#pending_writes: Array<{
-		target: number
-		resolve: (result: Result<"applied" | "superseded">) => void
-	}> = []
+	#pending_writes: pending_write[] = []
 	#internal_applied: number | null = null
 	#discovery_revision = 0
 	#discovery_running = false
@@ -175,12 +221,11 @@ class Brightness extends GObject.Object {
 			"brightness.init: Failed to initialize brightness service",
 		)
 		if (this.#display_device || this.#keyboard_device) this.#initialized = true
-		if (GLib.find_program_in_path("ddcutil") !== null) {
+		if (has_ddcutil())
 			this.#external_discovery_idle = idle(() => {
 				this.#external_discovery_idle = null
 				void this.#refresh_external_displays()
 			})
-		}
 	}
 
 	get initialized() {
@@ -197,8 +242,8 @@ class Brightness extends GObject.Object {
 
 	async #load_initial_values() {
 		const [keyboard, display] = await Promise.all([
-			attempt_async(() => this.#load_keyboard_value()),
-			attempt_async(() => this.#load_display_value()),
+			this.#load_keyboard_value(),
+			this.#load_display_value(),
 		])
 		if (!keyboard.ok) {
 			this.#keyboard_device = ""
@@ -217,74 +262,69 @@ class Brightness extends GObject.Object {
 		}
 	}
 
-	async #load_keyboard_value() {
-		if (!this.#keyboard_device) return
-		const { max, current } = await read_sysfs_level(
+	async #load_keyboard_value(): Promise<result<void>> {
+		if (!this.#keyboard_device) return ok(undefined)
+		const level = await read_sysfs_level(
 			`/sys/class/leds/${this.#keyboard_device}`,
 		)
-		this.#keyboard_max = max
-		this.#keyboard_value = clamp01(current / max)
+		if (!level.ok) return level
+
+		this.#keyboard_max = level.value.max
+		this.#keyboard_value = clamp01(level.value.current / level.value.max)
+		return ok(undefined)
 	}
 
-	async #load_display_value() {
-		if (!this.#display_device) return
-		const { max, current } = await read_sysfs_level(
+	async #load_display_value(): Promise<result<void>> {
+		if (!this.#display_device) return ok(undefined)
+		const level = await read_sysfs_level(
 			`/sys/class/backlight/${this.#display_device}`,
 		)
-		this.#display_max = max
-		this.#display_value = clamp01(current / this.#display_max)
+		if (!level.ok) return level
+
+		this.#display_max = level.value.max
+		this.#display_value = clamp01(level.value.current / this.#display_max)
 		this.#internal_applied = Math.round(this.#display_value * 100)
+		return ok(undefined)
 	}
 
 	#watch_devices() {
-		if (this.#display_device) {
-			const display_path = `/sys/class/backlight/${this.#display_device}/brightness`
-
-			const monitored = attempt(() =>
-				monitorFile(display_path, (path) => {
-					void readFileAsync(path)
-						.then((raw) => {
-							const next = clamp01(Number(raw) / this.#display_max)
-							this.#internal_applied = Math.round(next * 100)
-							if (
-								this.#queued_display_target !== null ||
-								this.#display_write_in_flight ||
-								next === this.#display_value
-							)
-								return
-							this.#display_value = next
-							this.notify("display")
-						})
-						.catch((error) =>
-							console.error(
-								"brightness.monitor: Failed to read display brightness",
-								error,
-							),
-						)
-				}),
+		if (this.#display_device)
+			this.#watch_device(
+				`/sys/class/backlight/${this.#display_device}/brightness`,
+				"display",
+				(raw) => this.#set_display_from_raw(Number(raw)),
 			)
-			if (log_error(monitored, "brightness.monitor: Failed to watch display"))
-				this.#device_monitors.push(monitored.value)
-		}
-
-		if (this.#keyboard_device) {
-			const keyboard_path = `/sys/class/leds/${this.#keyboard_device}/brightness`
-
-			const monitored = attempt(() =>
-				monitorFile(keyboard_path, (path) => {
-					void readFileAsync(path)
-						.then((raw) => this.#set_keyboard_from_raw(Number(raw)))
-						.catch((error) =>
-							console.error(
-								"brightness.monitor: Failed to read keyboard brightness",
-								error,
-							),
-						)
-				}),
+		if (this.#keyboard_device)
+			this.#watch_device(
+				`/sys/class/leds/${this.#keyboard_device}/brightness`,
+				"keyboard",
+				(raw) => this.#set_keyboard_from_raw(Number(raw)),
 			)
-			if (log_error(monitored, "brightness.monitor: Failed to watch keyboard"))
-				this.#device_monitors.push(monitored.value)
-		}
+	}
+
+	#watch_device(path: string, kind: string, apply: (raw: string) => void) {
+		const monitored = attempt(() =>
+			monitorFile(path, (changed) => void read_device(changed, kind, apply)),
+		)
+		if (log_error(monitored, `brightness.monitor: Failed to watch ${kind}`))
+			this.#device_monitors.push(monitored.value)
+	}
+
+	#write_pending() {
+		return this.#queued_display_target !== null || this.#display_write_in_flight
+	}
+
+	#show_display_value(value: number) {
+		if (value === this.#display_value) return
+		this.#display_value = value
+		this.notify("display")
+	}
+
+	#set_display_from_raw(raw: number) {
+		const next = clamp01(raw / this.#display_max)
+		this.#internal_applied = Math.round(next * 100)
+		if (this.#write_pending()) return
+		this.#show_display_value(next)
 	}
 
 	#set_keyboard_from_raw(raw: number) {
@@ -298,27 +338,25 @@ class Brightness extends GObject.Object {
 	}
 
 	#watch_hotplug() {
-		if (GLib.find_program_in_path("ddcutil") === null) return
-		const result = attempt(() => {
-			this.#hyprland_signal_ids.push(
-				hyprland.connect("monitor-added", () => this.#refresh_external.call()),
-			)
-			this.#hyprland_signal_ids.push(
-				hyprland.connect("monitor-removed", () =>
-					this.#refresh_external.call(),
-				),
-			)
+		if (!has_ddcutil()) return
+		const watched = attempt(() => {
+			for (const signal of ["monitor-added", "monitor-removed"])
+				this.#hyprland_signal_ids.push(
+					hyprland.connect(signal, () => this.#refresh_external.call()),
+				)
 		})
 		log_error(
-			result,
-			"brightness.watchHotplug: Failed to watch display hotplug",
+			watched,
+			"brightness.watch_hotplug: Failed to watch display hotplug",
 		)
 	}
 
-	#update_display_available() {
-		const next =
-			this.#display_device.length > 0 || this.#external_displays.size > 0
+	#has_display_control() {
+		return this.#display_device.length > 0 || this.#external_displays.size > 0
+	}
 
+	#update_display_available() {
+		const next = this.#has_display_control()
 		if (next === this.#display_available) return
 
 		this.#display_available = next
@@ -326,7 +364,7 @@ class Brightness extends GObject.Object {
 	}
 
 	async #refresh_external_displays() {
-		if (GLib.find_program_in_path("ddcutil") === null || this.#finished) return
+		if (!has_ddcutil() || this.#finished) return
 		if (this.#discovery_running) {
 			this.#discovery_requested = true
 			return
@@ -342,19 +380,22 @@ class Brightness extends GObject.Object {
 		}
 	}
 
+	#discovery_stale(revision: number) {
+		if (this.#finished || this.#discovery_requested) return true
+		return revision !== this.#discovery_revision
+	}
+
+	#defer_until_written() {
+		if (!this.#display_write_in_flight) return false
+		this.#refresh_after_write = true
+		return true
+	}
+
 	async #discover_external_displays() {
-		if (this.#display_write_in_flight) {
-			this.#refresh_after_write = true
-			return
-		}
+		if (this.#defer_until_written()) return
 		const revision = ++this.#discovery_revision
 		const discovered = await discover_ddc_displays()
-		if (
-			this.#finished ||
-			this.#discovery_requested ||
-			revision !== this.#discovery_revision
-		)
-			return
+		if (this.#discovery_stale(revision)) return
 		if (
 			!log_error(
 				discovered,
@@ -364,60 +405,64 @@ class Brightness extends GObject.Object {
 			this.#retry_discovery()
 			return
 		}
-		const next = new Map<number, ddc_display>()
-		let first_value: number | null = null
-		let read_failed = false
-		for (const display of new Set(discovered.value)) {
+		const scan = await this.#scan_displays(discovered.value, revision)
+		if (!scan || this.#discovery_requested) return
+		if (this.#defer_until_written()) return
+		this.#track_retry(scan.read_failed)
+		this.#adopt_displays(scan)
+	}
+
+	async #scan_displays(
+		displays: number[],
+		revision: number,
+	): Promise<display_scan | null> {
+		const scan: display_scan = {
+			displays: new Map(),
+			first_value: null,
+			read_failed: false,
+		}
+		for (const display of new Set(displays)) {
 			const read = await read_ddc_brightness(display)
-			if (
-				this.#finished ||
-				this.#discovery_requested ||
-				revision !== this.#discovery_revision
-			)
-				return
+			if (this.#discovery_stale(revision)) return null
 			if (
 				!log_error(
 					read,
 					`brightness.ddc.read: Failed to read display ${display}`,
 				)
 			) {
-				read_failed = true
+				scan.read_failed = true
 				const previous = this.#external_displays.get(display)
-				if (previous) next.set(display, previous)
+				if (previous) scan.displays.set(display, previous)
 				continue
 			}
-			const value = brightness_target(read.value.current / read.value.maximum)
-			next.set(display, { maximum: read.value.maximum, applied: value })
-			first_value ??= read.value.current / read.value.maximum
+			const fraction = read.value.current / read.value.maximum
+			scan.displays.set(display, {
+				maximum: read.value.maximum,
+				applied: brightness_target(fraction),
+			})
+			scan.first_value ??= fraction
 		}
-		if (this.#discovery_requested) return
-		if (this.#display_write_in_flight) {
-			this.#refresh_after_write = true
+		return scan
+	}
+
+	#track_retry(read_failed: boolean) {
+		if (read_failed) {
+			this.#retry_discovery()
 			return
 		}
-		if (read_failed) this.#retry_discovery()
-		else {
-			this.#retries = 0
-			this.#discovery_retry?.cancel()
-			this.#discovery_retry = null
-		}
+		this.#retries = 0
+		this.#discovery_retry?.cancel()
+		this.#discovery_retry = null
+	}
+
+	#adopt_displays({ displays, first_value }: display_scan) {
 		const previously_available = this.#display_available
-		this.#external_displays = next
-		if (next.size > 0) this.#initialized = true
+		this.#external_displays = displays
+		if (displays.size > 0) this.#initialized = true
 		this.#update_display_available()
-		if (
-			!this.#display_device &&
-			first_value !== null &&
-			!previously_available &&
-			this.#queued_display_target === null &&
-			!this.#display_write_in_flight
-		) {
-			const normalized = clamp01(first_value)
-			if (normalized !== this.#display_value) {
-				this.#display_value = normalized
-				this.notify("display")
-			}
-		}
+		if (this.#display_device || previously_available) return
+		if (first_value === null || this.#write_pending()) return
+		this.#show_display_value(clamp01(first_value))
 	}
 
 	#retry_discovery() {
@@ -436,93 +481,110 @@ class Brightness extends GObject.Object {
 		if (target === null) return
 
 		this.#queued_display_target = null
-
 		this.#display_write_in_flight = true
-
 		try {
-			const result = await this.#apply_display_brightness(target)
-			for (const pending of this.#pending_writes) {
-				if (pending.target === target)
-					pending.resolve(result.ok ? ok("applied") : result)
-			}
-			this.#pending_writes = this.#pending_writes.filter(
-				(pending) => pending.target !== target,
-			)
+			this.#settle_writes(target, await this.#apply_display_brightness(target))
 		} finally {
 			this.#display_write_in_flight = false
-			if (this.#refresh_after_write && !this.#finished) {
-				this.#refresh_after_write = false
-				this.#refresh_external.call()
-			}
-
-			if (!this.#finished && this.#queued_display_target !== null) {
-				void this.#flush_display_writes()
-			}
+			this.#continue_after_write()
 		}
 	}
 
-	async #apply_display_brightness(target: number): Promise<Result<void>> {
+	#settle_writes(target: number, applied: result<void>) {
+		const outcome = applied.ok ? ok("applied" as const) : applied
+		for (const pending of this.#pending_writes)
+			if (pending.target === target) pending.resolve(outcome)
+		this.#pending_writes = this.#pending_writes.filter(
+			(pending) => pending.target !== target,
+		)
+	}
+
+	#continue_after_write() {
+		if (this.#finished) return
+		if (this.#refresh_after_write) {
+			this.#refresh_after_write = false
+			this.#refresh_external.call()
+		}
+		if (this.#queued_display_target !== null) void this.#flush_display_writes()
+	}
+
+	async #apply_display_brightness(target: number): Promise<result<void>> {
+		const controlled = this.#has_display_control()
 		const failures: unknown[] = []
-		const controlled =
-			Boolean(this.#display_device) || this.#external_displays.size > 0
-		if (this.#display_device && this.#internal_applied !== target) {
-			const result = await run_command([
-				"brightnessctl",
-				"-d",
-				this.#display_device,
-				"set",
-				`${target}%`,
-				"-q",
-			])
-			log_error(
-				result,
-				"brightness.write: Failed to set internal display brightness",
-			)
-			if (result.ok) this.#internal_applied = target
-			else failures.push(result.err)
-		}
+		const internal = await this.#write_internal(target)
+		if (!internal.ok) failures.push(internal.err)
 		for (const [display, state] of this.#external_displays) {
-			if (state.applied === target) continue
-			const result = await run_ddc([
-				"setvcp",
-				"10",
-				String(brightness_target(target / 100, state.maximum)),
-				"--display",
-				String(display),
-				"--noverify",
-			])
-			log_error(
-				result,
-				`brightness.ddc.write: Failed to set display ${display} to ${target}%`,
-			)
-			if (result.ok) state.applied = target
-			else failures.push(result.err)
+			const external = await this.#write_external(display, state, target)
+			if (!external.ok) failures.push(external.err)
 		}
-		if (
-			this.#queued_display_target === null &&
-			((this.#display_device && this.#internal_applied !== target) ||
-				[...this.#external_displays.values()].some(
-					(display) => display.applied !== target,
-				))
-		) {
-			const actual = this.#display_device
-				? this.#internal_applied
-				: this.#external_displays.values().next().value?.applied
-			if (actual != null) {
-				this.#display_value = actual / 100
-				this.notify("display")
-			}
-		}
+		if (this.#queued_display_target === null && this.#unapplied(target))
+			this.#show_applied_value()
 		if (!controlled)
 			return err(new Error("No brightness devices are available"))
-		return failures.length > 0
-			? err(
-					new Error(
-						`Brightness ${target}% failed on ${failures.length} device(s)`,
-						{ cause: failures },
-					),
-				)
-			: ok(undefined)
+		if (failures.length === 0) return ok(undefined)
+		return err(
+			new Error(
+				`Brightness ${target}% failed on ${failures.length} device(s)`,
+				{ cause: failures },
+			),
+		)
+	}
+
+	async #write_internal(target: number): Promise<result<unknown>> {
+		if (!this.#display_device || this.#internal_applied === target)
+			return ok(undefined)
+		const written = await run_command([
+			"brightnessctl",
+			"-d",
+			this.#display_device,
+			"set",
+			`${target}%`,
+			"-q",
+		])
+		log_error(
+			written,
+			"brightness.write: Failed to set internal display brightness",
+		)
+		if (written.ok) this.#internal_applied = target
+		return written
+	}
+
+	async #write_external(
+		display: number,
+		state: ddc_display,
+		target: number,
+	): Promise<result<unknown>> {
+		if (state.applied === target) return ok(undefined)
+		const written = await run_ddc([
+			"setvcp",
+			"10",
+			String(brightness_target(target / 100, state.maximum)),
+			"--display",
+			String(display),
+			"--noverify",
+		])
+		log_error(
+			written,
+			`brightness.ddc.write: Failed to set display ${display} to ${target}%`,
+		)
+		if (written.ok) state.applied = target
+		return written
+	}
+
+	#unapplied(target: number) {
+		if (this.#display_device && this.#internal_applied !== target) return true
+		return [...this.#external_displays.values()].some(
+			(display) => display.applied !== target,
+		)
+	}
+
+	#show_applied_value() {
+		const actual = this.#display_device
+			? this.#internal_applied
+			: this.#external_displays.values().next().value?.applied
+		if (actual == null) return
+		this.#display_value = actual / 100
+		this.notify("display")
 	}
 
 	@getter(Number)
@@ -535,7 +597,7 @@ class Brightness extends GObject.Object {
 		return this.#display_value
 	}
 
-	set_display(percent: number): Promise<Result<"applied" | "superseded">> {
+	set_display(percent: number): Promise<result<"applied" | "superseded">> {
 		if (!this.#display_available || !this.#initialized)
 			return Promise.resolve(
 				err(new Error("No initialized brightness device is available")),
@@ -547,16 +609,12 @@ class Brightness extends GObject.Object {
 		for (const pending of this.#pending_writes)
 			pending.resolve(ok("superseded"))
 		this.#pending_writes = []
-		const result = new Promise<Result<"applied" | "superseded">>((resolve) => {
+		const result = new Promise<result<"applied" | "superseded">>((resolve) => {
 			this.#pending_writes.push({ target, resolve })
 		})
 		this.#queued_display_target = target
 		this.#display_write.call()
-
-		if (value !== this.#display_value) {
-			this.#display_value = value
-			this.notify("display")
-		}
+		this.#show_display_value(value)
 		return result
 	}
 
@@ -577,9 +635,7 @@ class Brightness extends GObject.Object {
 		this.#display_write.cancel()
 		this.#refresh_external.cancel()
 
-		for (const id of this.#hyprland_signal_ids) {
-			hyprland.disconnect(id)
-		}
+		for (const id of this.#hyprland_signal_ids) hyprland.disconnect(id)
 		this.#hyprland_signal_ids = []
 		for (const monitor of this.#device_monitors) monitor.cancel()
 		this.#device_monitors = []

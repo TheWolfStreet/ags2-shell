@@ -1,20 +1,25 @@
 import app from "$lib/app"
 import { Astal, Gtk } from "ags/gtk4"
-import { type Timer, timeout } from "$lib/time"
+import { type timer, timeout } from "$lib/time"
 import { createState, onCleanup } from "ags"
 
 import AstalWp from "gi://AstalWp"
 
-import { PopupWindow, Position } from "widget/shared/PopupWindow"
+import { PopupWindow } from "widget/shared/PopupWindow"
 
 import { brightness } from "$service/brightness"
 import { get_brightness_icon } from "$lib/icons"
 import { ignore_input } from "$lib/windowing"
-import options, { Opt } from "$shell/options"
+import options, { scaled } from "$shell/options"
 
 const audio = AstalWp.get_default()
 
 export namespace OSD {
+	const { VERTICAL } = Gtk.Orientation
+	const { OVERLAY } = Astal.Layer
+	const { IGNORE } = Astal.Exclusivity
+	const { NONE } = Astal.Keymode
+
 	export function Window() {
 		if (window) return window
 		const disconnect_listeners = connect_listeners()
@@ -32,8 +37,8 @@ export namespace OSD {
 				exclusivity={IGNORE}
 				layer={OVERLAY}
 				application={app}
-				layout={options.osd.position as Opt<Position>}
-				handleClosing={false}
+				layout={options.osd.position}
+				handle_closing={false}
 				onNotifyVisible={ignore_input}
 				$={ignore_input}
 			>
@@ -41,9 +46,7 @@ export namespace OSD {
 					<box class="state-display" orientation={VERTICAL} hexpand vexpand>
 						<image
 							iconName={content.as((value) => value.icon)}
-							pixelSize={options.scale.as((scale) =>
-								Math.round((64 * scale) / 100),
-							)}
+							pixelSize={scaled(64)}
 							useFallback
 							vexpand
 							hexpand
@@ -52,11 +55,7 @@ export namespace OSD {
 							class={content.as((value) =>
 								value.muted ? "percentage muted" : "percentage",
 							)}
-							fraction={content.as((value) =>
-								Number.isFinite(value.value)
-									? Math.max(0, Math.min(1, value.value))
-									: 0,
-							)}
+							fraction={content.as((value) => fraction(value.value))}
 							hexpand
 						/>
 					</box>
@@ -79,8 +78,13 @@ export namespace OSD {
 		muted: false,
 	})
 
-	let hide_timer: Timer | undefined
+	let hide_timer: timer | undefined
 	let window: Gtk.Window | null = null
+
+	function fraction(value: number) {
+		if (!Number.isFinite(value)) return 0
+		return Math.max(0, Math.min(1, value))
+	}
 
 	function show(value: number, icon: string, muted: boolean) {
 		set_content({ value, icon, muted })
@@ -92,55 +96,66 @@ export namespace OSD {
 		})
 	}
 
-	function connect_listeners() {
-		type audio_endpoint = ReturnType<typeof audio.get_default_speaker>
+	type audio_endpoint = ReturnType<typeof audio.get_default_speaker>
 
-		const watch_endpoint = (
-			get_endpoint: () => audio_endpoint,
-			default_changed_signal: string,
-		) => {
-			let endpoint: audio_endpoint | null = null
-			let endpoint_handlers: number[] = []
+	function watch_endpoint(
+		get_endpoint: () => audio_endpoint,
+		default_changed_signal: string,
+	) {
+		let endpoint: audio_endpoint | null = null
+		let endpoint_handlers: number[] = []
 
-			const disconnect_endpoint = () => {
-				if (endpoint) {
-					for (const handler of endpoint_handlers) endpoint.disconnect(handler)
-				}
-				endpoint = null
-				endpoint_handlers = []
-			}
-
-			const reconnect_endpoint = () => {
-				disconnect_endpoint()
-				endpoint = get_endpoint()
-				if (!endpoint) return
-
-				const show_endpoint = () => {
-					if (endpoint)
-						show(
-							endpoint.get_volume(),
-							endpoint.get_volume_icon(),
-							endpoint.get_mute(),
-						)
-				}
-				endpoint_handlers = [
-					endpoint.connect("notify::volume", show_endpoint),
-					endpoint.connect("notify::mute", show_endpoint),
-				]
-			}
-
-			reconnect_endpoint()
-			const default_handler = audio.connect(
-				default_changed_signal,
-				reconnect_endpoint,
-			)
-
-			return () => {
-				audio.disconnect(default_handler)
-				disconnect_endpoint()
-			}
+		const disconnect_endpoint = () => {
+			if (endpoint)
+				for (const handler of endpoint_handlers) endpoint.disconnect(handler)
+			endpoint = null
+			endpoint_handlers = []
 		}
 
+		const show_endpoint = () => {
+			if (!endpoint) return
+			show(
+				endpoint.get_volume(),
+				endpoint.get_volume_icon(),
+				endpoint.get_mute(),
+			)
+		}
+
+		const reconnect_endpoint = () => {
+			disconnect_endpoint()
+			endpoint = get_endpoint()
+			if (!endpoint) return
+			endpoint_handlers = [
+				endpoint.connect("notify::volume", show_endpoint),
+				endpoint.connect("notify::mute", show_endpoint),
+			]
+		}
+
+		reconnect_endpoint()
+		const default_handler = audio.connect(
+			default_changed_signal,
+			reconnect_endpoint,
+		)
+
+		return () => {
+			audio.disconnect(default_handler)
+			disconnect_endpoint()
+		}
+	}
+
+	function watch_brightness(
+		property: "display" | "kbd",
+		kind: "screen" | "keyboard",
+	) {
+		const handler = brightness.connect(`notify::${property}`, () => {
+			if (!brightness.initialized) return
+			const level = brightness[property]
+			show(level, get_brightness_icon(level, kind), false)
+		})
+		return () => brightness.disconnect(handler)
+	}
+
+	function connect_listeners() {
 		const disconnect_speaker = watch_endpoint(
 			() => audio.get_default_speaker(),
 			"notify::default-speaker",
@@ -149,33 +164,14 @@ export namespace OSD {
 			() => audio.get_default_microphone(),
 			"notify::default-microphone",
 		)
-		const display_handler = brightness.connect("notify::display", () => {
-			if (!brightness.initialized) return
-			show(
-				brightness.display,
-				get_brightness_icon(brightness.display, "screen"),
-				false,
-			)
-		})
-		const keyboard_handler = brightness.connect("notify::kbd", () => {
-			if (!brightness.initialized) return
-			show(
-				brightness.kbd,
-				get_brightness_icon(brightness.kbd, "keyboard"),
-				false,
-			)
-		})
+		const disconnect_display = watch_brightness("display", "screen")
+		const disconnect_keyboard = watch_brightness("kbd", "keyboard")
 
 		return () => {
 			disconnect_speaker()
 			disconnect_microphone()
-			brightness.disconnect(display_handler)
-			brightness.disconnect(keyboard_handler)
+			disconnect_display()
+			disconnect_keyboard()
 		}
 	}
-
-	const { VERTICAL } = Gtk.Orientation
-	const { OVERLAY } = Astal.Layer
-	const { IGNORE } = Astal.Exclusivity
-	const { NONE } = Astal.Keymode
 }

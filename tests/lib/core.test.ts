@@ -1,45 +1,23 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import { stripTypeScriptTypes } from "node:module"
 import { test } from "node:test"
-import { with_hyprland_command } from "../hyprland.ts"
-import * as result from "../../lib/result.ts"
-import * as lua from "../../lib/lua.ts"
-import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
+import { createContext } from "node:vm"
+import { load_module } from "../load_module.ts"
+import { create_state } from "../helpers.ts"
 
-async function load(
-	file: string,
-	imports,
-	logger: Pick<Console, "error"> = console,
-): Promise<Record<string, any>> {
-	const context = createContext({ console: logger })
-	const source = stripTypeScriptTypes(
-		readFileSync(new URL(file, new URL("../../lib/", import.meta.url)), "utf8"),
-	)
-	const module = new SourceTextModule(source, { context })
-	await module.link((name) => {
-		const exports = imports[name]
-		assert.ok(exports, `Unexpected import: ${name}`)
-		return new SyntheticModule(
-			Object.keys(exports),
-			function () {
-				for (const [key, value] of Object.entries(exports))
-					this.setExport(key, value)
-			},
-			{ context },
-		)
-	})
-	await module.evaluate()
-	return module.namespace
+function load(
+	path: string,
+	imports: Record<string, Record<string, unknown>>,
+	logger: Partial<Console> = console,
+) {
+	return load_module(path, imports, createContext({ console: logger }))
 }
 
 async function with_files(imports) {
 	return {
 		...imports,
-		"$lib/files": await load("./files.ts", {
+		"$lib/files": await load("lib/files.ts", {
 			"gi://Gio": imports["gi://Gio"],
 			"gi://GLib": imports["gi://GLib"],
-			"$lib/result": result,
 		}),
 	}
 }
@@ -64,40 +42,46 @@ function emitter() {
 	}
 }
 
-type Emitter = ReturnType<typeof emitter>
-type NotificationAction = { id: string; label: string }
-type StoredRecord = {
+type emitter = ReturnType<typeof emitter>
+type notification_action = { id: string; label: string }
+type stored_record = {
 	summary: string
 	body: string
 	transient: boolean
 	resident: boolean
-	actions: NotificationAction[]
+	actions: notification_action[]
 }
-type DaemonNotification = Emitter & {
-	get_actions(): NotificationAction[]
+type daemon_notification = emitter & {
+	get_actions(): notification_action[]
 	summary?: string
 	body?: string
 }
-type DBusCall = { destination: string; method: string; args: any }
-type HarnessTimer = {
+type dbus_call = {
+	destination: string
+	path: string
+	iface: string
+	method: string
+	args: any
+}
+type harness_timer = {
 	ms: number
 	callback: () => void
 	cancelled: boolean
 	cancel(): void
 }
 
-function notificationHarness(
+function notification_harness(
 	owner = ":1.shell",
-	stored: StoredRecord[] | null = null,
+	stored: stored_record[] | null = null,
 ) {
 	const shell = emitter()
 	const daemon = Object.assign(emitter(), {
-		current: null as DaemonNotification | null,
+		current: null as daemon_notification | null,
 		get_notification() {
 			return this.current
 		},
 	})
-	const make_notification = (record: StoredRecord) =>
+	const make_notification = (record: stored_record) =>
 		Object.assign(emitter(), {
 			id: 7,
 			summary: record.summary,
@@ -115,14 +99,14 @@ function notificationHarness(
 		})
 	if (stored?.length) daemon.current = make_notification(stored[0])
 	const callbacks: string[][] = []
-	const calls: DBusCall[] = []
-	const timers: HarnessTimer[] = []
+	const calls: dbus_call[] = []
+	const timers: harness_timer[] = []
 	const session = {
 		get_unique_name: () => ":1.shell",
 		call(
 			destination,
-			_path,
-			_iface,
+			path,
+			iface,
 			method,
 			args,
 			_reply,
@@ -131,7 +115,7 @@ function notificationHarness(
 			_cancellable,
 			callback,
 		) {
-			calls.push({ destination, method, args })
+			calls.push({ destination, path, iface, method, args })
 			if (method === "Notify" && stored) {
 				const [, , , summary, body, pairs, hints] = args.value
 				const record = {
@@ -165,15 +149,7 @@ function notificationHarness(
 	}
 	const imports = {
 		ags: {
-			createState: (initial) => {
-				let value = initial
-				return [
-					() => value,
-					(update) => {
-						value = update(value)
-					},
-				]
-			},
+			createState: create_state,
 		},
 		"ags/process": {
 			execAsync: (args) => {
@@ -214,15 +190,13 @@ function notificationHarness(
 				})(),
 			},
 		},
-		"$lib/icons": { default: { missing: "missing" } },
-		"$lib/result": result,
 	}
 	return { shell, daemon, calls, callbacks, timers, imports }
 }
 
 test("notification actions execute only bound argument arrays, then detach on replacement", async () => {
-	const h = notificationHarness()
-	const module = await load("./notifications.ts", h.imports)
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
 	const notification = Object.assign(emitter(), {
 		get_actions: () => [{ id: "ags2-shell:opaque-1", label: "View" }],
 		resident: false,
@@ -266,8 +240,8 @@ test("notification actions execute only bound argument arrays, then detach on re
 })
 
 test("notification replacement detaches bound action handler", async () => {
-	const h = notificationHarness()
-	const module = await load("./notifications.ts", h.imports)
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
 	const notification = Object.assign(emitter(), {
 		get_actions: () => [{ id: "ags2-shell:opaque-1", label: "View" }],
 	})
@@ -289,8 +263,8 @@ test("notification replacement detaches bound action handler", async () => {
 })
 
 test("competing daemon cannot receive executable actions or leave listeners", async () => {
-	const h = notificationHarness(":1.other")
-	const module = await load("./notifications.ts", h.imports)
+	const h = notification_harness(":1.other")
+	const module = await load("lib/notifications.ts", h.imports)
 	const result = await module.notify({
 		actions: [{ label: "View", argv: ["xdg-open", "file"] }],
 	})
@@ -303,8 +277,8 @@ test("competing daemon cannot receive executable actions or leave listeners", as
 })
 
 test("replaced notification with different action keys is refused", async () => {
-	const h = notificationHarness()
-	const module = await load("./notifications.ts", h.imports)
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
 	h.daemon.current = Object.assign(emitter(), {
 		get_actions: () => [{ id: "other", label: "View" }],
 	})
@@ -317,9 +291,55 @@ test("replaced notification with different action keys is refused", async () => 
 	assert.equal(h.callbacks.length, 0)
 })
 
+test("notification missing one of the sent actions is refused", async () => {
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
+	h.daemon.current = Object.assign(emitter(), {
+		get_actions: () => [{ id: "ags2-shell:opaque-1", label: "View" }],
+	})
+	const result = await module.notify({
+		actions: [
+			{ label: "View", argv: ["xdg-open", "file"] },
+			{ label: "Copy", argv: ["wl-copy", "file"] },
+		],
+	})
+	assert.equal(result.ok, false)
+	assert.equal(h.daemon.listeners.size, 0)
+	assert.equal(
+		module.notification_action_available("ags2-shell:opaque-1"),
+		false,
+	)
+})
+
+test("dismissed notification releases its actions before any click", async () => {
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
+	const notification = Object.assign(emitter(), {
+		get_actions: () => [{ id: "ags2-shell:opaque-1", label: "View" }],
+	})
+	h.daemon.current = notification
+	const result = await module.notify({
+		actions: [{ label: "View", argv: ["xdg-open", "file"] }],
+	})
+	assert.equal(result.ok, true)
+	assert.equal(
+		module.notification_action_available("ags2-shell:opaque-1"),
+		true,
+	)
+	h.daemon.emit("resolved", 7)
+	assert.equal(
+		module.notification_action_available("ags2-shell:opaque-1"),
+		false,
+	)
+	assert.equal(h.daemon.listeners.size, 0)
+	assert.equal(notification.listeners.size, 0)
+	notification.emit("invoked", "ags2-shell:opaque-1")
+	assert.equal(h.callbacks.length, 0)
+})
+
 test("pending notification attachment expires and disconnects", async () => {
-	const h = notificationHarness()
-	const module = await load("./notifications.ts", h.imports)
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
 	const pending = module.notify({
 		actions: [{ label: "View", argv: ["xdg-open", "file"] }],
 	})
@@ -333,8 +353,8 @@ test("pending notification attachment expires and disconnects", async () => {
 })
 
 test("shutdown detaches active notification actions", async () => {
-	const h = notificationHarness()
-	const module = await load("./notifications.ts", h.imports)
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
 	h.daemon.current = Object.assign(emitter(), {
 		get_actions: () => [{ id: "ags2-shell:opaque-1", label: "View" }],
 	})
@@ -352,10 +372,175 @@ test("shutdown detaches active notification actions", async () => {
 	assert.equal((await module.notify({ summary: "late" })).ok, false)
 })
 
+function fail_bus_method(
+	h: ReturnType<typeof notification_harness>,
+	method: string,
+	error: Error,
+) {
+	const session = h.imports["gi://Gio"].default.DBus.session
+	const call = session.call
+	session.call = (...args) => {
+		const callback = args[9]
+		if (args[3] === method)
+			args[9] = (_connection, response) =>
+				callback(
+					{
+						call_finish: () => {
+							throw error
+						},
+					},
+					response,
+				)
+		call(...args)
+	}
+}
+
+test("notification bus failures are returned with their cause", async () => {
+	const unavailable = notification_harness()
+	const no_bus = new Error("no session bus")
+	Object.defineProperty(
+		unavailable.imports["gi://Gio"].default.DBus,
+		"session",
+		{
+			get() {
+				throw no_bus
+			},
+		},
+	)
+	const offline = await load("lib/notifications.ts", unavailable.imports)
+	assert.deepEqual(await offline.notify({ summary: "x" }), {
+		ok: false,
+		err: no_bus,
+	})
+
+	const owner = notification_harness()
+	const owner_error = new Error("name has no owner")
+	fail_bus_method(owner, "GetNameOwner", owner_error)
+	const owner_module = await load("lib/notifications.ts", owner.imports)
+	assert.deepEqual(
+		await owner_module.notify({
+			actions: [{ label: "View", argv: ["xdg-open", "file"] }],
+		}),
+		{ ok: false, err: owner_error },
+	)
+	assert.deepEqual(
+		owner.calls.map((call) => call.method),
+		["GetNameOwner"],
+	)
+	assert.equal(owner.daemon.listeners.size, 0)
+
+	const sent = notification_harness()
+	const notify_error = new Error("daemon timed out")
+	fail_bus_method(sent, "Notify", notify_error)
+	const sent_module = await load("lib/notifications.ts", sent.imports)
+	assert.deepEqual(await sent_module.notify({ summary: "x" }), {
+		ok: false,
+		err: notify_error,
+	})
+	assert.equal(sent.calls[0].destination, "org.freedesktop.Notifications")
+	assert.equal(sent.calls[0].path, "/org/freedesktop/Notifications")
+})
+
+test("notification calls address the bus daemon, then the owned service", async () => {
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
+	h.daemon.current = Object.assign(emitter(), {
+		get_actions: () => [{ id: "ags2-shell:opaque-1", label: "View" }],
+	})
+	assert.equal(
+		(
+			await module.notify({
+				actions: [{ label: "View", argv: ["xdg-open", "file"] }],
+			})
+		).ok,
+		true,
+	)
+	assert.deepEqual(
+		h.calls.map(({ destination, path, iface, method }) => [
+			destination,
+			path,
+			iface,
+			method,
+		]),
+		[
+			[
+				"org.freedesktop.DBus",
+				"/org/freedesktop/DBus",
+				"org.freedesktop.DBus",
+				"GetNameOwner",
+			],
+			[
+				":1.shell",
+				"/org/freedesktop/Notifications",
+				"org.freedesktop.Notifications",
+				"Notify",
+			],
+		],
+	)
+	assert.deepEqual(Array.from(h.calls[0].args.value), [
+		"org.freedesktop.Notifications",
+	])
+	h.shell.emit("shutdown")
+})
+
+test("actions without a label or program are refused before Notify", async () => {
+	for (const action of [
+		{ label: " ", argv: ["xdg-open"] },
+		{ label: "View", argv: [] },
+		{ label: "View", argv: [""] },
+	]) {
+		const h = notification_harness()
+		const module = await load("lib/notifications.ts", h.imports)
+		const result = await module.notify({ actions: [action] })
+		assert.equal(result.ok, false)
+		assert.equal(
+			result.err.message,
+			"Notification actions require a label and a program",
+		)
+		assert.deepEqual(
+			h.calls.map((call) => call.method),
+			["GetNameOwner"],
+		)
+		assert.equal(h.daemon.listeners.size, 0)
+	}
+})
+
+test("shutdown while Notify is in flight refuses to bind actions", async () => {
+	const h = notification_harness()
+	const module = await load("lib/notifications.ts", h.imports)
+	h.daemon.current = Object.assign(emitter(), {
+		get_actions: () => [{ id: "ags2-shell:opaque-1", label: "View" }],
+	})
+	const session = h.imports["gi://Gio"].default.DBus.session
+	const call = session.call
+	session.call = (...args) => {
+		if (args[3] === "Notify") h.shell.emit("shutdown")
+		call(...args)
+	}
+	const result = await module.notify({
+		actions: [{ label: "View", argv: ["xdg-open", "file"] }],
+	})
+	assert.equal(result.ok, false)
+	assert.equal(
+		result.err.message,
+		"Notification service shut down before actions were ready",
+	)
+	assert.equal(h.daemon.listeners.size, 0)
+	assert.equal(
+		module.notification_action_available("ags2-shell:opaque-1"),
+		false,
+	)
+	const sent = h.calls.length
+	const late = await module.notify({ summary: "late" })
+	assert.equal(late.ok, false)
+	assert.equal(late.err.message, "Notification service is shutting down")
+	assert.equal(h.calls.length, sent)
+})
+
 test("native persistence retains capture text, not executable action bindings", async () => {
-	const stored: StoredRecord[] = []
-	const h = notificationHarness(":1.shell", stored)
-	const module = await load("./notifications.ts", h.imports)
+	const stored: stored_record[] = []
+	const h = notification_harness(":1.shell", stored)
+	const module = await load("lib/notifications.ts", h.imports)
 	const pending = module.notify({
 		summary: "Screenshot saved",
 		body: "Saved to /home/user/Pictures/full-name.png",
@@ -385,8 +570,8 @@ test("native persistence retains capture text, not executable action bindings", 
 	assert.equal(h.daemon.current, null)
 	assert.equal(module.notification_action_available(key), false)
 
-	const capture = notificationHarness(":1.shell", stored)
-	const current = await load("./notifications.ts", capture.imports)
+	const capture = notification_harness(":1.shell", stored)
+	const current = await load("lib/notifications.ts", capture.imports)
 	assert.equal(
 		(
 			await current.notify({
@@ -404,8 +589,8 @@ test("native persistence retains capture text, not executable action bindings", 
 	)
 	const expired_key = stored[0].actions[0].id
 	assert.equal(current.notification_action_available(expired_key), true)
-	const restarted = notificationHarness(":1.shell", stored)
-	const fresh = await load("./notifications.ts", restarted.imports)
+	const restarted = notification_harness(":1.shell", stored)
+	const fresh = await load("lib/notifications.ts", restarted.imports)
 	assert.equal(restarted.daemon.current!.summary, "Recording saved")
 	assert.equal(
 		restarted.daemon.current!.body,
@@ -420,7 +605,55 @@ test("native persistence retains capture text, not executable action bindings", 
 	restarted.shell.emit("shutdown")
 })
 
-function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
+test("missing programs are warned about and reported in a critical notification", async (t) => {
+	const h = notification_harness()
+	h.imports["gi://GLib"].default.find_program_in_path = (name) =>
+		name.startsWith("missing") ? null : name
+	const warned: unknown[][] = []
+	const errors: unknown[][] = []
+	t.mock.method(console, "error", (...args: unknown[]) => {
+		if (!String(args[0]).includes("ExperimentalWarning")) errors.push(args)
+	})
+	const module = await load("lib/notifications.ts", h.imports, {
+		error: (...args) => errors.push(args),
+		warn: (...args) => warned.push(args),
+	})
+	assert.equal(
+		module.notify_missing_programs("grim", "missing-a", "missing-b"),
+		false,
+	)
+	assert.equal(module.notify_missing_programs("grim"), true)
+	assert.deepEqual(warned, [
+		["notifications.dependencies: Missing missing-a, missing-b"],
+	])
+	for (let i = 0; i < 5; i++) await Promise.resolve()
+	assert.equal(h.calls.length, 1)
+	const [app_name, , app_icon, summary, body, , hints] = h.calls[0].args.value
+	assert.deepEqual(
+		[app_name, app_icon, summary, body, hints.urgency.value],
+		[
+			"Error",
+			"image-missing-symbolic",
+			"Missing dependencies",
+			"Could not locate missing-a, missing-b",
+			2,
+		],
+	)
+	h.shell.emit("shutdown")
+	assert.equal(module.notify_missing_programs("missing-b", "missing-c"), false)
+	for (let i = 0; i < 5; i++) await Promise.resolve()
+	assert.deepEqual(
+		errors.map(([tag, error]) => [tag, (error as Error).message]),
+		[
+			[
+				"notifications.send: Failed to send notification",
+				"Notification service is shutting down",
+			],
+		],
+	)
+})
+
+function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 	const path = "/home/user/.config/background"
 	const files = new Map<string, any>()
 	const links = new Map<string, string>(
@@ -439,6 +672,7 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 	let revision = 0
 	let release_conversion: (() => void) | null = null
 	let decode_count = 0
+	const faults = new Set<string>()
 	class Missing extends Error {
 		matches(_domain, code) {
 			return code === 1
@@ -450,9 +684,12 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 			this.name = name
 		}
 		get_path() {
+			if (faults.has("remote-parent") && this.name === "/home/user/.config")
+				return null
 			return this.name
 		}
 		get_parent() {
+			if (faults.has("no-parent") && this.name === path) return null
 			return new GioFile(this.name.slice(0, this.name.lastIndexOf("/")))
 		}
 		query_exists() {
@@ -462,7 +699,9 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 				links.has(this.name)
 			)
 		}
-		make_directory_with_parents() {}
+		make_directory_with_parents() {
+			if (faults.has("mkdir")) throw new Error("mkdir failed")
+		}
 		monitor_directory() {
 			if (monitor_fails) throw new Error("monitor unavailable")
 			return directory_monitor
@@ -484,14 +723,29 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 			queueMicrotask(() => callback(this, {}))
 		}
 		read_finish() {
-			return { name: this.name, close: () => true }
+			if (faults.has("read")) throw new Error("read failed")
+			return {
+				name: this.name,
+				close: () => {
+					if (faults.has("stream-close-throws")) throw new Error("close failed")
+					return !faults.has("stream-close")
+				},
+			}
 		}
 		create() {
+			if (faults.has("create")) throw new Error("create failed")
 			assert.equal(files.has(this.name), false)
 			files.set(this.name, "")
-			return { close: () => true }
+			return {
+				close: () => {
+					if (faults.has("staged-close-throws"))
+						throw new Error("staged close failed")
+					return !faults.has("staged-close")
+				},
+			}
 		}
 		move(target) {
+			if (faults.has("move")) return false
 			files.set(target.name, files.get(this.name))
 			links.delete(target.name)
 			files.delete(this.name)
@@ -499,10 +753,13 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 			return true
 		}
 		delete() {
+			if (faults.has("delete")) return false
 			if (!files.delete(this.name)) throw new Missing("not found")
 			return true
 		}
 		replace_contents(content) {
+			if (faults.has("replace-throws")) throw new Error("replace failed")
+			if (faults.has("replace")) return [false, ""]
 			files.set(this.name, content)
 			links.delete(this.name)
 			revision++
@@ -512,18 +769,12 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 	const imports = {
 		"$lib/app": { default: shell },
 		ags: {
-			createState: (initial) => {
-				let value = initial
-				return [
-					{ peek: () => value, subscribe: () => () => {} },
-					(fn) => {
-						value = fn(value)
-					},
-				]
-			},
+			createState: create_state,
 		},
 		"$lib/commands": {
 			run_command: async (args) => {
+				if (faults.has("convert"))
+					return { ok: false, err: new Error("convert failed") }
 				if (args[0] === "heif-dec") {
 					assert.match(args.at(-1), /\.png$/)
 					await new Promise<void>((resolve) => {
@@ -553,7 +804,8 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 				Error: Missing,
 				FileTest: { IS_SYMLINK: 1 },
 				file_test: (name) => links.has(name),
-				find_program_in_path: (name) => name,
+				find_program_in_path: (name) =>
+					faults.has(`missing ${name}`) ? null : name,
 				PRIORITY_DEFAULT: 0,
 				path_get_dirname: (name) => name.slice(0, name.lastIndexOf("/")),
 				uuid_string_random: (() => {
@@ -568,6 +820,7 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 					get_file_info_async: (name, _cancellable, callback) =>
 						queueMicrotask(() => callback(null, { name })),
 					get_file_info_finish: ({ name }) => {
+						if (faults.has("info")) throw new Error("info failed")
 						const content = files.get(name)
 						if (content === "WIDE") return [{}, 9000, 1080]
 						if (content === "IMG 6000") return [{}, 6000, 6000]
@@ -587,6 +840,7 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 						queueMicrotask(() => callback(null, { name: stream.name }))
 					},
 					new_from_stream_finish: ({ name }) => {
+						if (faults.has("no-image")) return null
 						if (
 							!files.get(name)?.startsWith("IMG") ||
 							files.get(name) === "IMG broken"
@@ -598,24 +852,6 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 			},
 		},
 		"$lib/env": { default: { paths: { home: "/home/user" } } },
-		"$lib/result": {
-			attempt: (fn) => {
-				try {
-					return { ok: true, value: fn() }
-				} catch (error) {
-					return { ok: false, err: error }
-				}
-			},
-			attempt_async: async (fn) => {
-				try {
-					return { ok: true, value: await fn() }
-				} catch (error) {
-					return { ok: false, err: error }
-				}
-			},
-			err: (reason) => ({ ok: false, err: reason }),
-			ok: (value) => ({ ok: true, value }),
-		},
 		"$lib/time": {
 			interval: (ms, fn) => {
 				const timer = {
@@ -636,6 +872,7 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 		path,
 		files,
 		links,
+		faults,
 		timers,
 		imports,
 		shell,
@@ -654,8 +891,8 @@ function wallpaperHarness(monitor_fails = false, initial_symlink = true) {
 }
 
 test("wallpaper validates before commit and replaces symlink entry, not target", async () => {
-	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", await with_files(h.imports))
+	const h = wallpaper_harness()
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports))
 	assert.equal(h.timers.length, 1)
 	h.files.set("/home/user/invalid", "NOT-IMAGE")
 	assert.equal((await module.set_wallpaper("/home/user/invalid")).ok, false)
@@ -672,8 +909,8 @@ test("wallpaper validates before commit and replaces symlink entry, not target",
 })
 
 test("oversized source, staged output, and dimensions cannot replace wallpaper", async () => {
-	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", await with_files(h.imports))
+	const h = wallpaper_harness()
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports))
 	h.files.set("/home/user/good", "IMG good")
 	assert.equal((await module.set_wallpaper("/home/user/good")).ok, true)
 	assert.equal(h.decode_count, 1)
@@ -698,8 +935,8 @@ test("oversized source, staged output, and dimensions cannot replace wallpaper",
 })
 
 test("the setter accepts 6000x6000 and rejects dimensions above its 40 million pixel limit", async () => {
-	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", await with_files(h.imports))
+	const h = wallpaper_harness()
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports))
 	h.files.set("/home/user/accepted", "IMG 6000")
 	assert.equal((await module.set_wallpaper("/home/user/accepted")).ok, true)
 	assert.equal(h.files.get(h.path), "IMG 6000")
@@ -709,8 +946,8 @@ test("the setter accepts 6000x6000 and rejects dimensions above its 40 million p
 })
 
 test("clearing wallpaper invalidates a pending conversion", async () => {
-	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", await with_files(h.imports))
+	const h = wallpaper_harness()
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports))
 	h.files.set("/home/user/old.heic", "HEIC input")
 	const pending = module.set_wallpaper("/home/user/old.heic")
 	for (let i = 0; i < 12 && !h.release_conversion; i++) await Promise.resolve()
@@ -726,10 +963,153 @@ test("clearing wallpaper invalidates a pending conversion", async () => {
 	)
 })
 
-test("a failed directory monitor uses the fallback poll", async () => {
-	const h = wallpaperHarness(true, false)
+async function wallpaper_failure(
+	active: string[],
+	name = "/home/user/next",
+	content: unknown = "IMG next",
+) {
+	const h = wallpaper_harness(false, false)
 	const errors: unknown[][] = []
-	await load("./wallpaper.ts", await with_files(h.imports), {
+	const record = (...args) => errors.push(args)
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports), {
+		error: record,
+	})
+	if (content !== null) h.files.set(name, content)
+	for (const fault of active) h.faults.add(fault)
+	const previous = console.error
+	console.error = record
+	const outcome = await module.set_wallpaper(name).finally(() => {
+		console.error = previous
+	})
+	assert.equal(outcome.ok, false)
+	assert.equal(h.files.get(h.path), "IMG existing")
+	return { h, error: outcome.err as Error, errors }
+}
+
+function staged_files(h: ReturnType<typeof wallpaper_harness>) {
+	return [...h.files.keys()].filter((name) => name.includes(".background-"))
+}
+
+test("each wallpaper staging failure carries its reason and leaves nothing staged", async () => {
+	const too_large =
+		"Wallpaper must be nonempty and no larger than 67108864 bytes"
+	const cases: [string[], string, string?, unknown?][] = [
+		[[], "not found", "/home/user/absent", null],
+		[[], too_large, "/home/user/too-big", { length: 64 * 1024 * 1024 + 1 }],
+		[[], too_large, "/home/user/large-output", "HUGE"],
+		[[], "Wallpaper format or dimensions are unsupported", undefined, "WIDE"],
+		[["no-parent"], "Wallpaper destination has no parent directory"],
+		[["remote-parent"], "Wallpaper destination is not a local directory"],
+		[["mkdir"], "mkdir failed"],
+		[["create"], "create failed"],
+		[["staged-close"], "Failed to close temporary wallpaper"],
+		[["staged-close-throws"], "staged close failed"],
+		[["missing heif-dec"], "heif-dec not found", "/home/user/next.heic"],
+		[["missing dwebp"], "dwebp not found", "/home/user/next.webp"],
+		[["convert"], "convert failed"],
+		[["info"], "info failed"],
+		[["read"], "read failed"],
+		[["no-image"], "Wallpaper decoder returned no image"],
+		[["move"], "Failed to replace wallpaper"],
+	]
+	for (const [active, message, name, content] of cases) {
+		const { h, error, errors } = await wallpaper_failure(active, name, content)
+		assert.equal(error.message, message, message)
+		assert.deepEqual(staged_files(h), [], message)
+		assert.equal(errors.length, 0, message)
+	}
+})
+
+test("a failed validation close outranks the decode error, which is logged", async () => {
+	const closed = await wallpaper_failure(["stream-close"])
+	assert.equal(
+		closed.error.message,
+		"Failed to close wallpaper validation stream",
+	)
+	assert.equal(closed.error.cause, undefined)
+	assert.equal(closed.errors.length, 0)
+	const thrown = await wallpaper_failure(["stream-close-throws", "no-image"])
+	assert.equal(
+		thrown.error.message,
+		"Failed to close wallpaper validation stream",
+	)
+	assert.equal((thrown.error.cause as Error).message, "close failed")
+	assert.equal(thrown.errors.length, 1)
+	assert.equal(
+		thrown.errors[0][0],
+		"wallpaper.validate: Failed to decode wallpaper",
+	)
+	assert.equal(
+		(thrown.errors[0][1] as Error).message,
+		"Wallpaper decoder returned no image",
+	)
+})
+
+test("a staged wallpaper that cannot be removed is logged after a failure", async () => {
+	const { h, error, errors } = await wallpaper_failure(["move", "delete"])
+	assert.equal(error.message, "Failed to replace wallpaper")
+	assert.equal(staged_files(h).length, 1)
+	assert.equal(errors.length, 1)
+	assert.equal(
+		errors[0][0],
+		"wallpaper.set: Failed to remove temporary wallpaper",
+	)
+	assert.equal(
+		(errors[0][1] as Error).message,
+		"Temporary wallpaper was not removed",
+	)
+})
+
+test("a superseded wallpaper that cannot be removed fails the setter", async () => {
+	const h = wallpaper_harness()
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports))
+	h.files.set("/home/user/old.heic", "HEIC input")
+	const pending = module.set_wallpaper("/home/user/old.heic")
+	for (let i = 0; i < 12 && !h.release_conversion; i++) await Promise.resolve()
+	assert.equal(module.clear_wallpaper().ok, true)
+	h.faults.add("delete")
+	h.release_conversion!()
+	const outcome = await pending
+	assert.equal(outcome.ok, false)
+	assert.equal(outcome.err.message, "Failed to remove temporary wallpaper")
+	assert.equal(outcome.err.cause.message, "Temporary wallpaper was not removed")
+	assert.equal(h.files.get(h.path), "")
+	assert.equal(h.decode_count, 0)
+})
+
+test("a failed clear is logged and does not refresh the wallpaper", async () => {
+	const cases = [
+		["replace", "Failed to clear wallpaper"],
+		["replace-throws", "replace failed"],
+	]
+	for (const [fault, message] of cases) {
+		const h = wallpaper_harness(false, false)
+		const module = await load("lib/wallpaper.ts", await with_files(h.imports))
+		const revision = module.wallpaper_revision.peek()
+		h.faults.add(fault)
+		const errors: unknown[][] = []
+		const previous = console.error
+		console.error = (...args) => errors.push(args)
+		const cleared = (() => {
+			try {
+				return module.clear_wallpaper()
+			} finally {
+				console.error = previous
+			}
+		})()
+		assert.equal(cleared.ok, false)
+		assert.equal(cleared.err.message, message)
+		assert.equal(errors.length, 1)
+		assert.equal(errors[0][0], "wallpaper.clear: Failed to clear wallpaper")
+		assert.equal(h.files.get(h.path), "IMG existing")
+		assert.equal(module.wallpaper_revision.peek(), revision)
+	}
+})
+
+test("a failed directory monitor uses the fallback poll", async () => {
+	const h = wallpaper_harness(true, false)
+	const errors: unknown[][] = []
+	await load("lib/wallpaper.ts", await with_files(h.imports), {
 		error: (...args) => errors.push(args),
 	})
 	assert.equal(h.timers.length, 1)
@@ -738,8 +1118,8 @@ test("a failed directory monitor uses the fallback poll", async () => {
 })
 
 test("a working monitor still polls symlink targets and stops after link replacement", async () => {
-	const h = wallpaperHarness()
-	const module = await load("./wallpaper.ts", await with_files(h.imports))
+	const h = wallpaper_harness()
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports))
 	assert.equal(h.timers.length, 1)
 	const initial = module.wallpaper_revision.peek()
 	h.external_write("/home/user/important", "UPDATED")
@@ -754,8 +1134,8 @@ test("a working monitor still polls symlink targets and stops after link replace
 })
 
 test("a regular wallpaper uses only its monitor until replaced by a symlink", async () => {
-	const h = wallpaperHarness(false, false)
-	await load("./wallpaper.ts", await with_files(h.imports))
+	const h = wallpaper_harness(false, false)
+	await load("lib/wallpaper.ts", await with_files(h.imports))
 	assert.equal(h.timers.length, 0)
 	h.links.set(h.path, "/home/user/important")
 	h.directory_monitor.emit("changed", { get_path: () => h.path }, null)
@@ -764,152 +1144,44 @@ test("a regular wallpaper uses only its monitor until replaced by a symlink", as
 	assert.equal(h.timers[0].cancelled, true)
 })
 
-test("palette sampling accepts setter-sized wallpapers and rejects sources outside its bounds", async () => {
-	const option = (value) => ({
-		peek: () => value,
-		set() {},
-		subscribe() {},
-		id: String(value),
+test("only changes naming the wallpaper refresh it and repeated stat failures log once", async () => {
+	const h = wallpaper_harness(false, false)
+	const errors: unknown[][] = []
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports), {
+		error: (...args) => errors.push(args),
 	})
-	const colors = () => ({
-		bg: option("#123456"),
-		fg: option("#ffffff"),
-		widget: option("#123456"),
-		border: { ...option("#123456"), width: option(1) },
-		primary: { bg: option("#123456"), fg: option("#ffffff") },
-		error: { bg: option("#123456") },
-	})
-	const palette_colors = {
-		bg: "#123456",
-		fg: "#ffffff",
-		widget: "#123456",
-		border: "#123456",
-		primary_bg: "#123456",
-		primary_fg: "#ffffff",
-		error_bg: "#123456",
+	const initial = module.wallpaper_revision.peek()
+	const other = { get_path: () => "/home/user/.config/other" }
+	const wallpaper = { get_path: () => h.path }
+	h.external_write(h.path, "IMG changed")
+	h.directory_monitor.emit("changed", other, null)
+	assert.equal(module.wallpaper_revision.peek(), initial)
+	h.directory_monitor.emit("changed", other, wallpaper)
+	assert.equal(module.wallpaper_revision.peek(), initial + 1)
+	h.directory_monitor.emit("changed", wallpaper, null)
+	assert.equal(module.wallpaper_revision.peek(), initial + 1)
+	h.files.delete(h.path)
+	h.directory_monitor.emit("changed", wallpaper, null)
+	assert.equal(module.wallpaper_revision.peek(), initial + 2)
+	const query_info = h.imports["gi://Gio"].default.File.new_for_path
+	h.imports["gi://Gio"].default.File.new_for_path = (name) => {
+		const file = query_info(name)
+		if (name === h.path)
+			file.query_info = () => {
+				throw new Error("permission denied")
+			}
+		return file
 	}
-	let dimensions = [6000, 6000]
-	let bytes = 64 * 1024 * 1024
-	let revision = 0
-	let changed
-	let info_checks = 0
-	let sampled = 0
-	const messages: string[] = []
-	const theme = {
-		scheme: option("dark"),
-		dark: colors(),
-		light: colors(),
-		spacing: option(6),
-		roundness: option(12),
-		border: { width: option(1) },
-		blur: option(false),
-		shadows: option(false),
-	}
-	const imports = {
-		"ags/process": { execAsync: async () => "" },
-		"gi://Gio": {
-			default: {
-				Settings: class {
-					get_string(key) {
-						return key === "icon-theme" ? "" : "prefer-dark"
-					}
-				},
-			},
-		},
-		"gi://GdkPixbuf": {
-			default: {
-				Pixbuf: {
-					get_file_info: () => {
-						info_checks++
-						return [{}, ...dimensions]
-					},
-					new_from_file_at_scale: () => ({
-						get_pixels: () => new Uint8Array([64, 128, 192]),
-						get_width: () => 1,
-						get_height: () => 1,
-						get_rowstride: () => 3,
-						get_n_channels: () => 3,
-						get_has_alpha: () => false,
-					}),
-				},
-			},
-		},
-		"gi://GLib": { default: { find_program_in_path: () => null } },
-		style: { init_css() {}, begin_css_batch() {}, end_css_batch() {} },
-		"$lib/colors": {
-			build_wallpaper_palette: (samples) => {
-				assert.equal(samples.length, 1)
-				sampled++
-				return { dark: palette_colors, light: palette_colors }
-			},
-		},
-		"$lib/env": { default: { init: () => ({ ok: true }) } },
-		"$lib/result": {
-			attempt: (fn) => {
-				try {
-					return { ok: true, value: fn() }
-				} catch (err) {
-					return { ok: false, err }
-				}
-			},
-			attempt_async: async (fn) => {
-				try {
-					return { ok: true, value: await fn() }
-				} catch (err) {
-					return { ok: false, err }
-				}
-			},
-			log_error: (result) => result.ok,
-		},
-		"$lib/time": { debounce: (_ms, fn) => ({ call: fn, cancel() {} }) },
-		"$lib/textures": { get_file_size: () => bytes },
-		"$lib/hyprland": with_hyprland_command({
-			hyprland: {
-				connect() {},
-				message_async: async (message) => {
-					messages.push(message)
-					return "ok"
-				},
-			},
-		}),
-		"$lib/lua": lua,
-		"$lib/wallpaper": {
-			wallpaper_path: "/wall",
-			wallpaper_revision: {
-				peek: () => revision,
-				subscribe: (fn) => {
-					changed = fn
-				},
-			},
-		},
-		"$shell/options": {
-			default: {
-				theme,
-				autotheme: { peek: () => true, subscribe() {} },
-				hyprland: { gaps: option(2), inactiveBorder: option("#000000") },
-			},
-			subscribe_options() {},
-		},
-	}
-	const module = await load("../shell/startup.ts", await with_files(imports), {
-		error() {},
-	})
-	const started = module.default()
-	assert.equal(started.ok, true, String(started.err))
-	await new Promise((resolve) => setImmediate(resolve))
-	assert.deepEqual(messages, [
-		'eval hl.config({ general = { border_size = 1, gaps_out = 12, gaps_in = 6, col = { active_border = "rgba(123456ff)", inactive_border = "rgba(000000ff)" } }, decoration = { rounding = 12, shadow = { enabled = false }, blur = { enabled = false } } })',
-	])
-	assert.equal(sampled, 1)
-	assert.equal(info_checks, 1)
-	dimensions = [6400, 6400]
-	revision++
-	changed()
-	assert.equal(sampled, 1)
-	assert.equal(info_checks, 2)
-	bytes++
-	revision++
-	changed()
-	assert.equal(info_checks, 2)
-	assert.equal(sampled, 1)
+	h.directory_monitor.emit("changed", wallpaper, null)
+	h.directory_monitor.emit("changed", wallpaper, null)
+	assert.equal(module.wallpaper_revision.peek(), initial + 2)
+	assert.deepEqual(
+		errors.map(([tag, error]) => [tag, (error as Error).message]),
+		[["wallpaper: Failed to inspect wallpaper", "permission denied"]],
+	)
+	h.imports["gi://Gio"].default.File.new_for_path = query_info
+	h.external_write(h.path, "IMG back")
+	h.directory_monitor.emit("changed", wallpaper, null)
+	assert.equal(module.wallpaper_revision.peek(), initial + 3)
+	assert.equal(h.timers.length, 0)
 })

@@ -16,9 +16,9 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
+import { shell_quote } from "../helpers.ts"
 
 const root = fileURLToPath(new URL("../../", import.meta.url))
-const shell_quote = (value) => `'${value.replaceAll("'", "'\\''")}'`
 const stub_source = `import { readFileSync, statSync } from "node:fs"
 import { createHash } from "node:crypto"
 const [flag, module_path, ...args] = process.argv.slice(2)

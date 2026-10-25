@@ -15,7 +15,8 @@ import {
 
 import options, { ui_scale } from "$shell/options"
 import { applications } from "$service/apps"
-import { ApplicationIcon } from "widget/shared/ApplicationIcon"
+import { ApplicationIcon, client_identity } from "widget/shared/ApplicationIcon"
+import icons from "$lib/icons"
 
 export function WindowList() {
 	const clients = create_window_client_list(options.bar.taskbar.exclusive)
@@ -27,28 +28,18 @@ export function WindowList() {
 }
 
 function TaskEntry({ client }: { client: AstalHyprland.Client }) {
-	const class_name = createBinding(client, "class")
-	const initial_class = createBinding(client, "initialClass")
-	const title = createBinding(client, "title")
-	const initial_title = createBinding(client, "initialTitle")
 	const catalog = createBinding(applications, "list")
-	const icon = createComputed(
-		() =>
-			match_client_app(catalog(), {
-				class: class_name(),
-				initialClass: initial_class(),
-				title: title(),
-				initialTitle: initial_title(),
-			})?.get_icon_name() ||
-			class_name() ||
-			"application-x-executable-symbolic",
-	)
+	const icon = createComputed(() => {
+		const identity = client_identity(client)
+		const app = match_client_app(catalog(), identity)
+		return app?.get_icon_name() || identity.class || icons.fallback.app
+	})
 	const icon_size = createComputed(() =>
 		Math.max(8, Math.round(16 * ui_scale())),
 	)
-	const focused = focused_window_client.as((value) => {
-		return value?.address === client.address
-	})
+	const focused = focused_window_client.as(
+		(value) => value?.address === client.address,
+	)
 
 	return (
 		<button

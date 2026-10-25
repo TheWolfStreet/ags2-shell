@@ -3,8 +3,11 @@ import { Gtk } from "ags/gtk4"
 
 import AstalBattery from "gi://AstalBattery"
 
-import options from "$shell/options"
-import { create_animated_popover } from "widget/shared/AnimatedPopover"
+import { scaled } from "$shell/options"
+import {
+	create_animated_popover,
+	follow_bar_position,
+} from "widget/shared/animated_popover"
 import { PanelButton } from "../PanelButton"
 
 const battery = AstalBattery.get_default()
@@ -46,12 +49,8 @@ export function Battery() {
 		return is_charging ? `${formatted} until full` : `${formatted} remaining`
 	})
 
-	const popover_position = () =>
-		options.bar.position.peek() === "top-center"
-			? Gtk.PositionType.BOTTOM
-			: Gtk.PositionType.TOP
 	const { popover, revealer, dispose } = create_animated_popover(
-		popover_position(),
+		Gtk.PositionType.BOTTOM,
 		false,
 	)
 	revealer.set_child(
@@ -60,20 +59,16 @@ export function Battery() {
 				<Gtk.ProgressBar
 					class="percentage"
 					fraction={percentage}
-					widthRequest={options.scale.as((scale) =>
-						Math.round((125 * scale) / 100),
-					)}
+					widthRequest={scaled(125)}
 				/>
 				<label label={remaining_time} />
 			</box>
 		) as Gtk.Widget,
 	)
 
-	const unsubscribe = options.bar.position.subscribe(() =>
-		popover.set_position(popover_position()),
-	)
+	const stop_following = follow_bar_position(popover)
 	onCleanup(() => {
-		unsubscribe()
+		stop_following()
 		dispose()
 		popover.unparent()
 	})

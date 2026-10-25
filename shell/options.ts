@@ -13,11 +13,12 @@ import {
 	err,
 	log_error,
 	ok,
-	type Result,
+	type result,
 } from "$lib/result"
 import { debounce } from "$lib/time"
+import { is_record } from "$lib/json"
 
-namespace Store {
+namespace store {
 	const path = `${env.paths.cache.base}/options.json`
 
 	let cache: Record<string, unknown> | null = null
@@ -30,17 +31,19 @@ namespace Store {
 		const ready = ensure_file(path)
 		if (!log_error(ready, "option.store.load: Failed to prepare options store"))
 			return
-		const result = attempt(() => JSON.parse(readFile(path) || "{}") as unknown)
-		if (result.ok && is_structured(result.value)) {
-			cache = result.value
+		const parsed = attempt(() => JSON.parse(readFile(path) || "{}") as unknown)
+		if (!log_error(parsed, "option.store.load: Failed to load options store")) {
+			set_aside_unreadable_store()
 			return
 		}
-		if (result.ok)
+		if (!is_record(parsed.value)) {
 			console.error(
 				"option.store.load: Options store does not contain an object",
 			)
-		else log_error(result, "option.store.load: Failed to load options store")
-		set_aside_unreadable_store()
+			set_aside_unreadable_store()
+			return
+		}
+		cache = parsed.value
 	}
 
 	function set_aside_unreadable_store() {
@@ -54,39 +57,42 @@ namespace Store {
 			),
 		)
 		if (
-			log_error(
+			!log_error(
 				moved,
 				"option.store.load: Failed to set aside unreadable options",
 			)
 		) {
-			console.error(`option.store.load: Unreadable options moved to ${backup}`)
+			writes_blocked = true
 			return
 		}
-		writes_blocked = true
+		console.error(`option.store.load: Unreadable options moved to ${backup}`)
 	}
 
-	let last_save: Promise<Result<void>> = Promise.resolve(ok(undefined))
+	let last_save: Promise<result<void>> = Promise.resolve(ok(undefined))
 	let revision = 0
 	let saved_revision = 0
 
-	function write(): Promise<Result<void>> {
-		last_save = last_save.then(async () => {
-			if (revision === saved_revision) return ok(undefined)
-			if (writes_blocked)
-				return err(
-					new Error("Options store is unreadable and was not set aside"),
-				)
-			const writing_revision = revision
-			const ready = ensure_file(path)
-			const result = ready.ok
-				? await attempt_async(async () => {
-						await writeFileAsync(path, JSON.stringify(cache, null, 2))
-					})
-				: ready
-			if (result.ok) saved_revision = writing_revision
-			log_error(result, "option.store.save: Failed to save options store")
-			return result
+	async function write_cache(): Promise<result<void>> {
+		const ready = ensure_file(path)
+		if (!ready.ok) return ready
+		return attempt_async(async () => {
+			await writeFileAsync(path, JSON.stringify(cache, null, 2))
 		})
+	}
+
+	async function persist(): Promise<result<void>> {
+		if (revision === saved_revision) return ok(undefined)
+		if (writes_blocked)
+			return err(new Error("Options store is unreadable and was not set aside"))
+		const writing_revision = revision
+		const written = await write_cache()
+		if (written.ok) saved_revision = writing_revision
+		log_error(written, "option.store.save: Failed to save options store")
+		return written
+	}
+
+	function write(): Promise<result<void>> {
+		last_save = last_save.then(persist)
 		return last_save
 	}
 
@@ -94,7 +100,7 @@ namespace Store {
 		void write()
 	})
 
-	export function flush(): Promise<Result<void>> {
+	export function flush(): Promise<result<void>> {
 		if (save.pending) {
 			save.cancel()
 			return write()
@@ -108,7 +114,7 @@ namespace Store {
 		const parts = split_path(path_str)
 		let node: unknown = cache
 		for (const part of parts) {
-			if (!is_structured(node)) return undefined
+			if (!is_record(node)) return undefined
 			node = node[part]
 		}
 		return node
@@ -128,7 +134,7 @@ namespace Store {
 		for (let i = 0; i < parts.length - 1; i++) {
 			const part = parts[i]
 			const next = node[part]
-			if (is_structured(next)) {
+			if (is_record(next)) {
 				node = next
 				continue
 			}
@@ -151,7 +157,7 @@ namespace Store {
 		let node = root
 		for (let i = 0; i < parts.length - 1; i++) {
 			const next = node[parts[i]]
-			if (!is_structured(next)) return
+			if (!is_record(next)) return
 			node = next
 		}
 		delete node[parts[parts.length - 1]]
@@ -173,16 +179,52 @@ function snapshot_leaf<T>(value: T): T {
 	return Array.isArray(value) ? (Object.freeze([...value]) as T) : value
 }
 
+type option_rule =
+	| { kind: "choice"; values: readonly (string | number)[] }
+	| { kind: "range"; min: number; max: number; integer: boolean }
+	| { kind: "font" }
+	| { kind: "color" }
+
+export type option_editor =
+	"enum" | "font" | "color" | "boolean" | "number" | "string"
+
+class Ruled<T> {
+	constructor(
+		readonly initial: T,
+		readonly rule: option_rule,
+	) {}
+}
+
+function choice<const T extends string>(initial: T, values: readonly T[]) {
+	return new Ruled<T>(initial, { kind: "choice", values })
+}
+
+function range(initial: number, min: number, max: number, integer = true) {
+	return new Ruled(initial, { kind: "range", min, max, integer })
+}
+
+function font(initial: string) {
+	return new Ruled(initial, { kind: "font" })
+}
+
+function inferred_rule(initial: unknown): option_rule | null {
+	if (typeof initial === "string" && initial.startsWith("#"))
+		return { kind: "color" }
+	return null
+}
+
+const default_range = { min: 0, max: 1000, integer: true }
+
 export class Opt<T> extends Accessor<T> {
 	#setter: Setter<T>
 	#default: T
-	#valid: (value: unknown) => boolean
 	readonly id: string
+	readonly rule: option_rule | null
 
 	constructor(
 		initial: T,
 		id: string,
-		valid: (value: unknown) => boolean,
+		rule: option_rule | null,
 		current: T = initial,
 	) {
 		const default_value = snapshot_leaf(initial)
@@ -197,32 +239,51 @@ export class Opt<T> extends Accessor<T> {
 		)
 		this.#setter = set
 		this.#default = default_value
-		this.#valid = valid
 		this.id = id
+		this.rule = rule
 	}
 
 	[Symbol.toPrimitive]() {
 		console.warn(
-			"Opt implicitly converted to a primitive value.",
+			"option.coerce: Opt implicitly converted to a primitive value",
 			new Error().stack,
 		)
 		return this.toString()
 	}
 
-	set(v: T): Result<void> {
-		if (!this.#valid(v)) {
+	valid(value: unknown): boolean {
+		return valid_leaf(value, this.#default, this.rule)
+	}
+
+	editor(): option_editor {
+		if (this.rule?.kind === "choice") return "enum"
+		if (this.rule?.kind === "font") return "font"
+		if (this.rule?.kind === "color") return "color"
+		if (typeof this.#default === "boolean") return "boolean"
+		if (typeof this.#default === "number") return "number"
+		return "string"
+	}
+
+	choices(): readonly (string | number)[] | null {
+		return this.rule?.kind === "choice" ? this.rule.values : null
+	}
+
+	bounds(): { min: number; max: number } {
+		const { min, max } = this.rule?.kind === "range" ? this.rule : default_range
+		return { min, max }
+	}
+
+	set(v: T): result<void> {
+		if (!this.valid(v)) {
 			const result = err(new Error(`Invalid value for option ${this.id}`))
-			log_error(result, "option.set")
+			log_error(result, "option.set: Rejected value")
 			return result
 		}
 		if (same_leaf(this.peek(), v)) return ok(undefined)
 
 		const value = same_leaf(v, this.#default) ? this.#default : snapshot_leaf(v)
-		if (value === this.#default) {
-			Store.del(this.id)
-		} else {
-			Store.set(this.id, value)
-		}
+		if (value === this.#default) store.del(this.id)
+		else store.set(this.id, value)
 		this.#setter(value)
 		return ok(undefined)
 	}
@@ -240,11 +301,7 @@ export class Opt<T> extends Accessor<T> {
 	}
 }
 
-function is_structured(value: unknown): value is Record<string, unknown> {
-	return value !== null && typeof value === "object" && !Array.isArray(value)
-}
-
-type WidenLiterals<T> = T extends boolean
+type widen_literals<T> = T extends boolean
 	? boolean
 	: T extends string
 		? string
@@ -252,21 +309,15 @@ type WidenLiterals<T> = T extends boolean
 			? number
 			: T
 
-type OptionRule =
-	readonly (string | number)[] | { min: number; max: number; integer?: boolean }
-type OptionConstraints = Readonly<Record<string, OptionRule>>
-
 function valid_leaf(
 	value: unknown,
 	initial: unknown,
-	path: string,
-	constraints: OptionConstraints,
+	rule: option_rule | null,
 ): boolean {
-	const rule = constraints[path]
-	if (Array.isArray(rule))
-		return rule.some((allowed) => Object.is(allowed, value))
+	if (rule?.kind === "choice")
+		return rule.values.some((allowed) => Object.is(allowed, value))
 
-	if (Array.isArray(initial)) {
+	if (Array.isArray(initial))
 		return (
 			Array.isArray(value) &&
 			value.length <= 128 &&
@@ -277,81 +328,63 @@ function valid_leaf(
 					item.length <= 256,
 			)
 		)
-	}
 	if (typeof initial === "boolean") return typeof value === "boolean"
 	if (typeof initial === "string") {
 		if (typeof value !== "string" || value.length > 4096) return false
-		if (initial.startsWith("#")) return /^#[0-9a-f]{6}$/i.test(value)
-		if (path === "font")
+		if (rule?.kind === "font")
 			return /^[^\n\r\\";{}]+\s+[1-9]\d*(?:\.\d+)?$/.test(value)
+		if (rule?.kind === "color") return /^#[0-9a-f]{6}$/i.test(value)
 		return !/[\x00-\x1f]/.test(value)
 	}
 	if (typeof initial === "number") {
 		if (typeof value !== "number" || !Number.isFinite(value)) return false
-		if (rule && "min" in rule)
-			return (
-				value >= rule.min &&
-				value <= rule.max &&
-				(!rule.integer || Number.isInteger(value))
-			)
-		return value >= 0 && value <= 1000 && Number.isInteger(value)
+		const bounds = rule?.kind === "range" ? rule : default_range
+		return (
+			value >= bounds.min &&
+			value <= bounds.max &&
+			(!bounds.integer || Number.isInteger(value))
+		)
 	}
 	return false
 }
 
-type Options<T> =
-	T extends Record<string, unknown>
-		? { [K in keyof T]: Options<T[K]> }
-		: Opt<WidenLiterals<T>>
+type options<T> =
+	T extends Ruled<infer V>
+		? Opt<V>
+		: T extends Record<string, unknown>
+			? { [K in keyof T]: options<T[K]> }
+			: Opt<widen_literals<T>>
 
-function mk_options<T>(
-	node: T,
-	constraints: OptionConstraints = {},
-): Options<T> {
-	return build_options(node, "", constraints) as Options<T>
+function mk_options<T>(node: T): options<T> {
+	return build_options(node, "") as options<T>
 }
 
-function build_options(
-	node: unknown,
-	path: string,
-	constraints: OptionConstraints,
-): unknown {
-	if (is_structured(node)) {
-		const new_node: Record<string, unknown> = {}
-
-		for (const key in node) {
-			if (Object.prototype.hasOwnProperty.call(node, key)) {
-				const sub_path = path ? `${path}.${key}` : key
-				new_node[key] = build_options(node[key], sub_path, constraints)
-			}
-		}
-		return new_node
+function build_options(node: unknown, path: string): unknown {
+	if (is_record(node) && !(node instanceof Ruled)) {
+		const built: Record<string, unknown> = {}
+		for (const [key, child] of Object.entries(node))
+			built[key] = build_options(child, path ? `${path}.${key}` : key)
+		return built
 	}
 
-	const stored_val = path ? Store.get(path) : undefined
-	const valid = (value: unknown) => valid_leaf(value, node, path, constraints)
-
-	if (stored_val !== undefined) {
-		if (valid(stored_val)) return new Opt(node, path, valid, stored_val)
-		Store.del(path)
-	}
-
-	return new Opt(node, path, valid)
+	const initial = node instanceof Ruled ? node.initial : node
+	const rule = node instanceof Ruled ? node.rule : inferred_rule(initial)
+	const stored = path ? store.get(path) : undefined
+	if (stored === undefined) return new Opt(initial, path, rule)
+	if (valid_leaf(stored, initial, rule))
+		return new Opt(initial, path, rule, stored)
+	store.del(path)
+	return new Opt(initial, path, rule)
 }
 
-export function flush_options(): Promise<Result<void>> {
-	return Store.flush()
+export function flush_options(): Promise<result<void>> {
+	return store.flush()
 }
 
 export function collect_options(opts: unknown): Opt<any>[] {
 	if (opts instanceof Opt) return [opts]
-	if (!is_structured(opts)) return []
-	const collected: Opt<any>[] = []
-	for (const key in opts) {
-		if (Object.prototype.hasOwnProperty.call(opts, key))
-			collected.push(...collect_options(opts[key]))
-	}
-	return collected
+	if (!is_record(opts)) return []
+	return Object.values(opts).flatMap((child) => collect_options(child))
 }
 
 export function subscribe_options(
@@ -369,241 +402,194 @@ export function subscribe_options(
 	return () => disposers.forEach((dispose) => dispose())
 }
 
-export const option_values = {
-	theme_scheme: ["dark", "light"],
-	bar_position: ["top-center", "bottom-center"],
-	taskbar_location: ["bar", "dock"],
-	dock_mode: ["static", "autohide"],
-	dock_position: ["bottom-center", "center-left"],
-	desktop_icon_size: ["small", "medium", "large", "extralarge"],
-	launcher_position: ["top-center", "bottom-center"],
-	favorites_location: ["disabled", "dock", "launcher", "both"],
-	popup_position: [
-		"top-left",
-		"top-center",
-		"top-right",
-		"bottom-left",
-		"bottom-center",
-		"bottom-right",
-	],
-	date_menu_position: ["center", "top-center", "bottom-center"],
-	power_menu_layout: ["box", "line"],
-	osd_position: ["center", "bottom-center"],
-} as const
+const popup_positions = [
+	"top-left",
+	"top-center",
+	"top-right",
+	"bottom-left",
+	"bottom-center",
+	"bottom-right",
+] as const
 
-const constraints = {
-	scale: { min: 50, max: 200, integer: true },
-	"transition.duration": { min: 0, max: 2000, integer: true },
-	"theme.scheme": option_values.theme_scheme,
-	"theme.opacity": { min: 0, max: 70, integer: true },
-	"theme.widget.opacity": { min: 0, max: 100, integer: true },
-	"theme.border.width": { min: 0, max: 100, integer: true },
-	"theme.border.opacity": { min: 0, max: 100, integer: true },
-	"theme.padding": { min: 0, max: 50, integer: true },
-	"theme.spacing": { min: 0, max: 50, integer: true },
-	"theme.roundness": { min: 0, max: 50, integer: true },
-	"bar.position": option_values.bar_position,
-	"bar.corners": { min: 0, max: 100, integer: true },
-	"bar.workspaces.count": { min: 0, max: 16, integer: true },
-	"taskbar.location": option_values.taskbar_location,
-	"dock.mode": option_values.dock_mode,
-	"dock.position": option_values.dock_position,
-	"dock.scale": { min: 50, max: 200, integer: true },
-	"desktop.iconSize": option_values.desktop_icon_size,
-	"launcher.position": option_values.launcher_position,
-	"launcher.margin": { min: 0, max: 1000, integer: true },
-	"launcher.scale": { min: 50, max: 200, integer: true },
-	"launcher.apps.max": { min: 0, max: Infinity, integer: true },
-	"favorites.location": option_values.favorites_location,
-	"overview.scale": { min: 50, max: 200, integer: true },
-	"overview.workspaces": { min: 0, max: 16, integer: true },
-	"quicksettings.position": option_values.popup_position,
-	"quicksettings.width": { min: 100, max: 1200, integer: true },
-	"datemenu.position": option_values.date_menu_position,
-	"powermenu.layout": option_values.power_menu_layout,
-	"osd.position": option_values.osd_position,
-	"osd.dismiss": { min: 0, max: 60000, integer: true },
-	"notifications.position": option_values.popup_position,
-	"notifications.dismiss": { min: 0, max: 60000, integer: true },
-	"colorpicker.maxColors": { min: 1, max: 128, integer: true },
-	"hyprland.gaps": { min: 0, max: 10 },
-	"asus.ac_hz": { min: 1, max: 1000, integer: true },
-	"asus.bat_hz": { min: 1, max: 1000, integer: true },
-} as const
+function default_launcher_icon() {
+	const logo = env.distro.logo
+	if (!logo) return icons.ui.search
+	if (!new Gtk.IconTheme({ themeName: app.iconTheme }).has_icon(logo))
+		return icons.ui.search
+	return logo
+}
 
-let launcher_icon = icons.ui.search
-if (
-	env.distro.logo &&
-	new Gtk.IconTheme({ themeName: app.iconTheme }).has_icon(env.distro.logo)
-)
-	launcher_icon = env.distro.logo
+const options = mk_options({
+	autotheme: false,
+	scale: range(100, 50, 200),
+	font: font("SFProDisplay Nerd Font 11"),
+	transition: {
+		duration: range(200, 0, 2000),
+	},
 
-const options = mk_options(
-	{
-		autotheme: false,
-		scale: 100,
-		font: "SFProDisplay Nerd Font 11",
-		transition: {
-			duration: 200,
+	theme: {
+		scheme: choice("dark", ["dark", "light"]),
+		dark: {
+			bg: "#171717",
+			fg: "#eeeeee",
+			primary: {
+				bg: "#51a4e7",
+				fg: "#141414",
+			},
+			error: {
+				bg: "#e55f86",
+			},
+			widget: "#eeeeee",
+			border: "#9a9996",
 		},
-
-		theme: {
-			scheme: "dark",
-			dark: {
-				bg: "#171717",
+		light: {
+			bg: "#fffffa",
+			fg: "#080808",
+			primary: {
+				bg: "#426ede",
 				fg: "#eeeeee",
-				primary: {
-					bg: "#51a4e7",
-					fg: "#141414",
-				},
-				error: {
-					bg: "#e55f86",
-				},
-				widget: "#eeeeee",
-				border: "#9a9996",
 			},
-			light: {
-				bg: "#fffffa",
-				fg: "#080808",
-				primary: {
-					bg: "#426ede",
-					fg: "#eeeeee",
-				},
-				error: {
-					bg: "#b13558",
-				},
-				widget: "#080808",
-				border: "#080808",
+			error: {
+				bg: "#b13558",
 			},
-
-			opacity: 30,
-			widget: {
-				opacity: 94,
-			},
-			border: {
-				width: 1,
-				opacity: 86,
-			},
-			shadows: true,
-			blur: true,
-			neumorphic: true,
-
-			padding: 8,
-			spacing: 6,
-			roundness: 12,
+			widget: "#080808",
+			border: "#080808",
 		},
 
-		bar: {
-			position: "top-center",
-			transparent: false,
-			corners: 50,
-
-			launcher: {
-				icon: launcher_icon,
-			},
-			workspaces: {
-				count: 7,
-			},
-			taskbar: {
-				exclusive: false,
-			},
-			date: {
-				format: "%a %b %-d %H:%M",
-			},
-			media: {
-				preferred: "spotify",
-			},
-			systray: {
-				ignore: ["KDE Connect Indicator", "spotify-client", "spotify"],
-			},
+		opacity: range(30, 0, 70),
+		widget: {
+			opacity: range(94, 0, 100),
 		},
-
-		taskbar: {
-			location: "dock",
+		border: {
+			width: range(1, 0, 100),
+			opacity: range(86, 0, 100),
 		},
+		shadows: true,
+		blur: true,
+		neumorphic: true,
 
-		dock: {
-			mode: "static",
-			position: "bottom-center",
-			scale: 100,
-			trash: true,
-		},
+		padding: range(8, 0, 50),
+		spacing: range(6, 0, 50),
+		roundness: range(12, 0, 50),
+	},
 
-		desktop: {
-			enabled: true,
-			iconSize: "medium",
-		},
+	bar: {
+		position: choice("top-center", ["top-center", "bottom-center"]),
+		transparent: false,
+		corners: range(50, 0, 100),
 
 		launcher: {
-			position: "top-center",
-			margin: 40,
-			scale: 100,
-			apps: {
-				max: 6,
-			},
+			icon: default_launcher_icon(),
 		},
-
-		favorites: {
-			location: "both",
+		workspaces: {
+			count: range(7, 0, 16),
 		},
-
-		overview: {
-			scale: 100,
-			workspaces: 7,
+		taskbar: {
+			exclusive: false,
 		},
-
-		quicksettings: {
-			position: "top-right",
-			width: 380,
+		date: {
+			format: "%a %b %-d %H:%M",
 		},
-
-		datemenu: {
-			position: "center",
+		media: {
+			preferred: "spotify",
 		},
-
-		powermenu: {
-			layout: "line",
-			labels: true,
-			sleep: "systemctl suspend",
-			reboot: "systemctl reboot",
-			logout: "hyprctl dispatch 'hl.dsp.exit()'",
-			shutdown: "shutdown now",
-		},
-
-		osd: {
-			position: "bottom-center",
-			dismiss: 1200,
-		},
-
-		notifications: {
-			position: "top-right",
-			blacklist: ["Spotify", "com.spotify.Client"],
-			dismiss: 3500,
-		},
-
-		colorpicker: {
-			maxColors: 10,
-		},
-
-		hyprland: {
-			gaps: 2.4,
-			inactiveBorder: "#282828",
-		},
-
-		asus: {
-			ac_hz: 144,
-			bat_hz: 60,
+		systray: {
+			ignore: ["KDE Connect Indicator", "spotify-client", "spotify"],
 		},
 	},
-	constraints,
-)
+
+	taskbar: {
+		location: choice("dock", ["bar", "dock"]),
+	},
+
+	dock: {
+		mode: choice("static", ["static", "autohide"]),
+		position: choice("bottom-center", ["bottom-center", "center-left"]),
+		scale: range(100, 50, 200),
+		trash: true,
+	},
+
+	desktop: {
+		enabled: true,
+		iconSize: choice("medium", ["small", "medium", "large", "extralarge"]),
+	},
+
+	launcher: {
+		position: choice("top-center", ["top-center", "bottom-center"]),
+		margin: range(40, 0, 1000),
+		scale: range(100, 50, 200),
+		apps: {
+			max: range(6, 0, 1000),
+		},
+	},
+
+	favorites: {
+		location: choice("both", ["disabled", "dock", "launcher", "both"]),
+	},
+
+	overview: {
+		scale: range(100, 50, 200),
+		workspaces: range(7, 0, 16),
+	},
+
+	quicksettings: {
+		position: choice("top-right", popup_positions),
+		width: range(380, 100, 1200),
+	},
+
+	datemenu: {
+		position: choice("center", ["center", "top-center", "bottom-center"]),
+	},
+
+	powermenu: {
+		layout: choice("line", ["box", "line"]),
+		labels: true,
+		sleep: "systemctl suspend",
+		reboot: "systemctl reboot",
+		logout: "hyprctl dispatch 'hl.dsp.exit()'",
+		shutdown: "shutdown now",
+	},
+
+	osd: {
+		position: choice("bottom-center", ["center", "bottom-center"]),
+		dismiss: range(1200, 0, 60000),
+	},
+
+	notifications: {
+		position: choice("top-right", popup_positions),
+		blacklist: ["Spotify", "com.spotify.Client"],
+		dismiss: range(3500, 0, 60000),
+	},
+
+	colorpicker: {
+		maxColors: range(10, 1, 128),
+	},
+
+	hyprland: {
+		gaps: range(2.4, 0, 10, false),
+		inactiveBorder: "#282828",
+	},
+
+	tmux: {
+		accent: true,
+	},
+
+	asus: {
+		ac_hz: range(144, 1, 1000),
+		bat_hz: range(60, 1, 1000),
+	},
+})
 
 export default options
 
-export function ui_scale(): number {
-	return Math.max(0.1, options.scale() / 100)
+export function scaled(px: number): Accessor<number> {
+	return options.scale.as((scale) => Math.round((px * scale) / 100))
 }
 
-export function surface_scale(source: Accessor<number>, min = 0): number {
-	return Math.max(min, source() / 100)
+export function ui_scale(): number {
+	return options.scale() / 100
+}
+
+export function surface_scale(source: Accessor<number>): number {
+	return source() / 100
 }

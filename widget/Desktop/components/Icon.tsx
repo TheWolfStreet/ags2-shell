@@ -2,21 +2,23 @@ import { Accessor, createComputed, onCleanup } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 import { idle } from "$lib/time"
 
-import type { DesktopIconMetrics } from "../GridGeometry"
-import type { DesktopFile } from "../FileOperations"
+import type { desktop_icon_metrics } from "../grid_geometry"
+import type { desktop_file } from "../file_operations"
 import { create_texture_accessor, hidden_drag_icon } from "$lib/textures"
-import type { DesktopDragController } from "../DragAndDrop"
-import { desktop_interaction, open_desktop_files } from "../Desktop"
+import type { desktop_drag_controller } from "../DragAndDrop"
+import { desktop_interaction, open_desktop_files } from "../desktop"
 import { desktop_context_menu } from "./ContextMenu"
+import icons from "$lib/icons"
+import { is_launcher_path } from "$lib/text"
 
 const { BUTTON_PRIMARY, BUTTON_SECONDARY, ModifierType } = Gdk
 const { START, CENTER, FILL } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { COVER } = Gtk.ContentFit
 
-function is_image_desktop_file(file: DesktopFile): boolean {
+function is_image_desktop_file(file: desktop_file): boolean {
 	return (
-		file.contentType.startsWith("image/") ||
+		file.content_type.startsWith("image/") ||
 		file.icon.includes("image") ||
 		/\.(avif|bmp|gif|heic|heif|ico|jpe?g|jxl|png|svg|tiff?|webp)$/i.test(
 			file.path,
@@ -34,7 +36,13 @@ function rename_selection_end(name: string): number {
 	return extension > 0 ? extension : name.length
 }
 
-function ensure_rename_focus(editor: Gtk.Text, file: DesktopFile): void {
+function truncate_label(name: string, max_characters: number): string {
+	const characters = [...name]
+	if (characters.length <= max_characters) return name
+	return `${characters.slice(0, max_characters - 1).join("")}…`
+}
+
+function ensure_rename_focus(editor: Gtk.Text, file: desktop_file): void {
 	if (editor.editable && desktop_interaction.rename.path.peek() === file.path)
 		focus_rename(editor)
 }
@@ -57,9 +65,9 @@ function focus_rename(editor: Gtk.Text): void {
 function IconGraphic({
 	size,
 	preview,
-	is_cut: is_cut,
-	icon_name: icon_name,
-	is_launcher: is_launcher,
+	is_cut,
+	icon_name,
+	is_launcher,
 }: {
 	size: Accessor<number>
 	preview: Accessor<Gdk.Paintable | null>
@@ -107,7 +115,7 @@ function IconGraphic({
 				$type="overlay"
 				class="desktop-shortcut-emblem"
 				visible={is_cut.as((cut) => is_launcher && !cut)}
-				iconName="emblem-symbolic-link-symbolic"
+				iconName={icons.ui.link}
 				pixelSize={emblem_size}
 				halign={START}
 				valign={Gtk.Align.END}
@@ -118,24 +126,22 @@ function IconGraphic({
 
 function IconLabel({
 	file,
-	is_inline_rename: is_inline_rename,
-	label_pill_chars: label_pill_chars,
+	is_inline_rename,
+	label_pill_chars,
 }: {
-	file: DesktopFile
+	file: desktop_file
 	is_inline_rename: Accessor<boolean>
 	label_pill_chars: Accessor<number>
 }) {
-	const display_name = file.displayName ?? file.name
+	const display_name = file.display_name ?? file.name
 	const text = createComputed(() => {
 		if (is_inline_rename()) return desktop_interaction.rename.value()
-		const characters = [...display_name]
-		const max_characters = label_pill_chars()
-		return characters.length > max_characters
-			? `${characters.slice(0, Math.max(1, max_characters - 1)).join("")}…`
-			: display_name
+		return truncate_label(display_name, label_pill_chars())
 	})
 	const tooltip = label_pill_chars.as((max_characters) =>
-		[...display_name].length > max_characters ? display_name : "",
+		truncate_label(display_name, max_characters) === display_name
+			? ""
+			: display_name,
 	)
 	return (
 		<box
@@ -198,23 +204,23 @@ function IconLabel({
 export function DesktopIcon({
 	file,
 	monitor,
-	monitorId: monitor_id,
+	monitor_id,
 	drag,
-	iconMetrics: icon_metrics,
-	selectedPaths: selected_paths,
-	draggedPaths: dragged_paths,
-	cutPaths: cut_paths,
+	icon_metrics,
+	selected_paths,
+	dragged_paths,
+	cut_paths,
 	register_widget,
 	unregister_widget,
 }: {
-	file: DesktopFile
+	file: desktop_file
 	monitor: Gdk.Monitor
-	monitorId: Accessor<string>
-	drag: DesktopDragController
-	iconMetrics: Accessor<DesktopIconMetrics>
-	selectedPaths: Accessor<Set<string>>
-	draggedPaths: Accessor<Set<string>>
-	cutPaths: Accessor<Set<string>>
+	monitor_id: Accessor<string>
+	drag: desktop_drag_controller
+	icon_metrics: Accessor<desktop_icon_metrics>
+	selected_paths: Accessor<Set<string>>
+	dragged_paths: Accessor<Set<string>>
+	cut_paths: Accessor<Set<string>>
 	register_widget(path: string, widget: Gtk.Widget): void
 	unregister_widget(path: string, widget: Gtk.Widget): void
 }) {
@@ -222,77 +228,92 @@ export function DesktopIcon({
 		(path) => path === file.path,
 	)
 	const is_cut = cut_paths.as((paths) => paths.has(file.path))
-	const is_launcher = file.path.toLowerCase().endsWith(".desktop")
-	const supports_preview = is_image_desktop_file(file) || !!file.iconFile
+	const is_launcher = is_launcher_path(file.path)
+	const supports_preview = is_image_desktop_file(file) || !!file.icon_file
 	const preview_texture = createComputed(() => {
 		if (is_cut() || !supports_preview) return null
 		return create_texture_accessor(
-			file.iconFile ?? file.path,
-			icon_metrics().iconPx,
+			file.icon_file ?? file.path,
+			icon_metrics().icon_px,
 		)
 	})
 	const preview_paintable = createComputed(() => preview_texture()?.() ?? null)
-	const icon_pixel_size = icon_metrics.as((metrics) => metrics.iconPx)
+	const icon_pixel_size = icon_metrics.as((metrics) => metrics.icon_px)
 	const label_pill_chars = icon_metrics.as((metrics) =>
-		Math.max(4, metrics.labelChars - 1),
+		Math.max(4, metrics.label_chars - 1),
 	)
 	const is_selected = selected_paths.as((paths) => paths.has(file.path))
 	const is_drag_group_member = dragged_paths.as(
 		(paths) => paths.size > 1 && paths.has(file.path),
 	)
 	const css_class = createComputed(() => {
-		const selected = is_selected()
-		const dragging = drag.state().paths.includes(file.path)
-		const grouped = is_drag_group_member()
-		return (
-			"desktop-icon" +
-			(selected ? " selected" : "") +
-			(dragging ? " dragging" : "") +
-			(grouped ? " drag-pack" : "")
-		)
+		const classes = ["desktop-icon"]
+		if (is_selected()) classes.push("selected")
+		if (drag.state().paths.includes(file.path)) classes.push("dragging")
+		if (is_drag_group_member()) classes.push("drag-pack")
+		return classes.join(" ")
 	})
 	let pending_single_select = false
 	let dragged_since_press = false
 
-	function handle_click(button: number, gesture: Gtk.GestureClick): void {
-		if (button === BUTTON_PRIMARY) {
-			desktop_context_menu.hide()
-			const state = gesture.get_current_event_state()
-			const control_held = (state & ModifierType.CONTROL_MASK) !== 0
-			const current = desktop_interaction.selected.peek()
-			if (control_held) {
-				desktop_interaction.select(
-					current.includes(file.path)
-						? current.filter((path) => path !== file.path)
-						: [...current, file.path],
-				)
-				return
-			}
-			if (current.length > 1 && current.includes(file.path)) {
-				pending_single_select = true
-				return
-			}
-			desktop_interaction.select([file.path])
+	function select_click(gesture: Gtk.GestureClick): void {
+		desktop_context_menu.hide()
+		const state = gesture.get_current_event_state()
+		const current = desktop_interaction.selected.peek()
+		const selected = current.includes(file.path)
+		if ((state & ModifierType.CONTROL_MASK) !== 0) {
+			desktop_interaction.select(
+				selected
+					? current.filter((path) => path !== file.path)
+					: [...current, file.path],
+			)
+			return
 		}
+		if (current.length > 1 && selected) {
+			pending_single_select = true
+			return
+		}
+		desktop_interaction.select([file.path])
+	}
 
-		if (button === BUTTON_SECONDARY) {
-			if (!desktop_interaction.selected.peek().includes(file.path))
-				desktop_interaction.select([file.path])
-			const event = gesture.get_current_event()
-			if (event) {
-				const [success, x, y] = event.get_position()
-				const shift_held =
-					(gesture.get_current_event_state() & ModifierType.SHIFT_MASK) !== 0
-				if (success)
-					desktop_context_menu.show({
-						monitor,
-						monitor_id: monitor_id.peek(),
-						x,
-						y,
-						shift: shift_held,
-					})
-			}
-		}
+	function menu_click(gesture: Gtk.GestureClick): void {
+		if (!desktop_interaction.selected.peek().includes(file.path))
+			desktop_interaction.select([file.path])
+		const event = gesture.get_current_event()
+		if (!event) return
+		const [success, x, y] = event.get_position()
+		const shift =
+			(gesture.get_current_event_state() & ModifierType.SHIFT_MASK) !== 0
+		if (!success) return
+		desktop_context_menu.show({
+			monitor,
+			monitor_id: monitor_id.peek(),
+			x,
+			y,
+			shift,
+		})
+	}
+
+	function on_press(gesture: Gtk.GestureClick, press_count: number): void {
+		const renamed_path = desktop_interaction.rename.path.peek()
+		if (renamed_path === file.path) return
+		if (renamed_path) desktop_interaction.rename.commit()
+		const button = gesture.get_current_button()
+		if (button === BUTTON_SECONDARY) menu_click(gesture)
+		if (button !== BUTTON_PRIMARY) return
+		desktop_interaction.press(file.path)
+		pending_single_select = false
+		dragged_since_press = false
+		select_click(gesture)
+		if (press_count === 2) open_desktop_files([file.path])
+	}
+
+	function on_release(gesture: Gtk.GestureClick): void {
+		if (gesture.get_current_button() !== BUTTON_PRIMARY) return
+		if (pending_single_select && !dragged_since_press)
+			desktop_interaction.select([file.path])
+		pending_single_select = false
+		desktop_interaction.press(null)
 	}
 
 	return (
@@ -310,27 +331,8 @@ export function DesktopIcon({
 		>
 			<Gtk.GestureClick
 				button={0}
-				onPressed={(gesture, press_count) => {
-					const renamed_path = desktop_interaction.rename.path.peek()
-					if (renamed_path === file.path) return
-					if (renamed_path) desktop_interaction.rename.commit()
-					const clicked_button = gesture.get_current_button()
-					if (clicked_button === BUTTON_PRIMARY) {
-						desktop_interaction.press(file.path)
-						pending_single_select = false
-						dragged_since_press = false
-					}
-					handle_click(clicked_button, gesture)
-					if (clicked_button === BUTTON_PRIMARY && press_count === 2)
-						open_desktop_files([file.path])
-				}}
-				onReleased={(gesture) => {
-					if (gesture.get_current_button() !== BUTTON_PRIMARY) return
-					if (pending_single_select && !dragged_since_press)
-						desktop_interaction.select([file.path])
-					pending_single_select = false
-					desktop_interaction.press(null)
-				}}
+				onPressed={on_press}
+				onReleased={on_release}
 			/>
 			<box
 				orientation={VERTICAL}

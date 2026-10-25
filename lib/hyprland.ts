@@ -2,8 +2,8 @@ import Hyprland from "gi://AstalHyprland"
 import GLib from "gi://GLib"
 
 import app from "$lib/app"
-import { attempt, attempt_async, err, ok, type Result } from "$lib/result"
-import { timeout, type Timer } from "$lib/time"
+import { attempt, attempt_async, err, ok, type result } from "$lib/result"
+import { timeout, type timer } from "$lib/time"
 
 function create_hyprland() {
 	const critical = GLib.LogLevelFlags.LEVEL_CRITICAL
@@ -40,39 +40,64 @@ function create_hyprland() {
 
 export const hyprland = create_hyprland()
 
-export async function hyprland_command(message: string): Promise<Result<void>> {
-	const response = await attempt_async(() => hyprland.message_async(message))
-	if (!response.ok) return response
-	const replies = response.value
+function check_hyprland_reply(message: string, reply: string): result<void> {
+	const replies = reply
 		.split("\n")
-		.map((reply) => reply.trim())
-		.filter((reply) => reply !== "")
-	if (replies.length > 0 && replies.every((reply) => reply === "ok"))
+		.map((line) => line.trim())
+		.filter((line) => line !== "")
+	if (replies.length > 0 && replies.every((line) => line === "ok"))
 		return ok(undefined)
-	return err(new Error(`Hyprland rejected ${message}: ${response.value}`))
+	return err(new Error(`Hyprland rejected ${message}: ${reply}`))
 }
 
-function query_live_monitor_names(): Result<Set<string>> {
-	return attempt(() => {
-		const monitors: unknown = JSON.parse(hyprland.message("j/monitors"))
-		if (!Array.isArray(monitors)) throw new Error("Unexpected monitor reply")
-		return new Set(
-			monitors
-				.map((monitor: { name?: unknown }) => monitor.name)
-				.filter((name): name is string => typeof name === "string"),
-		)
+export async function hyprland_command(message: string): Promise<result<void>> {
+	const response = await attempt_async(() => hyprland.message_async(message))
+	if (!response.ok) return response
+	return check_hyprland_reply(message, response.value)
+}
+
+const monitor_retry_ms = 250
+const monitor_retry_limit = 40
+
+function monitor_names(monitors: { name?: unknown }[]): Set<string> {
+	return new Set(
+		monitors
+			.map((monitor) => monitor.name)
+			.filter((name): name is string => typeof name === "string"),
+	)
+}
+
+function query_live_monitor_names(): result<Set<string>> {
+	const parsed = attempt((): unknown =>
+		JSON.parse(hyprland.message("j/monitors")),
+	)
+	if (!parsed.ok) return parsed
+	const monitors = parsed.value
+	if (!Array.isArray(monitors))
+		return err(new Error("Unexpected monitor reply"))
+	return attempt(() => monitor_names(monitors))
+}
+
+export function live_monitors(live_connectors: Set<string>) {
+	return app.get_monitors().filter((monitor) => {
+		const connector = monitor.get_connector()
+		return connector == null || live_connectors.has(connector)
 	})
 }
 
 export function watch_live_monitors(
 	sync: (live_connectors: Set<string>) => void,
 ): () => void {
-	let retry: Timer | null = null
+	let retry: timer | null = null
 	let failures = 0
 
-	const run = () => {
+	const cancel_retry = () => {
 		retry?.cancel()
 		retry = null
+	}
+
+	const run = () => {
+		cancel_retry()
 		const live = query_live_monitor_names()
 		if (live.ok) {
 			failures = 0
@@ -80,8 +105,8 @@ export function watch_live_monitors(
 			return
 		}
 		failures += 1
-		if (failures <= 40) {
-			retry = timeout(250, run)
+		if (failures <= monitor_retry_limit) {
+			retry = timeout(monitor_retry_ms, run)
 			return
 		}
 		failures = 0
@@ -96,8 +121,7 @@ export function watch_live_monitors(
 	run()
 
 	return () => {
-		retry?.cancel()
-		retry = null
+		cancel_retry()
 		app.disconnect(app_handler)
 		for (const handler of hyprland_handlers) hyprland.disconnect(handler)
 	}

@@ -2,37 +2,40 @@ import { createComputed, createRoot, createState } from "ags"
 import app from "$lib/app"
 import { Gtk } from "ags/gtk4"
 
-import { create_pages } from "./components/Pages"
+import { create_pages } from "./components/pages"
 
 import icons from "$lib/icons"
 import { hyprland, hyprland_command } from "$lib/hyprland"
 import { log_error } from "$lib/result"
 
-import options, { collect_options } from "$shell/options"
+import options, { collect_options, scaled } from "$shell/options"
 
 export namespace Settings {
+	const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
+	const { CENTER } = Gtk.Align
+	const { VERTICAL } = Gtk.Orientation
+
+	let root: (() => void) | null = null
+
+	async function move_to_focused_workspace() {
+		const workspace = hyprland.focusedWorkspace?.id
+		if (workspace == null) return
+		const moved = await hyprland_command(
+			`dispatch hl.dsp.window.move({ workspace = ${workspace}, window = "title:^(Settings)$" })`,
+		)
+		log_error(moved, "settings: Failed to move window")
+	}
+
+	function open_settings() {
+		const settings = ensure_window()
+		app.get_window("quicksettings")?.hide()
+		if (settings?.visible) void move_to_focused_workspace()
+		else settings?.show()
+	}
+
 	export function Button() {
 		return (
-			<button
-				valign={CENTER}
-				onClicked={() => {
-					const settings = ensure_window()
-					const qsettings = app.get_window("quicksettings")
-					qsettings?.hide()
-
-					if (settings?.visible) {
-						const workspace = hyprland.focusedWorkspace?.id
-						if (workspace != null)
-							void hyprland_command(
-								`dispatch hl.dsp.window.move({ workspace = ${workspace}, window = "title:^(Settings)$" })`,
-							).then((result) =>
-								log_error(result, "settings: Failed to move window"),
-							)
-					} else {
-						settings?.show()
-					}
-				}}
-			>
+			<button valign={CENTER} onClicked={open_settings}>
 				<image iconName={icons.ui.settings} useFallback />
 			</button>
 		)
@@ -62,9 +65,7 @@ export namespace Settings {
 		function setup(self: Gtk.Stack) {
 			stack = self
 			const name = current_page.peek()
-			if (self.get_child_by_name(name)) {
-				self.set_visible_child_name(name)
-			}
+			if (self.get_child_by_name(name)) self.set_visible_child_name(name)
 		}
 
 		return (
@@ -73,12 +74,8 @@ export namespace Settings {
 				name="settings-dialog"
 				class="settings-dialog"
 				application={app}
-				defaultHeight={options.scale.as((scale) =>
-					Math.round((600 * scale) / 100),
-				)}
-				defaultWidth={options.scale.as((scale) =>
-					Math.round((500 * scale) / 100),
-				)}
+				defaultHeight={scaled(600)}
+				defaultWidth={scaled(500)}
 				hideOnClose
 				iconName={icons.ui.settings}
 			>
@@ -130,12 +127,6 @@ export namespace Settings {
 			</Gtk.Window>
 		)
 	}
-
-	const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
-	const { CENTER } = Gtk.Align
-	const { VERTICAL } = Gtk.Orientation
-
-	let root: (() => void) | null = null
 
 	function ensure_window() {
 		const existing = app.get_window("settings-dialog")

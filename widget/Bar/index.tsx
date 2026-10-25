@@ -1,6 +1,6 @@
 import { Accessor, createBinding, createComputed, onCleanup } from "ags"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import { idle, type Timer } from "$lib/time"
+import { format_clock, idle, type timer } from "$lib/time"
 
 import cairo from "cairo"
 import LayerShell from "gi://Gtk4LayerShell"
@@ -21,32 +21,37 @@ import { PowerMenu } from "widget/PowerMenu"
 
 import options from "$shell/options"
 import icons from "$lib/icons"
-import { format_clock } from "$lib/time"
 import { log_error } from "$lib/result"
 import {
 	schedule_monitor_window_release,
 	track_monitor_fullscreen,
 } from "$lib/windowing"
-import { screen_capture } from "$service/screenCapture"
+import { screen_capture } from "$service/screen_capture"
 
 const { CENTER, START, END } = Gtk.Align
 const { VERTICAL } = Gtk.Orientation
 const { WindowAnchor, Layer } = Astal
 const { TOP, BOTTOM, LEFT, RIGHT } = WindowAnchor
-const { TOP: TOP_LAYER } = Layer
+const { TOP: top_layer } = Layer
 
 const { transparent, position, corners } = options.bar
 const { padding } = options.theme
 
 function ScreenCorner({
-	class: class_name,
+	edge,
+	style,
 	visible,
 }: {
-	class: Accessor<string>
+	edge: string
+	style: Accessor<string>
 	visible: Accessor<boolean>
 }) {
 	return (
-		<box class={class_name} visible={visible} overflow={Gtk.Overflow.HIDDEN}>
+		<box
+			class={style.as((value) => `screen-corner ${value} ${edge}`)}
+			visible={visible}
+			overflow={Gtk.Overflow.HIDDEN}
+		>
 			<box class="shadow" hexpand>
 				<box class="border" hexpand>
 					<box class="corner" hexpand />
@@ -86,7 +91,7 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 	let layout_surface: Gdk.Surface | null = null
 	let layout_handler = 0
 	let realize_handler = 0
-	let position_timer: Timer | null = null
+	let position_timer: timer | null = null
 
 	const visible = track_monitor_fullscreen(gdkmonitor).as((value) => !value)
 
@@ -96,8 +101,6 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 			options.theme.roundness() * options.hyprland.gaps() * corners() * 0.01
 		return radius >= padding() ? "corners" : "flat"
 	})
-	const corner_class = (edge: string) =>
-		corner_style.as((style) => `screen-corner ${style} ${edge}`)
 	const show_top = createComputed(() => !transparent() && is_top())
 	const show_bottom = createComputed(() => !transparent() && !is_top())
 
@@ -128,10 +131,29 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 		})
 	})
 
-	onCleanup(() => {
-		position_timer?.cancel()
+	const release_surface = () => {
 		if (layout_surface && layout_handler)
 			layout_surface.disconnect(layout_handler)
+	}
+
+	const hook_surface = () => {
+		const surface = bar_window?.get_surface()
+		if (!surface || surface === layout_surface) return
+		release_surface()
+		layout_surface = surface
+		layout_handler = surface.connect("layout", sync_panel_area)
+		sync_panel_area()
+	}
+
+	const track_window = (self: Astal.Window) => {
+		bar_window = self
+		if (self.get_realized()) hook_surface()
+		realize_handler = self.connect("realize", hook_surface)
+	}
+
+	onCleanup(() => {
+		position_timer?.cancel()
+		release_surface()
 		if (bar_window && realize_handler) bar_window.disconnect(realize_handler)
 		schedule_monitor_window_release(bar_window)
 		reposition_unsubscribe()
@@ -139,35 +161,21 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 
 	void (
 		<window
-			$={(self) => {
-				bar_window = self
-				const hook_surface = () => {
-					const surface = self.get_surface()
-					if (!surface || surface === layout_surface) return
-					if (layout_surface && layout_handler)
-						layout_surface.disconnect(layout_handler)
-					layout_surface = surface
-					layout_handler = surface.connect("layout", sync_panel_area)
-					sync_panel_area()
-				}
-				if (self.get_realized()) hook_surface()
-				realize_handler = self.connect("realize", hook_surface)
-			}}
+			$={track_window}
 			name="bar"
 			visible={visible}
 			class={transparent.as((v) => (v ? "bar transparent" : "bar"))}
 			gdkmonitor={gdkmonitor}
-			layer={TOP_LAYER}
-			anchor={position.as((pos) => {
-				return (pos === "bottom-center" ? BOTTOM : TOP) | LEFT | RIGHT
-			})}
+			layer={top_layer}
+			anchor={is_top.as((top) => (top ? TOP : BOTTOM) | LEFT | RIGHT)}
 		>
 			<box
 				orientation={VERTICAL}
 				valign={is_top.as((top) => (top ? START : END))}
 			>
 				<ScreenCorner
-					class={corner_class("bottom-center")}
+					edge="bottom-center"
+					style={corner_style}
 					visible={show_bottom}
 				/>
 				<box
@@ -201,7 +209,11 @@ export function Bar({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
 						</box>
 					</centerbox>
 				</box>
-				<ScreenCorner class={corner_class("top-center")} visible={show_top} />
+				<ScreenCorner
+					edge="top-center"
+					style={corner_style}
+					visible={show_top}
+				/>
 			</box>
 		</window>
 	)

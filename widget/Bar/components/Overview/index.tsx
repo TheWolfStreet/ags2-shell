@@ -1,5 +1,12 @@
-import { createBinding, createComputed, For, onCleanup, onMount } from "ags"
-import { idle, timeout, type Timer } from "$lib/time"
+import {
+	type Accessor,
+	createBinding,
+	createComputed,
+	For,
+	onCleanup,
+	onMount,
+} from "ags"
+import { idle, timeout, type timer } from "$lib/time"
 import app from "$lib/app"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GObject from "ags/gobject"
@@ -19,12 +26,12 @@ import {
 	focused_window_client,
 	move_client_to_workspace_silent,
 	on_window_toggle,
-	read_client_placement_version,
+	client_placement_version,
 	refresh_client_placement,
-	subscribe_client_placement,
 } from "$lib/windowing"
 
-import options from "$shell/options"
+import options, { scaled } from "$shell/options"
+import icons from "$lib/icons"
 
 export namespace Overview {
 	export function Button() {
@@ -43,19 +50,17 @@ export namespace Overview {
 		}
 
 		return (
-			<PanelButton targetWindow="overview" class="workspaces">
+			<PanelButton target_window="overview" class="workspaces">
 				<box valign={CENTER}>
 					<For each={workspaces}>
-						{(workspace_id) => {
-							return (
-								<label
-									valign={CENTER}
-									name={`${workspace_id}`}
-									label={`${workspace_id}`}
-									class={class_name(workspace_id)}
-								/>
-							)
-						}}
+						{(workspace_id) => (
+							<label
+								valign={CENTER}
+								name={`${workspace_id}`}
+								label={`${workspace_id}`}
+								class={class_name(workspace_id)}
+							/>
+						)}
 					</For>
 				</box>
 			</PanelButton>
@@ -69,73 +74,70 @@ export namespace Overview {
 			workspace_ids(options.overview.workspaces()),
 		)
 
-		let sync_timer: Timer | null = null
+		let sync_timer: timer | null = null
 		let generation = 0
 		let in_flight = false
 		let visible = false
 		let previous_snapshot = ""
 		let sync_warned = false
+
 		const schedule_sync = () => {
 			if (!visible || sync_timer) return
 			const current_generation = generation
 			sync_timer = timeout(overview_sync_interval_ms, () => {
 				sync_timer = null
 				if (!visible || current_generation !== generation) return
-				if (in_flight) schedule_sync()
-				else sync_now()
+				sync_when_idle()
 			})
 		}
+
+		const sync_when_idle = () => {
+			if (in_flight) schedule_sync()
+			else sync_now()
+		}
+
 		const stop_sync = () => {
 			visible = false
 			generation++
 			sync_timer?.cancel()
 			sync_timer = null
 		}
+
+		const warn_sync_failure = (error: unknown) => {
+			if (!sync_warned)
+				console.warn("overview: Hyprland client sync failed", error)
+			sync_warned = true
+		}
+
+		const refresh_if_moved = () => {
+			const snapshot = client_snapshot()
+			if (snapshot === previous_snapshot) return
+			previous_snapshot = snapshot
+			refresh_client_placement()
+		}
+
 		const sync_now = () => {
 			if (in_flight) return
 			in_flight = true
 			const current_generation = generation
 			hyprland.sync_clients((_source, result) => {
 				const synced = attempt(() => hyprland.sync_clients_finish(result))
-				if (!synced.ok) {
-					if (!sync_warned)
-						console.warn("overview: Hyprland client sync failed", synced.err)
-					sync_warned = true
-				}
+				if (!synced.ok) warn_sync_failure(synced.err)
 				in_flight = false
-				if (current_generation !== generation) {
-					schedule_sync()
-					return
-				}
-				if (synced.ok) {
+				if (synced.ok && current_generation === generation) {
 					sync_warned = false
-					const snapshot = hyprland.clients
-						.map((client) =>
-							[
-								client.address,
-								client.workspace?.id,
-								client.x,
-								client.y,
-								client.width,
-								client.height,
-							].join(":"),
-						)
-						.sort()
-						.join("|")
-					if (snapshot !== previous_snapshot) {
-						previous_snapshot = snapshot
-						refresh_client_placement()
-					}
+					refresh_if_moved()
 				}
 				schedule_sync()
 			})
 		}
+
 		const start_sync = () => {
 			stop_sync()
 			visible = true
-			if (in_flight) schedule_sync()
-			else sync_now()
+			sync_when_idle()
 		}
+
 		const stop_window_subscription = on_window_toggle("overview", (window) => {
 			if (window.visible) start_sync()
 			else stop_sync()
@@ -170,22 +172,38 @@ export namespace Overview {
 		"notify::workspace",
 	] as const
 
+	function client_key(client: AstalHyprland.Client) {
+		return [
+			client.address,
+			client.workspace?.id,
+			client.x,
+			client.y,
+			client.width,
+			client.height,
+		].join(":")
+	}
+
+	function client_snapshot() {
+		return hyprland.clients.map(client_key).sort().join("|")
+	}
+
+	function is_client_address(value: unknown): value is string {
+		return typeof value === "string" && /^(?:0x)?[0-9a-fA-F]+$/.test(value)
+	}
+
 	function sanitize_dimension(
 		value: number | null | undefined,
 		fallback: number,
 	) {
-		if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+		if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
 			return fallback
-		}
 
 		return value
 	}
 
 	function scale_factor(value: number) {
 		const safe_value = Math.max(1, value)
-		if (safe_value <= 15) {
-			return safe_value / 100
-		}
+		if (safe_value <= 15) return safe_value / 100
 		return ((safe_value / 100) * 9) / 100
 	}
 
@@ -245,38 +263,44 @@ export namespace Overview {
 		parent.move(self, x, y)
 	}
 
-	function Client({ entry: client, update }: client_props) {
-		const class_name = focused_window_client.as((current_client) => {
-			const classes: string[] = ["client"]
-			if (current_client?.address === client.address) classes.push("active")
-			return classes.join(" ")
+	function scaled_size(notify: Accessor<number>, read: () => number) {
+		return createComputed(() => {
+			client_placement_version()
+			notify()
+			return Math.round(scale(read()))
 		})
+	}
+
+	function track_monitor(client: AstalHyprland.Client) {
+		return createComputed(() => {
+			createBinding(hyprland, "monitors")()
+			const workspace = createBinding(client, "workspace")()
+			const monitor = workspace ? createBinding(workspace, "monitor")() : null
+			if (!monitor) return
+			createBinding(monitor, "x")()
+			createBinding(monitor, "y")()
+			monitor_size(monitor)
+		})
+	}
+
+	function Client({ entry: client, update }: client_props) {
+		const class_name = focused_window_client.as((current_client) =>
+			current_client?.address === client.address ? "client active" : "client",
+		)
 
 		const title = create_client_title_accessor(client)
 		const content_provider = Gdk.ContentProvider.new_for_value(
 			client.get_address(),
 		)
-		const width_notify = createBinding(client, "width")
-		const height_notify = createBinding(client, "height")
-
-		const client_width = createComputed(() => {
-			read_client_placement_version()
-			width_notify()
-			return client.get_width()
-		})
-		const client_height = createComputed(() => {
-			read_client_placement_version()
-			height_notify()
-			return client.get_height()
-		})
-
-		const scaled_width = createComputed(() => Math.round(scale(client_width())))
-		const scaled_height = createComputed(() =>
-			Math.round(scale(client_height())),
+		const scaled_width = scaled_size(createBinding(client, "width"), () =>
+			client.get_width(),
+		)
+		const scaled_height = scaled_size(createBinding(client, "height"), () =>
+			client.get_height(),
 		)
 
 		let widget: Gtk.Widget | null = null
-		let update_timer: Timer | null = null
+		let update_timer: timer | null = null
 		function schedule_update() {
 			if (update_timer) return
 			update_timer = idle(() => {
@@ -289,41 +313,23 @@ export namespace Overview {
 
 		const setup_client_widget_lifecycle = (self: Gtk.Widget) => {
 			widget = self
-			let client_connections: number[] = []
-			let scale_sub: (() => void) | undefined
-			let placement_sub: (() => void) | undefined
-			let monitor_sub: (() => void) | undefined
+			const disposers: (() => void)[] = []
 
 			onMount(() => {
 				schedule_update()
-
-				client_connections = client_update_signals.map((signal) =>
+				const connections = client_update_signals.map((signal) =>
 					client.connect(signal, schedule_update),
 				)
-
-				scale_sub = options.overview.scale.subscribe(schedule_update)
-				placement_sub = subscribe_client_placement(schedule_update)
-				monitor_sub = createComputed(() => {
-					createBinding(hyprland, "monitors")()
-					const workspace = createBinding(client, "workspace")()
-					const monitor = workspace
-						? createBinding(workspace, "monitor")()
-						: null
-					if (monitor) {
-						createBinding(monitor, "x")()
-						createBinding(monitor, "y")()
-						monitor_size(monitor)
-					}
-				}).subscribe(schedule_update)
+				disposers.push(
+					() => connections.forEach((id) => client.disconnect(id)),
+					options.overview.scale.subscribe(schedule_update),
+					client_placement_version.subscribe(schedule_update),
+					track_monitor(client).subscribe(schedule_update),
+				)
 			})
 
 			onCleanup(() => {
-				client_connections.forEach((connection) =>
-					client.disconnect(connection),
-				)
-				scale_sub?.()
-				placement_sub?.()
-				monitor_sub?.()
+				for (const dispose of disposers) dispose()
 				update_timer?.cancel()
 				widget = null
 				image_widget = null
@@ -340,15 +346,15 @@ export namespace Overview {
 				$={setup_client_widget_lifecycle}
 			>
 				<image
-					$={(self) => (image_widget = self)}
+					$={(self) => {
+						image_widget = self
+					}}
 					vexpand
 					hexpand
 					valign={CENTER}
 					halign={CENTER}
-					iconName={client.get_class() || "application-x-executable-symbolic"}
-					pixelSize={options.scale.as((scale) =>
-						Math.round((16 * scale) / 100),
-					)}
+					iconName={client.get_class() || icons.fallback.app}
+					pixelSize={scaled(16)}
 				/>
 				<Gtk.GestureClick
 					button={Gdk.BUTTON_MIDDLE}
@@ -361,10 +367,8 @@ export namespace Overview {
 					actions={MOVE}
 					content={content_provider}
 					onDragBegin={(source) => {
-						if (image_widget) {
-							const paintable = Gtk.WidgetPaintable.new(image_widget)
-							source.set_icon(paintable, 8, 8)
-						}
+						if (!image_widget) return
+						source.set_icon(Gtk.WidgetPaintable.new(image_widget), 8, 8)
 					}}
 				/>
 			</button>
@@ -373,11 +377,10 @@ export namespace Overview {
 
 	function Workspace({ entry: workspace_id }: { entry: number }) {
 		const class_name = createBinding(hyprland, "focusedWorkspace").as(
-			(focused_workspace) => {
-				const classes: string[] = ["workspace"]
-				if (focused_workspace?.id === workspace_id) classes.push("active")
-				return classes.join(" ")
-			},
+			(focused_workspace) =>
+				focused_workspace?.id === workspace_id
+					? "workspace active"
+					: "workspace",
 		)
 
 		const css = createComputed(() => {
@@ -416,11 +419,7 @@ export namespace Overview {
 						return formats.contain_gtype(GObject.TYPE_STRING)
 					}}
 					onDrop={(_target, value) => {
-						if (
-							typeof value !== "string" ||
-							!/^(?:0x)?[0-9a-fA-F]+$/.test(value)
-						)
-							return false
+						if (!is_client_address(value)) return false
 						if (!hyprland.get_client(value)) return false
 						move_client_to_workspace_silent(workspace_id, value)
 						return true

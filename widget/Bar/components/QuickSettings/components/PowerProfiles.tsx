@@ -24,7 +24,7 @@ import { attempt, log_error, unwrap_or } from "$lib/result"
 import { launch_program } from "$lib/apps"
 import { notify_missing_programs } from "$lib/notifications"
 import { asusctl } from "$service/asusctl"
-import { sleep_inhibitor } from "$service/sleepInhibitor"
+import { sleep_inhibitor } from "$service/sleep_inhibitor"
 import { on_window_toggle } from "$lib/windowing"
 
 export namespace PowerProfiles {
@@ -46,9 +46,7 @@ export namespace PowerProfiles {
 
 		export function Asus() {
 			const mode = createBinding(asusctl, "mode")
-			const mode_icon = mode.as((m) =>
-				get_mapped_icon(icons.asusctl.mode as icon_map, m),
-			)
+			const mode_icon = mode.as((m) => get_mapped_icon(icons.asusctl.mode, m))
 			return (
 				<image
 					iconName={mode_icon}
@@ -74,7 +72,7 @@ export namespace PowerProfiles {
 			if (window.visible && GLib.find_program_in_path("asusctl") !== null)
 				void asusctl
 					.refresh()
-					.then((result) => log_error(result, "powerProfiles.refresh:"))
+					.then((result) => log_error(result, "power_profiles.refresh:"))
 		})
 		onCleanup(unsubscribe)
 		return (
@@ -84,9 +82,7 @@ export namespace PowerProfiles {
 		)
 	}
 
-	type icon_map = Record<string, string | undefined>
-
-	interface profile_provider {
+	type profile_provider = {
 		active: Accessor<string>
 		select: (profile: string) => void
 		profiles: () => string[]
@@ -96,7 +92,7 @@ export namespace PowerProfiles {
 		toggle_defaults: () => [string, string]
 	}
 
-	function get_mapped_icon(map: icon_map, key: string) {
+	function get_mapped_icon(map: Record<string, string>, key: string) {
 		return map[key] || icons.missing
 	}
 
@@ -105,16 +101,16 @@ export namespace PowerProfiles {
 		select: (profile) =>
 			void asusctl
 				.set_profile(profile)
-				.then((result) => log_error(result, "powerProfiles.select:")),
+				.then((result) => log_error(result, "power_profiles.select:")),
 		profiles: () => asusctl.profiles,
-		icon: (p) => get_mapped_icon(icons.asusctl.profile as icon_map, p),
+		icon: (p) => get_mapped_icon(icons.asusctl.profile, p),
 		label: (p) => p,
 		extra_settings: () => (
 			<SettingsButton
 				callback={() => {
 					if (notify_missing_programs("rog-control-center"))
 						void launch_program(["rog-control-center"]).then((result) =>
-							log_error(result, "powerProfiles: Could not open settings"),
+							log_error(result, "power_profiles: Could not open settings"),
 						)
 				}}
 			/>
@@ -122,50 +118,57 @@ export namespace PowerProfiles {
 		toggle_defaults: () => ["Quiet", "Balanced"],
 	}
 
-	function prettify(str: string) {
-		return str
+	function prettify(name: string) {
+		return name
 			.split("-")
-			.map((str) => `${str.at(0)?.toUpperCase()}${str.slice(1)}`)
+			.map((word) => `${word.at(0)?.toUpperCase()}${word.slice(1)}`)
 			.join(" ")
 	}
 
-	const get_power_provider = (): profile_provider | undefined => {
-		const result = attempt((): profile_provider | undefined => {
+	function preferred(available: string[], wanted: string, fallback: string) {
+		return available.includes(wanted) ? wanted : fallback
+	}
+
+	function power_toggle_defaults(available: string[]): [string, string] {
+		const off = preferred(available, "balanced", available[0] ?? "balanced")
+		const other = available.find((profile) => profile !== off) ?? off
+		return [preferred(available, "power-saver", other), off]
+	}
+
+	function daemon_provider(
+		power_profiles: AstalPowerProfiles.PowerProfiles,
+	): profile_provider {
+		const profiles = () =>
+			unwrap_or(
+				attempt(() =>
+					power_profiles.get_profiles().map((item) => item.profile),
+				),
+				[],
+				"power_profiles.profiles:",
+			)
+		return {
+			active: createBinding(power_profiles, "activeProfile"),
+			profiles,
+			select: (profile) => {
+				log_error(
+					attempt(() => power_profiles.set_active_profile(profile)),
+					"power_profiles.select:",
+				)
+			},
+			icon: (p) => get_mapped_icon(icons.powerprofile, p),
+			label: prettify,
+			toggle_defaults: () => power_toggle_defaults(profiles()),
+		}
+	}
+
+	function get_power_provider(): profile_provider | undefined {
+		const created = attempt(() => {
 			const power_profiles = power_profile_service.peek()
 			if (!power_profiles) return undefined
 			if (!power_profiles.get_version()) return undefined
-			const profiles = () =>
-				unwrap_or(
-					attempt(() =>
-						power_profiles.get_profiles().map((item) => item.profile),
-					),
-					[],
-					"powerProfiles.profiles:",
-				)
-			return {
-				active: createBinding(power_profiles, "activeProfile"),
-				profiles,
-				select: (profile) => {
-					log_error(
-						attempt(() => power_profiles.set_active_profile(profile)),
-						"powerProfiles.select:",
-					)
-				},
-				icon: (p) => get_mapped_icon(icons.powerprofile as icon_map, p),
-				label: (p) => prettify(p),
-				toggle_defaults: () => {
-					const available = profiles()
-					const off = available.includes("balanced")
-						? "balanced"
-						: (available[0] ?? "balanced")
-					const on = available.includes("power-saver")
-						? "power-saver"
-						: (available.find((profile) => profile !== off) ?? off)
-					return [on, off]
-				},
-			}
+			return daemon_provider(power_profiles)
 		})
-		return unwrap_or(result, undefined, "powerProfiles.provider:")
+		return unwrap_or(created, undefined, "power_profiles.provider:")
 	}
 
 	function make_toggle(provider: profile_provider) {
@@ -218,7 +221,7 @@ export namespace PowerProfiles {
 				name="profile-selector"
 				iconName={active.as((p) => provider.icon(p))}
 				title="Profiles"
-				headerChild={<SleepInhibitToggle />}
+				header_child={<SleepInhibitToggle />}
 			>
 				<box orientation={VERTICAL} hexpand>
 					{profiles.map((p) => (
@@ -271,38 +274,38 @@ export namespace PowerProfiles {
 		createState<AstalPowerProfiles.PowerProfiles | null>(null)
 	const [power_revision, set_power_revision] = createState(0)
 	let power_handlers: number[] = []
+
+	function bump_power_revision() {
+		set_power_revision((revision) => revision + 1)
+	}
+
+	function attach_power_profiles() {
+		const created = attempt(() => new AstalPowerProfiles.PowerProfiles())
+		if (!log_error(created, "power_profiles.connect:")) return
+		const current = created.value
+		const version = attempt(() => current.get_version())
+		if (!log_error(version, "power_profiles.version:")) return
+		power_handlers = [
+			current.connect("notify::version", bump_power_revision),
+			current.connect("notify::profiles", bump_power_revision),
+		]
+		set_power_profile_service(current)
+	}
+
+	function detach_power_profiles() {
+		const current = power_profile_service.peek()
+		if (current)
+			for (const handler of power_handlers) current.disconnect(handler)
+		power_handlers = []
+		set_power_profile_service(null)
+	}
+
 	const watch = Gio.bus_watch_name(
 		Gio.BusType.SYSTEM,
 		"org.freedesktop.UPower.PowerProfiles",
 		Gio.BusNameWatcherFlags.NONE,
-		() => {
-			const created = attempt(() => new AstalPowerProfiles.PowerProfiles())
-			if (!log_error(created, "powerProfiles.connect:")) return
-			const current = created.value
-			if (
-				!log_error(
-					attempt(() => current.get_version()),
-					"powerProfiles.version:",
-				)
-			)
-				return
-			power_handlers = [
-				current.connect("notify::version", () =>
-					set_power_revision((revision) => revision + 1),
-				),
-				current.connect("notify::profiles", () =>
-					set_power_revision((revision) => revision + 1),
-				),
-			]
-			set_power_profile_service(current)
-		},
-		() => {
-			const current = power_profile_service.peek()
-			if (current)
-				for (const handler of power_handlers) current.disconnect(handler)
-			power_handlers = []
-			set_power_profile_service(null)
-		},
+		attach_power_profiles,
+		detach_power_profiles,
 	)
 	app.connect("shutdown", () => Gio.bus_unwatch_name(watch))
 	const provider = createComputed(() => {

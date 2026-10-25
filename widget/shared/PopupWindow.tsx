@@ -4,22 +4,28 @@ import GObject from "ags/gobject"
 
 import Graphene from "gi://Graphene"
 
-import { is_accessor, type Props } from "$lib/ui"
+import {
+	is_accessor,
+	peek_value,
+	read_value,
+	type maybe_accessor,
+	type props,
+} from "$lib/ui"
 
 import options from "$shell/options"
 
 type vertical_position = "top" | "center" | "bottom"
 type horizontal_position = "left" | "center" | "right"
-export type Position = `${vertical_position}-${horizontal_position}` | "center"
+export type position = `${vertical_position}-${horizontal_position}` | "center"
 
 export function create_popup_position(
 	bar: Accessor<string>,
 	popup: Accessor<string>,
-): Accessor<Position> {
+): Accessor<position> {
 	return createComputed(() => {
 		const vertical = bar().split("-")[0]
 		const horizontal = popup().split("-").pop() ?? "center"
-		return `${vertical}-${horizontal}` as Position
+		return `${vertical}-${horizontal}` as position
 	})
 }
 
@@ -29,7 +35,7 @@ const { SLIDE_UP, SLIDE_DOWN, SLIDE_LEFT, SLIDE_RIGHT, CROSSFADE } =
 const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 const { ON_DEMAND } = Astal.Keymode
 const { IGNORE } = Astal.Exclusivity
-const { TOP: LAYER_TOP } = Astal.Layer
+const { TOP: layer_top } = Astal.Layer
 const { KEY_Escape } = Gdk
 
 export function PopupWindow({
@@ -42,14 +48,14 @@ export function PopupWindow({
 	keymode = ON_DEMAND,
 	anchor = TOP | BOTTOM | LEFT | RIGHT,
 	exclusivity = IGNORE,
-	layer = LAYER_TOP,
-	handleClosing: handle_closing = true,
+	layer = layer_top,
+	handle_closing = true,
 	onKey: on_key,
 	children,
 	$,
 	...props
-}: Props<PopupWindowImpl, popup_props> & {
-	handleClosing?: boolean
+}: props<PopupWindowImpl, popup_props> & {
+	handle_closing?: boolean
 	onKey?: (
 		controller: Gtk.EventControllerKey,
 		keyval: number,
@@ -62,26 +68,30 @@ export function PopupWindow({
 	let window: PopupWindowImpl
 	let visibility_unsubscribe: (() => void) | undefined
 
-	const alignment = createComputed(() => get_position_config(layout))
-	const initial_visible = is_accessor<boolean>(visible)
-		? visible.peek()
-		: visible
-	const classes = createComputed(() => {
-		const window_name = is_accessor<string>(name) ? name() : name
-		const name_class = is_accessor<string>(class_name)
-			? class_name()
-			: class_name
-		return `popup-window${window_name ? ` ${window_name}` : ""}${name_class ? ` ${name_class}` : ""}`
-	})
+	const alignment = createComputed(() =>
+		get_position_config(read_value(layout)),
+	)
+	const initial_visible = peek_value(visible)
+	const classes = createComputed(() =>
+		["popup-window", read_value(name), read_value(class_name)]
+			.filter(Boolean)
+			.join(" "),
+	)
 
-	const pick_alignment = <K extends keyof align_config>(key: K) => {
-		return alignment.as((config) => config[key])
-	}
+	const pick_alignment = <K extends keyof align_config>(key: K) =>
+		alignment.as((config) => config[key])
 
 	onCleanup(() => {
 		visibility_unsubscribe?.()
 		window?.perform_hide()
 	})
+
+	function close_on_outside_click(x: number, y: number) {
+		if (!handle_closing || !content) return
+		const [valid, rect] = content.compute_bounds(window)
+		if (!valid || rect.contains_point(new Graphene.Point({ x, y }))) return
+		window.hide()
+	}
 
 	return (
 		<RegisteredPopupWindow
@@ -110,13 +120,9 @@ export function PopupWindow({
 				}}
 			/>
 			<Gtk.GestureClick
-				onPressed={(_controller, _press_count, x, y) => {
-					if (handle_closing && content) {
-						const [valid, rect] = content.compute_bounds(window)
-						if (valid && !rect.contains_point(new Graphene.Point({ x, y })))
-							window.hide()
-					}
-				}}
+				onPressed={(_controller, _press_count, x, y) =>
+					close_on_outside_click(x, y)
+				}
 			/>
 
 			<Gtk.Revealer
@@ -129,19 +135,14 @@ export function PopupWindow({
 						!self.get_child_revealed() &&
 						!self.get_reveal_child() &&
 						!window.requested_visible
-					) {
+					)
 						window.perform_hide()
-					}
 				}}
 				$={(self) => {
 					onMount(() => {
 						content = self
 						window.revealer = self
-						if (window.get_visible()) {
-							self.set_opacity(1)
-							self.get_child()?.set_opacity(1)
-							self.set_reveal_child(true)
-						}
+						if (window.get_visible()) window.reveal_content()
 					})
 				}}
 			>
@@ -157,7 +158,7 @@ type align_config = {
 	transition_type: Gtk.RevealerTransitionType
 }
 
-const position_config: Record<Position, align_config> = {
+const position_config: Record<position, align_config> = {
 	center: { halign: CENTER, valign: CENTER, transition_type: CROSSFADE },
 	"top-left": { halign: START, valign: START, transition_type: SLIDE_DOWN },
 	"top-center": { halign: CENTER, valign: START, transition_type: SLIDE_DOWN },
@@ -178,7 +179,7 @@ const position_config: Record<Position, align_config> = {
 	"bottom-right": { halign: END, valign: END, transition_type: SLIDE_UP },
 }
 
-function is_position(value: unknown): value is Position {
+function is_position(value: unknown): value is position {
 	return (
 		typeof value === "string" &&
 		Object.prototype.hasOwnProperty.call(position_config, value)
@@ -186,13 +187,13 @@ function is_position(value: unknown): value is Position {
 }
 
 function get_position_config(value: unknown): align_config {
-	if (is_accessor<unknown>(value)) return get_position_config(value())
-	return is_position(value) ? position_config[value] : position_config.center
+	if (!is_position(value)) return position_config.center
+	return position_config[value]
 }
 
-interface popup_props extends Astal.Window.ConstructorProps {
+type popup_props = Astal.Window.ConstructorProps & {
 	children: JSX.Element | Array<JSX.Element>
-	layout?: Position | Accessor<Position>
+	layout?: maybe_accessor<position>
 	transitionType?: Gtk.RevealerTransitionType
 }
 
@@ -202,27 +203,25 @@ class PopupWindowImpl extends Astal.Window {
 
 	set_requested_visible(visible: boolean) {
 		this.requested_visible = visible
-		if (visible) {
-			this.show()
-			this.reset_revealer_opacity()
-			this.revealer?.set_reveal_child(true)
-		} else {
+		if (!visible) {
 			this.hide()
+			return
 		}
+		this.show()
+		this.reveal_content()
 	}
 
-	private reset_revealer_opacity() {
+	reveal_content() {
 		if (!this.revealer) return
 		this.revealer.set_opacity(1)
-		const child = this.revealer.get_child()
-		child?.set_opacity(1)
+		this.revealer.get_child()?.set_opacity(1)
+		this.revealer.set_reveal_child(true)
 	}
 
 	override vfunc_show() {
 		this.requested_visible = true
 		super.vfunc_show()
-		this.reset_revealer_opacity()
-		this.revealer?.set_reveal_child(true)
+		this.reveal_content()
 	}
 
 	override vfunc_hide() {

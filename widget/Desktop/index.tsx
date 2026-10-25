@@ -19,8 +19,10 @@ import {
 	get_desktop_grid,
 	resize_desktop_grid,
 	set_desktop_monitors,
-} from "./Desktop"
-import { get_desktop_icon_metrics, get_grid_metrics } from "./GridGeometry"
+} from "./desktop"
+import { get_desktop_icon_metrics, get_grid_metrics } from "./grid_geometry"
+
+const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 
 function match_monitor(
 	monitor: Gdk.Monitor,
@@ -77,6 +79,16 @@ function desktop_padding() {
 	return { top, right: 0, bottom, left }
 }
 
+function cursor_over(client: AstalHyprland.Client): boolean {
+	const cursor = hyprland.cursorPosition
+	return (
+		cursor.x >= client.x &&
+		cursor.x < client.x + client.width &&
+		cursor.y >= client.y &&
+		cursor.y < client.y + client.height
+	)
+}
+
 export namespace Desktop {
 	export const ContextMenuWindow = DesktopContextMenu
 
@@ -97,7 +109,8 @@ export namespace Desktop {
 				monitor_geometry.width,
 				monitor_geometry.height,
 				desktop_padding(),
-				get_desktop_icon_metrics(options.desktop.iconSize(), ui_scale()).cellPx,
+				get_desktop_icon_metrics(options.desktop.iconSize(), ui_scale())
+					.cell_px,
 				ui_scale(),
 			)
 		})
@@ -135,15 +148,7 @@ export namespace Desktop {
 		const drag = create_desktop_drag_controller(grid)
 		const client_added = hyprland.connect("client-added", (_self, client) => {
 			idle(() => {
-				if (!window?.is_active) return
-				const cursor = hyprland.cursorPosition
-				if (
-					cursor.x >= client.x &&
-					cursor.x < client.x + client.width &&
-					cursor.y >= client.y &&
-					cursor.y < client.y + client.height
-				)
-					void focus_client(client)
+				if (window?.is_active && cursor_over(client)) void focus_client(client)
 			})
 		})
 		onCleanup(() => {
@@ -182,6 +187,4 @@ export namespace Desktop {
 			</window>
 		)
 	}
-
-	const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
 }

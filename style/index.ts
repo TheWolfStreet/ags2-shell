@@ -5,9 +5,9 @@ import GLib from "gi://GLib"
 import env from "$lib/env"
 import { file_exists } from "$lib/files"
 import options, { subscribe_options } from "$shell/options"
-import { build_runtime_css } from "./runtime-css"
+import { build_runtime_css } from "./runtime_css"
 
-const RUNTIME_CSS_DEBOUNCE_MS = 20
+const runtime_css_debounce_ms = 20
 
 let css_file_path = ""
 let reset_css_source_id: number | undefined
@@ -18,6 +18,14 @@ let css_batch_pending = false
 let static_provider: Gtk.CssProvider | undefined
 let runtime_provider: Gtk.CssProvider | undefined
 
+function add_provider(display: Gdk.Display, provider: Gtk.CssProvider) {
+	Gtk.StyleContext.add_provider_for_display(
+		display,
+		provider,
+		Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+	)
+}
+
 function ensure_providers() {
 	if (static_provider) return
 
@@ -25,11 +33,7 @@ function ensure_providers() {
 	if (!display) return
 
 	static_provider = new Gtk.CssProvider()
-	Gtk.StyleContext.add_provider_for_display(
-		display,
-		static_provider,
-		Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-	)
+	add_provider(display, static_provider)
 	load_static_css()
 }
 
@@ -56,11 +60,7 @@ function perform_reset_css() {
 	if (runtime_provider)
 		Gtk.StyleContext.remove_provider_for_display(display, runtime_provider)
 	runtime_provider = next_provider
-	Gtk.StyleContext.add_provider_for_display(
-		display,
-		runtime_provider,
-		Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-	)
+	add_provider(display, runtime_provider)
 	last_runtime_css_content = runtime_css_content
 }
 
@@ -74,7 +74,7 @@ function reset_css() {
 
 	reset_css_source_id = GLib.timeout_add(
 		GLib.PRIORITY_DEFAULT,
-		RUNTIME_CSS_DEBOUNCE_MS,
+		runtime_css_debounce_ms,
 		() => {
 			reset_css_source_id = undefined
 			perform_reset_css()
@@ -91,10 +91,9 @@ export function end_css_batch() {
 	if (css_batch_depth <= 0) return
 
 	css_batch_depth -= 1
-	if (css_batch_depth === 0 && css_batch_pending) {
-		css_batch_pending = false
-		reset_css()
-	}
+	if (css_batch_depth > 0 || !css_batch_pending) return
+	css_batch_pending = false
+	reset_css()
 }
 
 function watch_static_css() {
