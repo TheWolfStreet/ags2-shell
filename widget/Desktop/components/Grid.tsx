@@ -20,6 +20,7 @@ import {
 	find_paths_intersecting_rectangle,
 	get_desktop_icon_metrics,
 	slot_index_to_rect,
+	tab_order_target,
 	type SlotRect,
 } from "../GridGeometry"
 import options, { ui_scale } from "$shell/options"
@@ -34,9 +35,11 @@ const {
 	KEY_Delete,
 	KEY_Escape,
 	KEY_F2,
+	KEY_ISO_Left_Tab,
 	KEY_Return,
 	KEY_Shift_L,
 	KEY_Shift_R,
+	KEY_Tab,
 	KEY_V,
 	KEY_X,
 	KEY_a,
@@ -130,6 +133,16 @@ function key_pressed(
 		)
 		return true
 	}
+	if (key === KEY_Tab || key === KEY_ISO_Left_Tab) {
+		const target = tab_order_target(
+			grid.files,
+			grid.positions,
+			paths,
+			key === KEY_ISO_Left_Tab || (state & ModifierType.SHIFT_MASK) !== 0,
+		)
+		if (target) desktop_interaction.select([target])
+		return true
+	}
 	if (key === KEY_Return) {
 		if (paths.length === 1) open_desktop_files(paths)
 		return true
@@ -145,7 +158,9 @@ export function attach_desktop_keyboard(
 	window: Gtk.Window,
 	grid: Accessor<DesktopGridData>,
 ): void {
-	const controller = new Gtk.EventControllerKey()
+	const controller = new Gtk.EventControllerKey({
+		propagation_phase: Gtk.PropagationPhase.CAPTURE,
+	})
 	controller.connect("key-pressed", (_self, key, _code, state) =>
 		key_pressed(grid.peek(), key, state),
 	)

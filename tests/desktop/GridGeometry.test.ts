@@ -8,6 +8,7 @@ import {
 	move_paths_to_slot,
 	reconcile_grid_positions,
 	remap_slots_across_columns,
+	tab_order_target,
 } from "../../widget/Desktop/GridGeometry.ts"
 
 test("reconciliation fills available slots without collisions after a resize", () => {
@@ -61,4 +62,21 @@ test("single-icon moves swap with occupants without losing either position", () 
 		one: 0,
 		two: 1,
 	})
+})
+
+test("Tab walks icons in slot order, wraps, and Shift+Tab walks back", () => {
+	const files = [{ path: "c" }, { path: "a" }, { path: "b" }, { path: "loose" }]
+	const positions = { a: 0, b: 1, c: 5 }
+	const step = (selected: string[], backwards = false) =>
+		tab_order_target(files, positions, selected, backwards)
+	assert.equal(step([]), "a")
+	assert.equal(step([], true), "loose")
+	assert.equal(step(["a"]), "b")
+	assert.equal(step(["b"]), "c")
+	assert.equal(step(["c"]), "loose")
+	assert.equal(step(["loose"]), "a")
+	assert.equal(step(["a"], true), "loose")
+	assert.equal(step(["c", "a"]), "b")
+	assert.equal(step(["gone"]), "a")
+	assert.equal(tab_order_target([], {}, [], false), null)
 })

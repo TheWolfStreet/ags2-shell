@@ -178,6 +178,27 @@ export function find_paths_intersecting_rectangle(
 	return selected_paths
 }
 
+export function tab_order_target(
+	file_list: grid_item[],
+	positions: Record<string, number>,
+	selected: readonly string[],
+	backwards: boolean,
+): string | null {
+	const order = file_list
+		.map((file, index) => ({
+			path: file.path,
+			slot: positions[file.path] ?? Number.MAX_SAFE_INTEGER,
+			index,
+		}))
+		.sort((a, b) => a.slot - b.slot || a.index - b.index)
+		.map((entry) => entry.path)
+	if (order.length === 0) return null
+	const current = order.indexOf(selected[selected.length - 1] ?? "")
+	if (current < 0) return backwards ? order[order.length - 1] : order[0]
+	const step = backwards ? order.length - 1 : 1
+	return order[(current + step) % order.length]
+}
+
 export function nearest_slot_index_for_point(
 	x: number,
 	y: number,
