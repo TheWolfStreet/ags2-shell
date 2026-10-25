@@ -2,6 +2,7 @@ import {
 	type Accessor,
 	createBinding,
 	createComputed,
+	createMemo,
 	createState,
 	onCleanup,
 } from "ags"
@@ -159,12 +160,19 @@ export function subscribe_client_placement(callback: () => void) {
 export function create_workspace_clients(workspace_id: number) {
 	install_placement_tracker()
 	const clients = createBinding(hyprland, "clients")
-	return createComputed(() => {
-		client_placement_version()
-		return filter_valid_window_clients(clients() ?? []).filter(
-			(client) => get_client_workspace_id(client) === workspace_id,
-		)
-	})
+	return createMemo(
+		() => {
+			client_placement_version()
+			return filter_valid_window_clients(clients() ?? []).filter(
+				(client) => get_client_workspace_id(client) === workspace_id,
+			)
+		},
+		{
+			equals: (previous, next) =>
+				previous.length === next.length &&
+				previous.every((client, index) => client === next[index]),
+		},
+	)
 }
 
 function sort_by_workspace(clients: AstalHyprland.Client[]) {
