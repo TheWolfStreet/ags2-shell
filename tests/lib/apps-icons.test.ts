@@ -4,6 +4,7 @@ import test from "node:test"
 import { SourceTextModule, SyntheticModule } from "node:vm"
 import ts from "../typescript.ts"
 import { with_hyprland_command } from "../hyprland.ts"
+import * as lua from "../../lib/lua.ts"
 
 function application(entry, name, wm_class, executable, icon) {
 	return {
@@ -32,6 +33,7 @@ async function matcher() {
 			"gi://GioUnix": { default: {} },
 			"gi://GLib": { default: {} },
 			"$lib/hyprland": with_hyprland_command({ hyprland: {} }),
+			"$lib/lua": lua,
 			"$lib/result": {
 				attempt: () => {},
 				attempt_async: () => {},

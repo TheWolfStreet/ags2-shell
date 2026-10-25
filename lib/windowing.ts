@@ -13,7 +13,8 @@ import AstalHyprland from "gi://AstalHyprland"
 import giCairo from "cairo"
 
 import { hyprland, hyprland_command } from "$lib/hyprland"
-import { attempt, err, log_error, type Result } from "$lib/result"
+import { lua_string } from "$lib/lua"
+import { err, log_error, ok, type Result } from "$lib/result"
 
 const { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_MIDDLE } = Gdk
 
@@ -183,45 +184,73 @@ function filter_window_clients_for_workspace(
 	)
 }
 
+type client_reference = AstalHyprland.Client | string | null | undefined
+
+function client_window(client: client_reference): Result<string> {
+	const raw =
+		typeof client === "string"
+			? client
+			: (client?.get_address?.() ?? client?.address)
+	const address = String(raw ?? "").trim()
+	if (!address) return err(new Error("Client has no address"))
+	return ok(
+		lua_string(
+			`address:${address.startsWith("0x") ? address : `0x${address}`}`,
+		),
+	)
+}
+
+async function dispatch_to_client(
+	client: client_reference,
+	dispatcher: (window: string) => string,
+	context: string,
+): Promise<Result<void>> {
+	const window = client_window(client)
+	const result = window.ok
+		? await hyprland_command(`dispatch ${dispatcher(window.value)}`)
+		: window
+	log_error(result, context)
+	return result
+}
+
+export function focus_client(client: client_reference) {
+	return dispatch_to_client(
+		client,
+		(window) => `hl.dsp.focus({ window = ${window} })`,
+		"windowing.focus: Failed to focus client",
+	)
+}
+
+export function close_client(client: client_reference) {
+	return dispatch_to_client(
+		client,
+		(window) => `hl.dsp.window.close({ window = ${window} })`,
+		"windowing.close: Failed to close client",
+	)
+}
+
 export async function focus_client_and_toggle_fullscreen(
 	client: AstalHyprland.Client,
 ): Promise<Result<void>> {
-	const focused = attempt(() => client.focus())
-	if (!log_error(focused, "windowing.fullscreen: Failed to focus client"))
-		return focused
-	const result = await hyprland_command("dispatch fullscreen")
-	log_error(result, "windowing.fullscreen: Failed to toggle fullscreen")
-	return result
-}
-
-function normalize_client_address(value: string | null | undefined) {
-	if (!value) return null
-
-	const raw = String(value).trim()
-	if (!raw) return null
-	return raw.startsWith("0x") ? raw : `0x${raw}`
-}
-
-export async function move_client_to_workspace_silent(
-	workspace_id: number,
-	client_or_address: AstalHyprland.Client | string | null | undefined,
-): Promise<Result<void>> {
-	const raw_address =
-		typeof client_or_address === "string"
-			? client_or_address
-			: (client_or_address?.get_address?.() ?? client_or_address?.address)
-
-	const address = normalize_client_address(raw_address)
-	if (!address) {
-		const invalid = err(new Error("Client has no address"))
-		log_error(invalid, "windowing.move: Failed to move client")
-		return invalid
-	}
-	const result = await hyprland_command(
-		`dispatch movetoworkspacesilent ${workspace_id},address:${address}`,
+	const focused = await focus_client(client)
+	if (!focused.ok) return focused
+	return dispatch_to_client(
+		client,
+		(window) => `hl.dsp.window.fullscreen({ window = ${window} })`,
+		"windowing.fullscreen: Failed to toggle fullscreen",
 	)
-	log_error(result, "windowing.move: Failed to move client")
-	return result
+}
+
+export function move_client_to_workspace_silent(
+	workspace_id: number,
+	client: client_reference,
+): Promise<Result<void>> {
+	return dispatch_to_client(
+		client,
+		(window) =>
+			`hl.dsp.window.move({ workspace = ${workspace_id}, follow = false, window = ${window} })`,
+		"windowing.move: Failed to move client",
+	)
 }
 
 export function dispatch_client_button_action(

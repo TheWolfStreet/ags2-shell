@@ -111,9 +111,11 @@ async function fixture() {
 			ok: () => {},
 		},
 		"$lib/windowing": {
+			close_client: () => {},
 			create_window_client_list: () => accessor(() => running),
 			create_client_title_accessor: (value) => accessor(() => value.title),
 			focused_window_client: accessor(() => null),
+			focus_client: () => {},
 			focus_client_and_toggle_fullscreen: () => {},
 			dispatch_client_button_action: () => {},
 		},
@@ -134,6 +136,7 @@ async function fixture() {
 	}
 	const paths = {
 		"$lib/apps": "../../lib/apps.ts",
+		"$lib/lua": "../../lib/lua.ts",
 		"widget/shared/ApplicationIcon": "../../widget/shared/ApplicationIcon.tsx",
 	}
 	const modules = new Map()

@@ -7,9 +7,11 @@ import AstalHyprland from "gi://AstalHyprland"
 
 import icons from "$lib/icons"
 import {
+	close_client,
 	create_window_client_list,
 	dispatch_client_button_action,
 	focused_window_client,
+	focus_client,
 	focus_client_and_toggle_fullscreen,
 } from "$lib/windowing"
 import { launch_app, match_client_app } from "$lib/apps"
@@ -202,7 +204,7 @@ function GroupedIcon({
 			)
 			if (current_index >= 0) next_index = (current_index + 1) % clients.length
 		}
-		clients[next_index].focus()
+		void focus_client(clients[next_index])
 	}
 
 	return (
@@ -226,7 +228,8 @@ function GroupedIcon({
 						dispatch_client_button_action(gesture.get_current_button(), {
 							primary: focus_next,
 							secondary: () => focus_client_and_toggle_fullscreen(clients[0]),
-							middle: () => clients.forEach((client) => client.kill()),
+							middle: () =>
+								clients.forEach((client) => void close_client(client)),
 						})
 						gesture.reset()
 					}}

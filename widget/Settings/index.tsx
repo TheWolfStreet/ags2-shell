@@ -5,7 +5,8 @@ import { Gtk } from "ags/gtk4"
 import { create_pages } from "./components/Pages"
 
 import icons from "$lib/icons"
-import { hyprland } from "$lib/hyprland"
+import { hyprland, hyprland_command } from "$lib/hyprland"
+import { log_error } from "$lib/result"
 
 import options, { collect_options } from "$shell/options"
 
@@ -22,9 +23,10 @@ export namespace Settings {
 					if (settings?.visible) {
 						const workspace = hyprland.focusedWorkspace?.id
 						if (workspace != null)
-							hyprland.dispatch(
-								"movetoworkspace",
-								`${workspace},title:^(Settings)$`,
+							void hyprland_command(
+								`dispatch hl.dsp.window.move({ workspace = ${workspace}, window = "title:^(Settings)$" })`,
+							).then((result) =>
+								log_error(result, "settings: Failed to move window"),
 							)
 					} else {
 						settings?.show()

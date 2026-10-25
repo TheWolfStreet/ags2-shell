@@ -98,6 +98,10 @@ async function fixture({
 		"$lib/result": result,
 		"$lib/time": { debounce: () => ({ call: () => {}, cancel: () => {} }) },
 		"$lib/windowing": {
+			focus_client: async (target) => {
+				target.focus()
+				return { ok: true, value: undefined }
+			},
 			get_client_workspace_id: (client) => client.workspace?.id ?? null,
 			move_client_to_workspace_silent: (...args: Parameters<typeof move>) =>
 				move(...args),

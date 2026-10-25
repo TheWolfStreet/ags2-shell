@@ -25,7 +25,7 @@ A GTK4 desktop shell for Hyprland, built with AGS v3 and Astal. It provides a ba
 ### Core
 
 - AGS v3, Astal, GTK4, and GTK4 Layer Shell
-- A running Hyprland session with working IPC and a correctly exported graphical-session environment
+- A running Hyprland 0.56 or newer session configured through `hyprland.lua`, with working IPC and a correctly exported graphical-session environment; the shell sends Lua `eval` and `dispatch` requests, which Hyprland rejects under the legacy `hyprland.conf` format
 - A user D-Bus session and writable dconf/GSettings state
 - No competing notification daemon; ags2-shell needs to own `org.freedesktop.Notifications` and warns when another process owns it
 
@@ -130,28 +130,34 @@ journalctl --user -u ags.service -b
 The AGS CLI flags belong to the `toggle` and `request` subcommands. The following bindings use the shell's `ags2-shell` instance name:
 
 ```nix
-wayland.windowManager.hyprland.settings = {
-  bind = let
-    toggle = "exec, ags toggle --instance ags2-shell";
-    request = "exec, ags request --instance ags2-shell";
-  in [
-    "CTRL ALT, Delete,   exec, systemctl --user restart ags.service"
-    "SUPER, R,           ${toggle} launcher"
-    "SUPER, Tab,         ${toggle} overview"
-    "SUPER SHIFT, R,     ${toggle} quicksettings"
-    ",XF86PowerOff,      ${request} shutdown"
-    "SUPER, Print,       ${request} record-area"
-    "SUPER SHIFT, Print, ${request} record"
-    ", Print,            ${request} screenshot-area"
-    "SHIFT, Print,       ${request} screenshot"
-  ];
+wayland.windowManager.hyprland = {
+  configType = "lua";
+  settings = {
+    bind = let
+      exec = command: lib.generators.mkLuaInline "hl.dsp.exec_cmd(${lib.generators.toLua {} command})";
+      toggle = window: exec "ags toggle --instance ags2-shell ${window}";
+      request = action: exec "ags request --instance ags2-shell ${action}";
+    in
+      map (bind: {_args = bind;}) [
+        ["CTRL + ALT + Delete" (exec "systemctl --user restart ags.service")]
+        ["SUPER + R" (toggle "launcher")]
+        ["SUPER + Tab" (toggle "overview")]
+        ["SUPER + SHIFT + R" (toggle "quicksettings")]
+        ["XF86PowerOff" (request "shutdown")]
+        ["SUPER + Print" (request "record-area")]
+        ["SUPER + SHIFT + Print" (request "record")]
+        ["Print" (request "screenshot-area")]
+        ["SHIFT + Print" (request "screenshot")]
+      ];
 
-  layerrule = [
-    "blur on, match:namespace gtk4-layer-shell"
-    "blur_popups on, match:namespace gtk4-layer-shell"
-    "ignore_alpha 0.29, match:namespace gtk4-layer-shell"
-    "no_anim on, match:namespace gtk4-layer-shell"
-  ];
+    layer_rule = {
+      match.namespace = "gtk4-layer-shell";
+      blur = true;
+      blur_popups = true;
+      ignore_alpha = 0.29;
+      no_anim = true;
+    };
+  };
 };
 ```
 
@@ -226,8 +232,10 @@ Set `PREFIX`, `BINDIR`, `LIBEXECDIR`, or `DATADIR` to override individual instal
 
 Ensure the selected `bin` directory is in `PATH`, then add the shell to Hyprland autostart:
 
-```ini
-exec-once = ags2-shell
+```lua
+hl.on("hyprland.start", function()
+  hl.exec_cmd("ags2-shell")
+end)
 ```
 
 The control commands and Hyprland bindings documented above work unchanged because the native AGS installation provides the `ags` CLI.

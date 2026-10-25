@@ -202,7 +202,10 @@ async function fixture() {
 		},
 		"./components/ContextMenu": { DesktopContextMenu: () => null },
 		"./DragAndDrop": { create_desktop_drag_controller: () => ({}) },
-		"$lib/windowing": { schedule_monitor_window_release: () => {} },
+		"$lib/windowing": {
+			focus_client: () => {},
+			schedule_monitor_window_release: () => {},
+		},
 		"$lib/ui": { font_size: () => 11 },
 		"widget/Dock": { dock_window_thickness: () => 0 },
 		"$lib/hyprland": with_hyprland_command({ hyprland }),

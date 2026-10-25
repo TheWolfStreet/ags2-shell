@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import { stripTypeScriptTypes } from "node:module"
 import { test } from "node:test"
 import { with_hyprland_command } from "../hyprland.ts"
+import * as lua from "../../lib/lua.ts"
 import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
 
 const results = {
@@ -125,6 +126,7 @@ test("launch uses argv quoting and returns dispatch failure instead of hiding it
 				},
 			},
 		}),
+		"$lib/lua": lua,
 		"$lib/result": results,
 	})
 	assert.equal(
@@ -133,7 +135,7 @@ test("launch uses argv quoting and returns dispatch failure instead of hiding it
 	)
 	assert.equal(
 		commands[0],
-		"dispatch exec 'program' 'file with space' 'quote'\\'''",
+		`dispatch hl.dsp.exec_cmd("'program' 'file with space' 'quote'\\\\'''")`,
 	)
 	response = "Invalid dispatcher"
 	assert.equal((await module.launch_program(["program"])).ok, false)

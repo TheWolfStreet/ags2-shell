@@ -12,8 +12,10 @@ import { PanelButton } from "../PanelButton"
 import { hyprland, hyprland_command } from "$lib/hyprland"
 import { attempt, log_error } from "$lib/result"
 import {
+	close_client,
 	create_client_title_accessor,
 	create_workspace_clients,
+	focus_client,
 	focused_window_client,
 	move_client_to_workspace_silent,
 	on_window_toggle,
@@ -334,7 +336,7 @@ export namespace Overview {
 				tooltipText={title}
 				heightRequest={scaled_height}
 				widthRequest={scaled_width}
-				onClicked={() => client.focus()}
+				onClicked={() => void focus_client(client)}
 				$={setup_client_widget_lifecycle}
 			>
 				<image
@@ -351,7 +353,7 @@ export namespace Overview {
 				<Gtk.GestureClick
 					button={Gdk.BUTTON_MIDDLE}
 					onPressed={(self) => {
-						client.kill()
+						void close_client(client)
 						self.reset()
 					}}
 				/>
@@ -399,12 +401,10 @@ export namespace Overview {
 				css={css}
 				valign={CENTER}
 				onClicked={() =>
-					void hyprland_command(`dispatch workspace ${workspace_id}`).then(
-						(result) =>
-							log_error(
-								result,
-								"overview.workspace: Failed to switch workspace",
-							),
+					void hyprland_command(
+						`dispatch hl.dsp.focus({ workspace = ${workspace_id} })`,
+					).then((result) =>
+						log_error(result, "overview.workspace: Failed to switch workspace"),
 					)
 				}
 			>

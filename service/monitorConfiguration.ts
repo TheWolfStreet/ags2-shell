@@ -1,3 +1,5 @@
+import { lua_string } from "$lib/lua"
+
 export type monitor_settings = {
 	name: string
 	width: number
@@ -19,7 +21,13 @@ export function format_monitor_command(
 ): string {
 	const refresh_rate = change.refresh_rate ?? monitor.refreshRate
 	const mirror = change.mirror ?? monitor.mirrorOf
-	const transform = monitor.transform ? `,transform,${monitor.transform}` : ""
-	const source = mirror && mirror !== "none" ? `,mirror,${mirror}` : ""
-	return `keyword monitor ${monitor.name},${monitor.width}x${monitor.height}@${refresh_rate},${monitor.x}x${monitor.y},${monitor.scale}${transform}${source}`
+	const fields = [
+		`output = ${lua_string(monitor.name)}`,
+		`mode = ${lua_string(`${monitor.width}x${monitor.height}@${refresh_rate}`)}`,
+		`position = ${lua_string(`${monitor.x}x${monitor.y}`)}`,
+		`scale = ${monitor.scale}`,
+		`transform = ${monitor.transform}`,
+		`mirror = ${lua_string(mirror || "none")}`,
+	]
+	return `eval hl.monitor({ ${fields.join(", ")} })`
 }

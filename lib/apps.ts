@@ -4,6 +4,7 @@ import GioUnix from "gi://GioUnix"
 import GLib from "gi://GLib"
 
 import { hyprland_command } from "$lib/hyprland"
+import { lua_string } from "$lib/lua"
 import { attempt, err, ok, type Result } from "$lib/result"
 
 export function match_client_app(
@@ -59,7 +60,7 @@ export async function launch_program(
 	if (!argv.length || !argv[0] || argv.some((arg) => arg.includes("\0")))
 		return err(new Error("A program and valid arguments are required"))
 	return hyprland_command(
-		`dispatch exec ${argv.map((arg) => GLib.shell_quote(arg)).join(" ")}`,
+		`dispatch hl.dsp.exec_cmd(${lua_string(argv.map((arg) => GLib.shell_quote(arg)).join(" "))})`,
 	)
 }
 

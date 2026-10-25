@@ -566,7 +566,7 @@ const options = mk_options(
 			labels: true,
 			sleep: "systemctl suspend",
 			reboot: "systemctl reboot",
-			logout: "hyprctl dispatch exit",
+			logout: "hyprctl dispatch 'hl.dsp.exit()'",
 			shutdown: "shutdown now",
 		},
 

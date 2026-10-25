@@ -88,8 +88,10 @@ async function overview_fixture(client: object | null = null) {
 		"$lib/hyprland": with_hyprland_command({ hyprland }),
 		"$lib/result": result,
 		"$lib/windowing": {
+			close_client: (target) => target.kill(),
 			create_client_title_accessor: () => null,
 			create_workspace_clients: () => accessor(() => (client ? [client] : [])),
+			focus_client: (target) => target.focus(),
 			focused_window_client: accessor(() => null),
 			move_client_to_workspace_silent: () => {},
 			on_window_toggle: (_name, callback) => {

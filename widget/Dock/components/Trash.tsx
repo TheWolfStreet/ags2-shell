@@ -15,6 +15,7 @@ import {
 } from "$lib/result"
 import { debounce } from "$lib/time"
 import {
+	focus_client,
 	get_client_workspace_id,
 	move_client_to_workspace_silent,
 } from "$lib/windowing"
@@ -115,9 +116,7 @@ async function open_or_focus_trash(): Promise<Result<void>> {
 			const moved = await move_client_to_workspace_silent(workspace_id, client)
 			if (!moved.ok) return moved
 		}
-		return attempt(() => {
-			client.focus()
-		})
+		return focus_client(client)
 	}
 
 	const launched = attempt(() =>

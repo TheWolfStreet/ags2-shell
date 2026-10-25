@@ -5,7 +5,7 @@ import { idle } from "$lib/time"
 
 import AstalHyprland from "gi://AstalHyprland"
 
-import { schedule_monitor_window_release } from "$lib/windowing"
+import { focus_client, schedule_monitor_window_release } from "$lib/windowing"
 import { font_size } from "$lib/ui"
 import { hyprland } from "$lib/hyprland"
 import options, { surface_scale, ui_scale } from "$shell/options"
@@ -143,7 +143,7 @@ export namespace Desktop {
 					cursor.y >= client.y &&
 					cursor.y < client.y + client.height
 				)
-					client.focus()
+					void focus_client(client)
 			})
 		})
 		onCleanup(() => {

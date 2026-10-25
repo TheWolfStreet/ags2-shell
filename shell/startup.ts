@@ -16,6 +16,7 @@ import { debounce } from "$lib/time"
 import { get_file_size } from "$lib/textures"
 import { max_image_bytes, valid_image_dimensions } from "$lib/files"
 import { hyprland, hyprland_command } from "$lib/hyprland"
+import { lua_string } from "$lib/lua"
 import { wallpaper_path, wallpaper_revision } from "$lib/wallpaper"
 
 import options, { subscribe_options } from "$shell/options"
@@ -159,19 +160,14 @@ function start_hyprland_appearance_sync() {
 
 	const apply_hyprland_appearance = async () => {
 		const gaps = Math.floor(hyprland_options.gaps.peek() * spacing.peek())
-		const rules = [
-			`general:border_size ${width.peek()}`,
-			`general:gaps_out ${gaps}`,
-			`general:gaps_in ${Math.floor(gaps / 2)}`,
-			`general:col.active_border ${rgba(primary())}`,
-			`general:col.inactive_border ${rgba(hyprland_options.inactiveBorder.peek())}`,
-			`decoration:rounding ${roundness.peek()}`,
-			`decoration:shadow:enabled ${shadows.peek() ? "yes" : "no"}`,
-			`decoration:blur:enabled ${blur.peek() ? "true" : "false"}`,
-		]
-		const batch = rules.map((rule) => `keyword ${rule}`).join("; ")
+		const active_border = lua_string(rgba(primary()))
+		const inactive_border = lua_string(
+			rgba(hyprland_options.inactiveBorder.peek()),
+		)
+		const general = `general = { border_size = ${width.peek()}, gaps_out = ${gaps}, gaps_in = ${Math.floor(gaps / 2)}, col = { active_border = ${active_border}, inactive_border = ${inactive_border} } }`
+		const decoration = `decoration = { rounding = ${roundness.peek()}, shadow = { enabled = ${shadows.peek() ? "true" : "false"} }, blur = { enabled = ${blur.peek() ? "true" : "false"} } }`
 		log_error(
-			await hyprland_command(`[[BATCH]]/${batch}`),
+			await hyprland_command(`eval hl.config({ ${general}, ${decoration} })`),
 			"startup.hyprland: Failed to apply appearance",
 		)
 	}

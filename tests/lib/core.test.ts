@@ -4,6 +4,7 @@ import { stripTypeScriptTypes } from "node:module"
 import { test } from "node:test"
 import { with_hyprland_command } from "../hyprland.ts"
 import * as result from "../../lib/result.ts"
+import * as lua from "../../lib/lua.ts"
 import { createContext, SourceTextModule, SyntheticModule } from "node:vm"
 
 async function load(
@@ -793,6 +794,7 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 	let changed
 	let info_checks = 0
 	let sampled = 0
+	const messages: string[] = []
 	const theme = {
 		scheme: option("dark"),
 		dark: colors(),
@@ -862,8 +864,15 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 		"$lib/time": { debounce: (_ms, fn) => ({ call: fn, cancel() {} }) },
 		"$lib/textures": { get_file_size: () => bytes },
 		"$lib/hyprland": with_hyprland_command({
-			hyprland: { connect() {}, message_async: async () => "ok" },
+			hyprland: {
+				connect() {},
+				message_async: async (message) => {
+					messages.push(message)
+					return "ok"
+				},
+			},
 		}),
+		"$lib/lua": lua,
 		"$lib/wallpaper": {
 			wallpaper_path: "/wall",
 			wallpaper_revision: {
@@ -877,7 +886,7 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 			default: {
 				theme,
 				autotheme: { peek: () => true, subscribe() {} },
-				hyprland: { gaps: option(2) },
+				hyprland: { gaps: option(2), inactiveBorder: option("#000000") },
 			},
 			subscribe_options() {},
 		},
@@ -887,6 +896,10 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 	})
 	const started = module.default()
 	assert.equal(started.ok, true, String(started.err))
+	await new Promise((resolve) => setImmediate(resolve))
+	assert.deepEqual(messages, [
+		'eval hl.config({ general = { border_size = 1, gaps_out = 12, gaps_in = 6, col = { active_border = "rgba(123456ff)", inactive_border = "rgba(000000ff)" } }, decoration = { rounding = 12, shadow = { enabled = false }, blur = { enabled = false } } })',
+	])
 	assert.equal(sampled, 1)
 	assert.equal(info_checks, 1)
 	dimensions = [6400, 6400]
