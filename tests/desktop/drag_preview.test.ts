@@ -43,6 +43,7 @@ async function fixture() {
 	const finishes: number[] = []
 	let read_drop: () => Promise<unknown[]> = async () => [{ stream: true }]
 	let dropped_paths: string[] = []
+	let import_files: () => unknown = () => {}
 	class Picture {
 		declare canTarget: unknown
 		declare is_visible: unknown
@@ -192,7 +193,7 @@ async function fixture() {
 				press() {},
 				redraw() {},
 			},
-			import_files_to_desktop: () => {},
+			import_files_to_desktop: () => import_files(),
 			monitor_of_desktop_path: (path: string) =>
 				path.startsWith("/desktop/") ? "a" : null,
 			move_desktop_files: (move) => moves.push(move),
@@ -251,6 +252,9 @@ async function fixture() {
 		},
 		set_read_drop: (fn: () => Promise<unknown[]>) => {
 			read_drop = fn
+		},
+		set_import_files: (fn: () => unknown) => {
+			import_files = fn
 		},
 		cleanups,
 		set_dragging_css: (value) => {
@@ -565,6 +569,19 @@ test("drop read failure is refused with the read error", async () => {
 	const a = f.add_monitor("a")
 	const failure = new Error("drop source vanished")
 	f.set_read_drop(async () => {
+		throw failure
+	})
+	const logged = await drop_logging(() => a.target.fire("drop", f.drop, 10, 10))
+	assert.deepEqual(f.finishes, [0])
+	assert.deepEqual(logged, [["desktop.drop: Failed to complete drop", failure]])
+})
+
+test("an import that throws still finishes the drop and logs the failure", async () => {
+	const f = await fixture()
+	const a = f.add_monitor("a")
+	const failure = new Error("copy exploded")
+	f.set_dropped_paths(["/home/user/photo.png"])
+	f.set_import_files(async () => {
 		throw failure
 	})
 	const logged = await drop_logging(() => a.target.fire("drop", f.drop, 10, 10))

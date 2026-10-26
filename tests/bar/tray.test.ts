@@ -96,6 +96,11 @@ async function tray_fixture({
 				DBus: {
 					session: {
 						call: (...args) => {
+							if (args[0] === "org.freedesktop.DBus") {
+								const pid = bridged ? 42 : 7
+								args[9]({ call_finish: () => ({ deepUnpack: () => [pid] }) })
+								return
+							}
 							if (call_error) throw call_error
 							calls.push(args)
 						},
@@ -116,6 +121,14 @@ async function tray_fixture({
 		},
 		"gi://GLib": {
 			default: {
+				file_get_contents: (path: string) => [
+					true,
+					new TextEncoder().encode(
+						path === "/proc/42/comm"
+							? ".xembedsniproxy\n"
+							: "telegram-deskto\n",
+					),
+				],
 				Variant: class {
 					type: unknown
 					value: unknown
@@ -140,7 +153,6 @@ async function tray_fixture({
 		"$lib/hyprland": {
 			hyprland: {
 				get_cursor_position: () => ({ x: 640, y: 1050 }),
-				get_clients: () => (bridged ? [{ class: "xembedsniproxy" }] : []),
 			},
 			hyprland_command: async (message: string) => {
 				commands.push(message)

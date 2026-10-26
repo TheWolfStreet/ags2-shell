@@ -5,7 +5,7 @@ import Gio from "gi://Gio"
 import GdkPixbuf from "gi://GdkPixbuf"
 
 import env from "$lib/env"
-import { attempt, err, log_error, ok, type result } from "$lib/result"
+import { attempt, err, guard, log_error, ok, type result } from "$lib/result"
 import {
 	is_not_found_error,
 	max_image_bytes,
@@ -169,8 +169,11 @@ function fitted_texture(
 	size: number,
 	fit: fit,
 ): result<Gdk.Texture> {
-	if (fit === "square") return square_texture(pixbuf, size)
-	return ok(Texture.new_for_pixbuf(pixbuf))
+	return guard(() =>
+		fit === "square"
+			? square_texture(pixbuf, size)
+			: ok(Texture.new_for_pixbuf(pixbuf)),
+	)
 }
 
 function file_texture(
@@ -212,9 +215,10 @@ function inline_bytes(uri: string): result<Uint8Array> {
 	if (encoded.length > max_encoded_bytes + 4) return inline_too_large()
 	if (is_data_uri && !uri.slice(0, comma).includes(";base64"))
 		return err(new Error("Unsupported inline image encoding"))
-	const bytes = GLib.base64_decode(encoded.replace(/\s/g, ""))
-	if (bytes.length > max_bytes) return inline_too_large()
-	return ok(bytes)
+	const bytes = attempt(() => GLib.base64_decode(encoded.replace(/\s/g, "")))
+	if (!bytes.ok) return bytes
+	if (bytes.value.length > max_bytes) return inline_too_large()
+	return bytes
 }
 
 function inline_pixbuf(

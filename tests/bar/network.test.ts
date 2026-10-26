@@ -646,6 +646,35 @@ test("a replaced saved password is restored when its commit fails", async () => 
 	}
 })
 
+test("a password save that throws is logged and later networks still connect", async () => {
+	const t = await fixture()
+	try {
+		const saved = await reject_saved(t)
+		const failure = new Error("psk is read-only")
+		saved.security.set_property = () => {
+			throw failure
+		}
+		t.hooks.add = () => {
+			t.env.state = ACTIVATED
+			t.env.active_bssid = "aa"
+			t.env.active_connection = t.client.last
+		}
+		await t.connect("new")
+		assert.deepEqual(t.errors.at(-1), [
+			"network.settle: Failed to save Wi-Fi connection",
+			failure,
+		])
+		t.calls.length = 0
+		t.hooks.add = () => {}
+		t.add_ap(make_ap("cafe", "bb"))
+		await t.click("bb")
+		await t.connect("cafe-password")
+		assert.deepEqual(t.calls[0], ["add", "volatile"])
+	} finally {
+		t.restore()
+	}
+})
+
 test("a replaced saved password is kept when its commit succeeds", async () => {
 	const t = await fixture()
 	try {

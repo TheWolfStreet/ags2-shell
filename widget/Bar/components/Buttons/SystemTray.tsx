@@ -15,7 +15,7 @@ import Graphene from "gi://Graphene"
 
 import { hyprland, hyprland_command } from "$lib/hyprland"
 import { lua_string } from "$lib/lua"
-import { attempt, log_error, type result } from "$lib/result"
+import { attempt, log_error, ok, type result } from "$lib/result"
 
 import options from "$shell/options"
 import { bar_thickness } from "widget/shared/PopupWindow"
@@ -128,12 +128,45 @@ function edge_below(anchor: Gtk.Widget): point {
 	return { x: center, y: y + height - offset }
 }
 
-async function click_point(anchor: Gtk.Widget): Promise<point> {
+const dbus_daemon = {
+	bus_name: "org.freedesktop.DBus",
+	path: "/org/freedesktop/DBus",
+}
+
+function owner_pid(bus_name: string): Promise<result<number>> {
+	return new Promise((resolve) =>
+		call_tray(
+			dbus_daemon,
+			"org.freedesktop.DBus",
+			"GetConnectionUnixProcessID",
+			new GLib.Variant("(s)", [bus_name]),
+			(outcome) =>
+				resolve(
+					outcome.ok
+						? ok((outcome.value as GLib.Variant).deepUnpack<[number]>()[0])
+						: outcome,
+				),
+		),
+	)
+}
+
+async function owned_by_bridge(bus_name: string) {
+	const pid = await owner_pid(bus_name)
+	if (!pid.ok) return false
+	const name = attempt(() =>
+		new TextDecoder()
+			.decode(GLib.file_get_contents(`/proc/${pid.value}/comm`)[1])
+			.trim(),
+	)
+	return name.ok && name.value.replace(/^\./, "") === xembed_bridge_class
+}
+
+async function click_point(
+	anchor: Gtk.Widget,
+	bus_name: string,
+): Promise<point> {
 	const edge = edge_below(anchor)
-	const bridged = hyprland
-		.get_clients()
-		.some((client) => client.class === xembed_bridge_class)
-	if (!bridged) return edge
+	if (!(await owned_by_bridge(bus_name))) return edge
 	const at = { x: edge.x - wine_menu_half_width, y: edge.y }
 	const window = lua_string(`class:^(${xembed_bridge_class})$`)
 	const moved = await hyprland_command(
@@ -153,7 +186,7 @@ async function forward_click(
 		console.warn("tray: Invalid item address")
 		return
 	}
-	const { x, y } = await click_point(anchor)
+	const { x, y } = await click_point(anchor, address.bus_name)
 	call_tray(
 		address,
 		"org.kde.StatusNotifierItem",

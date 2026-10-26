@@ -658,34 +658,37 @@ test("dock surfaces follow the hover zones and hide after the last leave", async
 	assert.equal(d.windows["dock-bottom"].props.defaultHeight, 1)
 })
 
-test("the dock only takes input on its visible box", async () => {
+test("the dock only takes input on its visible box, refreshed after each painted frame", async () => {
 	const d = await dock_window_fixture()
 	const dock = d.windows["dock-bottom"]
 	const regions: unknown[] = []
-	const layouts: (() => void)[] = []
+	const paints: (() => void)[] = []
 	const disconnected: number[] = []
-	const surface = {
+	const clock = {
 		connect: (_signal: string, handler: () => void) => {
-			layouts.push(handler)
+			paints.push(handler)
 			return 3
 		},
 		disconnect: (id: number) => disconnected.push(id),
-		set_input_region: (region) => regions.push(region.rects),
 	}
-	dock.get_surface = () => surface
-	dock.children[0].props.$({
-		compute_bounds: () => [
-			true,
-			{ origin: { x: 700.4, y: 10 }, size: { width: 520.2, height: 84 } },
-		],
+	dock.get_surface = () => ({
+		set_input_region: (region) => regions.push(region.rects),
 	})
+	dock.get_frame_clock = () => clock
+	let box = { origin: { x: 700.4, y: 10 }, size: { width: 520.2, height: 84 } }
+	dock.children[0].props.$({ compute_bounds: () => [true, box] })
 	dock.signals.map()
-	assert.deepEqual(regions.at(-1), [{ x: 700, y: 10, width: 521, height: 84 }])
+	assert.deepEqual(regions, [[{ x: 700, y: 10, width: 521, height: 84 }]])
 	dock.signals.map()
-	assert.equal(layouts.length, 1)
-	regions.length = 0
-	layouts[0]()
-	assert.equal(regions.length, 1)
+	assert.equal(paints.length, 1)
+	assert.equal(regions.length, 2)
+
+	paints[0]()
+	assert.equal(regions.length, 2)
+	box = { origin: { x: 660, y: 10 }, size: { width: 600, height: 84 } }
+	paints[0]()
+	assert.deepEqual(regions.at(-1), [{ x: 660, y: 10, width: 600, height: 84 }])
+
 	d.cleanup()
 	assert.deepEqual(disconnected, [3])
 })

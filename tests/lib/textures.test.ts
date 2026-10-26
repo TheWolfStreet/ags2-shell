@@ -68,6 +68,7 @@ const mocks = {
 		Gdk: {
 			Texture: {
 				new_for_pixbuf: (value) => {
+					if (faults.has("texture")) throw new Error("texture upload failed")
 					created.push(value)
 					return { image: true }
 				},
@@ -507,6 +508,41 @@ test("oversized local files are rejected before any stream is opened", () => {
 	} finally {
 		console.error = previous
 	}
+})
+
+test("a texture that fails to build settles its request and frees the decode slot", () => {
+	const errors: unknown[][] = []
+	const previous = console.error
+	console.error = (...args) => errors.push(args)
+	faults.add("texture")
+	try {
+		for (let index = 0; index < 5; index++) {
+			const path = `/mock/broken-${index}.png`
+			files.set(path, { size: 100 })
+			const texture = create_texture_accessor(path, 32, "contain")
+			reads.shift()!.callback(null, {})
+			decodes.shift()!(null, {})
+			assert.equal(texture(), null)
+		}
+	} finally {
+		faults.delete("texture")
+		console.error = previous
+	}
+	assert.equal(
+		errors.filter(
+			([, cause]) => (cause as Error)?.message === "texture upload failed",
+		).length,
+		5,
+	)
+	files.set("/mock/after-broken.png", { size: 100 })
+	const healthy = create_texture_accessor(
+		"/mock/after-broken.png",
+		32,
+		"contain",
+	)
+	reads.shift()!.callback(null, {})
+	decodes.shift()!(null, {})
+	assert.deepEqual(healthy(), { image: true })
 })
 
 test("only four local decodes run and the pending queue is bounded", () => {

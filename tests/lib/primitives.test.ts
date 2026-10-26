@@ -719,3 +719,31 @@ test("live monitors keep connectorless and live outputs only", async () => {
 		monitors[2],
 	])
 })
+
+test("guards return a result-returning step as is and turn a throw into an error result", async () => {
+	const failure = new Error("boom")
+	assert.deepEqual(
+		results.guard(() => results.ok(1)),
+		{ ok: true, value: 1 },
+	)
+	assert.deepEqual(
+		results.guard(() => results.err(failure)),
+		{ ok: false, err: failure },
+	)
+	assert.deepEqual(
+		results.guard(() => {
+			throw failure
+		}),
+		{ ok: false, err: failure },
+	)
+	assert.deepEqual(await results.guard_async(async () => results.ok(2)), {
+		ok: true,
+		value: 2,
+	})
+	assert.deepEqual(
+		await results.guard_async(async () => {
+			throw failure
+		}),
+		{ ok: false, err: failure },
+	)
+})

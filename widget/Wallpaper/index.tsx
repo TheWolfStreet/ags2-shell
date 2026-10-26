@@ -7,7 +7,7 @@ import GLib from "gi://GLib"
 import LayerShell from "gi://Gtk4LayerShell"
 
 import { ignore_input, schedule_monitor_window_release } from "$lib/windowing"
-import { attempt, err, ok, type result } from "$lib/result"
+import { attempt, err, guard, ok, type result } from "$lib/result"
 import { wallpaper_path, wallpaper_revision } from "$lib/wallpaper"
 
 export namespace Wallpaper {
@@ -178,7 +178,7 @@ function paint(
 	const running = active_gifs.get(key)
 	if (running) return play_gif(key, running, picture)
 
-	const animated = paint_animation(path, key, picture)
+	const animated = guard(() => paint_animation(path, key, picture))
 	if (animated.ok) return animated.value
 
 	const fallback = attempt(() => Gdk.Texture.new_from_filename(path))

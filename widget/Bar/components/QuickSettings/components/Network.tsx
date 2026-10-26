@@ -29,6 +29,7 @@ import {
 	attempt,
 	attempt_async,
 	err,
+	guard_async,
 	log_error,
 	ok,
 	type result,
@@ -945,7 +946,14 @@ async function settled(promise: Promise<unknown>) {
 	await attempt_async(() => promise)
 }
 
-async function settle_transaction(
+function settle_transaction(
+	transaction: activation_transaction,
+	persist: boolean,
+): Promise<result<void>> {
+	return guard_async(() => settle_steps(transaction, persist))
+}
+
+async function settle_steps(
 	transaction: activation_transaction,
 	persist: boolean,
 ): Promise<result<void>> {
@@ -979,11 +987,13 @@ function abandon_activation(
 	sequence: number,
 	authentication_open: boolean,
 ) {
-	pending_settlement = transaction.rollback().then((result) => {
-		log_error(result, "network.activate: Failed to cancel Wi-Fi activation")
-		if (sequence === activation_sequence && authentication_open)
-			fail_authentication()
-	})
+	pending_settlement = guard_async(() => transaction.rollback()).then(
+		(result) => {
+			log_error(result, "network.activate: Failed to cancel Wi-Fi activation")
+			if (sequence === activation_sequence && authentication_open)
+				fail_authentication()
+		},
+	)
 }
 
 function watch_activation(

@@ -27,6 +27,18 @@ export async function attempt_async<T>(
 	}
 }
 
+export function guard<T>(fn: () => result<T>): result<T> {
+	const attempted = attempt(fn)
+	return attempted.ok ? attempted.value : attempted
+}
+
+export async function guard_async<T>(
+	fn: () => Promise<result<T>>,
+): Promise<result<T>> {
+	const attempted = await attempt_async(fn)
+	return attempted.ok ? attempted.value : attempted
+}
+
 export function log_error<T>(result: result<T>, tag: string): result is ok<T> {
 	if (result.ok) return true
 	console.error(tag, result.err)

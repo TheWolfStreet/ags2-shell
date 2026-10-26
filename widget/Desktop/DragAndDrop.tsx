@@ -6,7 +6,14 @@ import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import Graphene from "gi://Graphene"
 
-import { attempt_async, err, log_error, ok, type result } from "$lib/result"
+import {
+	attempt_async,
+	err,
+	guard_async,
+	log_error,
+	ok,
+	type result,
+} from "$lib/result"
 import { hidden_drag_icon } from "$lib/textures"
 import options from "$shell/options"
 import {
@@ -324,7 +331,9 @@ export function create_desktop_drag_controller(
 	) {
 		const cancellable = new Gio.Cancellable()
 		const deadline = timeout(30_000, () => cancellable.cancel())
-		const completed = await place_drop(drop, action, x, y, cancellable)
+		const completed = await guard_async(() =>
+			place_drop(drop, action, x, y, cancellable),
+		)
 		deadline.cancel()
 		const placed =
 			log_error(completed, "desktop.drop: Failed to complete drop") &&

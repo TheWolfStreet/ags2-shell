@@ -33,21 +33,21 @@ The Nix package currently exports `x86_64-linux` and supplies its core libraries
 
 ### Feature Services
 
-| Feature                    | Host requirement                                                                                                                                                                 |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Network controls           | NetworkManager                                                                                                                                                                   |
-| Audio controls and OSD     | PipeWire with WirePlumber                                                                                                                                                        |
-| Bluetooth                  | BlueZ service and supported hardware                                                                                                                                             |
-| Battery status             | UPower                                                                                                                                                                           |
-| Power profiles             | power-profiles-daemon, or supported ASUS services                                                                                                                                |
-| Default power-menu actions | systemd's `systemctl` and `shutdown`; logout uses `hyprctl`                                                                                                                      |
-| Internal brightness        | An accessible backlight device and permission to use `brightnessctl`                                                                                                             |
-| External brightness        | DDC/CI support and permission to use `ddcutil`                                                                                                                                   |
-| Media controls             | Players exposing MPRIS on the user bus                                                                                                                                           |
-| ASUS controls              | `asusctl`; optionally `supergfxctl` and `rog-control-center`                                                                                                                     |
-| GNOME settings shortcuts   | `gnome-control-center`; its Bluetooth panel may also require an `org.gnome.SettingsDaemon.Rfkill` provider such as `gsd-rfkill`                                                  |
-| tmux accent sync           | `tmux`; detected automatically and otherwise ignored. Sets `@main_accent` and the selection highlight (`mode-style`); the service must see the same `TMUX_TMPDIR` as your shells |
-| Wine and Proton tray icons | An XEmbed to StatusNotifierItem bridge such as `xembedsniproxy` from KDE's `plasma-workspace`                                                                                    |
+| Feature                    | Host requirement                                                                                                                                                                                                                                                |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Network controls           | NetworkManager                                                                                                                                                                                                                                                  |
+| Audio controls and OSD     | PipeWire with WirePlumber                                                                                                                                                                                                                                       |
+| Bluetooth                  | BlueZ service and supported hardware                                                                                                                                                                                                                            |
+| Battery status             | UPower                                                                                                                                                                                                                                                          |
+| Power profiles             | power-profiles-daemon, or supported ASUS services                                                                                                                                                                                                               |
+| Default power-menu actions | systemd's `systemctl` and `shutdown`; logout uses `hyprctl`                                                                                                                                                                                                     |
+| Internal brightness        | An accessible backlight device and permission to use `brightnessctl`                                                                                                                                                                                            |
+| External brightness        | DDC/CI support and permission to use `ddcutil`                                                                                                                                                                                                                  |
+| Media controls             | Players exposing MPRIS on the user bus                                                                                                                                                                                                                          |
+| ASUS controls              | `asusctl`; optionally `supergfxctl` and `rog-control-center`                                                                                                                                                                                                    |
+| GNOME settings shortcuts   | `gnome-control-center`; its Bluetooth panel may also require an `org.gnome.SettingsDaemon.Rfkill` provider such as `gsd-rfkill`                                                                                                                                 |
+| tmux accent sync           | `tmux`; detected automatically and otherwise ignored. Sets `@main_accent` and `@main_accent_fg`; reference them from your tmux config, e.g. `mode-style "bg=#{@main_accent},fg=#{@main_accent_fg}"`. The service must see the same `TMUX_TMPDIR` as your shells |
+| Wine and Proton tray icons | An XEmbed to StatusNotifierItem bridge such as `xembedsniproxy` from KDE's `plasma-workspace`                                                                                                                                                                   |
 
 Unavailable optional services disable only their corresponding controls.
 
@@ -360,7 +360,7 @@ wayland.windowManager.hyprland.settings.window_rule = [
 
 If the bridge restarts while a Wine application is running, Wine may keep an empty fallback window until the application restarts.
 
-Clicks on a bridged icon reach the application, but Wine opens its tray menu at the pointer position XWayland last saw, which is usually over another X window rather than at the tray, and the menu's own drop shadow may render as a black frame. Both come from Wine and XWayland, not the shell.
+Before forwarding a click, the shell moves the bridge window under the clicked icon, so Wine opens its tray menu there, one popup gap from the bar. Wine closes that menu when the pointer leaves it, and the menu's own drop shadow may render as a black frame; both come from Wine, not the shell.
 
 ### tmux Accent Does Not Sync
 

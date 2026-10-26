@@ -3,7 +3,7 @@ import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
 import { create_state } from "../helpers.ts"
 
-type decode_mode = "static" | "animated" | "throws" | "empty"
+type decode_mode = "static" | "animated" | "throws" | "empty" | "broken_frames"
 
 async function wallpaper_fixture({
 	decode = "static" as decode_mode,
@@ -51,9 +51,12 @@ async function wallpaper_fixture({
 		},
 	}
 	const animation = {
-		is_static_image: () => decode !== "animated",
+		is_static_image: () => decode !== "animated" && decode !== "broken_frames",
 		get_static_image: () => (decode === "empty" ? null : "still"),
-		get_iter: () => iter,
+		get_iter: () => {
+			if (decode === "broken_frames") throw new Error("bad frame")
+			return iter
+		},
 	}
 	const window = {
 		mapped: true,
@@ -194,7 +197,10 @@ test("a wallpaper the animation decoder rejects falls back to a texture", async 
 	const empty = await wallpaper_fixture({ decode: "empty" })
 	empty.open()
 	assert.equal(empty.stacks[0].children.get("b").paintable, "file:/wall.gif")
-	assert.equal(f.errors.length + empty.errors.length, 0)
+	const broken = await wallpaper_fixture({ decode: "broken_frames" })
+	broken.open()
+	assert.equal(broken.stacks[0].children.get("b").paintable, "file:/wall.gif")
+	assert.equal(f.errors.length + empty.errors.length + broken.errors.length, 0)
 })
 
 test("a wallpaper no decoder can read is logged with both causes", async () => {

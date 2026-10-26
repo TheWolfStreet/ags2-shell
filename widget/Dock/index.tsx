@@ -9,7 +9,7 @@ import {
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import cairo from "cairo"
 
-import { debounce, idle } from "$lib/time"
+import { debounce } from "$lib/time"
 import {
 	schedule_monitor_window_release,
 	track_monitor_fullscreen,
@@ -50,19 +50,26 @@ const side_config: Record<
 	},
 }
 
-function limit_input_to(window: Gtk.Window, content: Gtk.Widget) {
-	const surface = window.get_surface()
-	if (!surface) return
+function visible_box(window: Gtk.Window, content: Gtk.Widget) {
 	const [valid, bounds] = content.compute_bounds(window)
-	if (!valid) return
-	const region = new cairo.Region()
-	region.unionRectangle({
+	if (!valid) return null
+	return {
 		x: Math.floor(bounds.origin.x),
 		y: Math.floor(bounds.origin.y),
 		width: Math.ceil(bounds.size.width),
 		height: Math.ceil(bounds.size.height),
-	})
-	surface.set_input_region(region)
+	}
+}
+
+function same_box(a: cairo.RectangleInt | null, b: cairo.RectangleInt | null) {
+	return (
+		!!a &&
+		!!b &&
+		a.x === b.x &&
+		a.y === b.y &&
+		a.width === b.width &&
+		a.height === b.height
+	)
 }
 
 function thickness_request(side: dock_side, thickness: Accessor<number>) {
@@ -199,26 +206,30 @@ export namespace Dock {
 			const zone_id = `dock-${side}`
 			let surface_window: Gtk.Window | null = null
 			let content: Gtk.Widget | null = null
+			let input_box: cairo.RectangleInt | null = null
 			const sync_input = () => {
-				if (surface_window && content) limit_input_to(surface_window, content)
+				const surface = surface_window?.get_surface()
+				if (!surface_window || !content || !surface) return
+				const box = visible_box(surface_window, content)
+				if (!box || same_box(box, input_box)) return
+				const region = new cairo.Region()
+				region.unionRectangle(box)
+				surface.set_input_region(region)
+				input_box = box
 			}
-			const resync = () => idle(sync_input)
-			let layout_surface: Gdk.Surface | null = null
-			let layout_handler = 0
-			const follow_layout = () => {
-				const surface = surface_window?.get_surface() ?? null
-				if (surface === layout_surface) return
-				if (layout_surface) layout_surface.disconnect(layout_handler)
-				layout_surface = surface
-				layout_handler = surface ? surface.connect("layout", sync_input) : 0
+			let frame_clock: Gdk.FrameClock | null = null
+			let paint_handler = 0
+			const follow_frames = () => {
+				input_box = null
+				const clock = surface_window?.get_frame_clock() ?? null
+				if (clock === frame_clock) return
+				if (frame_clock) frame_clock.disconnect(paint_handler)
+				frame_clock = clock
+				paint_handler = clock ? clock.connect("after-paint", sync_input) : 0
 			}
-			const unsubscribe_items = dock_items.subscribe(resync)
-			const unsubscribe_scale = dock_scale.subscribe(resync)
 			onCleanup(() => {
-				unsubscribe_items()
-				unsubscribe_scale()
-				if (layout_surface) layout_surface.disconnect(layout_handler)
-				layout_surface = null
+				if (frame_clock) frame_clock.disconnect(paint_handler)
+				frame_clock = null
 			})
 			return (
 				<PopupWindow
@@ -226,8 +237,8 @@ export namespace Dock {
 						register_zone(self, zone_id)
 						surface_window = self
 						self.connect("map", () => {
-							follow_layout()
-							resync()
+							follow_frames()
+							sync_input()
 						})
 					}}
 					name={zone_id}
