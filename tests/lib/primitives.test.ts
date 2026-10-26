@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { test } from "node:test"
-import { load_hyprland, with_hyprland_command } from "../hyprland.ts"
+import { load_hyprland, with_hyprland_command } from "../helpers.ts"
 import { load_module } from "../load_module.ts"
 import * as lua from "../../lib/lua.ts"
 import * as results from "../../lib/result.ts"

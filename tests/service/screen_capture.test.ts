@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
+import { noop_timer, gobject_stub } from "../helpers.ts"
 
 type fake_process = {
 	args: string[]
@@ -82,18 +83,7 @@ async function service_fixture({
 	const notified: string[] = []
 	let next_deadline = 0
 	const imports = {
-		"ags/gobject": {
-			default: {
-				Object: class {
-					notify(name: string) {
-						notified.push(name)
-					}
-					vfunc_finalize() {}
-				},
-			},
-			getter: () => () => {},
-			register: () => (value) => value,
-		},
+		"ags/gobject": gobject_stub((name) => notified.push(name)),
 		"$lib/commands": {
 			communicate: (
 				await load_module("lib/commands.ts", {
@@ -122,8 +112,8 @@ async function service_fixture({
 			},
 		},
 		"$lib/time": {
-			interval: () => ({ cancel() {} }),
-			timeout: () => ({ cancel() {} }),
+			interval: noop_timer,
+			timeout: noop_timer,
 		},
 		"$lib/app": {
 			default: {

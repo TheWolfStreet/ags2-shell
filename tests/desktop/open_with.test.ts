@@ -3,7 +3,15 @@ import test from "node:test"
 import { load_module } from "../load_module.ts"
 import * as result_module from "../../lib/result.ts"
 import icons from "../../lib/icons.ts"
-import { accessor, create_state, nodes, read, type node } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	nodes,
+	read,
+	push_idle,
+	tick,
+	type node,
+} from "../helpers.ts"
 
 type app_spec = {
 	id: string | null
@@ -80,7 +88,7 @@ async function open_with_fixture() {
 		},
 		ags: {
 			createState: create_state,
-			createComputed: (fn) => accessor(fn),
+			createComputed: accessor,
 			createRoot: (fn) => fn(() => {}),
 			For: (props) => ({ type: "for", props }),
 		},
@@ -104,7 +112,7 @@ async function open_with_fixture() {
 				return ""
 			},
 		},
-		"$lib/time": { idle: (run) => idles.push(run) },
+		"$lib/time": { idle: push_idle(idles) },
 		"gi://Gio": {
 			default: {
 				AppInfo: {
@@ -441,7 +449,7 @@ test("always use sets the default, falling back to gio mime for desktop ids", as
 	choose(2)
 	fixture.set_exec_fails(true)
 	choose(1)
-	await new Promise((resolve) => setImmediate(resolve))
+	await tick()
 	assert.deepEqual(fixture.execs, [
 		{ argv: ["gio", "mime", "text/plain", "refuses.desktop"], fail: false },
 		{ argv: ["gio", "mime", "text/plain", "throws.desktop"], fail: false },

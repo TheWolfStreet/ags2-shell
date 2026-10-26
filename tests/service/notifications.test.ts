@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
+import { noop_timer, gobject_stub } from "../helpers.ts"
 
 function notification(id: number, time: number, app = "App") {
 	return {
@@ -22,19 +23,8 @@ async function fixture(stored: ReturnType<typeof notification>[]) {
 	const handlers = new Map<string, () => void>()
 	let blacklist = ["Muted"]
 	const imports = {
-		"ags/gobject": {
-			default: {
-				Object: class {
-					notify(name: string) {
-						notified.push(name)
-					}
-					vfunc_finalize() {}
-				},
-			},
-			getter: () => () => {},
-			register: () => (value) => value,
-		},
-		"$lib/time": { timeout: () => ({ cancel() {} }) },
+		"ags/gobject": gobject_stub((name) => notified.push(name)),
+		"$lib/time": { timeout: noop_timer },
 		"gi://AstalNotifd": { default: {} },
 		"gi://Gio": { default: {} },
 		"gi://GLib": {

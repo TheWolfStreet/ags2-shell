@@ -6,22 +6,9 @@ import type {
 	createState as State,
 } from "gnim"
 import { load_module } from "../load_module.ts"
+import { load_gnim_state } from "../helpers.ts"
 
-const gnim = await load_module("node_modules/gnim/dist/jsx/state.ts", {
-	"gi://GObject": {
-		default: {
-			Object: class {
-				connect() {}
-				disconnect() {}
-			},
-			TYPE_JSOBJECT: 1,
-		},
-	},
-	"gi://Gio": { default: {} },
-	"gi://GLib": { default: {} },
-	"../util.js": { camelify: (value) => value, kebabify: (value) => value },
-	"./scope.js": { Scope: class {} },
-})
+const gnim = await load_gnim_state()
 const { createState, createComputed } = gnim as {
 	createState: typeof State
 	createComputed: typeof Computed

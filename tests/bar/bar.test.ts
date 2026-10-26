@@ -2,7 +2,15 @@ import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
 import * as result from "../../lib/result.ts"
-import { create_state, nodes } from "../helpers.ts"
+import {
+	create_state,
+	nodes,
+	capture_idle,
+	run_idles,
+	run_cleanups,
+	type fake_idle,
+	make as make_node,
+} from "../helpers.ts"
 
 test.afterEach(() => mock.restoreAll())
 
@@ -20,7 +28,7 @@ async function bar_fixture({
 	const [padding] = create_state(8)
 	const [location] = create_state("dock")
 	const [recording] = create_state(false)
-	const idles: { callback: () => void; cancelled: boolean }[] = []
+	const idles: fake_idle[] = []
 	const cleanups: (() => void)[] = []
 	const zones: number[] = []
 	const thicknesses: number[] = []
@@ -48,14 +56,7 @@ async function bar_fixture({
 	let surface_ready = true
 	const make = (type, props: Record<string, any> = {}) => {
 		if (typeof type === "function") return type(props)
-		const node: Record<string, any> = {
-			type,
-			props,
-			children: (Array.isArray(props.children)
-				? props.children
-				: [props.children]
-			).filter(Boolean),
-		}
+		const node: Record<string, any> = make_node(type, props)
 		if (type === "window") {
 			Object.assign(node, connectable("window"), {
 				get_surface: () => (surface_ready ? surface : null),
@@ -89,17 +90,7 @@ async function bar_fixture({
 		},
 		"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
 		"$lib/time": {
-			idle: (callback) => {
-				const timer = {
-					callback,
-					cancelled: false,
-					cancel() {
-						this.cancelled = true
-					},
-				}
-				idles.push(timer)
-				return timer
-			},
+			idle: capture_idle(idles),
 			format_clock: (value) => `clock ${value}`,
 		},
 		cairo: {
@@ -197,13 +188,8 @@ async function bar_fixture({
 		set_surface_ready: (value) => {
 			surface_ready = value
 		},
-		run_idle: () => {
-			for (const timer of idles.splice(0))
-				if (!timer.cancelled) timer.callback()
-		},
-		cleanup: () => {
-			for (const cleanup of cleanups) cleanup()
-		},
+		run_idle: () => run_idles(idles),
+		cleanup: () => run_cleanups(cleanups),
 	}
 }
 

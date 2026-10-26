@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
-import { execFileSync, spawnSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import test from "node:test"
+import { available } from "../helpers.ts"
 import ts from "../typescript.ts"
 
 const source = readFileSync(
@@ -39,15 +40,6 @@ const implementation = ts.transpileModule(
 	].join("\n"),
 	{ compilerOptions: { target: ts.ScriptTarget.ES2022 } },
 ).outputText
-
-function available(command) {
-	try {
-		execFileSync("which", [command], { stdio: "ignore" })
-		return true
-	} catch {
-		return false
-	}
-}
 
 test(
 	"native launcher rows retain positions throughout top and bottom slide transitions",

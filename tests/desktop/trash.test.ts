@@ -1,9 +1,8 @@
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
-import { with_hyprland_command } from "../hyprland.ts"
 import * as result from "../../lib/result.ts"
-import { tick } from "../helpers.ts"
+import { tick, with_hyprland_command } from "../helpers.ts"
 
 const open_failure = "dock.trash.open: Failed to open or focus trash"
 const refresh_failure = "dock.trash.refresh: Failed to refresh trash state"

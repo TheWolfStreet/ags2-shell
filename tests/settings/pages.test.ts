@@ -68,7 +68,7 @@ async function load_pages(monitors: monitor[]) {
 			"ags/gtk4/jsx-runtime": jsx_runtime,
 			ags: {
 				createBinding: () => accessor(() => []),
-				createComputed: (fn) => accessor(fn),
+				createComputed: accessor,
 			},
 			"gi://Gio": { default: {} },
 			"./Setter": { default: (props) => jsx_runtime.jsx("setter", props) },

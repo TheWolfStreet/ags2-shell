@@ -1,7 +1,16 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { accessor, jsx_runtime, make, nodes } from "../helpers.ts"
+import {
+	accessor,
+	jsx_runtime,
+	make,
+	nodes,
+	create_binding,
+	render_with,
+	capture_timer,
+	type fake_timer,
+} from "../helpers.ts"
 
 function player(bus_name: string, status = 2) {
 	const handlers = new Map<number, () => void>()
@@ -29,15 +38,15 @@ function player(bus_name: string, status = 2) {
 }
 
 async function media_fixture(players, preferred = "") {
-	const timers: { ms: number; fn: () => void; cancelled: boolean }[] = []
+	const timers: fake_timer[] = []
 	const cleanups: (() => void)[] = []
 	let reveal = false
 	const module = await load_module(
 		"widget/Bar/components/Buttons/MediaIndicator.tsx",
 		{
 			ags: {
-				createBinding: (object, property) => accessor(() => object[property]),
-				createComputed: (fn) => accessor(fn),
+				createBinding: create_binding,
+				createComputed: accessor,
 				createState: (initial) => {
 					reveal = initial
 					return [
@@ -48,7 +57,7 @@ async function media_fixture(players, preferred = "") {
 					]
 				},
 				onCleanup: (fn) => cleanups.push(fn),
-				With: ({ value, children }) => children(value()),
+				With: render_with,
 			},
 			"ags/gtk4": {
 				Gtk: {
@@ -59,15 +68,7 @@ async function media_fixture(players, preferred = "") {
 			},
 			"ags/gtk4/jsx-runtime": jsx_runtime,
 			"$lib/time": {
-				timeout: (ms, fn) => {
-					const timer = { ms, fn, cancelled: false }
-					timers.push(timer)
-					return {
-						cancel: () => {
-							timer.cancelled = true
-						},
-					}
-				},
+				timeout: capture_timer(timers),
 			},
 			"gi://AstalMpris": {
 				default: {
@@ -150,7 +151,7 @@ test("a new title reveals briefly, hovering keeps it open and cleanup resets", a
 	current.title = "Two"
 	notify_title()
 	assert.equal(f.timers[0].cancelled, true)
-	f.timers[1].fn()
+	f.timers[1].callback()
 	assert.equal(f.reveal(), false)
 
 	current.title = "Three"
@@ -164,7 +165,7 @@ test("a new title reveals briefly, hovering keeps it open and cleanup resets", a
 	current.title = "Four"
 	notify_title()
 	f.self.destroyed = true
-	f.timers[3].fn()
+	f.timers[3].callback()
 	assert.equal(f.reveal(), true)
 
 	current.title = "Five"

@@ -3,7 +3,7 @@ import test, { mock } from "node:test"
 import { createContext } from "node:vm"
 import * as result from "../../lib/result.ts"
 import { load_module } from "../load_module.ts"
-import { tick } from "../helpers.ts"
+import { tick, subscribe_set } from "../helpers.ts"
 
 const logged: unknown[][] = []
 
@@ -44,13 +44,7 @@ async function load_options(
 		let value = initial_value
 		const subscribers = new Set<() => void>()
 		return [
-			new Accessor(
-				() => value,
-				(callback) => {
-					subscribers.add(callback)
-					return () => subscribers.delete(callback)
-				},
-			),
+			new Accessor(() => value, subscribe_set(subscribers)),
 			(next) => {
 				if (Object.is(value, next)) return
 				value = next

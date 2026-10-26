@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { with_hyprland_command } from "../hyprland.ts"
+import { with_hyprland_command } from "../helpers.ts"
 import { load_module } from "../load_module.ts"
 
 function application(entry, name, wm_class, executable, icon) {

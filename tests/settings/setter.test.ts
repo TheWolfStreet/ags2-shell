@@ -39,7 +39,7 @@ const choices: { anchor: unknown; on_pick: (name: string) => void }[] = []
 const { default: Setter } = await load_module(
 	"widget/Settings/components/Setter.tsx",
 	{
-		ags: { createComputed: (fn) => accessor(fn), createState: create_state },
+		ags: { createComputed: accessor, createState: create_state },
 		"ags/gtk4": {
 			Gdk: { RGBA: class {} },
 			Gtk: {

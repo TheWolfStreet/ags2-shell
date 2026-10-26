@@ -1,10 +1,14 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { createContext } from "node:vm"
-import { with_hyprland_command } from "../hyprland.ts"
 import { load_module } from "../load_module.ts"
 import * as result from "../../lib/result.ts"
-import { tick } from "../helpers.ts"
+import {
+	tick,
+	with_hyprland_command,
+	immediate_debounce,
+	capture_log,
+} from "../helpers.ts"
 
 type option = {
 	id: string
@@ -157,10 +161,7 @@ async function fixture({
 		},
 		"$lib/env": { default: { init: () => result.ok(undefined) } },
 		"$lib/time": {
-			debounce: (_ms: number, fn: () => unknown) => ({
-				call: fn,
-				cancel() {},
-			}),
+			debounce: immediate_debounce,
 		},
 		"$lib/textures": { get_file_size: () => 1 },
 		"$lib/files": {
@@ -408,9 +409,7 @@ test("a wallpaper palette updates both schemes inside one CSS batch", async () =
 
 test("palette sampling accepts setter-sized wallpapers and rejects sources outside its bounds", async (t) => {
 	const logged: unknown[][] = []
-	t.mock.method(console, "error", (...args: unknown[]) => {
-		if (!String(args[0]).includes("ExperimentalWarning")) logged.push(args)
-	})
+	t.mock.method(console, "error", capture_log(logged))
 	const option = (value) => ({
 		peek: () => value,
 		set() {},
@@ -492,7 +491,7 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 			},
 		},
 		"$lib/env": { default: { init: () => ({ ok: true }) } },
-		"$lib/time": { debounce: (_ms, fn) => ({ call: fn, cancel() {} }) },
+		"$lib/time": { debounce: immediate_debounce },
 		"$lib/textures": { get_file_size: () => bytes },
 		"$lib/hyprland": with_hyprland_command({
 			hyprland: {

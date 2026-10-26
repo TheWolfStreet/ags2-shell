@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { tick } from "../helpers.ts"
+import {
+	tick,
+	immediate_debounce,
+	on_shutdown,
+	gobject_stub,
+} from "../helpers.ts"
 
 function app(entry, name) {
 	return { get_entry: () => entry, get_name: () => name }
@@ -24,18 +29,7 @@ async function service_fixture(catalog, variants, { failed_watches = 0 } = {}) {
 	const shutdown_handlers: (() => void)[] = []
 	let kills = 0
 	const imports = {
-		"ags/gobject": {
-			default: {
-				Object: class {
-					notify(property) {
-						notifications.push(property)
-					}
-					vfunc_finalize() {}
-				},
-			},
-			getter: () => () => {},
-			register: () => (value) => value,
-		},
+		"ags/gobject": gobject_stub((name) => notifications.push(name)),
 		"ags/process": {
 			execAsync: (args) => {
 				commands.push(args)
@@ -58,10 +52,7 @@ async function service_fixture(catalog, variants, { failed_watches = 0 } = {}) {
 		},
 		"$lib/app": {
 			default: {
-				connect: (signal: string, callback: () => void) => {
-					assert.equal(signal, "shutdown")
-					shutdown_handlers.push(callback)
-				},
+				connect: on_shutdown(shutdown_handlers),
 			},
 		},
 		"$lib/time": {
@@ -73,7 +64,7 @@ async function service_fixture(catalog, variants, { failed_watches = 0 } = {}) {
 				timeouts.push({ delay, callback })
 				return { cancel() {} }
 			},
-			debounce: (_delay, callback) => ({ call: callback, cancel() {} }),
+			debounce: immediate_debounce,
 		},
 		"gi://AstalApps": {
 			default: {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
-import { create_state } from "../helpers.ts"
+import { create_state, queued_idle } from "../helpers.ts"
 
 type decode_mode = "static" | "animated" | "throws" | "empty" | "broken_frames"
 
@@ -105,10 +105,7 @@ async function wallpaper_fixture({
 		},
 		"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
 		"$lib/time": {
-			idle: (fn) => {
-				idles.push(fn)
-				return { cancel: () => idles.splice(idles.indexOf(fn), 1) }
-			},
+			idle: queued_idle(idles),
 		},
 		"gi://GdkPixbuf": {
 			default: {

@@ -1,16 +1,19 @@
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
-import { accessor, create_state } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	create_binding,
+	emitter,
+	make_mutable as make,
+	capture_timer,
+	type fake_timer,
+	capture_kinds,
+	revealer_transitions,
+} from "../helpers.ts"
 
 test.afterEach(() => mock.restoreAll())
-
-type fake_timer = {
-	ms: number
-	callback: () => void
-	cancelled: boolean
-	cancel(): void
-}
 
 type fake_notification = {
 	id: number
@@ -44,63 +47,19 @@ async function notifications_fixture({
 } = {}) {
 	const timers: fake_timer[] = []
 	const scopes: (() => void)[][] = [[]]
-	const listeners = new Map<number, { event: string; fn: Function }>()
 	const live = new Map<number, fake_notification>()
 	const blacklisted = new Set<string>()
 	const blacklist_listeners: (() => void)[] = []
 	const dismissed: number[] = []
 	const invoked: [number, string][] = []
-	let serial = 0
 	let dnd = false
 	let current_position = position
 
-	const make = (type, props: Record<string, any> = {}) => {
-		if (typeof type === "function") return type(props)
-		const node = {
-			type,
-			props,
-			children: (Array.isArray(props.children)
-				? props.children
-				: [props.children]
-			).filter(Boolean),
-			insert_child_after(child, previous) {
-				this.children.splice(
-					previous ? this.children.indexOf(previous) + 1 : 0,
-					0,
-					child,
-				)
-			},
-			remove(child) {
-				this.children.splice(this.children.indexOf(child), 1)
-			},
-		}
-		return node
-	}
-	const timeout = (ms, callback) => {
-		const timer: fake_timer = {
-			ms,
-			callback,
-			cancelled: false,
-			cancel() {
-				this.cancelled = true
-			},
-		}
-		timers.push(timer)
-		return timer
-	}
-	const daemon = {
+	const timeout = capture_timer(timers)
+	const daemon = Object.assign(emitter(), {
 		get_notifications: () => [...live.values()],
 		get_notification: (id) => live.get(id) ?? null,
-		connect: (event, fn) => {
-			listeners.set(++serial, { event, fn })
-			return serial
-		},
-		disconnect: (id) => listeners.delete(id),
-		emit: (event, ...args) => {
-			for (const listener of [...listeners.values()])
-				if (listener.event === event) listener.fn(daemon, ...args)
-		},
-	}
+	})
 	const options = {
 		transition: { duration: accessor(() => duration) },
 		notifications: {
@@ -115,9 +74,9 @@ async function notifications_fixture({
 		},
 	}
 	const ags = {
-		createBinding: (object, property) => accessor(() => object[property]),
+		createBinding: create_binding,
 		createState: create_state,
-		createComputed: (fn) => accessor(fn),
+		createComputed: accessor,
 		createRoot: (fn) => {
 			const scope: (() => void)[] = []
 			scopes.push(scope)
@@ -156,12 +115,7 @@ async function notifications_fixture({
 					Align: { START: 1, CENTER: 2, END: 3 },
 					Orientation: { VERTICAL: 1, HORIZONTAL: 2 },
 					PolicyType: { AUTOMATIC: 1, EXTERNAL: 3 },
-					RevealerTransitionType: {
-						SLIDE_DOWN: 1,
-						SLIDE_UP: 2,
-						SWING_RIGHT: 3,
-						SWING_DOWN: 4,
-					},
+					RevealerTransitionType: revealer_transitions,
 					EventControllerMotion: "motion",
 				},
 			},
@@ -185,20 +139,7 @@ async function notifications_fixture({
 			},
 			"../PanelButton": { PanelButton: (props) => make("panel-button", props) },
 			"$lib/env": { default: { paths: { home: "/home/user" } } },
-			"$service/screen_capture": {
-				capture_kinds: {
-					screenshot: {
-						app_name: "Screenshot",
-						summary: "Screenshot taken",
-						directory: "/home/user/Pictures/Screenshots/",
-					},
-					recording: {
-						app_name: "Recorder",
-						summary: "Recording saved",
-						directory: "/home/user/Videos/Screencasting/",
-					},
-				},
-			},
+			"$service/screen_capture": { capture_kinds },
 			"$lib/textures": {
 				classify_image_uri: (uri) => (uri.startsWith("/") ? "file" : "unknown"),
 				create_texture_accessor: () => accessor(() => null),
@@ -275,7 +216,7 @@ async function notifications_fixture({
 			blacklisted.add(name)
 			for (const listener of blacklist_listeners) listener()
 		},
-		listener_count: () => listeners.size,
+		listener_count: () => daemon.listeners.size,
 		pending: () => timers.filter((timer) => !timer.cancelled),
 		fire(timer: fake_timer) {
 			timer.cancelled = true

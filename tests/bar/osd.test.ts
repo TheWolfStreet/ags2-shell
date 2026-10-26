@@ -1,26 +1,15 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { accessor, jsx_runtime, make, nodes } from "../helpers.ts"
-
-function signals() {
-	const handlers = new Map<number, [string, () => void]>()
-	let next = 0
-	return {
-		handlers,
-		connect(signal: string, fn: () => void) {
-			next++
-			handlers.set(next, [signal, fn])
-			return next
-		},
-		disconnect(id: number) {
-			handlers.delete(id)
-		},
-		emit(signal: string) {
-			for (const [name, fn] of [...handlers.values()]) if (name === signal) fn()
-		},
-	}
-}
+import {
+	accessor,
+	jsx_runtime,
+	make,
+	nodes,
+	capture_timer,
+	type fake_timer,
+	signals,
+} from "../helpers.ts"
 
 function endpoint(volume: number, icon: string, mute = false) {
 	return {
@@ -51,7 +40,7 @@ async function osd_fixture() {
 		display: 0.4,
 		kbd: 0.6,
 	}
-	const timers: { ms: number; fn: () => void; cancelled: boolean }[] = []
+	const timers: fake_timer[] = []
 	const cleanups: (() => void)[] = []
 	const states: { value: any }[] = []
 	const module = await load_module("widget/OSD/index.tsx", {
@@ -70,15 +59,7 @@ async function osd_fixture() {
 		},
 		"ags/gtk4/jsx-runtime": jsx_runtime,
 		"$lib/time": {
-			timeout: (ms, fn) => {
-				const timer = { ms, fn, cancelled: false }
-				timers.push(timer)
-				return {
-					cancel: () => {
-						timer.cancelled = true
-					},
-				}
-			},
+			timeout: capture_timer(timers),
 		},
 		ags: {
 			createState: (initial) => {
@@ -157,7 +138,7 @@ test("volume changes reveal the OSD and restart the dismiss timer", async () => 
 	assert.equal(f.timers[0].ms, 1500)
 	f.speaker.current.emit("notify::volume")
 	assert.equal(f.timers[0].cancelled, true)
-	f.timers[1].fn()
+	f.timers[1].callback()
 	assert.equal(f.reveal(), false)
 })
 

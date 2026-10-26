@@ -1,7 +1,16 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { accessor, create_state } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	create_binding,
+	emitter,
+	make_mutable as jsx,
+	noop_timer,
+	capture_kinds,
+	revealer_transitions,
+} from "../helpers.ts"
 
 type notification_details = {
 	image?: string
@@ -16,26 +25,6 @@ async function render_notification(
 	actions,
 	details: notification_details = {},
 ) {
-	const node = (type, props: Record<string, any> = {}) => ({
-		type,
-		props,
-		children: (Array.isArray(props.children)
-			? props.children
-			: [props.children]
-		).filter(Boolean),
-		insert_child_after(child, previous) {
-			this.children.splice(
-				previous ? this.children.indexOf(previous) + 1 : 0,
-				0,
-				child,
-			)
-		},
-		remove(child) {
-			this.children.splice(this.children.indexOf(child), 1)
-		},
-	})
-	const jsx = (type, props) =>
-		typeof type === "function" ? type(props) : node(type, props)
 	let dnd = false
 	let closes = 0
 	let mounted = 0
@@ -58,22 +47,11 @@ async function render_notification(
 		...details.notification,
 	}
 	let incoming = notification
-	const listeners = new Map()
-	let next = 0
-	const daemon = {
+	const daemon = Object.assign(emitter(), {
 		get_notifications: () =>
 			incoming === notification ? [notification] : [notification, incoming],
 		get_notification: (id) => (id === incoming.id ? incoming : notification),
-		connect: (event, fn) => {
-			listeners.set(++next, { event, fn })
-			return next
-		},
-		disconnect: (id) => listeners.delete(id),
-		emit: (event, ...args) => {
-			for (const listener of listeners.values())
-				if (listener.event === event) listener.fn(daemon, ...args)
-		},
-	}
+	})
 	const options = {
 		scale: accessor(() => 100),
 		transition: { duration: 0 },
@@ -84,9 +62,9 @@ async function render_notification(
 	}
 	const imports = {
 		ags: {
-			createBinding: (object, property) => accessor(() => object[property]),
+			createBinding: create_binding,
 			createState: create_state,
-			createComputed: (fn) => accessor(fn),
+			createComputed: accessor,
 			createRoot: (fn) => fn(() => {}),
 			onCleanup: () => {},
 		},
@@ -103,19 +81,14 @@ async function render_notification(
 				Orientation: { VERTICAL: 1, HORIZONTAL: 2 },
 				WrapMode: { WORD_CHAR: 3 },
 				PolicyType: { AUTOMATIC: 1, EXTERNAL: 3 },
-				RevealerTransitionType: {
-					SLIDE_DOWN: 1,
-					SLIDE_UP: 2,
-					SWING_RIGHT: 3,
-					SWING_DOWN: 4,
-				},
+				RevealerTransitionType: revealer_transitions,
 				EventControllerMotion: "motion",
 			},
 		},
 		"ags/gtk4/jsx-runtime": { jsx, jsxs: jsx },
 		"$lib/app": { default: {} },
 		"ags/time": { createPoll: (_n, _ms, fn) => fn },
-		"$lib/time": { timeout: () => ({ cancel() {} }) },
+		"$lib/time": { timeout: noop_timer },
 		"gi://AstalNotifd": { default: { Urgency: { LOW: 0, CRITICAL: 2 } } },
 		"gi://GLib": {
 			default: {
@@ -132,22 +105,9 @@ async function render_notification(
 				WrapMode: { WORD_CHAR: 2 },
 			},
 		},
-		"../PanelButton": { PanelButton: (props) => node("panel-button", props) },
+		"../PanelButton": { PanelButton: (props) => jsx("panel-button", props) },
 		"$lib/env": { default: { paths: { home: "/home/user" } } },
-		"$service/screen_capture": {
-			capture_kinds: {
-				screenshot: {
-					app_name: "Screenshot",
-					summary: "Screenshot taken",
-					directory: "/home/user/Pictures/Screenshots/",
-				},
-				recording: {
-					app_name: "Recorder",
-					summary: "Recording saved",
-					directory: "/home/user/Videos/Screencasting/",
-				},
-			},
-		},
+		"$service/screen_capture": { capture_kinds },
 		"$lib/textures": {
 			classify_image_uri: () => "file",
 			create_texture_accessor: (...args) => {
@@ -175,7 +135,7 @@ async function render_notification(
 				"widget/Bar/components/Notifications/entry_lifecycle.ts",
 				{
 					ags: { createState: () => [] },
-					"$lib/time": { timeout: () => ({ cancel() {} }) },
+					"$lib/time": { timeout: noop_timer },
 					"gi://AstalNotifd": { default: {} },
 					"$lib/notifications": { notification_daemon: daemon },
 					"$shell/options": { default: options },

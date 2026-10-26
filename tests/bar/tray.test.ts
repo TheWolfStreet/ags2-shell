@@ -4,6 +4,12 @@ import * as icons from "../../lib/icons.ts"
 import { load_module } from "../load_module.ts"
 import {
 	accessor,
+	create_binding,
+	render_for,
+	capture_idle,
+	run_idles,
+	run_cleanups,
+	type fake_idle,
 	create_state,
 	jsx_runtime,
 	nodes,
@@ -27,7 +33,6 @@ const tray_icon = {
 }
 
 async function tray_fixture({
-	is_menu = false,
 	has_menu = true,
 	menu_path = "/MenuBar" as string | null,
 	item_id = "org.example.Tray/StatusNotifierItem",
@@ -54,15 +59,15 @@ async function tray_fixture({
 		get_item_id: () => item_id,
 		get_is_menu: () => {
 			is_menu_reads++
-			return is_menu
+			return false
 		},
 	}
 	const imports = {
 		ags: {
-			createBinding: (object, property) => accessor(() => object[property]),
-			createComputed: (fn) => accessor(fn),
+			createBinding: create_binding,
+			createComputed: accessor,
 			createState: create_state,
-			For: ({ each, children }) => each().map(children),
+			For: render_for,
 			onCleanup: (fn) => cleanups.push(fn),
 		},
 		"ags/gtk4": {
@@ -210,32 +215,31 @@ test("tray icons use the icon theme's version of their name and fall back to the
 	assert.equal(unnamed.icon(), "icon")
 })
 
-for (const is_menu of [false, true])
-	test(`tray left and right click open the menu without activation (is_menu=${is_menu})`, async () => {
-		const fixture = await tray_fixture({ is_menu })
-		assert.equal(fixture.gesture.props.button, 3)
-		fixture.button.props.onClicked()
-		fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
-		assert.equal(fixture.calls.length, 1)
-		assert.equal(fixture.calls[0][0], "org.example.Tray")
-		assert.equal(fixture.calls[0][1], "/MenuBar")
-		assert.equal(fixture.calls[0][2], "com.canonical.dbusmenu")
-		assert.equal(fixture.calls[0][3], "AboutToShow")
-		assert.equal(fixture.calls[0][4].type, "(i)")
-		assert.deepEqual(fixture.calls[0][4].value, [0])
-		assert.equal(fixture.calls[0][7], 1000)
-		fixture.complete(0)
-		assert.equal(fixture.builds.length, 1)
-		assert.equal(fixture.popups.length, 1)
-		fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
-		fixture.complete(1)
-		assert.deepEqual(
-			fixture.calls.map((call) => call[3]),
-			["AboutToShow", "AboutToShow"],
-		)
-		assert.equal(fixture.popups.length, 2)
-		assert.equal(fixture.is_menu_reads(), 0)
-	})
+test("tray left and right click open the menu without activation", async () => {
+	const fixture = await tray_fixture()
+	assert.equal(fixture.gesture.props.button, 3)
+	fixture.button.props.onClicked()
+	fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
+	assert.equal(fixture.calls.length, 1)
+	assert.equal(fixture.calls[0][0], "org.example.Tray")
+	assert.equal(fixture.calls[0][1], "/MenuBar")
+	assert.equal(fixture.calls[0][2], "com.canonical.dbusmenu")
+	assert.equal(fixture.calls[0][3], "AboutToShow")
+	assert.equal(fixture.calls[0][4].type, "(i)")
+	assert.deepEqual(fixture.calls[0][4].value, [0])
+	assert.equal(fixture.calls[0][7], 1000)
+	fixture.complete(0)
+	assert.equal(fixture.builds.length, 1)
+	assert.equal(fixture.popups.length, 1)
+	fixture.gesture.props.onPressed({ get_widget: () => tray_icon })
+	fixture.complete(1)
+	assert.deepEqual(
+		fixture.calls.map((call) => call[3]),
+		["AboutToShow", "AboutToShow"],
+	)
+	assert.equal(fixture.popups.length, 2)
+	assert.equal(fixture.is_menu_reads(), 0)
+})
 
 test("tray items without a menu are activated and asked for their own context menu under the icon, one popup gap past the bar", async () => {
 	const fixture = await tray_fixture({ has_menu: false })
@@ -518,7 +522,7 @@ async function menu_fixture({
 	group = null as fake_group | null,
 } = {}) {
 	const popovers: fake_popover[] = []
-	const idles: { callback: () => void; cancelled: boolean }[] = []
+	const idles: fake_idle[] = []
 	const cleanups: (() => void)[] = []
 	const item = Object.assign(new signal_source(), {
 		menuModel: model,
@@ -539,15 +543,7 @@ async function menu_fixture({
 			},
 		},
 		"$lib/time": {
-			idle: (callback) => {
-				const timer = { callback, cancelled: false }
-				idles.push(timer)
-				return {
-					cancel: () => {
-						timer.cancelled = true
-					},
-				}
-			},
+			idle: capture_idle(idles),
 		},
 		"gi://GLib": { default: { VariantType: { new: (type) => type } } },
 		"widget/shared/animated_popover": {
@@ -601,13 +597,8 @@ async function menu_fixture({
 		popovers,
 		idles,
 		menu: () => root.revealer.child as fake_widget,
-		run_idles: () => {
-			for (const timer of idles.splice(0))
-				if (!timer.cancelled) timer.callback()
-		},
-		cleanup: () => {
-			for (const cleanup of cleanups) cleanup()
-		},
+		run_idles: () => run_idles(idles),
+		cleanup: () => run_cleanups(cleanups),
 	}
 }
 

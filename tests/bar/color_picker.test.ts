@@ -1,7 +1,16 @@
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
-import { create_state, jsx_runtime, make, nodes, tick } from "../helpers.ts"
+import {
+	create_state,
+	jsx_runtime,
+	make,
+	nodes,
+	tick,
+	queued_idle,
+	for_node,
+	gobject_registration,
+} from "../helpers.ts"
 
 type fake_copy = { content: unknown; finish: (copied?: boolean) => void }
 type fixture_options = {
@@ -139,7 +148,7 @@ async function color_picker_fixture({
 		"widget/shared/animated_popover.ts",
 		{
 			"ags/gtk4": gtk,
-			"ags/gobject": { default: { registerClass: (type) => type } },
+			"ags/gobject": gobject_registration,
 			"$shell/options": options,
 		},
 	)
@@ -150,7 +159,7 @@ async function color_picker_fixture({
 				colors = get
 				return [get, set]
 			},
-			For: (props) => make("for", props),
+			For: for_node,
 			onCleanup: (fn) => cleanups.push(fn),
 		},
 		"ags/file": {
@@ -196,10 +205,7 @@ async function color_picker_fixture({
 		},
 		"$lib/icons": { default: { ui: { colorpicker: "colorpicker" } } },
 		"$lib/time": {
-			idle: (fn) => {
-				idles.push(fn)
-				return { cancel: () => idles.splice(idles.indexOf(fn), 1) }
-			},
+			idle: queued_idle(idles),
 			debounce: (_delay, fn) => ({
 				call: () => {
 					void fn()

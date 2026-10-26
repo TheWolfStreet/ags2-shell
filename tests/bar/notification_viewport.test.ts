@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
 import { readFileSync } from "node:fs"
 import test from "node:test"
+import { available } from "../helpers.ts"
 import ts from "../typescript.ts"
 
 function compiled_functions(path, names) {
@@ -104,15 +105,6 @@ const columns = ts.transpileModule(
 		compilerOptions: { target: ts.ScriptTarget.ES2022 },
 	},
 ).outputText
-
-function available(command) {
-	try {
-		execFileSync("which", [command], { stdio: "ignore" })
-		return true
-	} catch {
-		return false
-	}
-}
 
 test(
 	"real notification header, text and previews fit calendar-sized GTK columns",

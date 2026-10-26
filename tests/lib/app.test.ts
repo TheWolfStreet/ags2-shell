@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { load_module } from "../load_module.ts"
+import { capture_log } from "../helpers.ts"
 
 type shutdown_listener = { callback: () => void; after: boolean }
 
@@ -108,9 +109,7 @@ test("failed guard does not shut down and allows a later DBus quit", async () =>
 test("a throwing guard is logged, leaves no shutdown hook and allows a later quit", async (t) => {
 	const { app, events } = await shell_app()
 	const logged: unknown[][] = []
-	t.mock.method(console, "error", (...args: unknown[]) => {
-		if (!String(args[0]).includes("ExperimentalWarning")) logged.push(args)
-	})
+	t.mock.method(console, "error", capture_log(logged))
 	const failure = new Error("guard broke")
 	app.before_quit = async () => {
 		events.push("flush")

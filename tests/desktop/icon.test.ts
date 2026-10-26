@@ -2,7 +2,12 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
 import * as icons from "../../lib/icons.ts"
-import { nodes } from "../helpers.ts"
+import {
+	nodes,
+	state_scope,
+	make_flat as make,
+	immediate_idle,
+} from "../helpers.ts"
 
 const primary = 1
 const secondary = 3
@@ -10,26 +15,7 @@ const control = 4
 const shift = 1
 
 async function fixture(file: Record<string, unknown> = {}) {
-	const subscribers = new Set<() => void>()
-	const make_accessor = (read) =>
-		Object.assign(() => read(), {
-			peek: read,
-			subscribe: (callback) => {
-				subscribers.add(callback)
-				return () => subscribers.delete(callback)
-			},
-			as: (fn) => make_accessor(() => fn(read())),
-		})
-	function state<T>(initial: T) {
-		let value = initial
-		return [
-			make_accessor(() => value),
-			(next: T) => {
-				value = next
-				for (const callback of [...subscribers]) callback()
-			},
-		] as const
-	}
+	const { make_accessor, state } = state_scope()
 	const calls: unknown[][] = []
 	const record =
 		(name: string) =>
@@ -47,11 +33,6 @@ async function fixture(file: Record<string, unknown> = {}) {
 	const [selected_paths, set_selected_paths] = state(new Set<string>())
 	const [dragged_paths, set_dragged_paths] = state(new Set<string>())
 	const [cut_paths, set_cut_paths] = state(new Set<string>())
-	const make = (type, props: Record<string, any> = {}) => {
-		if (typeof type === "function") return type(props)
-		const children = [props.children ?? []].flat(Infinity)
-		return { type, props, children }
-	}
 	const imports = {
 		ags: {
 			createComputed: (fn) => make_accessor(fn),
@@ -75,7 +56,7 @@ async function fixture(file: Record<string, unknown> = {}) {
 			},
 		},
 		"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
-		"$lib/time": { idle: (fn) => fn() },
+		"$lib/time": { idle: immediate_idle },
 		"$lib/textures": {
 			hidden_drag_icon: () => "hidden",
 			create_texture_accessor: (path, size) => () => `${path}@${size}`,

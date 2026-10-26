@@ -1,10 +1,17 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { with_hyprland_command } from "../hyprland.ts"
 import * as result from "../../lib/result.ts"
 import * as icons from "../../lib/icons.ts"
-import { accessor, create_state, nodes, tick } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	nodes,
+	tick,
+	with_hyprland_command,
+	create_binding,
+	signals as emitter,
+} from "../helpers.ts"
 
 type node = { type: unknown; props: Record<string, any> }
 
@@ -22,28 +29,6 @@ function stub_namespace(name: string): any {
 		get: (_target, key) =>
 			typeof key === "string" ? stub_namespace(`${name}.${key}`) : undefined,
 	})
-}
-
-function emitter() {
-	const handlers = new Map<number, [string, (...args: unknown[]) => void]>()
-	let serial = 0
-	return {
-		handlers,
-		connect(signal: string, callback: (...args: unknown[]) => void) {
-			handlers.set(++serial, [signal, callback])
-			return serial
-		},
-		disconnect(id: number) {
-			assert.equal(handlers.delete(id), true)
-		},
-		emit(signal: string, ...args: unknown[]) {
-			for (const [name, callback] of [...handlers.values()])
-				if (name === signal) callback(...args)
-		},
-		count(signal: string) {
-			return [...handlers.values()].filter(([name]) => name === signal).length
-		},
-	}
 }
 
 function monitor(height: number) {
@@ -123,8 +108,8 @@ async function quicksettings_fixture() {
 	const imports = {
 		ags: {
 			createState: create_state,
-			createBinding: (object, property) => accessor(() => object[property]),
-			createComputed: (fn) => accessor(fn),
+			createBinding: create_binding,
+			createComputed: accessor,
 			For: (props) => make("for", props),
 			onCleanup: (fn) => cleanups.push(fn),
 		},

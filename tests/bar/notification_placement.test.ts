@@ -8,24 +8,18 @@ import {
 	readFileSync,
 	readdirSync,
 	rmSync,
-	statSync,
 	writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
+import { available, wait, wayland_socket } from "../helpers.ts"
 import ts from "../typescript.ts"
 
 const root = new URL("../../", import.meta.url)
 const sway =
 	process.env.SWAY_HEADLESS_BIN ||
 	spawnSync("which", ["sway-unwrapped"], { encoding: "utf8" }).stdout?.trim()
-function available(command) {
-	return spawnSync("which", [command], { stdio: "ignore" }).status === 0
-}
-function wait(ms) {
-	return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 async function stop(child) {
 	if (!child?.pid) return
@@ -231,11 +225,7 @@ test(
 						Date.now() < deadline &&
 						compositor.exitCode === null
 					) {
-						socket = readdirSync(runtime).find(
-							(name) =>
-								/^wayland-\d+$/.test(name) &&
-								statSync(join(runtime, name)).isSocket(),
-						)
+						socket = wayland_socket(runtime)
 						if (!socket) await wait(50)
 					}
 					assert.ok(socket, `private Sway did not start: ${sway_log}`)

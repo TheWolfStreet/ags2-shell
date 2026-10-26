@@ -2,7 +2,12 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
 import * as geometry from "../../widget/Desktop/grid_geometry.ts"
-import { nodes } from "../helpers.ts"
+import {
+	nodes,
+	state_scope,
+	make_flat as make,
+	flush_ticks as settle,
+} from "../helpers.ts"
 
 const keys = {
 	KEY_A: 65,
@@ -28,26 +33,7 @@ const primary = 1
 const secondary = 3
 
 async function fixture() {
-	const subscribers = new Set<() => void>()
-	const make_accessor = (read) =>
-		Object.assign(() => read(), {
-			peek: read,
-			subscribe: (callback) => {
-				subscribers.add(callback)
-				return () => subscribers.delete(callback)
-			},
-			as: (fn) => make_accessor(() => fn(read())),
-		})
-	function state<T>(initial: T) {
-		let value = initial
-		return [
-			make_accessor(() => value),
-			(next: T) => {
-				value = next
-				for (const callback of [...subscribers]) callback()
-			},
-		] as const
-	}
+	const { make_accessor, state } = state_scope()
 	const calls: unknown[][] = []
 	const errors: unknown[][] = []
 	const cleanups: (() => void)[] = []
@@ -93,11 +79,6 @@ async function fixture() {
 	const icons: Record<string, any>[] = []
 	class Widget {}
 	class Entry extends Widget {}
-	const make = (type, props: Record<string, any> = {}) => {
-		if (typeof type === "function") return type(props)
-		const children = [props.children ?? []].flat(Infinity)
-		return { type, props, children }
-	}
 	const options = {
 		desktop: { enabled, iconSize: Object.assign(() => "small", {}) },
 	}
@@ -212,9 +193,6 @@ async function fixture() {
 		grid,
 		drag,
 	})
-	const settle = async () => {
-		for (let i = 0; i < 4; i++) await new Promise(setImmediate)
-	}
 	return {
 		calls,
 		errors,

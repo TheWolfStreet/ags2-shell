@@ -3,6 +3,13 @@ import { readFileSync } from "node:fs"
 import test, { mock } from "node:test"
 import ts from "../typescript.ts"
 import { load_module } from "../load_module.ts"
+import {
+	capture_idle,
+	type fake_idle as fake_timer,
+	load_gnim_state,
+	subscribe_set,
+	tick,
+} from "../helpers.ts"
 import * as result from "../../lib/result.ts"
 
 test.afterEach(() => mock.restoreAll())
@@ -13,8 +20,6 @@ type fake_node = {
 	children: any[]
 	[key: string]: any
 }
-
-type fake_timer = { callback: () => void; cancelled: boolean; cancel(): void }
 
 async function launcher_fixture(bottom = false) {
 	const listeners = new Set<() => void>()
@@ -42,13 +47,7 @@ async function launcher_fixture(bottom = false) {
 	const state = (value) => {
 		const subscribers = new Set<() => void>()
 		return [
-			accessor(
-				() => value,
-				(callback) => {
-					subscribers.add(callback)
-					return () => subscribers.delete(callback)
-				},
-			),
+			accessor(() => value, subscribe_set(subscribers)),
 			(next) => {
 				value = next
 				for (const callback of [...subscribers]) callback()
@@ -249,17 +248,7 @@ async function launcher_fixture(bottom = false) {
 			},
 		},
 		"$lib/time": {
-			idle: (callback) => {
-				const timer: fake_timer = {
-					callback,
-					cancelled: false,
-					cancel() {
-						this.cancelled = true
-					},
-				}
-				timers.push(timer)
-				return timer
-			},
+			idle: capture_idle(timers),
 		},
 		"$service/apps": { applications: {} },
 		"style/runtime_css": { scaled_token_overrides: () => "" },
@@ -591,21 +580,7 @@ test("real Gnim With does not rebuild Results for catalog metadata, but does for
 	assert.match(initializer, /all_apps\.peek\(\)/)
 	const gnim = "node_modules/gnim/dist/jsx"
 	const scope = await load_module(`${gnim}/scope.ts`)
-	const state = await load_module(`${gnim}/state.ts`, {
-		"gi://GObject": {
-			default: {
-				Object: class {
-					connect() {}
-					disconnect() {}
-				},
-				TYPE_JSOBJECT: 1,
-			},
-		},
-		"gi://Gio": { default: {} },
-		"gi://GLib": { default: {} },
-		"../util.js": { camelify: (value) => value, kebabify: (value) => value },
-		"./scope.js": scope,
-	})
+	const state = await load_gnim_state({ scope })
 	const { With } = await load_module(`${gnim}/With.ts`, {
 		"./Fragment.js": {
 			Fragment: class {
@@ -719,7 +694,7 @@ test("a failed launch is logged after the window hides", async () => {
 	f.query("b")
 	f.activate()
 	assert.deepEqual(f.window_calls, ["hide"])
-	await new Promise((resolve) => setImmediate(resolve))
+	await tick()
 	assert.deepEqual(errors, [
 		["launcher: Could not launch application", failure],
 	])

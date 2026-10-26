@@ -1,9 +1,14 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { with_hyprland_command } from "../hyprland.ts"
 import * as result from "../../lib/result.ts"
-import { accessor, create_state } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	with_hyprland_command,
+	flush_ticks as settle,
+	push_idle,
+} from "../helpers.ts"
 
 const path = "/mock/Desktop/keep"
 const missing = "/mock/Desktop/missing"
@@ -145,7 +150,7 @@ async function fixture({
 	}
 	const ags = {
 		createState: create_state,
-		createComputed: (fn) => accessor(fn),
+		createComputed: accessor,
 		createBinding: (object, property) =>
 			property === "monitors"
 				? object.monitors
@@ -170,7 +175,7 @@ async function fixture({
 		},
 	}
 	const time = {
-		idle: (fn) => idles.push(fn),
+		idle: push_idle(idles),
 		debounce: (delay, fn) => ({
 			call: () => {
 				if (delay === 500) saves++
@@ -254,9 +259,6 @@ async function fixture({
 		"./grid_geometry": geometry,
 	})
 	console.error = original_error
-	const settle = async () => {
-		for (let i = 0; i < 4; i++) await new Promise(setImmediate)
-	}
 	return {
 		desktop,
 		operations,

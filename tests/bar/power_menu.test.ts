@@ -3,6 +3,7 @@ import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
 import {
 	accessor,
+	with_node,
 	create_state,
 	jsx_runtime,
 	make,
@@ -41,7 +42,7 @@ async function power_fixture({
 	const module = await load_module("widget/PowerMenu/index.tsx", {
 		ags: {
 			createState: create_state,
-			With: (props) => make("with", props),
+			With: with_node,
 		},
 		"ags/process": {
 			execAsync: (command) => {

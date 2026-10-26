@@ -4,6 +4,7 @@ import { load_module } from "../load_module.ts"
 import * as result_module from "../../lib/result.ts"
 import {
 	accessor,
+	push_idle,
 	create_state,
 	jsx_runtime,
 	nodes,
@@ -26,7 +27,7 @@ async function context_menu_fixture() {
 		ags: {
 			Accessor: class {},
 			createState: create_state,
-			createComputed: (fn) => accessor(fn),
+			createComputed: accessor,
 			onCleanup: () => {},
 		},
 		"ags/gtk4": {
@@ -48,7 +49,7 @@ async function context_menu_fixture() {
 		},
 		"ags/gtk4/jsx-runtime": jsx_runtime,
 		"$lib/time": {
-			idle: (run) => idles.push(run),
+			idle: push_idle(idles),
 			timeout: (ms, run) => timeouts.push({ ms, run }),
 		},
 		"gi://Graphene": {

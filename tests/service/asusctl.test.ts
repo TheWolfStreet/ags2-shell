@@ -1,11 +1,16 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { with_hyprland_command } from "../hyprland.ts"
 import * as result from "../../lib/result.ts"
 import { err, ok } from "../../lib/result.ts"
 import * as lua from "../../lib/lua.ts"
-import { jsx_runtime, tick } from "../helpers.ts"
+import {
+	jsx_runtime,
+	tick,
+	with_hyprland_command,
+	subscribe_list,
+	gobject_stub,
+} from "../helpers.ts"
 
 const monitor_configuration = await load_module(
 	"service/monitor_configuration.ts",
@@ -52,26 +57,12 @@ async function fixture({
 			set: (next: number) => {
 				value = next
 			},
-			subscribe: (callback: () => void) => {
-				option_changes.push(callback)
-				return () => {}
-			},
+			subscribe: subscribe_list(option_changes),
 		}
 	}
 	const asus = { ac_hz: option(120), bat_hz: option(60) }
 	const imports = {
-		"ags/gobject": {
-			default: {
-				Object: class {
-					notify(name: string) {
-						notifications.push(name)
-					}
-					vfunc_finalize() {}
-				},
-			},
-			getter: () => () => {},
-			register: () => (value) => value,
-		},
+		"ags/gobject": gobject_stub((name) => notifications.push(name)),
 		"$lib/hyprland": with_hyprland_command({
 			hyprland: {
 				connect: (name, callback) => {

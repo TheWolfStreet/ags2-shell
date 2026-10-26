@@ -2,7 +2,15 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createContext } from "node:vm"
 import { load_module } from "../load_module.ts"
-import { create_state } from "../helpers.ts"
+import {
+	create_state,
+	emitter,
+	capture_timer,
+	immediate_debounce,
+	capture_log,
+	variant,
+	type fake_timer as harness_timer,
+} from "../helpers.ts"
 
 function load(
 	path: string,
@@ -19,26 +27,6 @@ async function with_files(imports) {
 			"gi://Gio": imports["gi://Gio"],
 			"gi://GLib": imports["gi://GLib"],
 		}),
-	}
-}
-
-function emitter() {
-	let next = 1
-	const listeners = new Map()
-	return {
-		listeners,
-		connect(event, callback) {
-			const id = next++
-			listeners.set(id, { event, callback })
-			return id
-		},
-		disconnect(id) {
-			assert.ok(listeners.delete(id))
-		},
-		emit(event, ...args) {
-			for (const listener of [...listeners.values()])
-				if (listener.event === event) listener.callback(this, ...args)
-		},
 	}
 }
 
@@ -63,13 +51,6 @@ type dbus_call = {
 	method: string
 	args: any
 }
-type harness_timer = {
-	ms: number
-	callback: () => void
-	cancelled: boolean
-	cancel(): void
-}
-
 function notification_harness(
 	owner = ":1.shell",
 	stored: stored_record[] | null = null,
@@ -159,30 +140,14 @@ function notification_harness(
 		},
 		"$lib/app": { default: shell },
 		"$lib/time": {
-			timeout: (ms, callback) => {
-				const timer = {
-					ms,
-					callback,
-					cancelled: false,
-					cancel() {
-						this.cancelled = true
-					},
-				}
-				timers.push(timer)
-				return timer
-			},
+			timeout: capture_timer(timers),
 		},
 		"gi://AstalNotifd": { default: { get_default: () => daemon } },
 		"gi://Gio": { default: { DBus: { session }, DBusCallFlags: { NONE: 0 } } },
 		"gi://GLib": {
 			default: {
 				find_program_in_path: (name) => name,
-				Variant: class {
-					value: unknown
-					constructor(_type, value) {
-						this.value = value
-					}
-				},
+				Variant: variant,
 				VariantType: class {},
 				uuid_string_random: (() => {
 					let n = 0
@@ -628,9 +593,7 @@ test("missing programs are warned about and reported in a critical notification"
 		name.startsWith("missing") ? null : name
 	const warned: unknown[][] = []
 	const errors: unknown[][] = []
-	t.mock.method(console, "error", (...args: unknown[]) => {
-		if (!String(args[0]).includes("ExperimentalWarning")) errors.push(args)
-	})
+	t.mock.method(console, "error", capture_log(errors))
 	const module = await load("lib/notifications.ts", h.imports, {
 		error: (...args) => errors.push(args),
 		warn: (...args) => warned.push(args),
@@ -678,12 +641,7 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 	)
 	files.set("/home/user/important", "IMPORTANT")
 	if (!initial_symlink) files.set(path, "IMG existing")
-	const timers: {
-		ms: number
-		fn: () => void
-		cancelled: boolean
-		cancel(): void
-	}[] = []
+	const timers: harness_timer[] = []
 	const shell = emitter()
 	const directory_monitor = Object.assign(emitter(), { cancel() {} })
 	let revision = 0
@@ -875,19 +833,8 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 		},
 		"$lib/env": { default: { paths: { home: "/home/user" } } },
 		"$lib/time": {
-			interval: (ms, fn) => {
-				const timer = {
-					ms,
-					fn,
-					cancelled: false,
-					cancel() {
-						this.cancelled = true
-					},
-				}
-				timers.push(timer)
-				return timer
-			},
-			debounce: (_ms, fn) => ({ call: fn, cancel() {} }),
+			interval: capture_timer(timers),
+			debounce: immediate_debounce,
 		},
 	}
 	return {
@@ -1148,7 +1095,7 @@ test("a working monitor still polls symlink targets and stops after link replace
 	assert.equal(h.timers.length, 1)
 	const initial = module.wallpaper_revision.peek()
 	h.external_write("/home/user/important", "UPDATED")
-	h.timers[0].fn()
+	h.timers[0].callback()
 	assert.equal(module.wallpaper_revision.peek(), initial + 1)
 	h.external_write(h.path, "IMG regular")
 	h.links.delete(h.path)

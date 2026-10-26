@@ -3,7 +3,16 @@ import test from "node:test"
 import { load_module } from "../load_module.ts"
 import * as result_module from "../../lib/result.ts"
 import icons from "../../lib/icons.ts"
-import { accessor, create_state, nodes, read, tick } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	nodes,
+	read,
+	tick,
+	string_object,
+	push_idle,
+	subscribe_set,
+} from "../helpers.ts"
 
 type node = {
 	type: unknown
@@ -180,17 +189,6 @@ async function launcher_fixture() {
 		append(item) {
 			this.items.push(item)
 		}
-	}
-
-	class string_object {
-		declare value: string
-		constructor(value: string) {
-			this.value = value
-		}
-		get_string() {
-			return this.value
-		}
-		static $gtype = "GtkStringObject"
 	}
 
 	const catalog: {
@@ -541,14 +539,11 @@ async function launcher_fixture() {
 				if (object === applications)
 					return accessor(
 						() => applications.list,
-						(callback) => {
-							app_subscribers.add(callback)
-							return () => app_subscribers.delete(callback)
-						},
+						subscribe_set(app_subscribers),
 					)
 				return accessor(() => object[property])
 			},
-			createComputed: (fn) => accessor(fn),
+			createComputed: accessor,
 			createRoot: (fn) => fn(() => events.push(["dispose"])),
 			createState: create_state,
 			For: (props) => make("for", props),
@@ -579,7 +574,7 @@ async function launcher_fixture() {
 					},
 				}
 			},
-			idle: (run) => idles.push(run),
+			idle: push_idle(idles),
 		},
 		"gi://AstalApps": { default: { Application: application } },
 		"gi://Gio": { default: gio },

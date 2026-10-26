@@ -1,10 +1,20 @@
 import assert from "node:assert/strict"
-import { execFileSync, spawnSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import test, { mock } from "node:test"
 import ts from "../typescript.ts"
 import { load_module } from "../load_module.ts"
-import { accessor, create_state, nodes } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	nodes,
+	available,
+	run_cleanups,
+	gobject_registration,
+	capture_timer,
+	type fake_timer,
+	make as make_node,
+} from "../helpers.ts"
 
 test.afterEach(() => mock.restoreAll())
 
@@ -39,15 +49,6 @@ const implementation = ts.transpileModule(
 		},
 	},
 ).outputText
-
-function available(command) {
-	try {
-		execFileSync("which", [command], { stdio: "ignore" })
-		return true
-	} catch {
-		return false
-	}
-}
 
 test(
 	"datetime alone determines both equal halves and height under native GTK",
@@ -276,8 +277,8 @@ async function datemenu_fixture() {
 			count.value = value
 		},
 	]
-	const intervals: { ms: number; callback: () => void; cancelled: boolean }[] =
-		[]
+	const intervals: fake_timer[] = []
+	const interval = capture_timer(intervals)
 	const cleanups: (() => void)[] = []
 	let toggle
 	let uptime_text = "3725.4 9000.1"
@@ -285,12 +286,7 @@ async function datemenu_fixture() {
 	const make = (type, props: Record<string, any> = {}) => {
 		if (typeof type === "function") return type(props)
 		return {
-			type,
-			props,
-			children: (Array.isArray(props.children)
-				? props.children
-				: [props.children]
-			).filter(Boolean),
+			...make_node(type, props),
 			set_parent() {},
 		}
 	}
@@ -313,9 +309,9 @@ async function datemenu_fixture() {
 				},
 			},
 			"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
-			"ags/gobject": { default: { registerClass: (cls) => cls } },
+			"ags/gobject": gobject_registration,
 			ags: {
-				createComputed: (fn) => accessor(fn),
+				createComputed: accessor,
 				createState: create_state,
 				onCleanup: (fn) => cleanups.push(fn),
 			},
@@ -361,15 +357,7 @@ async function datemenu_fixture() {
 			},
 			"$lib/time": {
 				interval: (ms, callback) => {
-					const timer = {
-						ms,
-						callback,
-						cancelled: false,
-						cancel() {
-							this.cancelled = true
-						},
-					}
-					intervals.push(timer)
+					const timer = interval(ms, callback)
 					callback()
 					return timer
 				},
@@ -396,9 +384,7 @@ async function datemenu_fixture() {
 		toggle: (visible) => toggle({ visible }),
 		toggled: () => toggle !== null,
 		dismiss_all: () => dismiss_all,
-		cleanup: () => {
-			for (const cleanup of cleanups) cleanup()
-		},
+		cleanup: () => run_cleanups(cleanups),
 	}
 }
 

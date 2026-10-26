@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { execFileSync, spawnSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url"
 import ts from "../typescript.ts"
 import { load_module } from "../load_module.ts"
 import * as result from "../../lib/result.ts"
-import { create_state } from "../helpers.ts"
+import { create_state, available, noop_timer, flush_ticks } from "../helpers.ts"
 
 const source = readFileSync(
 	new URL("../../widget/Desktop/DragAndDrop.tsx", import.meta.url),
@@ -176,7 +176,7 @@ async function fixture() {
 			},
 		},
 		"$lib/time": {
-			timeout: () => ({ cancel() {} }),
+			timeout: noop_timer,
 			interval: (_ms: number, tick: () => void) => {
 				const watch = { tick, cancelled: false }
 				watches.push(watch)
@@ -292,7 +292,7 @@ async function fixture() {
 		watches,
 		tick: async () => {
 			for (const watch of watches) if (!watch.cancelled) watch.tick()
-			for (let i = 0; i < 4; i++) await new Promise(setImmediate)
+			await flush_ticks()
 		},
 		cleanups,
 		set_dragging_css: (value) => {
@@ -439,15 +439,6 @@ test("enter retains cross-monitor fallback coordinates without showing the ghost
 		},
 	])
 })
-
-function available(command) {
-	try {
-		execFileSync("which", [command], { stdio: "ignore" })
-		return true
-	} catch {
-		return false
-	}
-}
 
 test(
 	"native DragLayer first painted frame has no origin ghost and motion uses scrolled content bounds",
@@ -620,7 +611,7 @@ async function drop_logging(run: () => void) {
 	}
 	try {
 		run()
-		for (let i = 0; i < 4; i++) await new Promise(setImmediate)
+		await flush_ticks()
 	} finally {
 		console.error = original
 	}
@@ -799,7 +790,7 @@ test("an internal drop on another monitor is handled there and not repeated at d
 	b.target.fire("drag-motion", f.drop, 30, 40)
 	f.set_dropped_paths(["/desktop/a", "/desktop/b", "/desktop/a"])
 	assert.equal(b.target.fire("drop", f.drop, 70, 80), true)
-	for (let i = 0; i < 4; i++) await new Promise(setImmediate)
+	await flush_ticks()
 	a.source.fire("drag-end", {}, true)
 	assert.deepEqual(f.finishes, [1])
 	f.set_dragging_css(false)

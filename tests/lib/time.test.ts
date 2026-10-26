@@ -1,49 +1,14 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { load_module } from "../load_module.ts"
+import { glib_clock, capture_log, tick as next_tick } from "../helpers.ts"
 
 async function load() {
-	const sources = new Map<number, () => boolean>()
-	const added: string[] = []
-	const removed: number[] = []
-	let next = 1
-	const add = (kind: string, priority: number, callback, ms?: number) => {
-		const id = next++
-		sources.set(id, callback)
-		added.push(`${id}:${kind}:${priority}${ms === undefined ? "" : `:${ms}`}`)
-		return id
-	}
-	const glib = {
-		PRIORITY_DEFAULT: 0,
-		PRIORITY_DEFAULT_IDLE: 200,
-		SOURCE_REMOVE: false,
-		SOURCE_CONTINUE: true,
-		timeout_add: (priority, ms, callback) =>
-			add("timeout", priority, callback, ms),
-		idle_add: (priority, callback) => add("idle", priority, callback),
-		Source: {
-			remove: (id) => {
-				removed.push(id)
-				assert.ok(sources.delete(id))
-			},
-		},
-	}
+	const clock = glib_clock()
 	const module = await load_module("lib/time.ts", {
-		"gi://GLib": { default: glib },
+		"gi://GLib": { default: clock.glib },
 	})
-	return {
-		module,
-		sources,
-		added,
-		removed,
-		tick(id) {
-			const callback = sources.get(id)
-			assert.ok(callback)
-			const keep = callback()
-			if (!keep) sources.delete(id)
-			return keep
-		},
-	}
+	return { module, ...clock }
 }
 
 test("canceling an interval removes both immediate and repeating sources", async () => {
@@ -137,9 +102,7 @@ test("an interval canceled inside its callback stops repeating and skips its fir
 test("failing callbacks and rejected promises are logged and keep the timer alive", async (t) => {
 	const { module, tick } = await load()
 	const logged: unknown[][] = []
-	t.mock.method(console, "error", (...args) => {
-		if (!String(args[0]).includes("ExperimentalWarning")) logged.push(args)
-	})
+	t.mock.method(console, "error", capture_log(logged))
 	const thrown = new Error("thrown")
 	const rejected = new Error("rejected")
 	module.interval(10, () => {
@@ -151,7 +114,7 @@ test("failing callbacks and rejected promises are logged and keep the timer aliv
 	assert.equal(tick(3), false)
 	assert.equal(tick(4), false)
 	assert.deepEqual(logged, [["timer: Callback failed", thrown]])
-	await new Promise((resolve) => setImmediate(resolve))
+	await next_tick()
 	assert.deepEqual(logged, [
 		["timer: Callback failed", thrown],
 		["timer: Callback failed", rejected],

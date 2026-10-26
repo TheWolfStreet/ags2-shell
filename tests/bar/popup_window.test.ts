@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { accessor, create_state, nodes } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	nodes,
+	gobject_registration,
+} from "../helpers.ts"
 
 function fake_revealer(log: string[], mapped = true) {
 	const child = { set_opacity: (value) => log.push(`child:${value}`) }
@@ -79,7 +84,7 @@ async function popup_fixture() {
 	const [bar_position, set_bar_position] = create_state("top-center")
 	const module = await load_module("widget/shared/PopupWindow.tsx", {
 		ags: {
-			createComputed: (fn) => accessor(fn),
+			createComputed: accessor,
 			createState: create_state,
 			onCleanup: (fn) => cleanups.push(fn),
 			onMount: (fn) => mounts.push(fn),
@@ -108,7 +113,7 @@ async function popup_fixture() {
 			},
 		},
 		"ags/gtk4/jsx-runtime": { jsx: make, jsxs: make },
-		"ags/gobject": { default: { registerClass: (type) => type } },
+		"ags/gobject": gobject_registration,
 		"gi://Graphene": {
 			default: {
 				Point: class {

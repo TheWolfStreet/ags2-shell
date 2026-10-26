@@ -1,11 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { with_hyprland_command } from "../hyprland.ts"
 import * as lua from "../../lib/lua.ts"
 import * as icons from "../../lib/icons.ts"
 import {
 	accessor,
+	with_hyprland_command,
+	for_node,
 	create_state,
 	jsx_runtime,
 	make,
@@ -79,7 +80,7 @@ async function mirroring({
 		ags: {
 			createState: create_state,
 			onCleanup: (cleanup: () => void) => cleanups.push(cleanup),
-			For: (props) => make("for", props),
+			For: for_node,
 		},
 		"widget/shared/Placeholder": {
 			Placeholder: (props) => make("placeholder", props),

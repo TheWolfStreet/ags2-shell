@@ -1,12 +1,21 @@
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
-import { with_hyprland_command } from "../hyprland.ts"
-import { accessor, nodes, tick } from "../helpers.ts"
+import {
+	accessor,
+	nodes,
+	tick,
+	with_hyprland_command,
+	create_binding,
+	render_for,
+	noop_timer,
+	run_cleanups,
+	capture_timer,
+	type fake_timer,
+	make as make_node,
+} from "../helpers.ts"
 
 test.afterEach(() => mock.restoreAll())
-
-type fake_timer = { callback: () => void; cancelled: boolean; cancel(): void }
 
 async function overview_fixture(
 	client: Record<string, any> | null = null,
@@ -33,14 +42,7 @@ async function overview_fixture(
 		})
 	const make = (type, props: Record<string, any> = {}) => {
 		if (typeof type === "function") return type(props)
-		const node = {
-			type,
-			props,
-			children: (Array.isArray(props.children)
-				? props.children
-				: [props.children]
-			).filter(Boolean),
-		}
+		const node = make_node(type, props)
 		props.$?.(node)
 		return node
 	}
@@ -67,25 +69,15 @@ async function overview_fixture(
 		"widget/Bar/components/Overview/index.tsx",
 		{
 			ags: {
-				createBinding: (object, property) => accessor(() => object[property]),
+				createBinding: create_binding,
 				createComputed: (fn) => subscribable("monitor", fn),
-				For: ({ each, children }) => each().map(children),
+				For: render_for,
 				onCleanup: (fn) => cleanups.push(fn),
 				onMount: (fn) => mounts.push(fn),
 			},
 			"$lib/time": {
-				idle: () => ({ cancel() {} }),
-				timeout: (_ms, callback) => {
-					const timer: fake_timer = {
-						callback,
-						cancelled: false,
-						cancel() {
-							this.cancelled = true
-						},
-					}
-					timers.push(timer)
-					return timer
-				},
+				idle: noop_timer,
+				timeout: capture_timer(timers),
 			},
 			"$lib/app": { default: { get_window: () => null } },
 			"ags/gtk4": {
@@ -166,9 +158,7 @@ async function overview_fixture(
 			timers[index].callback()
 		},
 		refreshes: () => refreshes,
-		cleanup: () => {
-			for (const cleanup of cleanups) cleanup()
-		},
+		cleanup: () => run_cleanups(cleanups),
 	}
 }
 

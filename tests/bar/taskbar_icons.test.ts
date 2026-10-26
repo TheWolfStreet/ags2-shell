@@ -1,10 +1,15 @@
 import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import { load_module } from "../load_module.ts"
-import { with_hyprland_command } from "../hyprland.ts"
 import * as result from "../../lib/result.ts"
 import {
 	accessor,
+	with_hyprland_command,
+	create_binding,
+	render_for,
+	render_with,
+	capture_log,
+	subscribe_set,
 	create_state,
 	jsx_runtime,
 	make,
@@ -42,11 +47,11 @@ function client(class_name, initial_class, title, initial_title = "") {
 }
 
 const ags = {
-	createBinding: (object, property) => accessor(() => object[property]),
-	createComputed: (fn) => accessor(fn),
+	createBinding: create_binding,
+	createComputed: accessor,
 	createState: create_state,
-	For: ({ each, children }) => each().map(children),
-	With: ({ value, children }) => children(value()),
+	For: render_for,
+	With: render_with,
 }
 
 const gtk = {
@@ -141,10 +146,7 @@ async function fixture() {
 					trash: Object.assign(
 						accessor(() => settings.trash),
 						{
-							subscribe: (fn) => {
-								trash_listeners.add(fn)
-								return () => trash_listeners.delete(fn)
-							},
+							subscribe: subscribe_set(trash_listeners),
 						},
 					),
 					mode: accessor(() => settings.mode),
@@ -469,9 +471,7 @@ test("grouped icon cycles focus and draws up to three dots on the dock side", as
 test("favorite launch failures are logged without blocking the click", async () => {
 	const errors: unknown[][] = []
 	const f = await fixture()
-	mock.method(console, "error", (...args: unknown[]) => {
-		if (!String(args[0]).includes("ExperimentalWarning")) errors.push(args)
-	})
+	mock.method(console, "error", capture_log(errors))
 	f.catalog.favorites = [f.editor]
 	const failure = new Error("launch failed")
 	f.set_launch_result(result.err(failure))

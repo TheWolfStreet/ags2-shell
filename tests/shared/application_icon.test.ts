@@ -1,7 +1,15 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
-import { accessor, create_state, jsx_runtime, nodes, read } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	jsx_runtime,
+	nodes,
+	read,
+	create_binding,
+	render_with,
+} from "../helpers.ts"
 
 async function icon_fixture() {
 	const [texture, set_texture] = create_state(null as object | null)
@@ -10,9 +18,9 @@ async function icon_fixture() {
 		"widget/shared/ApplicationIcon.tsx",
 		{
 			ags: {
-				createBinding: (object, property) => accessor(() => object[property]),
-				createComputed: (fn) => accessor(fn),
-				With: ({ value, children }) => children(value()),
+				createBinding: create_binding,
+				createComputed: accessor,
+				With: render_with,
 			},
 			"ags/gtk4": {
 				Gdk: {},

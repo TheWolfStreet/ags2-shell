@@ -1,19 +1,12 @@
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
-import {
-	mkdtempSync,
-	mkdirSync,
-	readdirSync,
-	rmSync,
-	statSync,
-	writeFileSync,
-} from "node:fs"
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { attempt } from "../../lib/result.ts"
-import { shell_quote } from "../helpers.ts"
+import { shell_quote, wait, wayland_socket } from "../helpers.ts"
 
 const sway =
 	process.env.SWAY_HEADLESS_BIN ||
@@ -24,9 +17,6 @@ const png = Buffer.from(
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/tXcAAAAASUVORK5CYII=",
 	"base64",
 )
-function wait(ms) {
-	return new Promise((resolve) => setTimeout(resolve, ms))
-}
 function signal_group(pid: number, signal: NodeJS.Signals) {
 	const sent = attempt(() => process.kill(-pid, signal))
 	if (sent.ok) return
@@ -78,12 +68,7 @@ test(
 		})
 		let sender
 		try {
-			const socket_name = () =>
-				readdirSync(runtime).find(
-					(name) =>
-						/^wayland-\d+$/.test(name) &&
-						statSync(join(runtime, name)).isSocket(),
-				)
+			const socket_name = () => wayland_socket(runtime)
 			const deadline = Date.now() + 6000
 			while (
 				!socket_name() &&

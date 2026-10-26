@@ -2,7 +2,20 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
 import * as icons from "../../lib/icons.ts"
-import { accessor, create_state, jsx_runtime, make, nodes } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	jsx_runtime,
+	make,
+	nodes,
+	capture_timer,
+	create_binding,
+	type fake_timer,
+	flush_ticks,
+	variant,
+	for_node,
+	with_node,
+} from "../helpers.ts"
 
 const PSK = 0x100
 const SAE = 0x400
@@ -15,8 +28,7 @@ const UNKNOWN = 1
 const INVALIDPROPERTY = 2
 
 async function flush() {
-	for (let i = 0; i < 40; i++)
-		await new Promise((resolve) => setImmediate(resolve))
+	await flush_ticks({ turns: 40 })
 }
 
 class ConnectionError extends Error {
@@ -65,7 +77,7 @@ async function fixture() {
 	const calls: [string, unknown][] = []
 	const errors: unknown[][] = []
 	const warnings: unknown[][] = []
-	const timers: { ms: number; fn: () => void; cancelled: boolean }[] = []
+	const timers: fake_timer[] = []
 	const fail = new Map<string, unknown>()
 	const hang = new Set<string>()
 	const refuse = new Map<string, unknown>()
@@ -241,24 +253,15 @@ async function fixture() {
 				setImmediate(fn)
 				return { cancel() {} }
 			},
-			timeout: (ms, fn) => {
-				const timer = { ms, fn, cancelled: false }
-				timers.push(timer)
-				return {
-					cancel() {
-						timer.cancelled = true
-					},
-				}
-			},
+			timeout: capture_timer(timers),
 		},
 		ags: {
-			createBinding: (object, ...path) =>
-				accessor(() => path.reduce((value, key) => value?.[key], object)),
-			createComputed: (fn) => accessor(fn),
+			createBinding: create_binding,
+			createComputed: accessor,
 			createState: create_state,
 			onCleanup: () => {},
-			With: (props) => make("with", props),
-			For: (props) => make("for", props),
+			With: with_node,
+			For: for_node,
 		},
 		"gi://AstalNetwork": {
 			default: {
@@ -269,12 +272,7 @@ async function fixture() {
 		},
 		"gi://GLib": {
 			default: {
-				Variant: class {
-					value: unknown
-					constructor(_type, value) {
-						this.value = value
-					}
-				},
+				Variant: variant,
 				Bytes: class {},
 				uuid_string_random: () => "uuid",
 			},
@@ -427,7 +425,7 @@ test("a hung NM call is cancelled by its 10 s deadline", async () => {
 		const deadline = t.timers.find((timer) => timer.ms === 10_000)
 		assert.ok(deadline)
 		assert.equal(t.cancellables.delete.cancelled, false)
-		deadline.fn()
+		deadline.callback()
 		assert.equal(t.cancellables.delete.cancelled, true)
 	} finally {
 		t.restore()
@@ -1038,7 +1036,7 @@ test("a prompted activation that never settles fails after 25 s", () =>
 		const deadlines = t.timers.filter((timer) => timer.ms === 25_000)
 		assert.equal(deadlines.length, 2)
 		assert.equal(deadlines[0].cancelled, true)
-		deadlines[1].fn()
+		deadlines[1].callback()
 		await flush()
 		assert.equal(t.status(), "Could not connect. Try again.")
 		assert.deepEqual(
@@ -1055,7 +1053,7 @@ test("the activation deadline cancels a hung activation", () =>
 		await t.click("aa")
 		const deadline = t.timers.find((timer) => timer.ms === 25_000)!
 		assert.equal(t.cancellables.activate.cancelled, false)
-		deadline.fn()
+		deadline.callback()
 		assert.equal(t.cancellables.activate.cancelled, true)
 	}))
 
@@ -1087,7 +1085,7 @@ test("a rejected password shakes the entry once then settles", () =>
 		assert.equal(entry.props.class(), "shake")
 		assert.equal(entry.props.text(), "")
 		const shake = t.timers.find((timer) => timer.ms === 450)!
-		shake.fn()
+		shake.callback()
 		assert.equal(entry.props.class(), "")
 		assert.deepEqual(t.errors, [])
 	}))
@@ -1102,7 +1100,7 @@ test("the toggle enables, scans and disables Wi-Fi", () =>
 		toggle().props.onToggle()
 		assert.deepEqual(t.calls, [["enabled", true]])
 		const scan = t.timers.find((timer) => timer.ms === 100)!
-		scan.fn()
+		scan.callback()
 		assert.deepEqual(t.calls.at(-1), ["scan", null])
 		toggle().props.onArrow()
 		assert.equal(t.calls.length, 2)
@@ -1110,11 +1108,11 @@ test("the toggle enables, scans and disables Wi-Fi", () =>
 		toggle().props.onArrow()
 		assert.deepEqual(t.calls.at(-1), ["enabled", true])
 		t.wifi.enabled = false
-		t.timers.at(-1)!.fn()
+		t.timers.at(-1)!.callback()
 		assert.equal(t.calls.length, 3)
 		t.wifi.enabled = true
 		t.network.wifi = { ...t.wifi }
-		t.timers.at(-1)!.fn()
+		t.timers.at(-1)!.callback()
 		assert.equal(t.calls.length, 3)
 		t.network.wifi = t.wifi
 		toggle().props.onToggle()
@@ -1129,7 +1127,7 @@ test("the toggle enables, scans and disables Wi-Fi", () =>
 		toggle().props.onToggle()
 		const scan_failure = new Error("busy")
 		t.fail.set("scan", scan_failure)
-		t.timers.at(-1)!.fn()
+		t.timers.at(-1)!.callback()
 		assert.deepEqual(t.errors, [
 			["network.wifi: Failed to enable Wi-Fi", failure],
 			["network.wifi: Failed to enable Wi-Fi", failure],

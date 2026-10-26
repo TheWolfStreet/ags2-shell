@@ -3,8 +3,13 @@ import test, { mock } from "node:test"
 import * as result from "../../lib/result.ts"
 import { ok } from "../../lib/result.ts"
 import { load_module } from "../load_module.ts"
-import { with_hyprland_command } from "../hyprland.ts"
-import { tick } from "../helpers.ts"
+import {
+	tick,
+	with_hyprland_command,
+	immediate_debounce,
+	flush_ticks,
+	gobject_stub,
+} from "../helpers.ts"
 
 const logged: unknown[][] = []
 
@@ -16,7 +21,7 @@ test.beforeEach(() => {
 test.afterEach(() => mock.restoreAll())
 
 async function settle() {
-	for (let i = 0; i < 8; i++) await tick()
+	await flush_ticks({ turns: 8 })
 }
 
 type run = (args: string[]) => Promise<result.result<string>> | undefined
@@ -46,19 +51,9 @@ async function fixture({
 		return ["input0::capslock"]
 	}
 	const imports = {
-		"ags/gobject": {
-			default: {
-				Object: class {
-					declare initialized: boolean
-					notify(name) {
-						notifications.push({ name, initialized: this.initialized })
-					}
-					vfunc_finalize() {}
-				},
-			},
-			getter: () => () => {},
-			register: () => (value) => value,
-		},
+		"ags/gobject": gobject_stub((name, object) =>
+			notifications.push({ name, initialized: object.initialized }),
+		),
 		"ags/file": {
 			readFileAsync: (path) => {
 				reads.push(path)
@@ -84,7 +79,7 @@ async function fixture({
 				timers.push({ kind: "timeout", callback })
 				return { cancel() {} }
 			},
-			debounce: (_delay, callback) => ({ call: callback, cancel() {} }),
+			debounce: immediate_debounce,
 		},
 		"gi://Gio": {
 			default: {

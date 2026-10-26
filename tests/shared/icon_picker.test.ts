@@ -2,18 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { load_module } from "../load_module.ts"
 import icons from "../../lib/icons.ts"
-import { create_state, nodes, read } from "../helpers.ts"
-
-class string_object {
-	declare value: string
-	constructor(value: string) {
-		this.value = value
-	}
-	get_string() {
-		return this.value
-	}
-	static $gtype = "GtkStringObject"
-}
+import { create_state, nodes, read, string_object } from "../helpers.ts"
 
 async function picker_fixture(names: string[]) {
 	const scrolls: unknown[] = []

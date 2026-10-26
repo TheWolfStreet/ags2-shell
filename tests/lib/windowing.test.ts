@@ -1,52 +1,38 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { with_hyprland_command } from "../hyprland.ts"
 import { load_module } from "../load_module.ts"
-import { accessor, create_state } from "../helpers.ts"
-
-type listener = { event: string; callback: (...args: unknown[]) => void }
-
-function emitter<T extends object>(fields: T) {
-	let next = 1
-	const listeners = new Map<number, listener>()
-	return Object.assign(fields, {
-		listeners,
-		connect(event: string, callback: (...args: unknown[]) => void) {
-			const id = next++
-			listeners.set(id, { event, callback })
-			return id
-		},
-		disconnect(id: number) {
-			assert.ok(listeners.delete(id))
-		},
-		emit(event: string, ...args: unknown[]) {
-			for (const entry of [...listeners.values()])
-				if (entry.event === event) entry.callback(fields, ...args)
-		},
-	})
-}
+import {
+	accessor,
+	create_state,
+	with_hyprland_command,
+	emitter,
+	create_binding,
+	immediate_idle,
+	capture_log,
+} from "../helpers.ts"
 
 async function load_windowing() {
-	const app = emitter({ windows: new Map<string, any>() })
+	const app = emitter({ fields: { windows: new Map<string, any>() } })
 	const hyprland = emitter({
-		monitors: [] as any[],
-		clients: [] as any[],
-		focusedClient: null,
-		focusedWorkspace: null as { id: number } | null,
-		messages: [] as string[],
-		reply: "ok",
-		async message_async(message: string) {
-			this.messages.push(message)
-			return this.reply
+		fields: {
+			monitors: [] as any[],
+			clients: [] as any[],
+			focusedClient: null,
+			focusedWorkspace: null as { id: number } | null,
+			messages: [] as string[],
+			reply: "ok",
+			async message_async(message: string) {
+				this.messages.push(message)
+				return this.reply
+			},
 		},
 	})
 	const cleanups: (() => void)[] = []
 	const module = await load_module("lib/windowing.ts", {
 		ags: {
-			createBinding: (object: any, property: string) =>
-				accessor(() => object[property]),
-			createComputed: (compute: () => unknown) => accessor(compute),
-			createMemo: (compute: () => unknown) => accessor(compute),
+			createBinding: create_binding,
+			createComputed: accessor,
+			createMemo: accessor,
 			createState: create_state,
 			onCleanup: (cleanup: () => void) => cleanups.push(cleanup),
 		},
@@ -55,7 +41,7 @@ async function load_windowing() {
 			Gtk: {},
 		},
 		"$lib/app": { default: app },
-		"$lib/time": { idle: (callback: () => void) => callback() },
+		"$lib/time": { idle: immediate_idle },
 		"gi://AstalHyprland": { default: { Fullscreen: { FULLSCREEN: 2 } } },
 		cairo: { default: { Region: class {} } },
 		"$lib/hyprland": with_hyprland_command({ hyprland }),
@@ -210,9 +196,7 @@ test("monitor fullscreen follows the special workspace, then the active one", as
 test("client dispatches quote the address and report failures with their tag", async (t) => {
 	const { module, hyprland } = await load_windowing()
 	const logged: unknown[][] = []
-	t.mock.method(console, "error", (...args: unknown[]) => {
-		if (!String(args[0]).includes("ExperimentalWarning")) logged.push(args)
-	})
+	t.mock.method(console, "error", capture_log(logged))
 	assert.equal((await module.focus_client(" abc ")).ok, true)
 	assert.equal((await module.close_client({ address: "0x12" })).ok, true)
 	assert.equal((await module.raise_client({ address: "0x7" })).ok, true)
@@ -312,7 +296,7 @@ test("window helpers toggle, report toggles, release and title clients", async (
 		middle: () => calls.push("middle"),
 	})
 	assert.deepEqual(calls, ["secondary"])
-	const titled = emitter({ title: "", class: "org.gnome.NAUTILUS" })
+	const titled = emitter({ fields: { title: "", class: "org.gnome.NAUTILUS" } })
 	const title = module.create_client_title_accessor(titled)
 	assert.equal(title(), "Nautilus")
 	titled.title = "Home"

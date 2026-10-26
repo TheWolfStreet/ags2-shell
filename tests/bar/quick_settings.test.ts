@@ -5,6 +5,12 @@ import * as result from "../../lib/result.ts"
 import * as icons from "../../lib/icons.ts"
 import {
 	accessor,
+	create_binding,
+	glib_clock as fake_glib,
+	for_node,
+	with_node,
+	subscribe_list,
+	on_shutdown,
 	create_state,
 	jsx_runtime,
 	make,
@@ -37,41 +43,12 @@ async function capture_errors() {
 
 function ags(cleanups: (() => void)[] = []) {
 	return {
-		createBinding: (object, ...path) =>
-			accessor(() => path.reduce((value, key) => value?.[key], object)),
-		createComputed: (fn) => accessor(fn),
+		createBinding: create_binding,
+		createComputed: accessor,
 		createState: create_state,
 		onCleanup: (fn: () => void) => cleanups.push(fn),
-		With: (props) => make("with", props),
-		For: (props) => make("for", props),
-	}
-}
-
-function fake_glib() {
-	const sources = new Map<number, { ms: number; callback: () => boolean }>()
-	let next = 1
-	const add = (ms: number, callback: () => boolean) => {
-		sources.set(next, { ms, callback })
-		return next++
-	}
-	return {
-		sources,
-		run(ms: number) {
-			for (const [id, source] of [...sources])
-				if (source.ms === ms && sources.has(id)) {
-					sources.delete(id)
-					source.callback()
-				}
-		},
-		glib: {
-			PRIORITY_DEFAULT: 0,
-			PRIORITY_DEFAULT_IDLE: 200,
-			SOURCE_REMOVE: false,
-			SOURCE_CONTINUE: true,
-			timeout_add: (_priority, ms: number, callback) => add(ms, callback),
-			idle_add: (_priority, callback) => add(0, callback),
-			Source: { remove: (id: number) => sources.delete(id) },
-		},
+		With: with_node,
+		For: for_node,
 	}
 }
 
@@ -532,10 +509,7 @@ async function bluetooth_fixture() {
 					opened: Object.assign(
 						accessor(() => opened.name),
 						{
-							subscribe: (callback: () => void) => {
-								opened_subscribers.push(callback)
-								return () => {}
-							},
+							subscribe: subscribe_list(opened_subscribers),
 						},
 					),
 				},
@@ -1169,10 +1143,7 @@ async function power_fixture({ asus = false, in_path = true } = {}) {
 		{
 			"$lib/app": {
 				default: {
-					connect: (signal: string, callback: () => void) => {
-						assert.equal(signal, "shutdown")
-						shutdown.push(callback)
-					},
+					connect: on_shutdown(shutdown),
 				},
 			},
 			"ags/gtk4": { Gtk: { Orientation: { VERTICAL: 1 }, Separator: "sep" } },
