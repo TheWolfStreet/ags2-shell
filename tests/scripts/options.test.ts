@@ -269,7 +269,7 @@ test("set validates enums, numbers, colors, and string arrays before publishing"
 	assert.equal(options.scale.set(Infinity).ok, false)
 	assert.equal(options.scale.set(-5).ok, false)
 	assert.equal(options.bar.workspaces.count.set(3.5).ok, false)
-	assert.equal(options.theme.opacity.set(101).ok, false)
+	assert.equal(options.theme.transparency.set(71).ok, false)
 	assert.equal(options.theme.dark.bg.set("red; color: blue").ok, false)
 	assert.equal(options.notifications.blacklist.set([null]).ok, false)
 	assert.equal(options.bar.workspaces.count.set(0).ok, true)

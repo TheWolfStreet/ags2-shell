@@ -105,12 +105,12 @@ function shadow_color(enabled: boolean, is_dark_mode: boolean): string {
 function compute_palette(is_dark_mode: boolean): palette {
 	const theme = options.theme
 	const colors = is_dark_mode ? theme.dark : theme.light
-	const opacity = theme.opacity.peek()
-	const effective_opacity = is_dark_mode ? opacity : opacity / 2
+	const transparency = theme.transparency.peek()
+	const effective_transparency = is_dark_mode ? transparency : transparency / 2
 	const base_bg = colors.bg.peek()
 	const bg =
-		opacity > 0
-			? color_mix(base_bg, Math.round((1 - effective_opacity / 100) * 100))
+		transparency > 0
+			? color_mix(base_bg, Math.round(100 - effective_transparency))
 			: base_bg
 	const primary_bg = colors.primary.bg.peek()
 	const widget_base = colors.widget.peek()

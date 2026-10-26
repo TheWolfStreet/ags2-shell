@@ -45,6 +45,8 @@ function options_tree(sets: string[]) {
 		}
 	}
 	return {
+		on_change: (id: string, callback: () => void) =>
+			subscribers.set(id, [...(subscribers.get(id) ?? []), callback]),
 		autotheme: option("autotheme", false),
 		tmux: { accent: option("tmux.accent", true) },
 		hyprland: {
@@ -81,6 +83,8 @@ async function fixture({
 	options.autotheme.set(autotheme)
 	sets.length = 0
 	let current_icon_theme = icon_theme
+	const settings_handlers = new Map<string, () => void>()
+	const shell_app = { iconTheme: "" }
 	let color_scheme = "prefer-light"
 	const imports = {
 		"ags/process": {
@@ -92,9 +96,13 @@ async function fixture({
 				return ""
 			},
 		},
+		"$lib/app": { default: shell_app },
 		"gi://Gio": {
 			default: {
 				Settings: class {
+					connect(signal: string, handler: () => void) {
+						settings_handlers.set(signal, handler)
+					}
 					get_string(key: string) {
 						return key === "icon-theme" ? current_icon_theme : color_scheme
 					}
@@ -174,11 +182,28 @@ async function fixture({
 		},
 		"$shell/options": {
 			default: options,
-			subscribe_options: () => () => {},
+			subscribe_options: (_tree, ids: string[], callback: () => void) => {
+				for (const id of ids) options.on_change(id, callback)
+				return () => {}
+			},
 		},
 	}
 	const module = await load_module("shell/startup.ts", imports)
-	return { module, options, commands, settings, messages, sets, css }
+	const set_system_icon_theme = (name: string) => {
+		current_icon_theme = name
+		settings_handlers.get("changed::icon-theme")?.()
+	}
+	return {
+		module,
+		options,
+		commands,
+		settings,
+		messages,
+		sets,
+		css,
+		set_system_icon_theme,
+		shell_app,
+	}
 }
 
 function palette(prefix: string) {
@@ -290,11 +315,13 @@ test("the icon theme follows the scheme through its dark and light variants", as
 		"color-scheme=prefer-dark",
 		"icon-theme=Papirus-Dark",
 	])
+	assert.equal(dark.shell_app.iconTheme, "Papirus-Dark")
 	dark.options.theme.scheme.set("light")
 	assert.deepEqual(dark.settings.slice(2), [
 		"color-scheme=prefer-light",
 		"icon-theme=Papirus",
 	])
+	assert.equal(dark.shell_app.iconTheme, "Papirus")
 	const light_variant = await fixture({
 		icon_theme: "Adwaita_dark",
 		themes: ["Adwaita_light", "Adwaita"],
@@ -311,18 +338,33 @@ test("the icon theme follows the scheme through its dark and light variants", as
 	const missing = await fixture({ icon_theme: "Custom", themes: [] })
 	missing.module.default()
 	assert.deepEqual(missing.settings, ["color-scheme=prefer-dark"])
+	assert.equal(missing.shell_app.iconTheme, "Custom")
 	const unset = await fixture({ themes: ["-Dark"] })
 	unset.module.default()
 	assert.deepEqual(unset.settings, ["color-scheme=prefer-dark"])
 })
 
+test("a new system icon theme is followed through its scheme variant", async () => {
+	const state = await fixture({
+		icon_theme: "Adwaita",
+		themes: ["Adwaita", "MacTahoe", "MacTahoe-dark"],
+	})
+	state.module.default()
+	state.settings.length = 0
+	state.set_system_icon_theme("MacTahoe")
+	assert.deepEqual(state.settings, ["icon-theme=MacTahoe-dark"])
+	state.set_system_icon_theme("MacTahoe-dark")
+	assert.deepEqual(state.settings, ["icon-theme=MacTahoe-dark"])
+})
+
+const appearance =
+	'eval hl.config({ general = { border_size = 1, gaps_out = 14, gaps_in = 7, col = { active_border = "rgba(51a4e7ff)", inactive_border = "rgba(282828ff)" } }, decoration = { rounding = 12, shadow = { enabled = true }, blur = { enabled = false } } })'
+
 test("hyprland appearance renders spacing, borders and effects as one Lua config", async () => {
 	const state = await fixture({ tmux: false })
 	state.module.default()
 	await tick()
-	assert.deepEqual(state.messages, [
-		'eval hl.config({ general = { border_size = 1, gaps_out = 14, gaps_in = 7, col = { active_border = "rgba(51a4e7ff)", inactive_border = "rgba(282828ff)" } }, decoration = { rounding = 12, shadow = { enabled = true }, blur = { enabled = false } } })',
-	])
+	assert.deepEqual(state.messages, [appearance])
 })
 
 test("a hyprland appearance that cannot be built is logged", async (t) => {
@@ -411,9 +453,11 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 	}
 	const imports = {
 		"ags/process": { execAsync: async () => "" },
+		"$lib/app": { default: { iconTheme: "" } },
 		"gi://Gio": {
 			default: {
 				Settings: class {
+					connect() {}
 					get_string(key) {
 						return key === "icon-theme" ? "" : "prefer-dark"
 					}

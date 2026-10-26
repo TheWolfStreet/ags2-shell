@@ -1,4 +1,11 @@
-import { createBinding, createComputed, For, onCleanup } from "ags"
+import {
+	type Accessor,
+	createBinding,
+	createComputed,
+	createState,
+	For,
+	onCleanup,
+} from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
 
 import AstalTray from "gi://AstalTray"
@@ -158,7 +165,30 @@ async function forward_click(
 	)
 }
 
-function TrayItem({ item }: { item: AstalTray.TrayItem }) {
+function themed_icon(
+	item: AstalTray.TrayItem,
+	theme: Gtk.IconTheme | null,
+	theme_revision: Accessor<number>,
+) {
+	const icon_name = createBinding(item, "iconName")
+	const gicon = createBinding(item, "gicon")
+	return createComputed(() => {
+		theme_revision()
+		const name = icon_name()
+		if (name && theme?.has_icon(name)) return Gio.ThemedIcon.new(name)
+		return gicon()
+	})
+}
+
+function TrayItem({
+	item,
+	theme,
+	theme_revision,
+}: {
+	item: AstalTray.TrayItem
+	theme: Gtk.IconTheme | null
+	theme_revision: Accessor<number>
+}) {
 	const visible = createComputed(() => is_tray_item_visible(item))
 	const { popover, ensure_built } = create_tray_menu_popover(item)
 	let pending = false
@@ -208,7 +238,7 @@ function TrayItem({ item }: { item: AstalTray.TrayItem }) {
 				button={Gdk.BUTTON_SECONDARY}
 				onPressed={(gesture) => secondary_click(gesture.get_widget())}
 			/>
-			<image gicon={createBinding(item, "gicon")} useFallback />
+			<image gicon={themed_icon(item, theme, theme_revision)} useFallback />
 		</button>
 	)
 }
@@ -216,10 +246,23 @@ function TrayItem({ item }: { item: AstalTray.TrayItem }) {
 export function SystemTray() {
 	const tray_items = createBinding(tray, "items")
 	const items = createComputed(() => tray_items().filter(is_tray_item_visible))
+	const display = Gdk.Display.get_default()
+	const theme = display ? Gtk.IconTheme.get_for_display(display) : null
+	const [theme_revision, set_theme_revision] = createState(0)
+	const theme_handler = theme?.connect("changed", () =>
+		set_theme_revision(theme_revision.peek() + 1),
+	)
+	onCleanup(() => {
+		if (theme_handler) theme?.disconnect(theme_handler)
+	})
 
 	return (
 		<box visible={items.as((value) => value.length > 0)}>
-			<For each={tray_items}>{(item) => <TrayItem item={item} />}</For>
+			<For each={tray_items}>
+				{(item) => (
+					<TrayItem item={item} theme={theme} theme_revision={theme_revision} />
+				)}
+			</For>
 		</box>
 	)
 }

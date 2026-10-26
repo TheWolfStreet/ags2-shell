@@ -4,7 +4,7 @@ import { load_module } from "../load_module.ts"
 
 type settings = {
 	scheme?: string
-	opacity?: number
+	transparency?: number
 	neumorphic?: boolean
 	shadows?: boolean
 	scale?: number
@@ -39,7 +39,7 @@ async function render(path: string, settings: settings = {}) {
 			scheme: option(settings.scheme ?? "dark"),
 			dark: colors("aa"),
 			light: colors("cc"),
-			opacity: option(settings.opacity ?? 30),
+			transparency: option(settings.transparency ?? 30),
 			widget: { opacity: option(94) },
 			border: { width: option(1), opacity: option(86) },
 			shadows: option(settings.shadows ?? true),
@@ -131,7 +131,10 @@ test("light scheme halves opacity and tints shadows with the foreground", async 
 
 test("disabled effects become transparent and opaque backgrounds stay plain", async () => {
 	const output = css(
-		await render("style/runtime_css.ts", { neumorphic: false, opacity: 0 }),
+		await render("style/runtime_css.ts", {
+			neumorphic: false,
+			transparency: 0,
+		}),
 	)
 	assert.match(output, /^--bg: #aa0000;$/m)
 	const neu = output.match(/^--neu-.*$/gm)!

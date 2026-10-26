@@ -10,6 +10,7 @@ import {
 	type rgb,
 	type wallpaper_palette,
 } from "$lib/colors"
+import app from "$lib/app"
 import env from "$lib/env"
 import {
 	attempt,
@@ -29,7 +30,6 @@ import { wallpaper_path, wallpaper_revision } from "$lib/wallpaper"
 import options, { subscribe_options } from "$shell/options"
 
 const { scheme, dark, light } = options.theme
-const scheme_sync_debounce_ms = 200
 
 const settings = new Gio.Settings({
 	schema: "org.gnome.desktop.interface",
@@ -93,8 +93,9 @@ function sync_icon_theme() {
 	const candidate = suffixes
 		.map((suffix) => base_theme + suffix)
 		.find((theme) => icon_theme_exists(theme))
-	if (candidate !== undefined && candidate !== current_theme)
-		settings.set_string("icon-theme", candidate)
+	const target = candidate ?? current_theme
+	if (app.iconTheme !== target) app.iconTheme = target
+	if (target !== current_theme) settings.set_string("icon-theme", target)
 }
 
 function tmux(args: string[]): Promise<result<string>> {
@@ -129,10 +130,10 @@ async function sync_tmux_accent() {
 		}
 }
 
-const sync_scheme = debounce(scheme_sync_debounce_ms, () => {
+function sync_scheme() {
 	sync_color_scheme()
 	sync_icon_theme()
-})
+}
 
 const sync_tmux = debounce(
 	60,
@@ -306,7 +307,8 @@ export default function start_shell(): result<void> {
 		init_css()
 		sync_color_scheme()
 		sync_icon_theme()
-		scheme.subscribe(() => sync_scheme.call())
+		scheme.subscribe(sync_scheme)
+		settings.connect("changed::icon-theme", sync_icon_theme)
 
 		start_tmux_accent_sync()
 		start_wallpaper_theme()

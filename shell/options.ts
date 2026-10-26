@@ -462,7 +462,7 @@ const options = mk_options({
 			border: "#080808",
 		},
 
-		opacity: range(30, 0, 70),
+		transparency: range(30, 0, 70),
 		widget: {
 			opacity: range(94, 0, 100),
 		},

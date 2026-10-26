@@ -2,7 +2,14 @@ import assert from "node:assert/strict"
 import test, { mock } from "node:test"
 import * as icons from "../../lib/icons.ts"
 import { load_module } from "../load_module.ts"
-import { accessor, jsx_runtime, nodes, tick } from "../helpers.ts"
+import {
+	accessor,
+	create_state,
+	jsx_runtime,
+	nodes,
+	read,
+	tick,
+} from "../helpers.ts"
 
 test.afterEach(() => mock.restoreAll())
 
@@ -26,8 +33,12 @@ async function tray_fixture({
 	item_id = "org.example.Tray/StatusNotifierItem",
 	call_error = null as Error | null,
 	bridged = false,
+	icon_name = "",
+	themed = [] as string[],
 } = {}) {
 	const calls: any[][] = []
+	const theme_handlers: (() => void)[] = []
+	const theme_icons = new Set(themed)
 	const popups: boolean[] = []
 	const builds: boolean[] = []
 	const commands: string[] = []
@@ -36,6 +47,7 @@ async function tray_fixture({
 	const item = {
 		title: "Example",
 		gicon: "icon",
+		iconName: icon_name,
 		tooltipText: "Example",
 		menuModel: has_menu ? {} : null,
 		menuPath: menu_path,
@@ -49,6 +61,7 @@ async function tray_fixture({
 		ags: {
 			createBinding: (object, property) => accessor(() => object[property]),
 			createComputed: (fn) => accessor(fn),
+			createState: create_state,
 			For: ({ each, children }) => each().map(children),
 			onCleanup: (fn) => cleanups.push(fn),
 		},
@@ -63,7 +76,18 @@ async function tray_fixture({
 					}),
 				},
 			},
-			Gtk: { Align: { CENTER: 1 }, GestureClick: "gesture-click" },
+			Gtk: {
+				Align: { CENTER: 1 },
+				GestureClick: "gesture-click",
+				IconTheme: {
+					get_for_display: () => ({
+						has_icon: (name: string) => theme_icons.has(name),
+						connect: (_signal: string, handler: () => void) =>
+							theme_handlers.push(handler),
+						disconnect() {},
+					}),
+				},
+			},
 		},
 		"ags/gtk4/jsx-runtime": jsx_runtime,
 		"gi://AstalTray": { default: { get_default: () => ({ items: [item] }) } },
@@ -78,6 +102,7 @@ async function tray_fixture({
 					},
 				},
 				DBusCallFlags: { NONE: 0 },
+				ThemedIcon: { new: (name: string) => `themed:${name}` },
 			},
 		},
 		"gi://Graphene": {
@@ -150,8 +175,28 @@ async function tray_fixture({
 		is_menu_reads: () => is_menu_reads,
 		complete: (index, connection: object = { call_finish() {} }) =>
 			calls[index][9](connection, {}),
+		icon: () => read(nodes(button, "image")[0].props.gicon),
+		change_theme: (names: string[]) => {
+			theme_icons.clear()
+			for (const name of names) theme_icons.add(name)
+			for (const handler of theme_handlers) handler()
+		},
 	}
 }
+
+test("tray icons use the icon theme's version of their name and fall back to the app's own icon", async () => {
+	const fixture = await tray_fixture({
+		icon_name: "steam_tray_mono",
+		themed: ["steam_tray_mono"],
+	})
+	assert.equal(fixture.icon(), "themed:steam_tray_mono")
+	fixture.change_theme([])
+	assert.equal(fixture.icon(), "icon")
+	fixture.change_theme(["steam_tray_mono"])
+	assert.equal(fixture.icon(), "themed:steam_tray_mono")
+	const unnamed = await tray_fixture({ themed: ["steam_tray_mono"] })
+	assert.equal(unnamed.icon(), "icon")
+})
 
 for (const is_menu of [false, true])
 	test(`tray left and right click open the menu without activation (is_menu=${is_menu})`, async () => {

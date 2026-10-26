@@ -286,7 +286,7 @@ const {
 	shadows,
 	blur,
 	neumorphic,
-	opacity,
+	transparency,
 	padding,
 	spacing,
 	roundness,
@@ -346,7 +346,11 @@ function Appearance() {
 				<Row opt={blur} title="Enable Blur" />
 				<Row opt={shadows} title="Show Shadows" />
 				<Row opt={neumorphic} title="Use Neumorphic Style" />
-				<Row opt={opacity} title="Opacity" note="Set to 0 to disable" />
+				<Row
+					opt={transparency}
+					title="Transparency"
+					note="0 is a solid background"
+				/>
 				<Row opt={widget.opacity} title="Widget Opacity" />
 				<Row opt={border.width} title="Border Width" />
 				<Row opt={border.opacity} title="Border Opacity" />
