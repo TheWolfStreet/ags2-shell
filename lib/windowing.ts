@@ -96,11 +96,13 @@ export function track_monitor_fullscreen(target: Gdk.Monitor) {
 	return fullscreen
 }
 
+const overlay_classes = new Set(["org.kde.kdeconnect.daemon"])
+
 function filter_valid_window_clients(
 	clients: Array<AstalHyprland.Client | null | undefined>,
 ) {
 	return clients.filter((client): client is AstalHyprland.Client => {
-		if (!client) return false
+		if (!client || overlay_classes.has(client.class)) return false
 		const title = client.get_title?.() ?? client.title
 		if (typeof title === "string" && title.length > 0) return true
 		return client.class !== "" && !(client.xwayland && client.floating)

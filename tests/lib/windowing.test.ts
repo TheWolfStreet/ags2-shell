@@ -134,7 +134,12 @@ test("client lists keep titled or classed clients, sorted and filtered by worksp
 	hyprland.clients = [late, null, early, untitled, titled, nowhere, wine_menu]
 	assert.deepEqual(module.create_workspace_clients(3)(), [late, nowhere])
 	assert.deepEqual(module.create_workspace_clients(1)(), [early, titled])
-	hyprland.clients = [early, untitled_wayland, wine_menu]
+	const presenter = client({
+		class: "org.kde.kdeconnect.daemon",
+		title: "KDE Connect Daemon",
+		workspace: { id: 1 },
+	})
+	hyprland.clients = [early, untitled_wayland, wine_menu, presenter]
 	assert.deepEqual(module.create_workspace_clients(1)(), [
 		early,
 		untitled_wayland,
