@@ -1,12 +1,14 @@
 import { Accessor, createState, onCleanup } from "ags"
 import { Gdk, Gtk } from "ags/gtk4"
-import { timeout } from "$lib/time"
+import { interval, timeout, type timer } from "$lib/time"
+import { hyprland } from "$lib/hyprland"
 
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import Graphene from "gi://Graphene"
 
 import {
+	attempt,
 	attempt_async,
 	err,
 	guard_async,
@@ -74,6 +76,69 @@ const targets = new Map<
 	(paths: string[], anchor: string, x: number, y: number) => void
 >()
 const session: drag_session = { handled: false, canceled: false, hover: null }
+// BUG: Hyprland's XWayland drag bridge sends no leave, cancel or finish to the
+// source when a drag moves over or drops onto an XWayland window, so GTK never
+// ends the drag. Polling the cursor hides the ghost once it leaves the desktop,
+// and plain pointer motion back on the desktop, which only arrives once the
+// drag is over, cancels the lost drag.
+const hover_clearers = new Set<() => void>()
+const pointer: {
+	watch: timer | null
+	moved_over_desktop: boolean
+	last: { x: number; y: number } | null
+	left: boolean
+	source: Gtk.DragSource | null
+} = {
+	watch: null,
+	moved_over_desktop: false,
+	last: null,
+	left: false,
+	source: null,
+}
+
+function stop_pointer_watch() {
+	pointer.watch?.cancel()
+	pointer.watch = null
+	pointer.last = null
+}
+
+async function check_pointer() {
+	const reply = await attempt_async(() => hyprland.message_async("j/cursorpos"))
+	if (!reply.ok || pointer.watch === null) return
+	const cursor = attempt((): unknown => JSON.parse(reply.value))
+	if (!cursor.ok || !is_point(cursor.value)) return
+	const last = pointer.last
+	const moved =
+		last !== null && (cursor.value.x !== last.x || cursor.value.y !== last.y)
+	pointer.last = cursor.value
+	if (moved && !pointer.moved_over_desktop) {
+		stop_pointer_watch()
+		pointer.left = true
+		for (const clear of hover_clearers) clear()
+	}
+	pointer.moved_over_desktop = false
+}
+
+function is_point(value: unknown): value is { x: number; y: number } {
+	if (typeof value !== "object" || value === null) return false
+	const point = value as Record<string, unknown>
+	return typeof point.x === "number" && typeof point.y === "number"
+}
+
+function end_lost_drag() {
+	const source = pointer.source
+	if (!pointer.left || !source) return
+	pointer.left = false
+	pointer.source = null
+	source.drag_cancel()
+}
+
+function watch_pointer() {
+	pointer.left = false
+	pointer.moved_over_desktop = true
+	if (pointer.watch !== null) return
+	pointer.watch = interval(150, () => void check_pointer())
+}
 
 function reset_session(): void {
 	session.handled = false
@@ -211,7 +276,12 @@ export function create_desktop_drag_controller(
 	const [hovered, set_hovered] = createState(false)
 	const widgets = new Map<string, Gtk.Widget>()
 	const unsubscribe_drag = active_drag.subscribe(() => set_hovered(false))
-	onCleanup(unsubscribe_drag)
+	const clear_hover = () => set_hovered(false)
+	hover_clearers.add(clear_hover)
+	onCleanup(() => {
+		unsubscribe_drag()
+		hover_clearers.delete(clear_hover)
+	})
 
 	function slot_at(x: number, y: number): number {
 		const metrics = grid.peek().metrics
@@ -245,6 +315,9 @@ export function create_desktop_drag_controller(
 			)
 
 		reset_session()
+		stop_pointer_watch()
+		pointer.left = false
+		pointer.source = null
 		desktop_interaction.press(null)
 		set_active_drag(empty_drag)
 		set_drag_preview(null)
@@ -260,6 +333,8 @@ export function create_desktop_drag_controller(
 		const source = Gtk.DragSource.new()
 		source.set_actions(DragAction.MOVE | DragAction.COPY)
 		source.connect("prepare", (controller, x, y) => {
+			pointer.left = false
+			pointer.source = controller
 			const selected = desktop_interaction.selected.peek()
 			const paths = selected.includes(path) ? selected : [path]
 			set_drag_preview(null)
@@ -273,6 +348,7 @@ export function create_desktop_drag_controller(
 			return build_file_content_provider({ paths, operation: "cut" })
 		})
 		source.connect("drag-cancel", () => {
+			stop_pointer_watch()
 			session.canceled = true
 			set_drag_preview(null)
 			set_active_drag({ ...active_drag.peek() })
@@ -362,6 +438,7 @@ export function create_desktop_drag_controller(
 	function track(x: number, y: number) {
 		set_position({ x, y })
 		set_hovered(true)
+		if (active_drag.peek().paths.length > 0) watch_pointer()
 	}
 
 	function leave() {
@@ -390,6 +467,9 @@ export function create_desktop_drag_controller(
 			return action
 		})
 		target.connect("drag-leave", leave)
+		const motion = new Gtk.EventControllerMotion()
+		motion.connect("motion", end_lost_drag)
+		widget.add_controller(motion)
 		target.connect("drop", (controller, drop, x, y) => {
 			const action = drop_action(drop, control_held(controller))
 			if (!action) return false

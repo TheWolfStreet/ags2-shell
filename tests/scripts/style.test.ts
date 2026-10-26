@@ -160,16 +160,21 @@ test("no chained ternaries", () => {
 	assert.deepEqual(found, [])
 })
 
-test("no comments other than compiler directives", () => {
+test("no comments other than compiler directives and external BUG notes", () => {
 	const found: string[] = []
 	for (const file of files) {
 		const source = parse(file)
 		walk(source, (node) => {
 			const ranges = ts.getLeadingCommentRanges(source.text, node.pos) ?? []
+			let bug_line = -2
 			for (const range of ranges) {
 				const text = source.text.slice(range.pos, range.end)
-				if (/^\/\/\s*@ts-expect-error/.test(text)) continue
 				const { line } = source.getLineAndCharacterOfPosition(range.pos)
+				if (/^\/\/\s*@ts-expect-error/.test(text)) continue
+				if (/^\/\/ BUG: /.test(text) || line === bug_line + 1) {
+					bug_line = line
+					continue
+				}
 				found.push(`${file}:${line + 1} ${text.split("\n")[0]}`)
 			}
 		})

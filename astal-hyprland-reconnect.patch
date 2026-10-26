@@ -1,0 +1,50 @@
+--- a/src/hyprland.vala
++++ b/src/hyprland.vala
+@@ -138,6 +138,10 @@
+         stream.read_line_async.begin(Priority.DEFAULT, null, (_, res) => {
+                 try {
+                     var line = stream.read_line_async.end(res);
++                    if (line == null) {
++                        reconnect_socket();
++                        return;
++                    }
+                     handle_event.begin(line, (_, res) => {
+                         try {
+                             handle_event.end(res);
+@@ -148,10 +152,36 @@
+                     watch_socket(stream);
+                 } catch (Error err) {
+                     critical(err.message);
++                    reconnect_socket();
+                 }
+             });
+     }
+ 
++    private void reconnect_socket() {
++        Timeout.add(500, () => {
++            var conn = connection("socket2");
++            if (conn == null) {
++                return Source.CONTINUE;
++            }
++            socket2 = conn;
++            watch_socket(new DataInputStream(conn.input_stream));
++            resync.begin((_, res) => {
++                try {
++                    resync.end(res);
++                } catch (Error err) {
++                    critical(err.message);
++                }
++            });
++            return Source.REMOVE;
++        });
++    }
++
++    private async void resync() throws Error {
++        yield sync_monitors();
++        yield sync_workspaces();
++        yield sync_clients();
++    }
++
+     private void write_socket(
+         string message,
+         out SocketConnection conn,

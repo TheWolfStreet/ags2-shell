@@ -44,12 +44,17 @@
       old.propagatedBuildInputs;
     });
 
+    # BUG: upstream AstalHyprland spins on a closed event socket instead of reconnecting.
+    astal_hyprland = ags.packages.${system}.hyprland.overrideAttrs (old: {
+      patches = (old.patches or []) ++ [./astal-hyprland-reconnect.patch];
+    });
+
     astal_packages = with ags.packages.${system}; [
       io
       astal4
       battery
       apps
-      hyprland
+      astal_hyprland
       wireplumber
       network
       tray

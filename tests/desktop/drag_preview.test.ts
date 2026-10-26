@@ -28,6 +28,8 @@ type fake_controller = {
 	set_actions(): void
 	set_icon(...args: unknown[]): void
 	get_current_event_state(): number
+	drag_cancel(): void
+	cancels: number
 }
 
 async function fixture() {
@@ -44,6 +46,8 @@ async function fixture() {
 	let read_drop: () => Promise<unknown[]> = async () => [{ stream: true }]
 	let dropped_paths: string[] = []
 	let import_files: () => unknown = () => {}
+	let cursor = { x: 0, y: 0 }
+	const watches: { tick: () => void; cancelled: boolean }[] = []
 	class Picture {
 		declare canTarget: unknown
 		declare is_visible: unknown
@@ -85,6 +89,12 @@ async function fixture() {
 	const make_controller = (): fake_controller => ({
 		handlers: new Map(),
 		modifiers: 0,
+		cancels: 0,
+		drag_cancel() {
+			this.cancels++
+			this.fire("drag-cancel", {}, 0)
+			this.fire("drag-end", {}, false)
+		},
 		connect(name, callback) {
 			this.handlers.set(name, callback)
 		},
@@ -106,6 +116,11 @@ async function fixture() {
 		Picture,
 		DragSource: { new: () => make_controller() },
 		DropTargetAsync: { new: () => make_controller() },
+		EventControllerMotion: class {
+			constructor() {
+				return make_controller()
+			}
+		},
 		WidgetPaintable: {
 			new: (widget) => ({
 				get_current_image: () => ({
@@ -160,7 +175,21 @@ async function fixture() {
 				return fixed
 			},
 		},
-		"$lib/time": { timeout: () => ({ cancel() {} }) },
+		"$lib/time": {
+			timeout: () => ({ cancel() {} }),
+			interval: (_ms: number, tick: () => void) => {
+				const watch = { tick, cancelled: false }
+				watches.push(watch)
+				return {
+					cancel: () => {
+						watch.cancelled = true
+					},
+				}
+			},
+		},
+		"$lib/hyprland": {
+			hyprland: { message_async: async () => JSON.stringify(cursor) },
+		},
 		"gi://Gio": { default: { Cancellable: class {} } },
 		"gi://GLib": { default: { PRIORITY_DEFAULT: 0 } },
 		"gi://Graphene": {
@@ -227,7 +256,8 @@ async function fixture() {
 			layer,
 			widget,
 			source: controllers.at(-1)!,
-			target: target.controllers[0],
+			motion: target.controllers[0],
+			target: target.controllers[1],
 		}
 	}
 	const drop = {
@@ -256,12 +286,61 @@ async function fixture() {
 		set_import_files: (fn: () => unknown) => {
 			import_files = fn
 		},
+		move_cursor: (x: number, y: number) => {
+			cursor = { x, y }
+		},
+		watches,
+		tick: async () => {
+			for (const watch of watches) if (!watch.cancelled) watch.tick()
+			for (let i = 0; i < 4; i++) await new Promise(setImmediate)
+		},
 		cleanups,
 		set_dragging_css: (value) => {
 			dragging_css = value
 		},
 	}
 }
+
+test("a drag that leaves the desktop without a leave event hides its ghost and stops polling", async () => {
+	const f = await fixture()
+	const a = f.add_monitor("a")
+	a.source.fire("prepare", 11, 7)
+	a.target.fire("drag-motion", f.drop, 210, 120)
+	assert.equal(a.drag.hovered.peek(), true)
+	assert.equal(f.watches.length, 1)
+	await f.tick()
+	f.move_cursor(5, 5)
+	a.target.fire("drag-motion", f.drop, 215, 125)
+	await f.tick()
+	assert.equal(a.drag.hovered.peek(), true)
+	f.move_cursor(900, 40)
+	await f.tick()
+	assert.equal(a.drag.hovered.peek(), false)
+	assert.equal(f.watches[0].cancelled, true)
+	a.target.fire("drag-motion", f.drop, 220, 130)
+	assert.equal(a.drag.hovered.peek(), true)
+	assert.equal(f.watches.length, 2)
+	a.source.fire("drag-end", {}, false)
+	assert.equal(f.watches[1].cancelled, true)
+})
+
+test("plain motion back on the desktop cancels a drag that was lost over another window", async () => {
+	const f = await fixture()
+	const a = f.add_monitor("a")
+	a.source.fire("prepare", 11, 7)
+	a.target.fire("drag-motion", f.drop, 210, 120)
+	a.motion.fire("motion", 210, 120)
+	assert.equal(a.source.cancels, 0)
+	await f.tick()
+	f.move_cursor(900, 40)
+	await f.tick()
+	assert.equal(a.drag.hovered.peek(), false)
+	a.motion.fire("motion", 300, 200)
+	assert.equal(a.source.cancels, 1)
+	assert.deepEqual(a.drag.state.peek().paths, [])
+	a.motion.fire("motion", 310, 210)
+	assert.equal(a.source.cancels, 1)
+})
 
 test("prepare snapshots before drag CSS, hides the native icon and waits for motion", async () => {
 	const f = await fixture()
