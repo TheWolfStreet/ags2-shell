@@ -29,7 +29,7 @@ A GTK4 desktop shell for Hyprland, built with AGS v3 and Astal. It provides a ba
 - A user D-Bus session and writable dconf/GSettings state
 - No competing notification daemon; ags2-shell needs to own `org.freedesktop.Notifications` and warns when another process owns it
 
-The Nix package currently exports `x86_64-linux` and supplies its core libraries and runtime commands. Native installations must provide those dependencies through the host distribution. Keep the AGS CLI installed for window toggles and request commands; `hyprctl` is supplied by Hyprland.
+The Nix package is built for `x86_64-linux` and `aarch64-linux` and supplies its core libraries and runtime commands, including an AstalHyprland patched to survive a closed Hyprland event socket. Native installations provide those dependencies through the host distribution, whose AstalHyprland lacks that fix; see [The Shell Freezes When Hyprland's Event Socket Closes](#the-shell-freezes-when-hyprlands-event-socket-closes). Keep the AGS CLI installed for window toggles and request commands; `hyprctl` is supplied by Hyprland.
 
 ### Feature Services
 
@@ -83,7 +83,7 @@ Using the same `nixpkgs` and `ags` inputs keeps the shell and AGS control client
 
 ### 2. Install And Start The Shell
 
-Add the shell, matching AGS CLI, GTK portal backend, and user service to Home Manager:
+Add the shell, matching AGS CLI, and user service to Home Manager:
 
 ```nix
 {
@@ -96,9 +96,6 @@ Add the shell, matching AGS CLI, GTK portal backend, and user service to Home Ma
   shell = inputs.ags2-shell.packages.${system}.default;
 in {
   home.packages = [ags shell];
-
-  # Exposes the GSettings color scheme to portal and Flatpak applications.
-  xdg.portal.extraPortals = [pkgs.xdg-desktop-portal-gtk];
 
   systemd.user.services.ags = {
     Unit = {
@@ -117,7 +114,16 @@ in {
 }
 ```
 
-The desktop session must also provide the main `xdg-desktop-portal` service and a compositor portal backend, normally `xdg-desktop-portal-hyprland`. The GTK backend is session integration rather than an application dependency: ags2-shell runs without it, but sandboxed applications will not reliably receive the shell's dark or light preference.
+Install the GTK portal backend in the NixOS configuration, next to the Hyprland portal that `programs.hyprland.enable` already provides. It passes the shell's dark or light preference to sandboxed and Flatpak applications; ags2-shell runs without it.
+
+```nix
+{pkgs, ...}: {
+  programs.hyprland.enable = true;
+  xdg.portal.extraPortals = [pkgs.xdg-desktop-portal-gtk];
+}
+```
+
+When Home Manager also configures Hyprland, set `wayland.windowManager.hyprland.portalPackage = null`. Otherwise Home Manager enables a second, user-level portal setup that points `xdg-desktop-portal` at the Home Manager profile and hides the portals installed by NixOS.
 
 Apply the configuration with your normal NixOS or Home Manager switch, then verify the service:
 
@@ -305,6 +311,22 @@ ags list
 ```
 
 Confirm that the service inherited `WAYLAND_DISPLAY`, `HYPRLAND_INSTANCE_SIGNATURE`, and the graphical-session environment.
+
+### The Shell Freezes When Hyprland's Event Socket Closes
+
+Upstream AstalHyprland keeps reading a closed event socket in a tight loop instead of reconnecting, which pins a CPU core and freezes the shell. The Nix package applies [`astal-hyprland-reconnect.patch`](patches/astal-hyprland-reconnect.patch), which reconnects and resyncs monitors, workspaces, and clients.
+
+Native installations get the fix by rebuilding Astal's `lib/hyprland` with that patch, using the build dependencies from the [Astal installation guide](https://aylur.github.io/astal/guide/installation). Installing to `/usr` overwrites the distribution's AstalHyprland until its next package update, so reapply the patch after updates, or add it to the package build instead (on Arch, the `libastal-hyprland-git` PKGBUILD).
+
+```bash
+git clone https://github.com/Aylur/astal
+cd astal/lib/hyprland
+patch -p1 < /path/to/ags2-shell/patches/astal-hyprland-reconnect.patch
+meson setup build --prefix /usr
+sudo meson install -C build
+```
+
+Without the patch, a frozen shell cannot answer `ags quit`; kill the `ags2-shell` processes and start `ags2-shell` again.
 
 ### Flatpak Applications Ignore The Color Scheme
 
