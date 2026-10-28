@@ -46,6 +46,7 @@ async function mirroring({
 		monitors: monitors as unknown,
 		read: async () => JSON.stringify(state.monitors),
 		reply: "ok",
+		write: async (_command: string) => state.reply,
 		focused,
 	}
 	const reads: string[] = []
@@ -56,6 +57,7 @@ async function mirroring({
 	let serial = 0
 	const subscribers: (() => void)[] = []
 	const cleanups: (() => void)[] = []
+	const delays: number[] = []
 	let opened_name = opened
 	const opened_menu = Object.assign(
 		accessor(() => opened_name),
@@ -77,6 +79,13 @@ async function mirroring({
 			},
 		},
 		"ags/gtk4/jsx-runtime": jsx_runtime,
+		"$lib/time": {
+			timeout: (ms, callback) => {
+				delays.push(ms)
+				callback()
+				return { cancel() {} }
+			},
+		},
 		ags: {
 			createState: create_state,
 			onCleanup: (cleanup: () => void) => cleanups.push(cleanup),
@@ -112,7 +121,16 @@ async function mirroring({
 						return state.read()
 					}
 					messages.push(command)
-					return state.reply
+					const reply = await state.write(command)
+					if (reply === "ok" && command.includes("disabled ="))
+						state.monitors = (
+							state.monitors as ReturnType<typeof monitor>[]
+						).map((monitor) =>
+							command.includes(`output = ${JSON.stringify(monitor.name)},`)
+								? { ...monitor, disabled: command.includes("disabled = true") }
+								: monitor,
+						)
+					return reply
 				},
 			},
 		}),
@@ -149,6 +167,7 @@ async function mirroring({
 		handlers,
 		subscribers,
 		cleanups,
+		delays,
 		root: () => root,
 		remount: async () => {
 			root = DisplayMirroring.Selector()
@@ -197,10 +216,29 @@ test("externally mirrored target can be unmirrored without a saved snapshot", as
 			"j/monitors all",
 			"j/monitors all",
 			"j/monitors all",
+			"j/monitors all",
 		])
 		assert.deepEqual(t.messages, [
-			'eval hl.monitor({ output = "DP-1", mode = "2560x1440@60", position = "2560x120", scale = 1.5, transform = 1, mirror = "none" })',
+			'eval hl.monitor({ output = "DP-1", mode = "2560x1440@60", position = "2560x120", scale = 1.5, transform = 1, mirror = "eDP-1", disabled = true })',
+			'eval hl.monitor({ output = "DP-1", mode = "2560x1440@60", position = "2560x120", scale = 1.5, transform = 1, mirror = "none", disabled = false })',
 		])
+		assert.deepEqual(t.errors, [])
+	} finally {
+		t.restore()
+	}
+})
+
+test("numeric mirror IDs are restored using their connector names", async () => {
+	const t = await mirroring({
+		monitors: [
+			monitor("eDP-1", { id: 0 }),
+			monitor("DP-1", { id: 2, mirrorOf: "0" }),
+		],
+	})
+	try {
+		await t.click("DP-1")
+		assert.match(t.messages[0], /mirror = "eDP-1", disabled = true/)
+		assert.match(t.messages[1], /mirror = "none", disabled = false/)
 		assert.deepEqual(t.errors, [])
 	} finally {
 		t.restore()
@@ -235,7 +273,11 @@ test("mirroring prefers the focused source and unmirroring restores the saved sn
 		await t.click("DP-1")
 		assert.equal(
 			t.messages[1],
-			'eval hl.monitor({ output = "DP-1", mode = "1920x1080@60", position = "1920x0", scale = 1.25, transform = 0, mirror = "none" })',
+			'eval hl.monitor({ output = "DP-1", mode = "1920x1080@60", position = "0x0", scale = 1, transform = 0, mirror = "eDP-1", disabled = true })',
+		)
+		assert.equal(
+			t.messages[2],
+			'eval hl.monitor({ output = "DP-1", mode = "1920x1080@60", position = "1920x0", scale = 1.25, transform = 0, mirror = "none", disabled = false })',
 		)
 		assert.deepEqual(t.errors, [])
 	} finally {
@@ -265,6 +307,163 @@ test("the first enabled unmirrored monitor is the source when the focused one is
 	}
 })
 
+test("unmirroring waits for the output to disable and retains its snapshot during removal", async () => {
+	const panel = monitor("eDP-1")
+	const external = monitor("DP-1", { x: 1920, scale: 1.25 })
+	const t = await mirroring({ monitors: [panel, external] })
+	try {
+		await t.click("DP-1")
+		t.state.monitors = [panel, { ...external, x: 0, mirrorOf: "eDP-1" }]
+		const read = t.state.read
+		let disabled_reads = 0
+		let removed = false
+		t.state.read = async () => {
+			const monitors = t.state.monitors as ReturnType<typeof monitor>[]
+			if (monitors.some((monitor) => monitor.disabled)) {
+				disabled_reads++
+				if (!removed) {
+					removed = true
+					t.handlers.get("monitor-removed")!()
+				}
+				if (disabled_reads < 3)
+					return JSON.stringify(
+						monitors.map((monitor) => ({ ...monitor, disabled: false })),
+					)
+			}
+			return read()
+		}
+		await t.click("DP-1")
+		assert.ok(t.delays.length > 0)
+		assert.ok(t.delays.every((delay) => delay === 25))
+		assert.match(t.messages[1], /disabled = true/)
+		assert.match(
+			t.messages[2],
+			/position = "1920x0".*scale = 1.25.*mirror = "none", disabled = false/,
+		)
+		assert.deepEqual(t.errors, [])
+	} finally {
+		t.restore()
+	}
+})
+
+test("a refused output reset leaves the mirrored display enabled", async () => {
+	const t = await mirroring({
+		monitors: [monitor("eDP-1"), monitor("DP-1", { mirrorOf: "eDP-1" })],
+	})
+	try {
+		t.state.reply = "reset refused"
+		await t.click("DP-1")
+		assert.equal(t.messages.length, 1)
+		assert.match(t.messages[0], /disabled = true/)
+		assert.equal((t.state.monitors as any[])[1].disabled, false)
+		assert.equal(t.errors.length, 1)
+		assert.match(String(t.errors[0][1]), /reset refused/)
+	} finally {
+		t.restore()
+	}
+})
+
+test("a failed unmirror restores the enabled mirror and preserves its saved layout", async () => {
+	const panel = monitor("eDP-1")
+	const external = monitor("DP-1", { x: 1920, scale: 1.25 })
+	const t = await mirroring({ monitors: [panel, external] })
+	try {
+		await t.click("DP-1")
+		t.state.monitors = [panel, { ...external, x: 0, mirrorOf: "eDP-1" }]
+		t.state.write = async (command) =>
+			command.includes('mirror = "none"') ? "unmirror refused" : "ok"
+		await t.click("DP-1")
+		assert.equal(t.messages.length, 4)
+		assert.match(t.messages[3], /mirror = "eDP-1", disabled = false/)
+		assert.equal((t.state.monitors as any[])[1].disabled, false)
+		assert.equal(t.errors.length, 1)
+		assert.match(String(t.errors[0][1]), /unmirror refused/)
+		t.state.write = async () => "ok"
+		await t.click("DP-1")
+		assert.match(t.messages.at(-1)!, /position = "1920x0".*mirror = "none"/)
+	} finally {
+		t.restore()
+	}
+})
+
+test("a reset that never disables times out and restores the display", async () => {
+	const panel = monitor("eDP-1")
+	const external = monitor("DP-1", { mirrorOf: "eDP-1" })
+	const t = await mirroring({ monitors: [panel, external] })
+	try {
+		t.state.read = async () => JSON.stringify([panel, external])
+		await t.click("DP-1")
+		assert.equal(t.delays.length, 20)
+		assert.deepEqual(t.delays, Array(20).fill(25))
+		assert.equal(t.messages.length, 2)
+		assert.match(t.messages[1], /mirror = "eDP-1", disabled = false/)
+		assert.equal(t.errors.length, 1)
+		assert.match(String(t.errors[0][1]), /Timed out disabling monitor: DP-1/)
+	} finally {
+		t.restore()
+	}
+})
+
+test("a failed monitor read during reset restores the display and reports the cause", async () => {
+	const t = await mirroring({
+		monitors: [monitor("eDP-1"), monitor("DP-1", { mirrorOf: "eDP-1" })],
+	})
+	try {
+		let reads = 0
+		const read = t.state.read
+		t.state.read = async () => (++reads === 1 ? read() : "not json")
+		await t.click("DP-1")
+		assert.equal(t.messages.length, 2)
+		assert.match(t.messages[1], /mirror = "eDP-1", disabled = false/)
+		assert.equal(t.errors.length, 1)
+		assert.ok(t.errors[0][1] instanceof SyntaxError)
+	} finally {
+		t.restore()
+	}
+})
+
+test("a monitor disappearing during reset reports the disappearance without leaving work pending", async () => {
+	const panel = monitor("eDP-1")
+	const t = await mirroring({
+		monitors: [panel, monitor("DP-1", { mirrorOf: "eDP-1" })],
+	})
+	try {
+		let reads = 0
+		const read = t.state.read
+		t.state.read = async () =>
+			++reads === 1 ? read() : JSON.stringify([panel])
+		await t.click("DP-1")
+		assert.equal(t.messages.length, 2)
+		assert.match(t.messages[1], /mirror = "eDP-1", disabled = false/)
+		assert.equal(t.delays.length, 0)
+		assert.equal(t.errors.length, 1)
+		assert.match(String(t.errors[0][1]), /Monitor disappeared: DP-1/)
+	} finally {
+		t.restore()
+	}
+})
+
+test("a failed mirror rollback is reported separately from the unmirror failure", async () => {
+	const t = await mirroring({
+		monitors: [monitor("eDP-1"), monitor("DP-1", { mirrorOf: "eDP-1" })],
+	})
+	try {
+		t.state.write = async (command) =>
+			command.includes("disabled = true") ? "ok" : "enable refused"
+		await t.click("DP-1")
+		assert.equal(t.messages.length, 3)
+		assert.deepEqual(
+			t.errors.map(([tag]) => tag),
+			[
+				"display_mirroring: Failed to restore display",
+				"display_mirroring: Failed to change display configuration",
+			],
+		)
+	} finally {
+		t.restore()
+	}
+})
+
 test("a target without any source monitor logs and sends nothing", async () => {
 	const t = await mirroring({
 		monitors: [monitor("eDP-1", { mirrorOf: "DP-1" }), monitor("DP-1")],
@@ -274,13 +473,15 @@ test("a target without any source monitor logs and sends nothing", async () => {
 		await t.click("eDP-1")
 		t.state.monitors = [monitor("eDP-1", { disabled: true }), monitor("DP-1")]
 		await t.click("eDP-1")
-		assert.equal(t.messages.length, 1)
+		assert.equal(t.messages.length, 2)
+		assert.match(t.messages[0], /disabled = true/)
+		assert.match(t.messages[1], /mirror = "none", disabled = false/)
 		t.state.monitors = [monitor("eDP-1"), monitor("DP-1", { disabled: true })]
 		await t.click("eDP-1")
 		assert.deepEqual(t.errors, [
 			["display_mirroring: No source monitor available"],
 		])
-		assert.equal(t.messages.length, 1)
+		assert.equal(t.messages.length, 2)
 	} finally {
 		t.restore()
 	}

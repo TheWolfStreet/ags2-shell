@@ -14,6 +14,7 @@ import {
 	type result,
 } from "$lib/result"
 import { hyprland, hyprland_command } from "$lib/hyprland"
+import { timeout } from "$lib/time"
 import {
 	format_monitor_command,
 	is_monitor_settings,
@@ -22,6 +23,7 @@ import {
 import options, { scaled } from "$shell/options"
 
 type monitor_configuration = monitor_settings & {
+	id?: number
 	model: string
 	disabled: boolean
 }
@@ -47,7 +49,15 @@ async function read_monitors(): Promise<result<monitor_configuration[]>> {
 	if (!parsed.ok) return parsed
 	if (!Array.isArray(parsed.value) || !parsed.value.every(is_monitor))
 		return err(new Error("Invalid monitor configuration"))
-	return ok(parsed.value as monitor_configuration[])
+	const monitors = parsed.value as monitor_configuration[]
+	for (const monitor of monitors) {
+		const source = monitors.find(
+			(source) =>
+				typeof source.id === "number" && String(source.id) === monitor.mirrorOf,
+		)
+		if (source) monitor.mirrorOf = source.name
+	}
+	return ok(monitors)
 }
 
 function is_mirrored(monitor: monitor_configuration) {
@@ -78,6 +88,7 @@ function mirror_targets(monitors: monitor_configuration[]) {
 export namespace DisplayMirroring {
 	const menu_name = "mirror-selector"
 	const original = new Map<string, monitor_configuration>()
+	const resetting = new Set<string>()
 
 	export function Toggle() {
 		return (
@@ -167,7 +178,8 @@ export namespace DisplayMirroring {
 
 	function forget_vanished(monitors: monitor_configuration[]) {
 		for (const name of original.keys())
-			if (!enabled_monitor(monitors, name)) original.delete(name)
+			if (!resetting.has(name) && !enabled_monitor(monitors, name))
+				original.delete(name)
 	}
 
 	function mirror_command(
@@ -177,10 +189,40 @@ export namespace DisplayMirroring {
 		if (is_mirrored(target))
 			return format_monitor_command(original.get(target.name) ?? target, {
 				mirror: "none",
+				disabled: false,
 			})
 		const source = source_monitor(monitors, target.name)
 		if (!source) return null
 		return format_monitor_command(target, { mirror: source })
+	}
+
+	async function wait_disabled(name: string): Promise<result<void>> {
+		for (let attempt = 0; attempt < 20; attempt++) {
+			const monitors = await read_monitors()
+			if (!monitors.ok) return monitors
+			const monitor = monitors.value.find((monitor) => monitor.name === name)
+			if (!monitor) return err(new Error(`Monitor disappeared: ${name}`))
+			if (monitor.disabled) return ok(undefined)
+			await new Promise<void>((resolve) => timeout(25, resolve))
+		}
+		return err(new Error(`Timed out disabling monitor: ${name}`))
+	}
+
+	async function unmirror(target: monitor_configuration, command: string) {
+		const disabled = await hyprland_command(
+			format_monitor_command(target, { disabled: true }),
+		)
+		if (!disabled.ok) return disabled
+		let applied = await wait_disabled(target.name)
+		if (applied.ok) applied = await hyprland_command(command)
+		if (!applied.ok)
+			log_error(
+				await hyprland_command(
+					format_monitor_command(target, { disabled: false }),
+				),
+				"display_mirroring: Failed to restore display",
+			)
+		return applied
 	}
 
 	async function toggle_mirror(name: string, refresh: () => Promise<void>) {
@@ -193,7 +235,17 @@ export namespace DisplayMirroring {
 			console.error("display_mirroring: No source monitor available")
 			return
 		}
-		const applied = await hyprland_command(command)
+		let applied: result<void>
+		if (is_mirrored(target)) {
+			resetting.add(name)
+			try {
+				applied = await unmirror(target, command)
+			} finally {
+				resetting.delete(name)
+			}
+		} else {
+			applied = await hyprland_command(command)
+		}
 		if (
 			!log_error(
 				applied,

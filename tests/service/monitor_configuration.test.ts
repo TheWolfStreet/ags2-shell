@@ -48,6 +48,17 @@ test("disabling mirroring clears the merged rule's mirror instead of omitting it
 	)
 })
 
+test("output resets explicitly disable and enable without losing the display settings", () => {
+	assert.equal(
+		format_monitor_command(panel, { disabled: true }),
+		'eval hl.monitor({ output = "eDP-1", mode = "2560x1440@144", position = "-2560x120", scale = 1.5, transform = 1, mirror = "DP-1", disabled = true })',
+	)
+	assert.equal(
+		format_monitor_command(panel, { mirror: "none", disabled: false }),
+		'eval hl.monitor({ output = "eDP-1", mode = "2560x1440@144", position = "-2560x120", scale = 1.5, transform = 1, mirror = "none", disabled = false })',
+	)
+})
+
 test("Lua strings escape quotes, backslashes, and control bytes without touching UTF-8", () => {
 	assert.equal(lua.lua_string('a"b\\c'), '"a\\"b\\\\c"')
 	assert.equal(lua.lua_string("line\nnext\x7f"), '"line\\010next\\127"')

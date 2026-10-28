@@ -36,6 +36,7 @@ export function format_monitor_command(
 	change: {
 		refresh_rate?: number
 		mirror?: string
+		disabled?: boolean
 	} = {},
 ): string {
 	const refresh_rate = change.refresh_rate ?? monitor.refreshRate
@@ -48,5 +49,7 @@ export function format_monitor_command(
 		`transform = ${monitor.transform}`,
 		`mirror = ${lua_string(mirror || "none")}`,
 	]
+	if (change.disabled !== undefined)
+		fields.push(`disabled = ${change.disabled}`)
 	return `eval hl.monitor({ ${fields.join(", ")} })`
 }
