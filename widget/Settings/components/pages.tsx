@@ -1,5 +1,5 @@
 import { Gdk, Gtk } from "ags/gtk4"
-import { createBinding, createComputed } from "ags"
+import { createBinding, createComputed, onCleanup } from "ags"
 
 import Gio from "gi://Gio"
 
@@ -10,8 +10,11 @@ import { Placeholder } from "widget/shared/Placeholder"
 import { asusctl } from "$service/asusctl"
 import {
 	clear_wallpaper,
+	ensure_wallpaper_preview,
 	set_wallpaper,
 	wallpaper_path,
+	wallpaper_preview_path,
+	wallpaper_preview_revision,
 	wallpaper_revision,
 } from "$lib/wallpaper"
 import { file_exists, file_size } from "$lib/files"
@@ -29,30 +32,20 @@ const { COVER } = Gtk.ContentFit
 const { CROSSFADE } = Gtk.RevealerTransitionType
 
 type page_props = {
-	name: string
-	iconName: string
 	children?: JSX.Element | Array<JSX.Element>
 }
 
-function Page({ name, iconName: icon_name, children = [] }: page_props) {
+function Page({ children = [] }: page_props) {
 	return (
-		<Gtk.StackPage
-			name={name}
-			iconName={icon_name}
-			child={
-				(
-					<Gtk.ScrolledWindow
-						class="page"
-						css={scaled(300).as((px) => `min-height: ${px}px;`)}
-					>
-						<box class="page-content" vexpand orientation={VERTICAL}>
-							{children}
-						</box>
-					</Gtk.ScrolledWindow>
-				) as Gtk.ScrolledWindow
-			}
-		/>
-	)
+		<Gtk.ScrolledWindow
+			class="page"
+			css={scaled(300).as((px) => `min-height: ${px}px;`)}
+		>
+			<box class="page-content" vexpand orientation={VERTICAL}>
+				{children}
+			</box>
+		</Gtk.ScrolledWindow>
+	) as Gtk.ScrolledWindow
 }
 
 async function save_wallpaper(path: string) {
@@ -87,9 +80,17 @@ function WallpaperChooser() {
 		const size = file_size(wallpaper_path)
 		return size.ok && size.value > 0
 	})
+	const refresh_preview = () =>
+		ensure_wallpaper_preview(largest_monitor_pixels())
+	refresh_preview()
+	onCleanup(wallpaper_revision.subscribe(refresh_preview))
 	const preview_texture = createComputed(() => {
 		wallpaper_revision()
-		return create_display_texture(wallpaper_path, largest_monitor_pixels())
+		wallpaper_preview_revision()
+		return create_display_texture(
+			wallpaper_preview_path,
+			largest_monitor_pixels(),
+		)
 	})
 	const preview = createComputed(
 		() => preview_texture()() ?? hidden_drag_icon(),
@@ -317,7 +318,7 @@ function SchemeColors({
 
 function Appearance() {
 	return (
-		<Page name="Appearance" iconName={icons.ui.themes}>
+		<Page>
 			<Group title="Theme">
 				<WallpaperChooser />
 				<Row opt={scheme} title="Scheme" />
@@ -360,12 +361,12 @@ function Appearance() {
 			<SchemeColors name="dark" title="Dark Colors" />
 			<SchemeColors name="light" title="Light Colors" />
 		</Page>
-	) as Gtk.StackPage
+	) as Gtk.Widget
 }
 
 function Shell() {
 	return (
-		<Page name="Shell" iconName={icons.ui.toolbars}>
+		<Page>
 			<Group title="Bar">
 				<Row opt={bar.position} title="Position" />
 				<Row
@@ -415,13 +416,13 @@ function Shell() {
 				<Row opt={overview.scale} title="Scale" />
 			</Group>
 		</Page>
-	) as Gtk.StackPage
+	) as Gtk.Widget
 }
 
 function System() {
 	const refresh_rates = createBinding(asusctl, "refreshRates")
 	return (
-		<Page name="System" iconName={icons.ui.settings}>
+		<Page>
 			<Group title="Notifications">
 				<Row opt={notifications.position} title="Position" />
 			</Group>
@@ -449,9 +450,19 @@ function System() {
 				/>
 			</Group>
 		</Page>
-	) as Gtk.StackPage
+	) as Gtk.Widget
 }
 
-export function create_pages(): Gtk.StackPage[] {
-	return [Appearance(), Shell(), System()]
+export type settings_page = {
+	name: string
+	icon_name: string
+	widget: Gtk.Widget
+}
+
+export function create_pages(): settings_page[] {
+	return [
+		{ name: "Appearance", icon_name: icons.ui.themes, widget: Appearance() },
+		{ name: "Shell", icon_name: icons.ui.toolbars, widget: Shell() },
+		{ name: "System", icon_name: icons.ui.settings, widget: System() },
+	]
 }

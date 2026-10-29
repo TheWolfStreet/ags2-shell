@@ -831,7 +831,9 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 				},
 			},
 		},
-		"$lib/env": { default: { paths: { home: "/home/user" } } },
+		"$lib/env": {
+			default: { paths: { home: "/home/user", cache: { base: "/cache" } } },
+		},
 		"$lib/time": {
 			interval: capture_timer(timers),
 			debounce: immediate_debounce,

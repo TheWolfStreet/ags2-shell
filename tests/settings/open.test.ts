@@ -33,12 +33,13 @@ async function settings_fixture({
 			Gtk: {
 				StackTransitionType: { SLIDE_LEFT_RIGHT: 1 },
 				Align: { CENTER: 3 },
-				Orientation: { VERTICAL: 1 },
+				Orientation: { HORIZONTAL: 0, VERTICAL: 1 },
 				Window: "window",
 			},
 		},
 		"ags/gtk4/jsx-runtime": jsx_runtime,
 		"./components/pages": { create_pages: () => [] },
+		"$lib/time": { timeout: () => ({ cancel() {} }) },
 		"$lib/hyprland": {
 			hyprland: { clients, focusedWorkspace: { id: workspace } },
 		},

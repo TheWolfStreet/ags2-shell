@@ -26,7 +26,7 @@ const files = source_directories
 const production = files.filter((file) => !file.startsWith("tests/"))
 
 const allowed_throws: Record<string, number> = {
-	"widget/Settings/index.tsx": 2,
+	"widget/Settings/index.tsx": 1,
 }
 
 const snake = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/

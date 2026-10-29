@@ -33,6 +33,13 @@ export namespace DesktopLauncherCreator {
 		ensure_window()?.present()
 	}
 
+	export function preload() {
+		const window = ensure_window()
+		if (!window) return
+		const [, width] = window.measure(HORIZONTAL, -1)
+		window.measure(VERTICAL, width)
+	}
+
 	export function Window() {
 		const create_blocked_reason = createComputed(() => {
 			const missing_name = !name().trim()

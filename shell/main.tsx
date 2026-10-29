@@ -13,12 +13,14 @@ import { PowerMenu } from "widget/PowerMenu"
 import { Launcher } from "widget/Bar/components/Launcher"
 import { Notifications } from "widget/Bar/components/Notifications"
 import { QuickSettings } from "widget/Bar/components/QuickSettings"
+import { Settings } from "widget/Settings"
 import { DateMenu } from "widget/Bar/components/DateMenu"
 import { OSD } from "widget/OSD"
 import { Overview } from "widget/Bar/components/Overview"
 import { Bar } from "widget/Bar"
 import { Dock } from "widget/Dock"
 import { Desktop } from "widget/Desktop"
+import { DesktopLauncherCreator } from "widget/Desktop/components/LauncherCreator"
 
 import { live_monitors, watch_live_monitors } from "$lib/hyprland"
 import { screen_capture } from "$service/screen_capture"
@@ -102,8 +104,8 @@ function start_monitor_windows() {
 }
 
 function mount_popup_windows() {
-	idle(() => {
-		idle(() => {
+	const steps = [
+		() =>
 			mount_deferred_windows(() => {
 				DateMenu.Window()
 				PowerMenu.Window()
@@ -111,15 +113,24 @@ function mount_popup_windows() {
 				Notifications.Window()
 				QuickSettings.Window()
 				OSD.Window()
-			})
-			idle(() => {
-				mount_deferred_windows(() => {
-					Launcher.Window()
-					Overview.Window()
-				})
-			})
-		})
-	})
+			}),
+		() =>
+			mount_deferred_windows(() => {
+				Launcher.Window()
+				Overview.Window()
+			}),
+		() => Settings.preload(),
+		() => DesktopLauncherCreator.preload(),
+	]
+
+	const drain = () => {
+		const step = steps.shift()
+		if (!step) return
+		step()
+		idle(drain)
+	}
+
+	idle(() => idle(drain))
 }
 
 function stop_shell_children() {

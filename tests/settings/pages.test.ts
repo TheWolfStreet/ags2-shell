@@ -36,6 +36,7 @@ class monitor {
 
 async function load_pages(monitors: monitor[]) {
 	const requests: unknown[][] = []
+	const previews: number[] = []
 	const { create_pages } = await load_module(
 		"widget/Settings/components/pages.tsx",
 		{
@@ -59,7 +60,6 @@ async function load_pages(monitors: monitor[]) {
 					Orientation: { VERTICAL: 1 },
 					ContentFit: { COVER: 2 },
 					RevealerTransitionType: { CROSSFADE: 1 },
-					StackPage: "page",
 					ScrolledWindow: "scrolled",
 					GestureClick: "click",
 					Picture: "picture",
@@ -69,6 +69,7 @@ async function load_pages(monitors: monitor[]) {
 			ags: {
 				createBinding: () => accessor(() => []),
 				createComputed: accessor,
+				onCleanup: () => {},
 			},
 			"gi://Gio": { default: {} },
 			"./Setter": { default: (props) => jsx_runtime.jsx("setter", props) },
@@ -76,8 +77,11 @@ async function load_pages(monitors: monitor[]) {
 			"$service/asusctl": { asusctl: {} },
 			"$lib/wallpaper": {
 				clear_wallpaper() {},
+				ensure_wallpaper_preview: (size: number) => previews.push(size),
 				set_wallpaper: async () => ({ ok: true }),
 				wallpaper_path: "/cache/wallpaper",
+				wallpaper_preview_path: "/cache/wallpaper-preview",
+				wallpaper_preview_revision: accessor(() => 1),
 				wallpaper_revision: accessor(() => 1),
 			},
 			"$lib/files": {
@@ -101,21 +105,23 @@ async function load_pages(monitors: monitor[]) {
 			},
 		},
 	)
-	const pages = create_pages()
+	const pages = create_pages().map((page) => page.widget)
 	const picture = nodes(pages, "picture")[0]
 	picture.props.paintable()
-	return { requests, pages }
+	return { requests, previews, pages }
 }
 
-test("the wallpaper preview decodes at the largest monitor's pixel size", async () => {
-	const { requests } = await load_pages([
+test("the wallpaper preview is cached at the largest monitor's pixel size", async () => {
+	const { requests, previews } = await load_pages([
 		new monitor(1920, 1080, 1),
 		new monitor(1707, 1067, 1.5),
 	])
-	assert.deepEqual(requests, [["/cache/wallpaper", 2561]])
+	assert.deepEqual(previews, [2561])
+	assert.deepEqual(requests, [["/cache/wallpaper-preview", 2561]])
 })
 
 test("a rotated monitor counts its long edge", async () => {
-	const { requests } = await load_pages([new monitor(1200, 1920, 1)])
-	assert.deepEqual(requests, [["/cache/wallpaper", 1920]])
+	const { requests, previews } = await load_pages([new monitor(1200, 1920, 1)])
+	assert.deepEqual(previews, [1920])
+	assert.deepEqual(requests, [["/cache/wallpaper-preview", 1920]])
 })
