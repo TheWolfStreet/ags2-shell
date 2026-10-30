@@ -13,8 +13,7 @@ import {
 	ensure_wallpaper_preview,
 	set_wallpaper,
 	wallpaper_path,
-	wallpaper_preview_path,
-	wallpaper_preview_revision,
+	wallpaper_preview,
 	wallpaper_revision,
 } from "$lib/wallpaper"
 import { file_exists, file_size } from "$lib/files"
@@ -84,14 +83,9 @@ function WallpaperChooser() {
 		ensure_wallpaper_preview(largest_monitor_pixels())
 	refresh_preview()
 	onCleanup(wallpaper_revision.subscribe(refresh_preview))
-	const preview_texture = createComputed(() => {
-		wallpaper_revision()
-		wallpaper_preview_revision()
-		return create_display_texture(
-			wallpaper_preview_path,
-			largest_monitor_pixels(),
-		)
-	})
+	const preview_texture = createComputed(() =>
+		create_display_texture(wallpaper_preview() ?? "", largest_monitor_pixels()),
+	)
 	const preview = createComputed(
 		() => preview_texture()() ?? hidden_drag_icon(),
 	)

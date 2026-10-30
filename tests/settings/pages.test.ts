@@ -80,8 +80,7 @@ async function load_pages(monitors: monitor[]) {
 				ensure_wallpaper_preview: (size: number) => previews.push(size),
 				set_wallpaper: async () => ({ ok: true }),
 				wallpaper_path: "/cache/wallpaper",
-				wallpaper_preview_path: "/cache/wallpaper-preview",
-				wallpaper_preview_revision: accessor(() => 1),
+				wallpaper_preview: accessor(() => "/cache/wallpaper-preview"),
 				wallpaper_revision: accessor(() => 1),
 			},
 			"$lib/files": {

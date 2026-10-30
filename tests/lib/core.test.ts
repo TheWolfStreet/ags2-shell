@@ -1,12 +1,12 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createContext } from "node:vm"
+import { createHash } from "node:crypto"
 import { load_module } from "../load_module.ts"
 import {
 	create_state,
 	emitter,
 	capture_timer,
-	immediate_debounce,
 	capture_log,
 	variant,
 	type fake_timer as harness_timer,
@@ -647,6 +647,11 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 	let revision = 0
 	let release_conversion: (() => void) | null = null
 	let decode_count = 0
+	const preview_sizes: number[] = []
+	const encoded: string[] = []
+	const held: (() => void)[] = []
+	let listings = 0
+	let pending_refresh: (() => void) | null = null
 	const faults = new Set<string>()
 	class Missing extends Error {
 		matches(_domain, code) {
@@ -712,8 +717,14 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 			if (faults.has("create")) throw new Error("create failed")
 			assert.equal(files.has(this.name), false)
 			files.set(this.name, "")
+			const name = this.name
 			return {
-				close: () => {
+				data: "",
+				close() {
+					if (name.startsWith("/cache/")) {
+						if (files.has(name)) files.set(name, this.data)
+						return true
+					}
 					if (faults.has("staged-close-throws"))
 						throw new Error("staged close failed")
 					return !faults.has("staged-close")
@@ -722,6 +733,7 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 		}
 		move(target) {
 			if (faults.has("move")) return false
+			if (!files.has(this.name)) throw new Missing("not found")
 			files.set(target.name, files.get(this.name))
 			links.delete(target.name)
 			files.delete(this.name)
@@ -732,6 +744,23 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 			if (faults.has("delete")) return false
 			if (!files.delete(this.name)) throw new Missing("not found")
 			return true
+		}
+		enumerate_children() {
+			listings++
+			const names = [
+				...new Set(
+					[...files.keys()]
+						.filter((name) => name.startsWith(`${this.name}/`))
+						.map((name) => name.slice(this.name.length + 1).split("/")[0]),
+				),
+			]
+			return {
+				next_file: () => {
+					const name = names.shift()
+					return name === undefined ? null : { get_name: () => name }
+				},
+				close() {},
+			}
 		}
 		replace_contents(content) {
 			if (faults.has("replace-throws")) throw new Error("replace failed")
@@ -770,7 +799,7 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 				FileCreateFlags: { PRIVATE: 1, REPLACE_DESTINATION: 2 },
 				FileCopyFlags: { OVERWRITE: 1 },
 				FileMonitorFlags: { NONE: 0 },
-				FileQueryInfoFlags: { NONE: 0 },
+				FileQueryInfoFlags: { NONE: 0, NOFOLLOW_SYMLINKS: 1 },
 				IOErrorEnum: { NOT_FOUND: 1 },
 				io_error_quark: () => 1,
 			},
@@ -778,6 +807,9 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 		"gi://GLib": {
 			default: {
 				Error: Missing,
+				ChecksumType: { SHA1: 0 },
+				compute_checksum_for_string: (_type, text) =>
+					createHash("sha1").update(text).digest("hex"),
 				FileTest: { IS_SYMLINK: 1 },
 				file_test: (name) => links.has(name),
 				find_program_in_path: (name) =>
@@ -815,19 +847,33 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 					) => {
 						if (faults.has("decode-start"))
 							throw new Error("decode start failed")
+						const content = files.get(stream.name)
+						const finish = () => callback(null, { content })
+						if (stream.name === path) {
+							preview_sizes.push(width)
+							held.push(finish)
+							if (!faults.has("hold-preview")) queueMicrotask(held.pop()!)
+							return
+						}
 						decode_count++
 						assert.equal(width, 256)
-						queueMicrotask(() => callback(null, { name: stream.name }))
+						queueMicrotask(finish)
 					},
-					new_from_stream_finish: ({ name }) => {
+					new_from_stream_finish: ({ content }) => {
 						if (faults.has("no-image")) return null
-						if (
-							!files.get(name)?.startsWith("IMG") ||
-							files.get(name) === "IMG broken"
-						)
+						if (!content?.startsWith("IMG") || content === "IMG broken")
 							throw new Error("invalid image")
-						return {}
+						return {
+							save_to_streamv_async(stream, _type, _keys, _values, _c, done) {
+								stream.data = `PREVIEW ${content}`
+								encoded.push(stream.data)
+								const finish = () => done(null, {})
+								if (faults.has("hold-encode")) held.push(finish)
+								else queueMicrotask(finish)
+							},
+						}
 					},
+					save_to_stream_finish: () => true,
 				},
 			},
 		},
@@ -836,7 +882,13 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 		},
 		"$lib/time": {
 			interval: capture_timer(timers),
-			debounce: immediate_debounce,
+			debounce: (_ms, callback) => ({
+				call() {
+					if (faults.has("defer-refresh")) pending_refresh = callback
+					else callback()
+				},
+				cancel() {},
+			}),
 		},
 	}
 	return {
@@ -857,6 +909,16 @@ function wallpaper_harness(monitor_fails = false, initial_symlink = true) {
 		},
 		get decode_count() {
 			return decode_count
+		},
+		preview_sizes,
+		encoded,
+		held,
+		get listings() {
+			return listings
+		},
+		flush_refresh() {
+			pending_refresh?.()
+			pending_refresh = null
 		},
 	}
 }
@@ -996,22 +1058,16 @@ test("each wallpaper staging failure carries its reason and leaves nothing stage
 
 test("a failed validation close outranks the decode error, which is logged", async () => {
 	const closed = await wallpaper_failure(["stream-close"])
-	assert.equal(
-		closed.error.message,
-		"Failed to close wallpaper validation stream",
-	)
+	assert.equal(closed.error.message, "Failed to close wallpaper stream")
 	assert.equal(closed.error.cause, undefined)
 	assert.equal(closed.errors.length, 0)
 	const thrown = await wallpaper_failure(["stream-close-throws", "no-image"])
-	assert.equal(
-		thrown.error.message,
-		"Failed to close wallpaper validation stream",
-	)
+	assert.equal(thrown.error.message, "Failed to close wallpaper stream")
 	assert.equal((thrown.error.cause as Error).message, "close failed")
 	assert.equal(thrown.errors.length, 1)
 	assert.equal(
 		thrown.errors[0][0],
-		"wallpaper.validate: Failed to decode wallpaper",
+		"wallpaper.decode: Failed to decode wallpaper",
 	)
 	assert.equal(
 		(thrown.errors[0][1] as Error).message,
@@ -1078,6 +1134,194 @@ test("a failed clear is logged and does not refresh the wallpaper", async () => 
 		assert.equal(h.files.get(h.path), "IMG existing")
 		assert.equal(module.wallpaper_revision.peek(), revision)
 	}
+})
+
+async function preview_harness(t) {
+	const h = wallpaper_harness(false, false)
+	const errors: unknown[][] = []
+	t.mock.method(console, "error", capture_log(errors))
+	const module = await load("lib/wallpaper.ts", await with_files(h.imports), {
+		error: (...args) => errors.push(args),
+	})
+	const settle = async () => {
+		for (let i = 0; i < 4; i++) await new Promise((done) => setImmediate(done))
+	}
+	const preview = () => {
+		const path = module.wallpaper_preview.peek()
+		return path === null ? undefined : h.files.get(path)
+	}
+	const cached = () =>
+		[...h.files.keys()].filter((name) => name.startsWith("/cache/")).sort()
+	return { h, module, errors, settle, preview, cached }
+}
+
+test("a missing wallpaper preview is built once at the requested size and then reused", async (t) => {
+	const { h, module, errors, settle, preview, cached } =
+		await preview_harness(t)
+	h.files.set("/cache/wallpaper-preview.png", "PREVIEW legacy")
+	h.files.set("/cache/wallpaper-preview.json", "{}")
+	h.files.set("/cache/options.json", "{}")
+	module.ensure_wallpaper_preview(1000)
+	await settle()
+	assert.equal(preview(), "PREVIEW IMG existing")
+	assert.deepEqual(h.preview_sizes, [1000])
+	assert.deepEqual(cached(), [
+		"/cache/options.json",
+		module.wallpaper_preview.peek(),
+	])
+	module.ensure_wallpaper_preview(800)
+	module.ensure_wallpaper_preview(1000)
+	await settle()
+	assert.deepEqual(h.preview_sizes, [1000])
+	module.ensure_wallpaper_preview(2560)
+	await settle()
+	assert.deepEqual(h.preview_sizes, [1000, 1920])
+	assert.equal(preview(), "PREVIEW IMG existing")
+	assert.deepEqual(cached(), [
+		"/cache/options.json",
+		module.wallpaper_preview.peek(),
+	])
+	assert.deepEqual(errors, [])
+})
+
+test("a wallpaper replaced while its preview builds ends with a current preview", async (t) => {
+	const { h, module, errors, settle, preview, cached } =
+		await preview_harness(t)
+	h.faults.add("hold-preview")
+	module.ensure_wallpaper_preview(2560)
+	await settle()
+	assert.equal(h.held.length, 1)
+	h.faults.delete("hold-preview")
+	h.files.set("/home/user/next", "IMG next")
+	assert.equal((await module.set_wallpaper("/home/user/next")).ok, true)
+	module.ensure_wallpaper_preview(2560)
+	h.held.pop()!()
+	await settle()
+	assert.equal(preview(), "PREVIEW IMG next")
+	assert.deepEqual(cached(), [module.wallpaper_preview.peek()])
+	assert.deepEqual(errors, [])
+})
+
+test("clearing the wallpaper drops its preview, even one still building", async (t) => {
+	const { h, module, errors, settle, preview, cached } =
+		await preview_harness(t)
+	module.ensure_wallpaper_preview(2560)
+	await settle()
+	assert.equal(preview(), "PREVIEW IMG existing")
+	assert.equal(module.clear_wallpaper().ok, true)
+	assert.deepEqual(cached(), [])
+	h.files.set("/home/user/next", "IMG next")
+	assert.equal((await module.set_wallpaper("/home/user/next")).ok, true)
+	h.faults.add("hold-preview")
+	module.ensure_wallpaper_preview(2560)
+	await settle()
+	assert.equal(module.clear_wallpaper().ok, true)
+	h.held.pop()!()
+	await settle()
+	module.ensure_wallpaper_preview(2560)
+	await settle()
+	assert.deepEqual(cached(), [])
+	assert.equal(preview(), undefined)
+	assert.deepEqual(errors, [])
+})
+
+test("clearing the wallpaper while its preview decodes publishes nothing", async (t) => {
+	const { h, module, errors, settle, preview, cached } =
+		await preview_harness(t)
+	h.faults.add("defer-refresh")
+	h.faults.add("hold-preview")
+	module.ensure_wallpaper_preview(2560)
+	await settle()
+	assert.equal(module.clear_wallpaper().ok, true)
+	h.held.pop()!()
+	await settle()
+	h.flush_refresh()
+	await settle()
+	assert.equal(preview(), undefined)
+	assert.deepEqual(h.encoded, [])
+	assert.deepEqual(cached(), [])
+	assert.deepEqual(errors, [])
+})
+
+test("clearing the wallpaper while its preview encodes discards the staged file quietly", async (t) => {
+	const { h, module, errors, settle, preview, cached } =
+		await preview_harness(t)
+	h.faults.add("defer-refresh")
+	h.faults.add("hold-encode")
+	module.ensure_wallpaper_preview(2560)
+	await settle()
+	assert.equal(h.held.length, 1)
+	assert.equal(module.clear_wallpaper().ok, true)
+	h.held.pop()!()
+	await settle()
+	h.flush_refresh()
+	await settle()
+	assert.equal(preview(), undefined)
+	assert.deepEqual(cached(), [])
+	assert.deepEqual(errors, [])
+})
+
+test("a preview request made while another builds is honoured afterwards", async (t) => {
+	const { h, module, errors, settle, preview } = await preview_harness(t)
+	h.faults.add("hold-preview")
+	module.ensure_wallpaper_preview(1000)
+	await settle()
+	module.ensure_wallpaper_preview(2560)
+	h.faults.delete("hold-preview")
+	h.held.pop()!()
+	await settle()
+	assert.deepEqual(h.preview_sizes, [1000, 1920])
+	assert.match(module.wallpaper_preview.peek(), /-2560\.png$/)
+	assert.equal(preview(), "PREVIEW IMG existing")
+	assert.deepEqual(errors, [])
+})
+
+test("a wallpaper changed during preview decode is never encoded", async (t) => {
+	const { h, module, errors, settle, preview, cached } =
+		await preview_harness(t)
+	h.faults.add("hold-preview")
+	module.ensure_wallpaper_preview(2560)
+	await settle()
+	h.faults.delete("hold-preview")
+	h.external_write(h.path, "IMG next")
+	h.directory_monitor.emit("changed", { get_path: () => h.path }, null)
+	h.held.pop()!()
+	await settle()
+	assert.deepEqual(h.encoded, ["PREVIEW IMG next"])
+	assert.equal(preview(), "PREVIEW IMG next")
+	assert.deepEqual(cached(), [module.wallpaper_preview.peek()])
+	assert.deepEqual(errors, [])
+})
+
+test("preview cleanup touches only its own cache files", async (t) => {
+	const { h, module, errors, settle } = await preview_harness(t)
+	h.files.set("/cache/wallpaper-previews/kept.png", "KEEP")
+	h.files.set("/cache/wallpaper-preview-notes.png", "KEEP")
+	h.files.set("/cache/wallpaper-preview.png.1f-2a", "STALE")
+	module.ensure_wallpaper_preview(1000)
+	await settle()
+	assert.equal(module.clear_wallpaper().ok, true)
+	assert.deepEqual(
+		[...h.files.keys()].filter((name) => name.startsWith("/cache/")).sort(),
+		[
+			"/cache/wallpaper-preview-notes.png",
+			"/cache/wallpaper-previews/kept.png",
+		],
+	)
+	assert.deepEqual(errors, [])
+})
+
+test("a cached preview is reused without listing the cache directory", async (t) => {
+	const { h, module, errors, settle } = await preview_harness(t)
+	module.ensure_wallpaper_preview(1000)
+	await settle()
+	const listed = h.listings
+	module.ensure_wallpaper_preview(1000)
+	module.ensure_wallpaper_preview(800)
+	await settle()
+	assert.equal(h.listings, listed)
+	assert.deepEqual(h.preview_sizes, [1000])
+	assert.deepEqual(errors, [])
 })
 
 test("a failed directory monitor uses the fallback poll", async () => {
