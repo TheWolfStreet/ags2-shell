@@ -747,3 +747,127 @@ test("guards return a result-returning step as is and turn a throw into an error
 		{ ok: false, err: failure },
 	)
 })
+
+class fake_stack {
+	pages: fake_stack_page[] = []
+	current: fake_stack_page | null = null
+	outgoing: fake_stack_page | null = null
+	mapped = false
+	transition_running = false
+	dropped_outgoing = 0
+	handlers = new Map<number, () => void>()
+	next_handler = 1
+	add(name: string, visible: boolean) {
+		const page = new fake_stack_page(this, name, visible)
+		this.pages.push(page)
+		if (!this.current && visible) this.current = page
+		return page
+	}
+	connect(signal: string, handler: () => void) {
+		assert.equal(signal, "notify::transition-running")
+		const id = this.next_handler++
+		this.handlers.set(id, handler)
+		return id
+	}
+	disconnect(id: number) {
+		assert.ok(this.handlers.delete(id))
+	}
+	get_first_child() {
+		return this.pages[0] ?? null
+	}
+	get_child_by_name(name: string) {
+		return this.pages.find((page) => page.name === name) ?? null
+	}
+	get visible_child() {
+		return this.current
+	}
+	set visible_child(page: fake_stack_page | null) {
+		if (!page?.visible) return
+		this.switch_to(page)
+	}
+	switch_to(page: fake_stack_page | null) {
+		if (page === this.current) return
+		this.outgoing = this.mapped ? this.current : null
+		this.current = page
+		if (!this.outgoing) return
+		this.transition_running = true
+		for (const handler of [...this.handlers.values()]) handler()
+	}
+	finish_transition() {
+		this.outgoing = null
+		this.transition_running = false
+		for (const handler of [...this.handlers.values()]) handler()
+	}
+	child_visibility_changed(page: fake_stack_page) {
+		if (page === this.current && !page.visible)
+			this.switch_to(this.pages.find((other) => other.visible) ?? null)
+		if (page === this.outgoing && !page.visible) {
+			this.outgoing = null
+			this.dropped_outgoing += 1
+		}
+	}
+	visible_names() {
+		return this.pages.filter((page) => page.visible).map((page) => page.name)
+	}
+}
+
+class fake_stack_page {
+	declare stack: fake_stack
+	declare name: string
+	declare shown: boolean
+	constructor(stack: fake_stack, name: string, visible: boolean) {
+		this.stack = stack
+		this.name = name
+		this.shown = visible
+	}
+	get visible() {
+		return this.shown
+	}
+	set visible(value: boolean) {
+		if (value === this.shown) return
+		this.shown = value
+		this.stack.child_visibility_changed(this)
+	}
+	get_next_sibling() {
+		const pages = this.stack.pages
+		return pages[pages.indexOf(this) + 1] ?? null
+	}
+}
+
+test("a bound stack lays out only its current page and keeps the outgoing page until the slide ends", async () => {
+	const { bind_stack_page } = await load_module("lib/ui.ts", {
+		ags: {},
+		"ags/gtk4": { Gtk: {} },
+		"gi://Pango": { default: {} },
+	})
+	const { create_state } = await import("../helpers.ts")
+	const [page, set_page] = create_state("b")
+	const stack = new fake_stack()
+	for (const name of ["a", "b", "c"]) stack.add(name, true)
+
+	const unbind = bind_stack_page(stack, page)
+	assert.equal(stack.visible_child?.name, "b")
+	assert.deepEqual(stack.visible_names(), ["b"])
+
+	stack.mapped = true
+	set_page("c")
+	assert.equal(stack.visible_child?.name, "c")
+	assert.equal(stack.transition_running, true)
+	assert.deepEqual(stack.visible_names(), ["b", "c"])
+	set_page("a")
+	assert.equal(stack.visible_child?.name, "a")
+	assert.deepEqual(stack.visible_names(), ["a", "b", "c"])
+	stack.finish_transition()
+	assert.deepEqual(stack.visible_names(), ["a"])
+	assert.equal(stack.dropped_outgoing, 0)
+
+	stack.mapped = false
+	set_page("b")
+	assert.equal(stack.transition_running, false)
+	assert.deepEqual(stack.visible_names(), ["b"])
+
+	unbind()
+	assert.equal(stack.handlers.size, 0)
+	set_page("c")
+	assert.equal(stack.visible_child?.name, "b")
+})

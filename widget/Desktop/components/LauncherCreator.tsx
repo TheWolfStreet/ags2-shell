@@ -18,7 +18,7 @@ import Pango from "gi://Pango"
 import { applications } from "$service/apps"
 import { attempt, err, ok, type result } from "$lib/result"
 import icons from "$lib/icons"
-import { is_dialog_dismissed } from "$lib/ui"
+import { bind_stack_page, is_dialog_dismissed } from "$lib/ui"
 import { ApplicationIcon } from "widget/shared/ApplicationIcon"
 import { IconPicker } from "widget/shared/IconPicker"
 import { Placeholder } from "widget/shared/Placeholder"
@@ -330,9 +330,6 @@ export namespace DesktopLauncherCreator {
 			reset()
 		}
 
-		const page_visible = (name: creator_page) =>
-			createComputed(() => page() === name)
-
 		const form_page = (
 			<box orientation={VERTICAL} vexpand>
 				<box class="launcher-form" orientation={VERTICAL}>
@@ -485,11 +482,7 @@ export namespace DesktopLauncherCreator {
 		)
 
 		const applications_page = (
-			<box
-				class="selector-page"
-				orientation={VERTICAL}
-				visible={page_visible("applications")}
-			>
+			<box class="selector-page" orientation={VERTICAL}>
 				<box class="selector-content" orientation={VERTICAL} vexpand>
 					<entry
 						class="selector-search"
@@ -539,11 +532,7 @@ export namespace DesktopLauncherCreator {
 		)
 
 		const locations_page = (
-			<box
-				class="selector-page"
-				orientation={VERTICAL}
-				visible={page_visible("locations")}
-			>
+			<box class="selector-page" orientation={VERTICAL}>
 				<box class="selector-content" orientation={VERTICAL} vexpand>
 					<box class="selector-results-surface" orientation={VERTICAL} vexpand>
 						<Gtk.ScrolledWindow
@@ -611,11 +600,7 @@ export namespace DesktopLauncherCreator {
 		)
 
 		const icons_page = (
-			<box
-				class="selector-page"
-				orientation={VERTICAL}
-				visible={page_visible("icons")}
-			>
+			<box class="selector-page" orientation={VERTICAL}>
 				<IconPicker
 					active={icon_picker_active}
 					on_pick={(name) => {
@@ -670,7 +655,7 @@ export namespace DesktopLauncherCreator {
 
 					<Gtk.Stack
 						transitionType={SLIDE_LEFT_RIGHT}
-						visibleChildName={page}
+						$={(self) => onCleanup(bind_stack_page(self, page))}
 						vhomogeneous={false}
 						vexpand
 					>

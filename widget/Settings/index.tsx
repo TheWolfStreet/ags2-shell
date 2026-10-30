@@ -1,4 +1,4 @@
-import { createComputed, createRoot, createState } from "ags"
+import { createComputed, createRoot, createState, onCleanup } from "ags"
 import app from "$lib/app"
 import { Gtk } from "ags/gtk4"
 
@@ -6,7 +6,7 @@ import { create_pages } from "./components/pages"
 
 import icons from "$lib/icons"
 import { hyprland } from "$lib/hyprland"
-import { timeout } from "$lib/time"
+import { bind_stack_page } from "$lib/ui"
 import {
 	focus_client,
 	move_client_to_workspace_silent,
@@ -19,7 +19,6 @@ export namespace Settings {
 	const { SLIDE_LEFT_RIGHT } = Gtk.StackTransitionType
 	const { CENTER } = Gtk.Align
 	const { HORIZONTAL, VERTICAL } = Gtk.Orientation
-	const hidden_page_delay_ms = 300
 
 	let root: (() => void) | null = null
 
@@ -60,28 +59,7 @@ export namespace Settings {
 		if (!pages.length) throw new Error("Settings has no pages")
 		const all_opts = collect_options(options)
 
-		let stack: Gtk.Stack | undefined
-		const attached = new Set<string>()
 		const [current_page, set_current_page] = createState(pages[0].name)
-
-		function attach_pages_through(index: number) {
-			if (!stack) return
-			for (const page of pages.slice(0, index + 1)) {
-				if (attached.has(page.name)) continue
-				attached.add(page.name)
-				const child = stack.add_child(page.widget)
-				child.name = page.name
-				child.iconName = page.icon_name
-			}
-		}
-
-		function show_page(name: string) {
-			const index = pages.findIndex((page) => page.name === name)
-			if (index < 0) return
-			attach_pages_through(index)
-			set_current_page(name)
-			stack?.set_visible_child_name(name)
-		}
 
 		const any_changed = createComputed(() =>
 			all_opts.some((opt) => opt() !== opt.get_default()),
@@ -91,25 +69,8 @@ export namespace Settings {
 			all_opts.forEach((opt) => opt.reset())
 		}
 
-		function setup(self: Gtk.Stack) {
-			stack = self
-			attach_pages_through(0)
-			const name = current_page.peek()
-			if (self.get_child_by_name(name)) self.set_visible_child_name(name)
-		}
-
-		function setup_window(self: Gtk.Window) {
-			const handler = self.connect("map", () => {
-				self.disconnect(handler)
-				timeout(hidden_page_delay_ms, () =>
-					attach_pages_through(pages.length - 1),
-				)
-			})
-		}
-
 		return (
 			<Gtk.Window
-				$={setup_window}
 				title="Settings"
 				name="settings-dialog"
 				class="settings-dialog"
@@ -137,7 +98,7 @@ export namespace Settings {
 								<button
 									class={current_page.as((v) => (v === name ? `active` : ""))}
 									valign={CENTER}
-									onClicked={() => show_page(name)}
+									onClicked={() => set_current_page(name)}
 								>
 									<box>
 										<image iconName={icon_name} useFallback />
@@ -157,7 +118,14 @@ export namespace Settings {
 						</button>
 					</centerbox>
 
-					<stack transitionType={SLIDE_LEFT_RIGHT} $={setup} />
+					<stack
+						transitionType={SLIDE_LEFT_RIGHT}
+						$={(self) => onCleanup(bind_stack_page(self, current_page))}
+					>
+						{pages.map(({ name, icon_name, widget }) => (
+							<Gtk.StackPage name={name} iconName={icon_name} child={widget} />
+						))}
+					</stack>
 				</box>
 			</Gtk.Window>
 		)

@@ -40,3 +40,29 @@ export function peek_value<T>(value: maybe_accessor<T>): T {
 export function font_size(font: string): number {
 	return Pango.FontDescription.from_string(font).get_size() / Pango.SCALE || 11
 }
+
+export function bind_stack_page(stack: Gtk.Stack, page: Accessor<string>) {
+	function hide_inactive() {
+		if (stack.transition_running) return
+		for (
+			let child = stack.get_first_child();
+			child;
+			child = child.get_next_sibling()
+		)
+			child.visible = child === stack.visible_child
+	}
+	function show() {
+		const child = stack.get_child_by_name(page.peek())
+		if (!child) return
+		child.visible = true
+		stack.visible_child = child
+		hide_inactive()
+	}
+	const handler = stack.connect("notify::transition-running", hide_inactive)
+	show()
+	const unsubscribe = page.subscribe(show)
+	return () => {
+		unsubscribe()
+		stack.disconnect(handler)
+	}
+}

@@ -603,6 +603,10 @@ async function launcher_fixture() {
 		"$lib/icons": { default: icons },
 		"$lib/ui": {
 			is_dialog_dismissed: (error) => error?.code === "DISMISSED",
+			bind_stack_page: (stack, page) => {
+				stack.page = page
+				return () => {}
+			},
 		},
 		"widget/shared/ApplicationIcon": {
 			ApplicationIcon: (props) => make("app_icon", props),
@@ -641,7 +645,7 @@ async function launcher_fixture() {
 			(item) => item.type === "page" && item.props.name === name,
 		).props.child
 	const stack = () => nodes(tree(), "stack")[0]
-	const current_page = () => read(stack().props.visibleChildName)
+	const current_page = () => read(stack().page)
 	const form = () => page_named("form")
 	const entries = () => nodes(form(), "entry")
 	const field = (placeholder: string) =>
