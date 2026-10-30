@@ -20,7 +20,6 @@ import { Overview } from "widget/Bar/components/Overview"
 import { Bar } from "widget/Bar"
 import { Dock } from "widget/Dock"
 import { Desktop } from "widget/Desktop"
-import { DesktopLauncherCreator } from "widget/Desktop/components/LauncherCreator"
 
 import { live_monitors, watch_live_monitors } from "$lib/hyprland"
 import { screen_capture } from "$service/screen_capture"
@@ -120,7 +119,6 @@ function mount_popup_windows() {
 				Overview.Window()
 			}),
 		() => Settings.preload(),
-		() => DesktopLauncherCreator.preload(),
 	]
 
 	const drain = () => {

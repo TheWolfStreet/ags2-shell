@@ -33,13 +33,6 @@ export namespace DesktopLauncherCreator {
 		ensure_window()?.present()
 	}
 
-	export function preload() {
-		const window = ensure_window()
-		if (!window) return
-		const [, width] = window.measure(HORIZONTAL, -1)
-		window.measure(VERTICAL, width)
-	}
-
 	export function Window() {
 		const create_blocked_reason = createComputed(() => {
 			const missing_name = !name().trim()
@@ -337,6 +330,9 @@ export namespace DesktopLauncherCreator {
 			reset()
 		}
 
+		const page_visible = (name: creator_page) =>
+			createComputed(() => page() === name)
+
 		const form_page = (
 			<box orientation={VERTICAL} vexpand>
 				<box class="launcher-form" orientation={VERTICAL}>
@@ -489,7 +485,11 @@ export namespace DesktopLauncherCreator {
 		)
 
 		const applications_page = (
-			<box class="selector-page" orientation={VERTICAL}>
+			<box
+				class="selector-page"
+				orientation={VERTICAL}
+				visible={page_visible("applications")}
+			>
 				<box class="selector-content" orientation={VERTICAL} vexpand>
 					<entry
 						class="selector-search"
@@ -539,7 +539,11 @@ export namespace DesktopLauncherCreator {
 		)
 
 		const locations_page = (
-			<box class="selector-page" orientation={VERTICAL}>
+			<box
+				class="selector-page"
+				orientation={VERTICAL}
+				visible={page_visible("locations")}
+			>
 				<box class="selector-content" orientation={VERTICAL} vexpand>
 					<box class="selector-results-surface" orientation={VERTICAL} vexpand>
 						<Gtk.ScrolledWindow
@@ -607,7 +611,11 @@ export namespace DesktopLauncherCreator {
 		)
 
 		const icons_page = (
-			<box class="selector-page" orientation={VERTICAL}>
+			<box
+				class="selector-page"
+				orientation={VERTICAL}
+				visible={page_visible("icons")}
+			>
 				<IconPicker
 					active={icon_picker_active}
 					on_pick={(name) => {
