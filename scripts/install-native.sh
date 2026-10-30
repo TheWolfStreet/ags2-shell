@@ -46,7 +46,7 @@ for launcher in "$stage/main" "$stage/wallpaper"; do
   grep -q "> \\\$file$" "$launcher"
   grep -q -- "-m \\\$file \\\$@$" "$launcher"
   sed -i \
-    -e "s|^file=.*$|set -eo pipefail; umask 077; file=\$(mktemp \"\${XDG_RUNTIME_DIR:-/tmp}/ags2-shell.XXXXXXXX\"); trap 'rm -f -- \"\$file\"' EXIT|" \
+    -e "s|^file=.*$|set -eo pipefail; umask 077; export GLIBC_TUNABLES=\"glibc.malloc.mmap_threshold=131072:glibc.malloc.trim_threshold=131072\${GLIBC_TUNABLES:+:\$GLIBC_TUNABLES}\"; file=\$(mktemp \"\${XDG_RUNTIME_DIR:-/tmp}/ags2-shell.XXXXXXXX\"); trap 'rm -f -- \"\$file\"' EXIT|" \
     -e "s|> \\\$file$|> \"\$file\"|" \
     -e "s|-m \\\$file \\\$@$|-m \"\$file\" \"\$@\"|" "$launcher"
 done

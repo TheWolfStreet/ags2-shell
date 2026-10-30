@@ -23,10 +23,13 @@ const stub_source = `import { readFileSync, statSync } from "node:fs"
 import { createHash } from "node:crypto"
 const [flag, module_path, ...args] = process.argv.slice(2)
 if (flag !== "-m") process.exit(2)
-console.log(JSON.stringify({ module_path, args, mode: statSync(module_path).mode & 0o777, hash: createHash("sha256").update(readFileSync(module_path)).digest("hex") }))
+console.log(JSON.stringify({ module_path, args, tunables: process.env.GLIBC_TUNABLES, mode: statSync(module_path).mode & 0o777, hash: createHash("sha256").update(readFileSync(module_path)).digest("hex") }))
 `
 
-function run_bundle(launcher, stub, runtime) {
+const malloc_tunables =
+	"glibc.malloc.mmap_threshold=131072:glibc.malloc.trim_threshold=131072"
+
+function run_bundle(launcher, stub, runtime, inherited_tunables?: string) {
 	accessSync(launcher, constants.X_OK)
 	const source = readFileSync(launcher, "utf8")
 	const payload = source.match(/^([A-Za-z0-9+/=]+)\nEOF$/m)
@@ -54,15 +57,21 @@ function run_bundle(launcher, stub, runtime) {
 		"literal $HOME; $(false)",
 		"apostrophe's & backslash\\",
 	]
-	const result = spawnSync(copied, args, {
-		encoding: "utf8",
-		env: { ...process.env, XDG_RUNTIME_DIR: runtime },
-	})
+	const env: NodeJS.ProcessEnv = { ...process.env, XDG_RUNTIME_DIR: runtime }
+	delete env.GLIBC_TUNABLES
+	if (inherited_tunables) env.GLIBC_TUNABLES = inherited_tunables
+	const result = spawnSync(copied, args, { encoding: "utf8", env })
 	assert.equal(result.status, 0, result.stderr)
 	const report = JSON.parse(result.stdout)
 	assert.equal(report.hash, expected_hash)
 	assert.equal(report.mode, 0o600)
 	assert.deepEqual(report.args, args)
+	assert.equal(
+		report.tunables,
+		inherited_tunables
+			? `${malloc_tunables}:${inherited_tunables}`
+			: malloc_tunables,
+	)
 	assert.equal(
 		report.module_path.startsWith(join(runtime, "ags2-shell.")),
 		true,
@@ -121,6 +130,9 @@ test("native installer launchers extract privately, preserve arguments and clean
 			const runtime = join(stage, `runtime ${name}`)
 			mkdirSync(runtime)
 			run_bundle(launcher, stub, runtime)
+			const inherited_runtime = join(stage, `runtime ${name} inherited`)
+			mkdirSync(inherited_runtime)
+			run_bundle(launcher, stub, inherited_runtime, "glibc.malloc.arena_max=2")
 		}
 	} finally {
 		rmSync(stage, { recursive: true, force: true })
