@@ -3,6 +3,7 @@ import { Astal, Gdk, Gtk } from "ags/gtk4"
 import { idle, type timer } from "$lib/time"
 
 import GdkPixbuf from "gi://GdkPixbuf"
+import Gio from "gi://Gio"
 import GLib from "gi://GLib"
 import LayerShell from "gi://Gtk4LayerShell"
 
@@ -12,6 +13,8 @@ import { wallpaper_path, wallpaper_revision } from "$lib/wallpaper"
 
 export namespace Wallpaper {
 	export function Window({ gdkmonitor }: { gdkmonitor: Gdk.Monitor }) {
+		let monitor = gdkmonitor
+		let repaint = () => {}
 		const pictures: [Gtk.Picture, Gtk.Picture] = [
 			new Gtk.Picture(),
 			new Gtk.Picture(),
@@ -40,7 +43,9 @@ export namespace Wallpaper {
 				visible
 			>
 				<Gtk.Stack
-					$={(self) => setup_crossfade_stack(self, pictures)}
+					$={(self) => {
+						repaint = setup_crossfade_stack(self, pictures, () => monitor)
+					}}
 					css={flat_black_css}
 					hexpand
 					vexpand
@@ -48,13 +53,23 @@ export namespace Wallpaper {
 			</window>
 		) as Gtk.Window
 
+		const watch = (target: Gdk.Monitor) =>
+			["notify::geometry", "notify::scale"].map((signal) =>
+				target.connect(signal, () => repaint()),
+			)
+		let watched = watch(monitor)
 		onCleanup(() => {
+			for (const id of watched) monitor.disconnect(id)
 			schedule_monitor_window_release(window)
 		})
 
 		return {
 			retarget(next_monitor: Gdk.Monitor) {
+				for (const id of watched) monitor.disconnect(id)
+				monitor = next_monitor
+				watched = watch(monitor)
 				window.set_property("gdkmonitor", next_monitor)
+				repaint()
 			},
 			rearrange() {
 				if (!window.get_mapped()) return
@@ -137,6 +152,17 @@ function play_gif(
 	}
 }
 
+type monitor_pixels = { width: number; height: number }
+
+function pixels_of(monitor: Gdk.Monitor): monitor_pixels {
+	const geometry = monitor.get_geometry()
+	const scale = monitor.get_scale()
+	return {
+		width: Math.round(geometry.width * scale),
+		height: Math.round(geometry.height * scale),
+	}
+}
+
 function show_static_image(
 	key: string,
 	texture: Gdk.Texture,
@@ -146,12 +172,45 @@ function show_static_image(
 	picture.set_paintable(texture)
 }
 
+function read_into(loader: GdkPixbuf.PixbufLoader, path: string) {
+	const stream = Gio.File.new_for_path(path).read(null)
+	try {
+		while (true) {
+			const chunk = stream.read_bytes(65536, null)
+			if (chunk.get_size() === 0) return
+			loader.write_bytes(chunk)
+		}
+	} finally {
+		stream.close(null)
+	}
+}
+
+function decode_animation(
+	path: string,
+	pixels: monitor_pixels,
+): result<GdkPixbuf.PixbufAnimation> {
+	const loader = new GdkPixbuf.PixbufLoader()
+	loader.connect("size-prepared", (_loader, width: number, height: number) => {
+		const factor = Math.max(pixels.width / width, pixels.height / height)
+		if (factor > 0 && factor < 1)
+			loader.set_size(Math.ceil(width * factor), Math.ceil(height * factor))
+	})
+	const read = attempt(() => read_into(loader, path))
+	const closed = attempt(() => loader.close())
+	if (!read.ok) return read
+	if (!closed.ok) return closed
+	const animation = loader.get_animation()
+	if (!animation) return err(new Error("Wallpaper decoder returned no image"))
+	return ok(animation)
+}
+
 function paint_animation(
 	path: string,
 	key: string,
+	pixels: monitor_pixels,
 	picture: Gtk.Picture,
 ): result<() => void> {
-	const decoded = attempt(() => GdkPixbuf.PixbufAnimation.new_from_file(path))
+	const decoded = decode_animation(path, pixels)
 	if (!decoded.ok) return decoded
 
 	const animation = decoded.value
@@ -167,10 +226,11 @@ function paint_animation(
 function paint(
 	path: string,
 	revision: number,
+	pixels: monitor_pixels,
 	picture: Gtk.Picture,
 ): () => void {
 	picture.set_paintable(null)
-	const key = `${path}:${revision}`
+	const key = `${path}:${revision}:${pixels.width}x${pixels.height}`
 	if (static_image?.key === key) {
 		picture.set_paintable(static_image.texture)
 		return () => {}
@@ -178,7 +238,7 @@ function paint(
 	const running = active_gifs.get(key)
 	if (running) return play_gif(key, running, picture)
 
-	const animated = guard(() => paint_animation(path, key, picture))
+	const animated = guard(() => paint_animation(path, key, pixels, picture))
 	if (animated.ok) return animated.value
 
 	const fallback = attempt(() => Gdk.Texture.new_from_filename(path))
@@ -198,9 +258,23 @@ function paint(
 function setup_crossfade_stack(
 	stack: Gtk.Stack,
 	pictures: [Gtk.Picture, Gtk.Picture],
-) {
+	monitor: () => Gdk.Monitor,
+): () => void {
 	let slot: 0 | 1 = 1
+	let painted: 0 | 1 = slot
+	let pixels = pixels_of(monitor())
 	let transition_timer: timer | null = null
+	let fading_out: Gtk.Picture | null = null
+
+	const release_faded = () => {
+		if (!fading_out || stack.transition_running) return
+		fading_out.set_paintable(null)
+		fading_out = null
+	}
+	const transition_handler = stack.connect(
+		"notify::transition-running",
+		release_faded,
+	)
 
 	stack.add_named(pictures[0], slot_names[0])
 	stack.add_named(pictures[1], slot_names[1])
@@ -209,6 +283,7 @@ function setup_crossfade_stack(
 	let stop_animation = paint(
 		wallpaper_path,
 		wallpaper_revision.peek(),
+		pixels,
 		pictures[slot],
 	)
 	stack.set_transition_duration(0)
@@ -217,22 +292,46 @@ function setup_crossfade_stack(
 
 	const unsubscribe = wallpaper_revision.subscribe(() => {
 		const next: 0 | 1 = slot === 0 ? 1 : 0
+		fading_out = null
 		stop_animation()
+		painted = next
 		stop_animation = paint(
 			wallpaper_path,
 			wallpaper_revision.peek(),
+			pixels,
 			pictures[next],
 		)
 		transition_timer?.cancel()
 		transition_timer = idle(() => {
 			transition_timer = null
+			fading_out = pictures[slot]
 			slot = next
 			stack.set_visible_child_name(slot_names[next])
+			release_faded()
 		})
 	})
 	onCleanup(() => {
 		unsubscribe()
 		transition_timer?.cancel()
+		stack.disconnect(transition_handler)
 		stop_animation()
 	})
+
+	return () => {
+		const next_pixels = pixels_of(monitor())
+		if (next_pixels.width < 1 || next_pixels.height < 1) return
+		if (
+			next_pixels.width === pixels.width &&
+			next_pixels.height === pixels.height
+		)
+			return
+		pixels = next_pixels
+		stop_animation()
+		stop_animation = paint(
+			wallpaper_path,
+			wallpaper_revision.peek(),
+			pixels,
+			pictures[painted],
+		)
+	}
 }

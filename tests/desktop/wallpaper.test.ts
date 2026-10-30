@@ -20,6 +20,8 @@ async function wallpaper_fixture({
 	let next_source = 0
 	let frame = 0
 	let decodes = 0
+	const sizes: string[] = []
+	const image = { width: 5120, height: 2880 }
 	mock.method(console, "error", (...args) => errors.push(args))
 	class Picture {
 		paintable: unknown = "unset"
@@ -31,6 +33,19 @@ async function wallpaper_fixture({
 		children = new Map<string, Picture>()
 		visible = ""
 		durations: number[] = []
+		transition_running = false
+		handlers = new Map<number, () => void>()
+		connect(_signal, handler) {
+			this.handlers.set(this.handlers.size + 1, handler)
+			return this.handlers.size
+		}
+		disconnect(id) {
+			this.handlers.delete(id)
+		}
+		finish_transition() {
+			this.transition_running = false
+			for (const handler of this.handlers.values()) handler()
+		}
 		add_named(child, name) {
 			this.children.set(name, child)
 		}
@@ -40,6 +55,7 @@ async function wallpaper_fixture({
 		}
 		set_visible_child_name(name) {
 			this.visible = `${name}@${this.durations.at(-1)}`
+			this.transition_running = this.durations.at(-1)! > 0
 		}
 	}
 	const iter = {
@@ -50,9 +66,10 @@ async function wallpaper_fixture({
 			return true
 		},
 	}
+	let size = ""
 	const animation = {
 		is_static_image: () => decode !== "animated" && decode !== "broken_frames",
-		get_static_image: () => (decode === "empty" ? null : "still"),
+		get_static_image: () => (decode === "empty" ? null : `still${size}`),
 		get_iter: () => {
 			if (decode === "broken_frames") throw new Error("bad frame")
 			return iter
@@ -109,12 +126,41 @@ async function wallpaper_fixture({
 		},
 		"gi://GdkPixbuf": {
 			default: {
-				PixbufAnimation: {
-					new_from_file: () => {
+				PixbufLoader: class {
+					prepared: (loader, width, height) => void = () => {}
+					connect(_signal, handler) {
+						this.prepared = handler
+					}
+					set_size(width, height) {
+						size = `@${width}x${height}`
+					}
+					write_bytes() {
+						size = ""
+						this.prepared(this, image.width, image.height)
+					}
+					close() {
 						decodes++
+						sizes.push(size)
 						if (decode === "throws") throw new Error("not an image")
+					}
+					get_animation() {
 						return animation
-					},
+					}
+				},
+			},
+		},
+		"gi://Gio": {
+			default: {
+				File: {
+					new_for_path: () => ({
+						read: () => {
+							let chunks = 1
+							return {
+								read_bytes: () => ({ get_size: () => chunks-- }),
+								close: () => log.push("closed"),
+							}
+						},
+					}),
 				},
 			},
 		},
@@ -149,6 +195,33 @@ async function wallpaper_fixture({
 			wallpaper_revision: revision,
 		},
 	})
+	function monitor(width = 1920, height = 1200, scale = 1) {
+		const handlers = new Map<number, () => void>()
+		return {
+			width,
+			height,
+			scale,
+			handlers,
+			get_geometry() {
+				return { x: 0, y: 0, width: this.width, height: this.height }
+			},
+			get_scale() {
+				return this.scale
+			},
+			connect(_signal, handler) {
+				handlers.set(handlers.size + 1, handler)
+				return handlers.size
+			},
+			disconnect(id) {
+				handlers.delete(id)
+			},
+			resize(next_width, next_height) {
+				this.width = next_width
+				this.height = next_height
+				for (const handler of [...handlers.values()]) handler()
+			},
+		}
+	}
 	return {
 		module,
 		log,
@@ -162,13 +235,16 @@ async function wallpaper_fixture({
 		revision_listeners,
 		window,
 		decodes: () => decodes,
+		sizes,
+		image,
 		tick() {
 			for (const [id, fn] of [...sources]) {
 				sources.delete(id)
 				fn()
 			}
 		},
-		open: () => module.Wallpaper.Window({ gdkmonitor: "monitor" }),
+		monitor,
+		open: (gdkmonitor = monitor()) => module.Wallpaper.Window({ gdkmonitor }),
 	}
 }
 
@@ -179,8 +255,8 @@ test("a static wallpaper is decoded once and shared by every monitor", async () 
 	f.open()
 	f.open()
 	const [first, second] = f.stacks
-	assert.equal(first.children.get("b").paintable, "texture:still")
-	assert.equal(second.children.get("b").paintable, "texture:still")
+	assert.equal(first.children.get("b").paintable, "texture:still@2134x1200")
+	assert.equal(second.children.get("b").paintable, "texture:still@2134x1200")
 	assert.equal(first.children.get("a").paintable, "unset")
 	assert.equal(first.visible, "b@0")
 	assert.deepEqual(first.durations, [0, 600])
@@ -265,14 +341,14 @@ test("a new revision paints the other slot and crossfades on idle", async () => 
 	f.open()
 	const stack = f.stacks[0]
 	f.bump_revision()
-	assert.equal(stack.children.get("a").paintable, "texture:still")
+	assert.equal(stack.children.get("a").paintable, "texture:still@2134x1200")
 	assert.equal(stack.visible, "b@0")
 	f.bump_revision()
 	assert.equal(f.idles.length, 1)
 	f.idles.shift()!()
 	assert.equal(stack.visible, "a@600")
 	f.bump_revision()
-	assert.equal(stack.children.get("b").paintable, "texture:still")
+	assert.equal(stack.children.get("b").paintable, "texture:still@2134x1200")
 	f.idles.shift()!()
 	assert.equal(stack.visible, "b@600")
 	assert.equal(f.decodes(), 4)
@@ -292,11 +368,81 @@ test("cleanup stops the stack and releases the window", async () => {
 test("retarget moves the window and rearrange nudges a mapped layer", async () => {
 	const f = await wallpaper_fixture()
 	const handle = f.open()
-	handle.retarget("hdmi")
-	assert.deepEqual(f.window.properties, [["gdkmonitor", "hdmi"]])
+	const hdmi = f.monitor()
+	handle.retarget(hdmi)
+	assert.deepEqual(f.window.properties, [["gdkmonitor", hdmi]])
+	f.log.length = 0
 	handle.rearrange()
 	assert.deepEqual(f.log, ["margin:1", "margin:0"])
 	f.window.mapped = false
 	handle.rearrange()
 	assert.equal(f.log.length, 2)
+})
+
+test("the wallpaper is decoded just large enough to cover its monitor", async () => {
+	const f = await wallpaper_fixture()
+	f.open(f.monitor(1920, 1200, 2))
+	f.open(f.monitor(1920, 1080))
+	f.open(f.monitor(0, 0))
+	assert.deepEqual(f.sizes, ["@4267x2400", "@1920x1080", ""])
+	f.image.width = 1280
+	f.image.height = 720
+	f.open(f.monitor(1920, 1200))
+	assert.equal(f.sizes.at(-1), "")
+	assert.equal(f.stacks.at(-1).children.get("b").paintable, "texture:still")
+})
+
+test("a monitor that grows or moves to a larger output re-decodes in place", async () => {
+	const f = await wallpaper_fixture()
+	const laptop = f.monitor()
+	const handle = f.open(laptop)
+	const stack = f.stacks[0]
+	laptop.resize(1920, 1200)
+	assert.equal(f.decodes(), 1)
+	laptop.resize(2560, 1600)
+	assert.equal(stack.children.get("b").paintable, "texture:still@2845x1600")
+	assert.equal(stack.visible, "b@0")
+	const external = f.monitor(3840, 2160)
+	handle.retarget(external)
+	assert.equal(laptop.handlers.size, 0)
+	assert.equal(external.handlers.size, 2)
+	assert.equal(stack.children.get("b").paintable, "texture:still@3840x2160")
+	assert.equal(f.decodes(), 3)
+	f.cleanups[1]()
+	assert.equal(external.handlers.size, 0)
+})
+
+test("a monitor reporting no size yet keeps its decode until the real size arrives", async () => {
+	const f = await wallpaper_fixture()
+	const laptop = f.monitor()
+	f.open(laptop)
+	const stack = f.stacks[0]
+	laptop.resize(0, 0)
+	assert.equal(f.decodes(), 1)
+	assert.equal(stack.children.get("b").paintable, "texture:still@2134x1200")
+	laptop.resize(2560, 1600)
+	assert.equal(f.decodes(), 2)
+	assert.equal(stack.children.get("b").paintable, "texture:still@2845x1600")
+})
+
+test("the faded-out picture lets go of its texture once the crossfade ends", async () => {
+	const f = await wallpaper_fixture()
+	f.open()
+	const stack = f.stacks[0]
+	f.bump_revision()
+	f.idles.shift()!()
+	assert.equal(stack.children.get("b").paintable, "texture:still@2134x1200")
+	stack.finish_transition()
+	assert.equal(stack.children.get("b").paintable, null)
+	assert.equal(stack.children.get("a").paintable, "texture:still@2134x1200")
+	f.bump_revision()
+	f.idles.shift()!()
+	f.bump_revision()
+	stack.finish_transition()
+	assert.equal(stack.children.get("a").paintable, "texture:still@2134x1200")
+	f.idles.shift()!()
+	stack.finish_transition()
+	assert.equal(stack.children.get("b").paintable, null)
+	f.cleanups[0]()
+	assert.equal(stack.handlers.size, 0)
 })
