@@ -47,6 +47,7 @@ async function fixture() {
 	let dropped_paths: string[] = []
 	let import_files: () => unknown = () => {}
 	let cursor = { x: 0, y: 0 }
+	let cursor_reply: () => Promise<string> = async () => JSON.stringify(cursor)
 	const watches: { tick: () => void; cancelled: boolean }[] = []
 	class Picture {
 		declare canTarget: unknown
@@ -188,7 +189,7 @@ async function fixture() {
 			},
 		},
 		"$lib/hyprland": {
-			hyprland: { message_async: async () => JSON.stringify(cursor) },
+			hyprland: { message_async: () => cursor_reply() },
 		},
 		"gi://Gio": { default: { Cancellable: class {} } },
 		"gi://GLib": { default: { PRIORITY_DEFAULT: 0 } },
@@ -289,6 +290,9 @@ async function fixture() {
 		move_cursor: (x: number, y: number) => {
 			cursor = { x, y }
 		},
+		set_cursor_reply: (fn: () => Promise<string>) => {
+			cursor_reply = fn
+		},
 		watches,
 		tick: async () => {
 			for (const watch of watches) if (!watch.cancelled) watch.tick()
@@ -340,6 +344,144 @@ test("plain motion back on the desktop cancels a drag that was lost over another
 	assert.deepEqual(a.drag.state.peek().paths, [])
 	a.motion.fire("motion", 310, 210)
 	assert.equal(a.source.cancels, 1)
+})
+
+test("a drag lost over another monitor's window clears hover everywhere and cancels from any desktop", async () => {
+	const f = await fixture()
+	const a = f.add_monitor("a")
+	const b = f.add_monitor("b")
+	a.source.fire("prepare", 11, 7)
+	a.target.fire("drag-motion", f.drop, 210, 120)
+	b.target.fire("drag-motion", f.drop, 30, 40)
+	assert.equal(a.drag.hovered.peek(), true)
+	assert.equal(b.drag.hovered.peek(), true)
+	assert.equal(f.watches.length, 1)
+	await f.tick()
+	f.move_cursor(900, 40)
+	await f.tick()
+	assert.equal(a.drag.hovered.peek(), false)
+	assert.equal(b.drag.hovered.peek(), false)
+	assert.equal(b.layer.picture.visible, false)
+	assert.equal(f.watches[0].cancelled, true)
+	b.motion.fire("motion", 300, 200)
+	assert.equal(a.source.cancels, 1)
+	assert.deepEqual(a.drag.state.peek().paths, [])
+	assert.equal(f.watches.length, 1)
+})
+
+test("a normal drop moves the icons, never cancels and stops polling", async () => {
+	const f = await fixture()
+	const a = f.add_monitor("a")
+	a.source.fire("prepare", 1, 1)
+	a.target.fire("drag-motion", f.drop, 30, 40)
+	await f.tick()
+	f.move_cursor(5, 5)
+	a.target.fire("drag-motion", f.drop, 35, 45)
+	await f.tick()
+	f.set_dropped_paths(["/desktop/a", "/desktop/b"])
+	assert.equal(a.target.fire("drop", f.drop, 70, 80), true)
+	await flush_ticks()
+	a.source.fire("drag-end", {}, true)
+	assert.deepEqual(f.finishes, [1])
+	assert.deepEqual(
+		f.moves.map((move: any) => move.slot),
+		[[70, 80]],
+	)
+	assert.equal(a.source.cancels, 0)
+	assert.deepEqual(
+		f.watches.map((watch) => watch.cancelled),
+		[true],
+	)
+	a.motion.fire("motion", 10, 10)
+	assert.equal(a.source.cancels, 0)
+})
+
+test("polling stops on drag-cancel, drag-end and when a new drag replaces an unfinished one", async () => {
+	const f = await fixture()
+	const a = f.add_monitor("a")
+	a.source.fire("prepare", 1, 1)
+	a.target.fire("drag-motion", f.drop, 30, 40)
+	a.source.fire("drag-cancel")
+	assert.equal(f.watches[0].cancelled, true)
+	a.target.fire("drag-motion", f.drop, 31, 41)
+	assert.equal(f.watches.length, 1)
+	a.source.fire("drag-end", {}, false)
+	a.source.fire("prepare", 1, 1)
+	a.target.fire("drag-motion", f.drop, 30, 40)
+	assert.equal(f.watches[1].cancelled, false)
+	a.source.fire("drag-end", {}, false)
+	assert.equal(f.watches[1].cancelled, true)
+	a.source.fire("prepare", 1, 1)
+	a.target.fire("drag-motion", f.drop, 30, 40)
+	a.source.fire("prepare", 1, 1)
+	assert.equal(f.watches[2].cancelled, true)
+	a.target.fire("drag-motion", f.drop, 30, 40)
+	assert.equal(f.watches.length, 4)
+	assert.equal(f.watches[3].cancelled, false)
+})
+
+test("cursor read failures are logged once per drag and polling keeps detecting a lost drag", async () => {
+	const f = await fixture()
+	const a = f.add_monitor("a")
+	const failure = new Error("hyprland socket busy")
+	f.set_cursor_reply(async () => {
+		throw failure
+	})
+	const logged = await drop_logging(async () => {
+		a.source.fire("prepare", 1, 1)
+		a.target.fire("drag-motion", f.drop, 30, 40)
+		await f.tick()
+		await f.tick()
+		await f.tick()
+	})
+	assert.deepEqual(logged, [["desktop.drag: Failed to read cursor", failure]])
+	assert.equal(f.watches[0].cancelled, false)
+	assert.equal(a.drag.hovered.peek(), true)
+	f.set_cursor_reply(async () => JSON.stringify({ x: 1, y: 1 }))
+	await f.tick()
+	f.set_cursor_reply(async () => JSON.stringify({ x: 900, y: 40 }))
+	await f.tick()
+	assert.equal(a.drag.hovered.peek(), false)
+	assert.equal(f.watches[0].cancelled, true)
+	a.motion.fire("motion", 10, 10)
+	assert.equal(a.source.cancels, 1)
+	a.source.fire("drag-end", {}, false)
+	f.set_cursor_reply(async () => "not json")
+	const next = await drop_logging(async () => {
+		a.source.fire("prepare", 1, 1)
+		a.target.fire("drag-motion", f.drop, 30, 40)
+		await f.tick()
+		await f.tick()
+	})
+	assert.equal(next.length, 1)
+	assert.equal(next[0][0], "desktop.drag: Failed to read cursor")
+	assert.equal(f.watches[1].cancelled, false)
+})
+
+test("clearing hover on a lost drag or drag-cancel leaves the shared drag state untouched", async () => {
+	const f = await fixture()
+	const a = f.add_monitor("a")
+	const b = f.add_monitor("b")
+	a.source.fire("prepare", 1, 1)
+	const state = a.drag.state.peek()
+	let notified = 0
+	const unsubscribe = a.drag.state.subscribe(() => notified++)
+	a.target.fire("drag-motion", f.drop, 30, 40)
+	b.target.fire("drag-motion", f.drop, 30, 40)
+	await f.tick()
+	f.move_cursor(900, 40)
+	await f.tick()
+	assert.equal(a.drag.hovered.peek(), false)
+	assert.equal(b.drag.hovered.peek(), false)
+	b.target.fire("drag-motion", f.drop, 31, 41)
+	assert.equal(b.drag.hovered.peek(), true)
+	a.source.fire("drag-cancel")
+	assert.equal(b.drag.hovered.peek(), false)
+	assert.equal(b.layer.picture.visible, false)
+	assert.equal(a.drag.state.peek(), state)
+	assert.equal(notified, 0)
+	assert.deepEqual(Object.keys(state).sort(), ["anchor", "paths", "source"])
+	unsubscribe()
 })
 
 test("prepare snapshots before drag CSS, hides the native icon and waits for motion", async () => {
@@ -603,14 +745,14 @@ dispose()
 	},
 )
 
-async function drop_logging(run: () => void) {
+async function drop_logging(run: () => unknown) {
 	const logged: unknown[][] = []
 	const original = console.error
 	console.error = (...args) => {
 		if (String(args[0]).startsWith("desktop.")) logged.push(args)
 	}
 	try {
-		run()
+		await run()
 		await flush_ticks()
 	} finally {
 		console.error = original
