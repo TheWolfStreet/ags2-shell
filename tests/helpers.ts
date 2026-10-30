@@ -212,7 +212,8 @@ export function make_flat(type, props: Record<string, any> = {}) {
 	return { type, props, children }
 }
 
-function mutable_node(type, props: Record<string, any> = {}) {
+export function make_mutable(type, props: Record<string, any> = {}) {
+	if (typeof type === "function") return type(props)
 	return {
 		...make(type, props),
 		insert_child_after(child, previous) {
@@ -226,11 +227,6 @@ function mutable_node(type, props: Record<string, any> = {}) {
 			this.children.splice(this.children.indexOf(child), 1)
 		},
 	}
-}
-
-export function make_mutable(type, props: Record<string, any> = {}) {
-	if (typeof type === "function") return type(props)
-	return mutable_node(type, props)
 }
 
 type listener = { event: string; callback: (...args: any[]) => void }

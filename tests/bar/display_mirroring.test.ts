@@ -622,6 +622,30 @@ test("a snapshot is dropped once its monitor disappears", async () => {
 	}
 })
 
+test("a snapshot is dropped once its monitor disappears after a failed unmirror", async () => {
+	const panel = monitor("eDP-1")
+	const external = monitor("DP-1", { x: 1920 })
+	const t = await mirroring({ monitors: [panel, external] })
+	try {
+		await t.click("DP-1")
+		t.state.monitors = [panel, { ...external, x: 0, mirrorOf: "eDP-1" }]
+		t.state.write = async (command) =>
+			command.includes('mirror = "none"') ? "unmirror refused" : "ok"
+		await t.click("DP-1")
+		t.state.write = async () => "ok"
+		t.state.monitors = [panel, monitor("DP-1", { disabled: true })]
+		t.handlers.get("monitor-removed")!()
+		await tick()
+		t.state.monitors = [panel, monitor("DP-1", { x: 77, mirrorOf: "eDP-1" })]
+		t.handlers.get("monitor-added")!()
+		await tick()
+		await t.click("DP-1")
+		assert.match(t.messages.at(-1)!, /position = "77x0".*mirror = "none"/)
+	} finally {
+		t.restore()
+	}
+})
+
 test("snapshots survive a remount and only the open menu refreshes", async () => {
 	const t = await mirroring({ opened: "" })
 	try {

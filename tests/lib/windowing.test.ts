@@ -123,12 +123,39 @@ test("client lists keep titled or classed clients, sorted and filtered by worksp
 	const presenter = client({
 		class: "org.kde.kdeconnect.daemon",
 		title: "KDE Connect Daemon",
+		floating: true,
+		pinned: true,
 		workspace: { id: 1 },
 	})
-	hyprland.clients = [early, untitled_wayland, wine_menu, presenter]
+	const fullscreen_video = client({
+		address: "e",
+		class: "mpv",
+		title: "movie.mkv - mpv",
+		fullscreen: 2,
+		fullscreenClient: 2,
+		workspace: { id: 1 },
+	})
+	const pinned_picture = client({
+		address: "f",
+		class: "librewolf",
+		title: "Picture-in-Picture",
+		floating: true,
+		pinned: true,
+		workspace: { id: 1 },
+	})
+	hyprland.clients = [
+		early,
+		untitled_wayland,
+		wine_menu,
+		presenter,
+		fullscreen_video,
+		pinned_picture,
+	]
 	assert.deepEqual(module.create_workspace_clients(1)(), [
 		early,
 		untitled_wayland,
+		fullscreen_video,
+		pinned_picture,
 	])
 	hyprland.clients = [late, null, early, untitled, titled, nowhere, wine_menu]
 	const [exclusive, set_exclusive] = create_state(false)
