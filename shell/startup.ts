@@ -199,8 +199,16 @@ function start_hyprland_appearance_sync() {
 const sample_size = 96
 const wallpaper_theme_delay_ms = 180
 let last_wallpaper_revision = -1
+let sampling_revision = -1
 
-function sample_wallpaper_pixels(path: string): result<rgb[]> {
+function close_wallpaper(stream: Gio.InputStream) {
+	log_error(
+		attempt(() => stream.close(null)),
+		"wallpaper.theme: Failed to close wallpaper",
+	)
+}
+
+async function sample_wallpaper_pixels(path: string): Promise<result<rgb[]>> {
 	const info = attempt(() => GdkPixbuf.Pixbuf.get_file_info(path))
 	if (!info.ok) return info
 
@@ -208,16 +216,29 @@ function sample_wallpaper_pixels(path: string): result<rgb[]> {
 	if (!valid_image_dimensions(source_width, source_height))
 		return err(new Error("Wallpaper dimensions exceed palette sampling limit"))
 
-	const pixbuf = attempt(() =>
-		GdkPixbuf.Pixbuf.new_from_file_at_scale(
-			path,
-			sample_size,
-			sample_size,
-			true,
-		),
-	)
-	if (!pixbuf.ok) return pixbuf
-	return ok(collect_samples(pixbuf.value))
+	const stream = attempt(() => Gio.File.new_for_path(path).read(null))
+	if (!stream.ok) return stream
+	return new Promise((resolve) => {
+		const started = attempt(() =>
+			GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(
+				stream.value,
+				sample_size,
+				sample_size,
+				true,
+				null,
+				(_source, decoded) => {
+					const pixbuf = attempt(() =>
+						GdkPixbuf.Pixbuf.new_from_stream_finish(decoded),
+					)
+					close_wallpaper(stream.value)
+					resolve(pixbuf.ok ? ok(collect_samples(pixbuf.value)) : pixbuf)
+				},
+			),
+		)
+		if (started.ok) return
+		close_wallpaper(stream.value)
+		resolve(started)
+	})
 }
 
 function collect_samples(pixbuf: GdkPixbuf.Pixbuf): rgb[] {
@@ -262,7 +283,7 @@ function apply_wallpaper_palette(palette: wallpaper_palette) {
 	}
 }
 
-const update_wallpaper_theme = debounce(wallpaper_theme_delay_ms, () => {
+const update_wallpaper_theme = debounce(wallpaper_theme_delay_ms, async () => {
 	if (!options.autotheme.peek()) return
 	const path = wallpaper_path
 	const size = get_file_size(path)
@@ -272,10 +293,15 @@ const update_wallpaper_theme = debounce(wallpaper_theme_delay_ms, () => {
 		return
 	}
 	const revision = wallpaper_revision.peek()
-	if (revision === last_wallpaper_revision) return
+	if (revision === last_wallpaper_revision || revision === sampling_revision)
+		return
 
-	const samples = sample_wallpaper_pixels(path)
+	sampling_revision = revision
+	const samples = await sample_wallpaper_pixels(path)
+	sampling_revision = -1
 	if (!log_error(samples, "wallpaper.theme: Failed to sample wallpaper")) return
+	if (revision !== wallpaper_revision.peek() || !options.autotheme.peek())
+		return
 
 	const palette = build_wallpaper_palette(samples.value)
 	if (!palette) {

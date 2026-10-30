@@ -77,7 +77,12 @@ async function fixture({
 	failing = [] as string[],
 	sessions = "main\nwork\n",
 	autotheme = false,
+	defer_decode = false,
 } = {}) {
+	const pending_decodes: (() => void)[] = []
+	let closes = 0
+	let revision = 1
+	const revision_listeners: (() => void)[] = []
 	const commands: string[][] = []
 	const settings: string[] = []
 	const messages: string[] = []
@@ -103,6 +108,16 @@ async function fixture({
 		"$lib/app": { default: shell_app },
 		"gi://Gio": {
 			default: {
+				File: {
+					new_for_path: () => ({
+						read: () => ({
+							close: () => {
+								closes++
+								return true
+							},
+						}),
+					}),
+				},
 				Settings: class {
 					connect(signal: string, handler: () => void) {
 						settings_handlers.set(signal, handler)
@@ -122,7 +137,12 @@ async function fixture({
 			default: {
 				Pixbuf: {
 					get_file_info: () => [{}, 10, 10],
-					new_from_file_at_scale: () => ({
+					new_from_stream_at_scale_async: (...args) => {
+						const finish = () => args.at(-1)(null, "decoded")
+						if (defer_decode) pending_decodes.push(finish)
+						else finish()
+					},
+					new_from_stream_finish: () => ({
 						get_pixels: () => new Uint8Array([10, 20, 30]),
 						get_width: () => 1,
 						get_height: () => 1,
@@ -179,7 +199,10 @@ async function fixture({
 		}),
 		"$lib/wallpaper": {
 			wallpaper_path: "/wall",
-			wallpaper_revision: { peek: () => 1, subscribe() {} },
+			wallpaper_revision: {
+				peek: () => revision,
+				subscribe: (callback: () => void) => revision_listeners.push(callback),
+			},
 		},
 		"$shell/options": {
 			default: options,
@@ -204,6 +227,12 @@ async function fixture({
 		css,
 		set_system_icon_theme,
 		shell_app,
+		pending_decodes,
+		closes: () => closes,
+		bump_revision() {
+			revision++
+			for (const callback of revision_listeners) callback()
+		},
 	}
 }
 
@@ -389,6 +418,7 @@ test("a hyprland appearance that cannot be built is logged", async (t) => {
 test("a wallpaper palette updates both schemes inside one CSS batch", async () => {
 	const state = await fixture({ tmux: false, autotheme: true })
 	state.module.default()
+	await tick()
 	const expected: string[] = []
 	for (const [scheme, prefix] of [
 		["dark", "d"],
@@ -405,6 +435,35 @@ test("a wallpaper palette updates both schemes inside one CSS batch", async () =
 		)
 	assert.deepEqual(state.sets, expected)
 	assert.deepEqual(state.css, ["init", "begin", "end"])
+})
+
+test("palette sampling decodes off the main loop and drops results for a replaced wallpaper", async () => {
+	const state = await fixture({
+		tmux: false,
+		autotheme: true,
+		defer_decode: true,
+	})
+	state.module.default()
+	await tick()
+	assert.equal(state.pending_decodes.length, 1)
+	assert.deepEqual(state.sets, [])
+	state.bump_revision()
+	await tick()
+	assert.equal(state.pending_decodes.length, 2)
+	state.pending_decodes.shift()!()
+	await tick()
+	assert.deepEqual(state.sets, [])
+	assert.equal(state.closes(), 1)
+	state.pending_decodes.shift()!()
+	await tick()
+	assert.equal(state.sets.length, 14)
+	assert.equal(state.closes(), 2)
+	state.bump_revision()
+	state.options.autotheme.set(false)
+	state.sets.length = 0
+	state.pending_decodes.shift()!()
+	await tick()
+	assert.deepEqual(state.sets, [])
 })
 
 test("palette sampling accepts setter-sized wallpapers and rejects sources outside its bounds", async (t) => {
@@ -455,6 +514,9 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 		"$lib/app": { default: { iconTheme: "" } },
 		"gi://Gio": {
 			default: {
+				File: {
+					new_for_path: () => ({ read: () => ({ close: () => true }) }),
+				},
 				Settings: class {
 					connect() {}
 					get_string(key) {
@@ -470,7 +532,9 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 						info_checks++
 						return [{}, ...dimensions]
 					},
-					new_from_file_at_scale: () => ({
+					new_from_stream_at_scale_async: (...args) =>
+						args.at(-1)(null, "decoded"),
+					new_from_stream_finish: () => ({
 						get_pixels: () => new Uint8Array([64, 128, 192]),
 						get_width: () => 1,
 						get_height: () => 1,
@@ -542,6 +606,7 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 	dimensions = [6400, 6400]
 	revision++
 	changed()
+	await tick()
 	assert.equal(sampled, 1)
 	assert.equal(info_checks, 2)
 	assert.deepEqual(
@@ -556,6 +621,7 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 	bytes++
 	revision++
 	changed()
+	await tick()
 	assert.equal(info_checks, 2)
 	assert.equal(sampled, 1)
 })
