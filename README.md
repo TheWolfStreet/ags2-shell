@@ -14,7 +14,7 @@ A GTK4 desktop shell for Hyprland, built with AGS v3 and Astal. It provides a ba
 - Application launcher, favorites, taskbar, workspace overview, and a left or bottom dock with static and autohide modes
 - Scrollable per-monitor desktop icons with cross-monitor drag-and-drop, clipboard, rename, launcher creation, trash, and file operations
 - Notification daemon and StatusNotifier system tray
-- Network, Bluetooth, audio, battery, brightness, and power-profile controls
+- Network, Bluetooth, audio, battery, brightness, display mirroring, and power-profile controls
 - MPRIS media controls, volume and brightness OSDs, and color picker
 - Focused-monitor and area screenshots and recordings
 - Per-monitor wallpaper surfaces with optional wallpaper-generated colors
@@ -168,22 +168,21 @@ wayland.windowManager.hyprland = {
 };
 ```
 
-`record` and `screenshot` target the focused monitor. Their `-area` variants prompt for a region. Repeating either recording request stops the active recording. Screenshots are saved as PNG files and copied to the clipboard; recordings are saved as MKV files. The example opens Quick Settings with `SUPER SHIFT R`; the Settings window itself is created on demand from the gear button in the Quick Settings header.
+`record` and `screenshot` target the focused monitor. Their `-area` variants prompt for a region. Repeating either recording request stops the active recording. Screenshots are saved as PNG files and copied to the clipboard; recordings are saved as MKV files. The example opens Quick Settings with `SUPER SHIFT R`.
 
 ### Control API
 
 Use `ags toggle --instance ags2-shell <window>` for the windows created at startup:
 
-| Window          | Purpose                                      |
-| --------------- | -------------------------------------------- |
-| `launcher`      | Application search and favorites             |
-| `overview`      | Workspaces and clients                       |
-| `quicksettings` | Device controls and the Settings entry point |
-| `datemenu`      | Calendar and date menu                       |
-| `notifications` | Notification history                         |
-| `powermenu`     | Session and power actions                    |
-
-The Settings window is created by the gear button in Quick Settings. After that, its window name is `settings-dialog`.
+| Window            | Purpose                                      |
+| ----------------- | -------------------------------------------- |
+| `launcher`        | Application search and favorites             |
+| `overview`        | Workspaces and clients                       |
+| `quicksettings`   | Device controls and the Settings entry point |
+| `datemenu`        | Calendar and date menu                       |
+| `notifications`   | Notification history                         |
+| `powermenu`       | Session and power actions                    |
+| `settings-dialog` | Shell settings                               |
 
 Use `ags request --instance ags2-shell <request>` for actions:
 
@@ -195,8 +194,7 @@ Use `ags request --instance ags2-shell <request>` for actions:
 | `record-area`             | Select an area and start recording, or stop the active recording |
 | `screenshot`              | Capture the focused monitor                                      |
 | `screenshot-area`         | Select and capture an area                                       |
-
-The date menu stays on the bar's top or bottom edge. Its clock and calendar determine the popup size; notification history receives an equally sized half and scrolls without enlarging the popup.
+| `quit`                    | Save settings, stop recording, and exit                          |
 
 ## Other Linux Distributions
 
@@ -227,7 +225,7 @@ Install the host services from the Feature Services table as needed. For example
 
 ### Build And Install
 
-The native installer compiles the stylesheet, bundles the main and wallpaper entry points, and installs them under `~/.local` by default. It requires `ags`, `sass`, `install`, `sed`, `realpath`, `mktemp`, `grep`, and `cmp`; runtime libraries and commands must be installed separately as described above. The compiled stylesheet is generated at build time, not kept in Git.
+The native installer compiles the stylesheet, bundles the main and wallpaper entry points, and installs them under `~/.local` by default. It requires `ags`, `sass`, `install`, `sed`, `realpath`, `mktemp`, `grep`, `find`, `sort`, and `cmp`; runtime libraries and commands must be installed separately as described above. The compiled stylesheet is generated at build time, not kept in Git.
 
 ```bash
 git clone https://github.com/TheWolfStreet/ags2-shell
@@ -249,7 +247,7 @@ The control commands and Hyprland bindings documented above work unchanged becau
 
 ## Appearance And Wallpapers
 
-The shell defaults to SF Pro Display Nerd Font and is styled independently through its generated CSS. Install that font or select another one in **Settings > Appearance**. Host GTK, icon, and cursor themes remain under the desktop configuration's control.
+The shell defaults to SFProDisplay Nerd Font and is styled independently through its generated CSS. Install that font or select another one in **Settings > Appearance**. Host GTK, icon, and cursor themes remain under the desktop configuration's control.
 
 Changing the shell's light or dark scheme updates `org.gnome.desktop.interface color-scheme`, selects an installed matching icon-theme variant when one exists, and optionally synchronizes the accent color to tmux. Wallpaper color generation is available under **Settings > Appearance > Generate from Wallpaper**.
 
@@ -259,17 +257,16 @@ The selected wallpaper is validated before atomically replacing `~/.config/backg
 
 Use the Settings window to change shell options. Changes are saved automatically.
 
-| State                | Location                                         |
-| -------------------- | ------------------------------------------------ |
-| Shell options        | `$XDG_CACHE_HOME/ags2-shell/options.json`        |
-| Desktop icon layout  | `$XDG_CACHE_HOME/ags2-shell/desktop-layout.json` |
-| Color-picker history | `$XDG_CACHE_HOME/ags2-shell/colors.json`         |
-| Artwork cache        | `$XDG_CACHE_HOME/ags2-shell/artwork/`            |
-| Wallpaper            | `~/.config/background`                           |
-| Screenshots          | `~/Pictures/Screenshots/`                        |
-| Recordings           | `~/Videos/Screencasting/`                        |
-
-Artwork loading allows four concurrent jobs and 64 queued jobs. Downloads and inline images are limited to 8 MiB, local preview files to 64 MiB, and decoded artwork to 8192 pixels per side and 40 million pixels. The downloaded-art cache is bounded to 128 files and 64 MiB.
+| State                | Location                                             |
+| -------------------- | ---------------------------------------------------- |
+| Shell options        | `$XDG_CACHE_HOME/ags2-shell/options.json`            |
+| Desktop icon layout  | `$XDG_CACHE_HOME/ags2-shell/desktop-layout.json`     |
+| Color-picker history | `$XDG_CACHE_HOME/ags2-shell/colors.json`             |
+| Artwork cache        | `$XDG_CACHE_HOME/ags2-shell/artwork/`                |
+| Wallpaper preview    | `$XDG_CACHE_HOME/ags2-shell/wallpaper-preview-*.png` |
+| Wallpaper            | `~/.config/background`                               |
+| Screenshots          | `~/Pictures/Screenshots/`                            |
+| Recordings           | `~/Videos/Screencasting/`                            |
 
 There is currently no declarative Nix option interface for shell settings. Removing `options.json` restores defaults on the next start.
 
@@ -296,7 +293,7 @@ While adding new, untracked source files, use `nix build path:. --no-link` and `
 
 Tests live in `tests/`, grouped by subsystem. `npm test` runs its `*.test.ts` suites; the native GJS smoke check and TypeScript contract test also live there. The flake check verifies formatting and shell lint, builds the package, runs Node tests and an isolated native GJS smoke check, and separately generates GIR declarations from pinned inputs for a strict typecheck. It does not depend on host `@girs/` or `node_modules/` artifacts.
 
-In `nix develop`, run `npm run types` once to generate local GIR declarations and link the AGS/Gnim versions supplied by that shell, then run `npm run typecheck` and `npm test`. This project does not use `npm install` or a portable npm lock: AGS owns the local links. `types` writes `@girs/`, `node_modules/`, and may update `tsconfig.json`; `typecheck` generates ignored AGS/Gnim declarations in `@girs/` before checking application source without emitting application files. The generated AGS declaration restores the `Gtk.Window` argument lost when TypeScript emits its private `window-toggled` method. The generated Gnim JSX declaration is patched so built-in elements such as `<window>` keep their widget type under TypeScript 7. `typecheck` checks the tests as a second project, `tests/tsconfig.json`, against the Node declarations the development shell pins in `AGS2SHELL_NODE_TYPES`; the tests load TypeScript 5.9's compiler API from `AGS2SHELL_TYPESCRIPT`, because TypeScript 7 has no JavaScript API. TypeScript excludes generated GTK3 declarations from the GTK4 project. `skipLibCheck` tolerates generated declaration errors but does not suppress errors in application source. The declaration step uses `--noCheck` only for the linked dependencies, not for the application.
+In `nix develop`, run `npm run types` once, then `npm run typecheck` and `npm test`. Do not use `npm install`; AGS owns the local links.
 
 The development shell provides `vtsls`, Prettier, Alejandra, shfmt, and ShellCheck. Run `npm run format` to format maintained source, `npm run format:check` to verify it, and `npm run lint:shell` to check shell scripts. Generated declarations, compiled CSS, and dependencies are excluded. Typechecking rejects unused locals and parameters; prefix required but ignored callback slots with `_` rather than changing their positional meaning.
 
@@ -316,7 +313,7 @@ Confirm that the service inherited `WAYLAND_DISPLAY`, `HYPRLAND_INSTANCE_SIGNATU
 
 Upstream AstalHyprland keeps reading a closed event socket in a tight loop instead of reconnecting, which pins a CPU core and freezes the shell. The Nix package applies [`astal-hyprland-reconnect.patch`](patches/astal-hyprland-reconnect.patch), which reconnects and resyncs monitors, workspaces, and clients.
 
-Native installations get the fix by rebuilding Astal's `lib/hyprland` with that patch, using the build dependencies from the [Astal installation guide](https://aylur.github.io/astal/guide/installation). Installing to `/usr` overwrites the distribution's AstalHyprland until its next package update, so reapply the patch after updates, or add it to the package build instead (on Arch, the `libastal-hyprland-git` PKGBUILD).
+Native installations get the fix by rebuilding Astal's `lib/hyprland` with that patch, using the build dependencies from the [Astal installation guide](https://aylur.github.io/astal/guide/installation). Installing to `/usr` overwrites the distribution's AstalHyprland until its next package update, so reapply the patch after updates, or add it to the package build instead (on Arch, the `libastal-hyprland-git` PKGBUILD). If your distribution installs AstalHyprland outside `/usr/lib`, for example in `/usr/lib64`, pass the matching `--libdir` to `meson setup`.
 
 ```bash
 git clone https://github.com/Aylur/astal
@@ -326,7 +323,7 @@ meson setup build --prefix /usr
 sudo meson install -C build
 ```
 
-Without the patch, a frozen shell cannot answer `ags quit`; kill the `ags2-shell` processes and start `ags2-shell` again.
+Without the patch, a frozen shell cannot answer `ags request --instance ags2-shell quit`; kill the `ags2-shell` processes and start `ags2-shell` again.
 
 ### Flatpak Applications Ignore The Color Scheme
 
