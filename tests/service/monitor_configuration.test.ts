@@ -59,6 +59,27 @@ test("output resets explicitly disable and enable without losing the display set
 	)
 })
 
+test("external outputs are addressed by their display, the built-in panel by its connector", () => {
+	const tv = {
+		...panel,
+		name: "HDMI-A-1",
+		description: "Samsung Electric Company SAMSUNG 0x01000E00",
+		mirrorOf: "eDP-1",
+	}
+	assert.equal(
+		format_monitor_command(tv, { mirror: "none" }),
+		'eval hl.monitor({ output = "desc:Samsung Electric Company SAMSUNG 0x01000E00", mode = "2560x1440@144", position = "-2560x120", scale = 1.5, transform = 1, mirror = "none" })',
+	)
+	assert.equal(
+		format_monitor_command({ ...tv, description: "" }, { mirror: "none" }),
+		'eval hl.monitor({ output = "HDMI-A-1", mode = "2560x1440@144", position = "-2560x120", scale = 1.5, transform = 1, mirror = "none" })',
+	)
+	assert.equal(
+		format_monitor_command({ ...panel, description: "BOE 0x09CF" }),
+		'eval hl.monitor({ output = "eDP-1", mode = "2560x1440@144", position = "-2560x120", scale = 1.5, transform = 1, mirror = "DP-1" })',
+	)
+})
+
 test("Lua strings escape quotes, backslashes, and control bytes without touching UTF-8", () => {
 	assert.equal(lua.lua_string('a"b\\c'), '"a\\"b\\\\c"')
 	assert.equal(lua.lua_string("line\nnext\x7f"), '"line\\010next\\127"')
@@ -71,6 +92,8 @@ test("monitor settings need a name and finite geometry", () => {
 	assert.equal(is_monitor_settings({ ...panel, name: 1 }), false)
 	assert.equal(is_monitor_settings({ ...panel, scale: Infinity }), false)
 	assert.equal(is_monitor_settings({ ...panel, transform: "1" }), false)
+	assert.equal(is_monitor_settings({ ...panel, description: 7 }), false)
+	assert.equal(is_monitor_settings({ ...panel, description: "BOE" }), true)
 	assert.equal(is_monitor_settings([panel]), false)
 	assert.equal(is_monitor_settings(null), false)
 })

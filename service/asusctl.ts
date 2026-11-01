@@ -13,6 +13,7 @@ import {
 import options, { type Opt } from "$shell/options"
 import {
 	format_monitor_command,
+	is_internal_panel,
 	is_monitor_settings,
 	type monitor_settings,
 } from "./monitor_configuration"
@@ -56,7 +57,7 @@ function parse_monitor_mode(mode: string): monitor_mode | null {
 function find_internal_panel(
 	monitors: monitor_configuration[],
 ): monitor_configuration | undefined {
-	return monitors.find((monitor) => /^(?:eDP|LVDS)-/i.test(monitor.name))
+	return monitors.find(is_internal_panel)
 }
 
 function panel_modes(panel: monitor_configuration | undefined): monitor_mode[] {
