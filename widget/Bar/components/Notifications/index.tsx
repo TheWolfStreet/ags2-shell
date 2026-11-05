@@ -267,17 +267,20 @@ export namespace Notifications {
 		return { width: 75, height: 75 }
 	}
 
-	function fitted_height(
+	function fitted_size(
 		texture: Gdk.Texture | null,
 		width: number,
 		height: number,
 	) {
-		if (!texture) return height
+		if (!texture) return { width, height }
 		const ratio = Math.min(
 			width / texture.get_width(),
 			height / texture.get_height(),
 		)
-		return Math.max(1, Math.round(texture.get_height() * ratio))
+		return {
+			width: Math.max(1, Math.round(texture.get_width() * ratio)),
+			height: Math.max(1, Math.round(texture.get_height() * ratio)),
+		}
 	}
 
 	function natural_frame(texture: Gdk.Texture | null, width: number) {
@@ -306,10 +309,24 @@ export namespace Notifications {
 			decode_size(Math.max(box.width, box.height) * 2),
 			"contain",
 		)
-		const frame = createComputed(() => natural_frame(texture(), width()))
-		const height_request = avatar
-			? height
-			: createComputed(() => fitted_height(texture(), width(), height()))
+		const fitted = createComputed(() =>
+			avatar
+				? { width: width(), height: height() }
+				: fitted_size(texture(), width(), height()),
+		)
+		const shape =
+			persistent && !avatar ? (
+				<Gtk.Picture
+					paintable={createComputed(() => natural_frame(texture(), width()))}
+					heightRequest={fitted.as((size) => size.height)}
+					canShrink
+				/>
+			) : (
+				<box
+					widthRequest={fitted.as((size) => size.width)}
+					heightRequest={fitted.as((size) => size.height)}
+				/>
+			)
 		return (
 			<overlay
 				class={avatar ? "avatar" : "preview"}
@@ -317,12 +334,7 @@ export namespace Notifications {
 				valign={CENTER}
 				visible={texture.as((value) => value !== null)}
 			>
-				<Gtk.Picture
-					paintable={frame}
-					widthRequest={avatar ? width : undefined}
-					heightRequest={height_request}
-					canShrink
-				/>
+				{shape}
 				<Gtk.Picture
 					$type="overlay"
 					tooltipText={image_path}

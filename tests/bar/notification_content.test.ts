@@ -520,7 +520,7 @@ function view_texture_size(view) {
 	return view.texture_requests.at(-1)[1]
 }
 
-test("previews keep the old natural size while the texture decodes at a fixed size", async () => {
+test("previews beside the text take their fitted size and previews below it keep their natural size", async () => {
 	const texture = (width: number, height: number) => ({
 		get_width: () => width,
 		get_height: () => height,
@@ -539,11 +539,16 @@ test("previews keep the old natural size while the texture decodes at a fixed si
 		})
 		const frame = view.nodes.find((item) => item.props.class === "preview")
 		const [shape, picture] = frame.children
-		const { width, height: natural_height } = shape.props.paintable()
-		assert.deepEqual([width, natural_height], natural)
+		if (persistent) {
+			const { width, height: natural_height } = shape.props.paintable()
+			assert.deepEqual([width, natural_height], natural)
+			assert.equal(shape.props.widthRequest, undefined)
+			assert.equal(shape.props.canShrink, true)
+		} else {
+			assert.equal(shape.type, "box")
+			assert.equal(shape.props.widthRequest(), Math.max(1, natural[0]))
+		}
 		assert.equal(shape.props.heightRequest(), height)
-		assert.equal(shape.props.widthRequest, undefined)
-		assert.equal(shape.props.canShrink, true)
 		assert.equal(picture.props.paintable(), size)
 		assert.equal(frame.props.visible(), true)
 	}

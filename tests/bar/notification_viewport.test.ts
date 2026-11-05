@@ -41,7 +41,7 @@ const notifications = compiled_functions(
 		"time_ago",
 		"Header",
 		"preview_box",
-		"fitted_height",
+		"fitted_size",
 		"natural_frame",
 		"Preview",
 		"Content",
@@ -373,22 +373,29 @@ history_window.destroy()
 const avatar_size = Math.round(48 * scale / 100)
 texture = Gdk.MemoryTexture.new(avatar_size, avatar_size, Gdk.MemoryFormat.R8G8B8A8,
     new GLib.Bytes(new Uint8Array(avatar_size * avatar_size * 4).fill(255)), avatar_size * 4)
-const avatar_card = new Gtk.Box({ orientation: VERTICAL, css_classes: ['notification', 'normal'] })
-const avatar_content = Content({ notification: { summary: 'Sender', body: 'A short chat message' },
-    image_path: '/sample/avatar.png', persistent: true, avatar: true })
-avatar_card.append(avatar_content)
-list.append(avatar_card)
-const avatar_width = outer.measure(HORIZONTAL, -1)[1]
-const avatar_height = outer.measure(VERTICAL, avatar_width)[1]
-outer.allocate(avatar_width, avatar_height, -1, null)
-flush()
-const avatar_frame = avatar_content.get_first_child(), avatar_picture = avatar_frame.get_last_child()
-const avatar_text = avatar_frame.get_next_sibling()
-const avatar_text_bounds = bounds(avatar_text, avatar_card), avatar_bounds = bounds(avatar_picture, avatar_card)
-const avatar_result = { orientation: avatar_content.get_orientation(), class: avatar_frame.get_css_classes(),
-    size: [avatar_picture.get_width(), avatar_picture.get_height()], fit: inside_horizontal(avatar_picture, scroll),
-    left: avatar_bounds.x + avatar_bounds.width <= avatar_text_bounds.x }
-list.remove(avatar_card)
+function avatar_check(body) {
+    const avatar_card = new Gtk.Box({ orientation: VERTICAL, css_classes: ['notification', 'normal'] })
+    const avatar_content = Content({ notification: { summary: 'Sender', body },
+        image_path: '/sample/avatar.png', persistent: true, avatar: true })
+    avatar_card.append(avatar_content)
+    list.append(avatar_card)
+    const avatar_width = outer.measure(HORIZONTAL, -1)[1]
+    const avatar_height = outer.measure(VERTICAL, avatar_width)[1]
+    outer.allocate(avatar_width, avatar_height, -1, null)
+    flush()
+    const avatar_frame = avatar_content.get_first_child(), avatar_picture = avatar_frame.get_last_child()
+    const avatar_text = avatar_frame.get_next_sibling()
+    const avatar_text_bounds = bounds(avatar_text, avatar_card), avatar_bounds = bounds(avatar_picture, avatar_card)
+    const result = { orientation: avatar_content.get_orientation(), class: avatar_frame.get_css_classes(),
+        size: [avatar_picture.get_width(), avatar_picture.get_height()], fit: inside_horizontal(avatar_picture, scroll),
+        left: avatar_bounds.x + avatar_bounds.width <= avatar_text_bounds.x,
+        gap: avatar_text_bounds.x - (avatar_bounds.x + avatar_bounds.width),
+        text_height: avatar_text.get_height() }
+    list.remove(avatar_card)
+    return result
+}
+const avatar_result = avatar_check('A short chat message')
+const tall_avatar_result = avatar_check('A longer chat message that wraps over several lines of text so the row grows taller than the avatar itself, line after line after line')
 const popup = new Gtk.Window({ decorated: false, css_classes: ['notifications'] })
 popup.set_name('notifications')
 popup.set_size_request(Math.round(350 * scale / 100), -1)
@@ -525,6 +532,7 @@ print(JSON.stringify(results))
 print(JSON.stringify(popup_result))
 print(JSON.stringify(natural_popups))
 print(JSON.stringify(avatar_result))
+print(JSON.stringify(tall_avatar_result))
 print(JSON.stringify(history_results))
 window.set_child(null)
 outer.remove(column)
@@ -613,11 +621,17 @@ window.destroy()
 				/Gtk-(?:WARNING|CRITICAL)|Gjs-CRITICAL/,
 				run.stdout,
 			)
-			const [results, popup, natural_popups, avatar, history_results] =
-				run.stdout
-					.trim()
-					.split("\n")
-					.map((line) => JSON.parse(line))
+			const [
+				results,
+				popup,
+				natural_popups,
+				avatar,
+				tall_avatar,
+				history_results,
+			] = run.stdout
+				.trim()
+				.split("\n")
+				.map((line) => JSON.parse(line))
 			for (let index = 0; index < history_results.length; index++) {
 				const history = history_results[index]
 				assert.equal(
@@ -666,6 +680,16 @@ window.destroy()
 				Math.round((48 * current_scale) / 100),
 				Math.round((48 * current_scale) / 100),
 			])
+			assert.ok(
+				tall_avatar.text_height > avatar.size[1],
+				JSON.stringify(tall_avatar),
+			)
+			assert.deepEqual(tall_avatar.size, avatar.size)
+			assert.equal(
+				tall_avatar.gap,
+				avatar.gap,
+				JSON.stringify([avatar, tall_avatar]),
+			)
 			assert.equal(
 				natural_popups.short.width,
 				Math.round((350 * current_scale) / 100),
