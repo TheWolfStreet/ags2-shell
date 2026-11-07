@@ -26,6 +26,7 @@ import { max_image_bytes, valid_image_dimensions } from "$lib/files"
 import { hyprland, hyprland_command } from "$lib/hyprland"
 import { lua_string } from "$lib/lua"
 import { wallpaper_path, wallpaper_revision } from "$lib/wallpaper"
+import { start_bluetooth_agent } from "$service/bluetooth_agent"
 
 import options, { subscribe_options } from "$shell/options"
 
@@ -339,5 +340,9 @@ export default function start_shell(): result<void> {
 		start_tmux_accent_sync()
 		start_wallpaper_theme()
 		start_hyprland_appearance_sync()
+		log_error(
+			start_bluetooth_agent(),
+			"bluetooth.agent: Failed to register with bluez",
+		)
 	})
 }

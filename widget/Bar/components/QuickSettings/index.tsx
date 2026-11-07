@@ -85,6 +85,7 @@ export namespace QuickSettings {
 
 	export function Window() {
 		Network.Wifi.Window()
+		Bluetooth.Window()
 
 		const players = createBinding(media, "players")
 		const avatar_size = options.scale.as(() => Math.round(56 * ui_scale()))

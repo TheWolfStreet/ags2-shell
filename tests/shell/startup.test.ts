@@ -204,6 +204,9 @@ async function fixture({
 				subscribe: (callback: () => void) => revision_listeners.push(callback),
 			},
 		},
+		"$service/bluetooth_agent": {
+			start_bluetooth_agent: () => ({ ok: true, value: undefined }),
+		},
 		"$shell/options": {
 			default: options,
 			subscribe_options: (_tree, ids: string[], callback: () => void) => {
@@ -574,6 +577,9 @@ test("palette sampling accepts setter-sized wallpapers and rejects sources outsi
 					changed = fn
 				},
 			},
+		},
+		"$service/bluetooth_agent": {
+			start_bluetooth_agent: () => ({ ok: true, value: undefined }),
 		},
 		"$shell/options": {
 			default: {

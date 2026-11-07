@@ -446,6 +446,9 @@ async function bluetooth_fixture() {
 	const opened = { name: "bluetooth-selector" }
 	const opened_subscribers: (() => void)[] = []
 	const exec: string[][] = []
+	const pairings: string[] = []
+	const notifications: Record<string, unknown>[] = []
+	let settle_pairing: (value: unknown) => void = () => {}
 	let available = true
 	let exec_failure: Error | null = null
 	const adapter = {
@@ -488,7 +491,7 @@ async function bluetooth_fixture() {
 					GestureClick: "gesture",
 					Spinner: "spinner",
 				},
-				Gdk: { BUTTON_PRIMARY: 1, BUTTON_SECONDARY: 3 },
+				Gdk: { BUTTON_PRIMARY: 1, BUTTON_MIDDLE: 2, BUTTON_SECONDARY: 3 },
 			},
 			ags: ags(cleanups),
 			"ags/gtk4/jsx-runtime": jsx_runtime,
@@ -517,7 +520,25 @@ async function bluetooth_fixture() {
 			"widget/shared/Placeholder": {
 				Placeholder: (props) => make("placeholder", props),
 			},
-			"$lib/notifications": { notify_missing_programs: () => available },
+			"$lib/app": { default: { get_window: () => null } },
+			"$service/bluetooth_agent": {
+				agent_prompt_state: accessor(() => null),
+				answer_prompt: () => {},
+				dismiss_prompt: () => {},
+				pair_device: (address: string) => {
+					pairings.push(address)
+					return new Promise((resolve) => {
+						settle_pairing = resolve
+					})
+				},
+			},
+			"$lib/notifications": {
+				notify_missing_programs: () => available,
+				notify: async (options: Record<string, unknown>) => {
+					notifications.push(options)
+					return { ok: true, value: 1 }
+				},
+			},
 			"$lib/windowing": {
 				on_window_toggle: (_name, callback) => {
 					window_toggles.push(callback)
@@ -529,6 +550,12 @@ async function bluetooth_fixture() {
 	)
 	return {
 		Bluetooth,
+		pairings,
+		notifications,
+		settle_pairing: async (value: unknown) => {
+			settle_pairing(value)
+			await Promise.resolve()
+		},
 		bluetooth,
 		adapter,
 		exec,
@@ -561,11 +588,19 @@ function bluetooth_device(fields: Record<string, unknown> = {}) {
 		calls: [] as string[],
 		start_failure: null as Error | null,
 		finish_failure: null as Error | null,
+		trusted: false,
 		get_connected() {
 			return this.connected
 		},
+		get_paired() {
+			return this.paired
+		},
 		get_address() {
 			return this.address
+		},
+		set_trusted(value: boolean) {
+			this.calls.push(`trust:${value}`)
+			this.trusted = value
 		},
 		connect_device(callback) {
 			this.calls.push("connect")
@@ -652,11 +687,13 @@ test("bluetooth entries connect, disconnect and unpair by mouse button", async (
 		device.connected = true
 		press(entry(), 1)
 		assert.deepEqual(device.calls, [
+			"trust:true",
 			"connect",
 			"finish:connect-result",
 			"disconnect",
 			"finish:disconnect-result",
 		])
+		assert.equal(device.trusted, true)
 		const finish = new Error("finish")
 		device.finish_failure = finish
 		press(entry(), 1)
@@ -675,25 +712,83 @@ test("bluetooth entries connect, disconnect and unpair by mouse button", async (
 			["bluetooth.device: Failed to start disconnect", start],
 		])
 		log.errors.length = 0
-		assert.equal(press(entry(), 3), 1)
+		assert.equal(press(entry(), 2), 1)
 		await tick()
 		b.set_available(false)
-		press(entry(), 3)
+		press(entry(), 2)
 		b.set_available(true)
 		device.paired = false
-		press(entry(), 3)
+		press(entry(), 2)
 		device.paired = true
 		const unpair = new Error("unpair")
 		b.fail_exec(unpair)
-		press(entry(), 3)
+		press(entry(), 2)
 		await tick()
-		assert.equal(press(entry(), 2), 1)
+		assert.equal(press(entry(), 3), 1)
 		assert.deepEqual(b.exec, [
 			["bluetoothctl", "remove", "AA:BB"],
 			["bluetoothctl", "remove", "AA:BB"],
 		])
 		assert.deepEqual(log.errors, [
 			["bluetooth.device: Failed to unpair", unpair],
+		])
+	} finally {
+		log.restore()
+	}
+})
+
+test("an unpaired entry pairs over dbus, then trusts and connects", async () => {
+	const b = await bluetooth_fixture()
+	const device = bluetooth_device({ paired: false })
+	b.bluetooth.devices = [device]
+	const entry = find(
+		b.Bluetooth.Selector(),
+		(node) => node.type === "button" && "tooltipText" in node.props,
+	)
+
+	press(entry, 1)
+	assert.deepEqual(b.pairings, ["AA:BB"])
+	assert.deepEqual(device.calls, [])
+
+	await b.settle_pairing({ ok: true, value: undefined })
+	assert.deepEqual(device.calls, [
+		"trust:true",
+		"connect",
+		"finish:connect-result",
+	])
+	assert.equal(device.trusted, true)
+	assert.deepEqual(b.notifications, [])
+})
+
+test("a pairing that fails is reported with the bluez reason alone", async () => {
+	const b = await bluetooth_fixture()
+	const log = await capture_errors()
+	try {
+		const device = bluetooth_device({ paired: false, name: "Keyboard" })
+		b.bluetooth.devices = [device]
+		press(
+			find(
+				b.Bluetooth.Selector(),
+				(node) => node.type === "button" && "tooltipText" in node.props,
+			),
+			1,
+		)
+		const failure = new Error(
+			"Gio.IOErrorEnum: GDBus.Error:org.bluez.Error.AuthenticationFailed: Authentication Failed",
+		)
+		await b.settle_pairing({ ok: false, err: failure })
+		assert.deepEqual(device.calls, [])
+		assert.equal(device.trusted, false)
+		assert.deepEqual(log.errors, [
+			["bluetooth.device: Failed to pair", failure],
+		])
+		assert.deepEqual(b.notifications, [
+			{
+				app_name: "Bluetooth",
+				summary: "Could not pair Keyboard",
+				body: "Authentication Failed",
+				urgency: "critical",
+			},
 		])
 	} finally {
 		log.restore()
@@ -709,8 +804,19 @@ test("bluetooth entries list named devices first with paired battery details", a
 		bluetooth_device({ name: null, address: "33", connecting: true }),
 		bluetooth_device({ name: "Mouse", batteryPercentage: undefined }),
 	]
-	const entries = nodes(b.Bluetooth.Selector()).filter(
-		(node) => node.type === "button" && "tooltipText" in node.props,
+	const tree = b.Bluetooth.Selector()
+	const entries = nodes(tree).filter(
+		(node) =>
+			node.type === "button" &&
+			nodes(node).some((child) =>
+				String(child.props.class ?? "").includes("bluetooth-item"),
+			),
+	)
+	assert.deepEqual(
+		nodes(tree)
+			.filter((node) => node.props.class === "section-title")
+			.map((node) => read(node.props.label)),
+		["Paired", "Available"],
 	)
 	const labels = entries.map((entry) =>
 		nodes(entry)
@@ -718,28 +824,28 @@ test("bluetooth entries list named devices first with paired battery details", a
 			.map((node) => read(node.props.label)),
 	)
 	assert.deepEqual(labels, [
-		["Keyboard • Paired", "46%"],
-		["Mouse • Paired", ""],
-		["11", ""],
-		["   • Paired", ""],
-		["33 • Paired", "46%"],
+		["Keyboard", "46%"],
+		["Mouse", ""],
+		["  ", ""],
+		["33", "46%"],
+		["11", "Pair"],
 	])
 	assert.deepEqual(
 		entries.map((entry) => [entry.props.class(), entry.props.tooltipText()]),
 		[
-			["active", "Right-click to unpair"],
-			["", "Right-click to unpair"],
-			["", ""],
-			["", "Right-click to unpair"],
-			["", "Right-click to unpair"],
+			["active", "Middle click to forget device"],
+			["", "Middle click to forget device"],
+			["", "Middle click to forget device"],
+			["", "Middle click to forget device"],
+			["", "Pair this device"],
 		],
 	)
 	const details = entries.map((entry) =>
 		find(entry, (node) => node.props.class === "device-detail").props.visible(),
 	)
-	assert.deepEqual(details, [true, false, false, false, true])
+	assert.deepEqual(details, [true, false, false, true, true])
 	assert.equal(
-		find(entries[4], (node) => node.type === "spinner").props.visible(),
+		find(entries[3], (node) => node.type === "spinner").props.visible(),
 		true,
 	)
 	assert.equal(

@@ -1,5 +1,13 @@
 import { Gtk, Gdk } from "ags/gtk4"
-import { createBinding, createComputed, With, For, onCleanup } from "ags"
+import {
+	type Accessor,
+	createBinding,
+	createComputed,
+	createState,
+	With,
+	For,
+	onCleanup,
+} from "ags"
 import { execAsync } from "ags/process"
 
 import AstalBluetooth from "gi://AstalBluetooth"
@@ -13,10 +21,17 @@ import {
 } from "widget/Bar/components/QuickSettings/components/MenuControls"
 import { Placeholder } from "widget/shared/Placeholder"
 
+import app from "$lib/app"
 import icons from "$lib/icons"
-import { notify_missing_programs } from "$lib/notifications"
+import { notify, notify_missing_programs } from "$lib/notifications"
 import { attempt, attempt_async, log_error } from "$lib/result"
 import { on_window_toggle } from "$lib/windowing"
+import {
+	agent_prompt_state,
+	answer_prompt,
+	dismiss_prompt,
+	pair_device,
+} from "$service/bluetooth_agent"
 
 import options from "$shell/options"
 
@@ -24,6 +39,7 @@ const bluetooth = AstalBluetooth.get_default()
 
 export namespace Bluetooth {
 	const menu_name = "bluetooth-selector"
+	const pairing_window = "bluetooth-auth"
 
 	export function Toggle() {
 		const powered = createBinding(bluetooth, "isPowered")
@@ -102,6 +118,12 @@ export namespace Bluetooth {
 				.slice()
 				.sort((a, b) => Number(has_name(b)) - Number(has_name(a))),
 		)
+		const paired_devices = devices.as((list) =>
+			list.filter((device) => device.paired),
+		)
+		const available_devices = devices.as((list) =>
+			list.filter((device) => !device.paired),
+		)
 
 		return (
 			<Menu
@@ -163,9 +185,8 @@ export namespace Bluetooth {
 								>
 									<Gtk.ScrolledWindow class="device-scroll" vexpand>
 										<box orientation={VERTICAL} vexpand hexpand>
-											<For each={devices}>
-												{(dev: AstalBluetooth.Device) => <Entry device={dev} />}
-											</For>
+											<Section title="Paired" devices={paired_devices} />
+											<Section title="Available" devices={available_devices} />
 										</box>
 									</Gtk.ScrolledWindow>
 								</revealer>
@@ -194,9 +215,120 @@ export namespace Bluetooth {
 		)
 	}
 
-	const { VERTICAL } = Gtk.Orientation
+	const { HORIZONTAL, VERTICAL } = Gtk.Orientation
 	const { CENTER } = Gtk.Align
-	const { BUTTON_PRIMARY, BUTTON_SECONDARY } = Gdk
+	const { BUTTON_MIDDLE, BUTTON_PRIMARY } = Gdk
+
+	export function Window() {
+		const [entry_text, set_entry_text] = createState("")
+		const device_label = agent_prompt_state.as((current) => {
+			if (!current) return ""
+			const match = bluetooth
+				.get_devices()
+				.find((candidate) => candidate.get_address() === current.device)
+			return match?.name || current.device
+		})
+		const needs_entry = agent_prompt_state.as(
+			(current) => current?.kind === "passkey" || current?.kind === "pin",
+		)
+		const code = agent_prompt_state.as((current) =>
+			current?.kind === "confirm" || current?.kind === "display"
+				? current.passkey
+				: "",
+		)
+		const hint = agent_prompt_state.as((current) => {
+			if (!current) return ""
+			if (current.kind === "confirm")
+				return "Make sure the same code is shown on the device"
+			if (current.kind === "display") return "Enter this code on the device"
+			if (current.kind === "passkey")
+				return "Enter the passkey shown on the device"
+			return "Enter the device PIN"
+		})
+
+		const accept = () => {
+			answer_prompt(entry_text.peek())
+			set_entry_text("")
+		}
+
+		const cancel = () => {
+			dismiss_prompt()
+			set_entry_text("")
+		}
+
+		return (
+			<Gtk.Window
+				title="Bluetooth Pairing"
+				name={pairing_window}
+				application={app}
+				visible={agent_prompt_state.as((current) => current !== null)}
+				hideOnClose
+				onCloseRequest={() => {
+					cancel()
+					return true
+				}}
+				iconName={icons.bluetooth.enabled}
+			>
+				<box class="vertical auth-content" orientation={VERTICAL}>
+					<box class="header horizontal" orientation={HORIZONTAL}>
+						<button onClicked={cancel}>
+							<label label="Cancel" />
+						</button>
+						<label label={device_label} hexpand halign={CENTER} />
+						<button onClicked={accept}>
+							<label label="Pair" />
+						</button>
+					</box>
+
+					<label
+						class="pairing-code"
+						label={code}
+						visible={code.as((value) => value.length > 0)}
+						halign={CENTER}
+					/>
+
+					<box class="entry-row" visible={needs_entry} orientation={HORIZONTAL}>
+						<entry
+							placeholderText="Enter code"
+							hexpand
+							text={entry_text}
+							onNotifyText={(self) => set_entry_text(self.text)}
+							onActivate={accept}
+						/>
+					</box>
+
+					<label
+						class="auth-status"
+						label={hint}
+						halign={CENTER}
+						justify={Gtk.Justification.CENTER}
+						wrap
+					/>
+				</box>
+			</Gtk.Window>
+		)
+	}
+
+	function Section({
+		title,
+		devices,
+	}: {
+		title: string
+		devices: Accessor<AstalBluetooth.Device[]>
+	}) {
+		return (
+			<box
+				class="device-section vertical"
+				orientation={VERTICAL}
+				visible={devices.as((list) => list.length > 0)}
+			>
+				<label class="section-title" label={title} xalign={0} />
+				<For each={devices}>
+					{(device: AstalBluetooth.Device) => <Entry device={device} />}
+				</For>
+			</box>
+		)
+	}
 
 	function Entry({ device }: { device: AstalBluetooth.Device }) {
 		const connecting = createBinding(device, "connecting")
@@ -205,21 +337,19 @@ export namespace Bluetooth {
 		const address = createBinding(device, "address")
 		const battery = createBinding(device, "batteryPercentage")
 		const paired = createBinding(device, "paired")
-		const label = createComputed(
-			() => `${name() || address()}${paired() ? " • Paired" : ""}`,
-		)
-		const battery_label = createComputed(() => {
-			if (!paired()) return ""
+		const label = createComputed(() => name() || address())
+		const detail = createComputed(() => {
+			if (!paired()) return "Pair"
 			const level = battery()
-			if (level == undefined || level < 0) return ""
-			return `${Math.round(level * 100)}%`
+			if (level != undefined && level >= 0) return `${Math.round(level * 100)}%`
+			return connected() ? "Connected" : ""
 		})
 
 		return (
 			<button
 				class={connected.as((value) => (value ? "active" : ""))}
 				tooltipText={paired.as((value) =>
-					value ? "Right-click to unpair" : "",
+					value ? "Middle click to forget device" : "Pair this device",
 				)}
 			>
 				<Gtk.GestureClick
@@ -227,7 +357,7 @@ export namespace Bluetooth {
 					onPressed={(self) => {
 						const button = self.get_current_button()
 						if (button === BUTTON_PRIMARY) toggle_connection(device)
-						if (button === BUTTON_SECONDARY) unpair(device)
+						if (button === BUTTON_MIDDLE) unpair(device)
 						self.reset()
 					}}
 				/>
@@ -240,8 +370,8 @@ export namespace Bluetooth {
 					<box hexpand />
 					<label
 						class="device-detail"
-						label={battery_label}
-						visible={battery_label.as((value) => value.length > 0)}
+						label={detail}
+						visible={detail.as((value) => value.length > 0)}
 					/>
 					<Gtk.Spinner spinning={connecting} visible={connecting} />
 				</box>
@@ -253,7 +383,30 @@ export namespace Bluetooth {
 		return Boolean(device.name) && device.name.trim() !== ""
 	}
 
+	function failure_text(error: unknown) {
+		const text = String(error)
+		const reason = /GDBus\.Error:[\w.]+: (.+)/s.exec(text)
+		return reason ? reason[1] : text.replace(/^Error: /, "")
+	}
+
+	function pair(device: AstalBluetooth.Device) {
+		void pair_device(device.get_address()).then((paired) => {
+			if (log_error(paired, "bluetooth.device: Failed to pair")) {
+				connect(device)
+				return
+			}
+			void notify({
+				app_name: "Bluetooth",
+				summary: `Could not pair ${device.name || device.get_address()}`,
+				body: failure_text(paired.err),
+				urgency: "critical",
+			})
+		})
+	}
+
 	function connect(device: AstalBluetooth.Device) {
+		const trusted = attempt(() => device.set_trusted(true))
+		log_error(trusted, "bluetooth.device: Failed to trust")
 		const started = attempt(() =>
 			device.connect_device((_source, result) =>
 				log_error(
@@ -279,6 +432,7 @@ export namespace Bluetooth {
 
 	function toggle_connection(device: AstalBluetooth.Device) {
 		if (device.get_connected()) disconnect(device)
+		else if (!device.get_paired()) pair(device)
 		else connect(device)
 	}
 
