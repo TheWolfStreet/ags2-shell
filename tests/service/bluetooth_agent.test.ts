@@ -315,7 +315,7 @@ test("a confirmation prompt is shown with a padded passkey and answered in place
 		device: address,
 		passkey: "000042",
 	})
-	assert.deepEqual(f.replies, [])
+	assert.equal(f.replies.length, 0)
 	f.agent.answer_prompt("")
 	assert.equal(f.prompt(), null)
 	assert.ok(f.replies[0] instanceof variant)

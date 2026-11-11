@@ -127,6 +127,7 @@ class ApplicationCatalog extends GObject.Object {
 		if (this.#refresh_idle) return
 		this.#refresh_idle = idle(() => {
 			this.#refresh_idle = null
+			this.#apps.reload()
 			if (this.#favorites_snapshot !== null)
 				this.#set_favorites(this.#favorites_snapshot, true)
 			this.notify("list")
@@ -214,11 +215,6 @@ class ApplicationCatalog extends GObject.Object {
 		this.#refresh_idle?.cancel()
 		this.#favorites_watcher?.kill()
 		this.#app_monitor.disconnect(this.#app_handler)
-	}
-
-	vfunc_finalize() {
-		this.#dispose()
-		super.vfunc_finalize()
 	}
 }
 

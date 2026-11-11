@@ -1,11 +1,23 @@
 import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
 import { load_module } from "../load_module.ts"
 import {
 	tick,
 	immediate_debounce,
 	on_shutdown,
 	gobject_stub,
+	available,
 } from "../helpers.ts"
 
 function app(entry, name) {
@@ -25,7 +37,7 @@ async function service_fixture(catalog, variants, { failed_watches = 0 } = {}) {
 	let on_catalog_change
 	let on_favorites_change
 	let on_idle
-	const apps = { list: catalog }
+	const apps = { list: catalog, cached: catalog, reloads: 0 }
 	const shutdown_handlers: (() => void)[] = []
 	let kills = 0
 	const imports = {
@@ -70,7 +82,11 @@ async function service_fixture(catalog, variants, { failed_watches = 0 } = {}) {
 			default: {
 				Apps: class {
 					get list() {
-						return apps.list
+						return apps.cached
+					}
+					reload() {
+						apps.cached = apps.list
+						apps.reloads++
 					}
 				},
 			},
@@ -127,6 +143,9 @@ async function service_fixture(catalog, variants, { failed_watches = 0 } = {}) {
 		shutdown: () => shutdown_handlers.forEach((handler) => handler()),
 		get kills() {
 			return kills
+		},
+		get reloads() {
+			return apps.reloads
 		},
 		change_catalog(next) {
 			apps.list = next
@@ -241,6 +260,118 @@ test("remaps the last valid snapshot when the catalog changes", async () => {
 	assert.deepEqual(fixture.notifications, ["favorites", "favorites", "list"])
 	assert.equal(fixture.commands.length, 2)
 })
+
+test("reloads the cached catalog on installs and removals without restarting", async () => {
+	const existing = app("foo.desktop", "Foo")
+	const installed = app("org.example.Installed.desktop", "Installed")
+	const fixture = await service_fixture([existing], new Map([["[]", []]]))
+	await fixture.read("[]")
+	fixture.change_catalog([existing, installed])
+	assert.deepEqual(fixture.service.list, [existing, installed])
+	assert.equal(fixture.reloads, 1)
+	fixture.change_catalog([installed])
+	assert.deepEqual(fixture.service.list, [installed])
+	assert.equal(fixture.reloads, 2)
+	assert.deepEqual(fixture.notifications, [
+		"favorites",
+		"favorites",
+		"list",
+		"favorites",
+		"list",
+	])
+})
+
+test(
+	"native catalog observes desktop files and Flatpak-style exports without restarting",
+	{ skip: !available("gjs") || !available("ags") },
+	() => {
+		const root = fileURLToPath(new URL("../../", import.meta.url))
+		const stage = mkdtempSync(join(tmpdir(), "ags-app-catalog-"))
+		try {
+			const user_apps = join(stage, "data/applications")
+			const system_data = join(stage, "flatpak/exports/share")
+			mkdirSync(user_apps, { recursive: true })
+			mkdirSync(join(system_data, "applications"), { recursive: true })
+			const source = readFileSync(join(root, "service/apps.ts"), "utf8")
+				.replace(
+					'import app from "$lib/app"',
+					"let shutdown; const app = { connect: (_signal, callback) => { shutdown = callback } }",
+				)
+				.replace(
+					'import { execAsync, Process, subprocess } from "ags/process"',
+					`const execAsync = async () => "['org.example.Installed.desktop', 'org.example.Flatpak.desktop']"
+const subprocess = () => ({ connect() {}, kill() {} })`,
+				)
+			const entry = join(stage, "catalog.ts")
+			const output = join(stage, "catalog")
+			writeFileSync(
+				entry,
+				`${source}
+function check(condition, message) { if (!condition) throw new Error(message) }
+async function change(action, expected) {
+	await new Promise((resolve, reject) => {
+		let deadline = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
+			deadline = 0
+			applications.disconnect(handler)
+			reject(new Error('catalog did not update: ' + JSON.stringify(expected)))
+			return GLib.SOURCE_REMOVE
+		})
+		const handler = applications.connect('notify::list', () => {
+			const entries = applications.list.map(app => app.get_entry()).sort()
+			if (JSON.stringify(entries) !== JSON.stringify(expected)) return
+			applications.disconnect(handler)
+			if (deadline) GLib.Source.remove(deadline)
+			resolve()
+		})
+		action()
+	})
+	check(JSON.stringify(applications.favorites.map(app => app.get_entry()).sort()) === JSON.stringify(expected), 'favorites did not follow catalog')
+}
+function desktop(path, name) {
+	GLib.file_set_contents(path, '[Desktop Entry]\\nType=Application\\nName=' + name + '\\nExec=true\\n')
+}
+const user_path = GLib.get_user_data_dir() + '/applications/org.example.Installed.desktop'
+const export_path = GLib.get_system_data_dirs()[0] + '/applications/org.example.Flatpak.desktop'
+const deployment = GLib.getenv('HOME') + '/deployment.desktop'
+check(applications.list.length === 0, 'catalog is not isolated')
+await change(() => desktop(user_path, 'Installed'), ['org.example.Installed.desktop'])
+desktop(deployment, 'Flatpak')
+await change(() => Gio.File.new_for_path(export_path).make_symbolic_link(deployment, null), ['org.example.Flatpak.desktop', 'org.example.Installed.desktop'])
+await change(() => Gio.File.new_for_path(user_path).delete(null), ['org.example.Flatpak.desktop'])
+await change(() => Gio.File.new_for_path(export_path).delete(null), [])
+shutdown()
+print('native catalog installs and removals passed')
+`,
+			)
+			const bundle = spawnSync(
+				"ags",
+				["bundle", entry, output, "-g", "4", "-r", root],
+				{
+					encoding: "utf8",
+					timeout: 60000,
+				},
+			)
+			assert.equal(bundle.status, 0, bundle.stderr || bundle.stdout)
+			const run = spawnSync(output, [], {
+				encoding: "utf8",
+				timeout: 20000,
+				env: {
+					...process.env,
+					HOME: stage,
+					XDG_DATA_HOME: join(stage, "data"),
+					XDG_DATA_DIRS: system_data,
+					XDG_CACHE_HOME: join(stage, "cache"),
+					XDG_RUNTIME_DIR: stage,
+				},
+			})
+			assert.equal(run.status, 0, run.stderr || run.error?.message)
+			assert.match(run.stdout, /native catalog installs and removals passed/)
+			assert.doesNotMatch(run.stderr, /CRITICAL|WARNING/)
+		} finally {
+			rmSync(stage, { recursive: true, force: true })
+		}
+	},
+)
 
 test("parses empty defaults, typed empty arrays, and escaped strings via GVariant", async () => {
 	const quoted = app("quoted.desktop", "It's Krita")

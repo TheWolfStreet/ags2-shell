@@ -247,7 +247,7 @@ The control commands and Hyprland bindings documented above work unchanged becau
 
 ## Appearance And Wallpapers
 
-The shell defaults to SFProDisplay Nerd Font and is styled independently through its generated CSS. Install that font or select another one in **Settings > Appearance**. Host GTK, icon, and cursor themes remain under the desktop configuration's control.
+The shell defaults to SFProDisplay Nerd Font and is styled independently through its generated CSS. Install that font or select another one in **Settings > Appearance**. Host GTK, icon, and cursor themes remain under the desktop configuration's control. Flatpak applications also need to discover the configured font inside their sandbox; sharing GTK settings alone is insufficient. On NixOS with Home Manager profile fonts, sharing the user Fontconfig configuration (`xdg-config/fontconfig:ro`) alongside `/nix/store:ro` allows Fontconfig to find those fonts.
 
 Changing the shell's light or dark scheme updates `org.gnome.desktop.interface color-scheme`, selects an installed matching icon-theme variant when one exists, and optionally synchronizes the accent color to tmux. Wallpaper color generation is available under **Settings > Appearance > Generate from Wallpaper**.
 
@@ -307,7 +307,7 @@ journalctl --user -u ags.service -b
 ags list
 ```
 
-Confirm that the service inherited `WAYLAND_DISPLAY`, `HYPRLAND_INSTANCE_SIGNATURE`, and the graphical-session environment.
+Confirm that the service inherited `WAYLAND_DISPLAY`, `HYPRLAND_INSTANCE_SIGNATURE`, and the graphical-session environment. For Flatpak app discovery, its `XDG_DATA_DIRS` must include the applicable user and system Flatpak `exports/share` directories. The application catalog reloads Astal's cached app list on `Gio.AppInfoMonitor` changes before updating the launcher and favorites.
 
 ### The Shell Freezes When Hyprland's Event Socket Closes
 
