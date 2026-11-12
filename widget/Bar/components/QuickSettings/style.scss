@@ -204,17 +204,8 @@ window#quicksettings {
 				@include spacing(0.5);
 			}
 
-			box.device-section {
-				label.section-title {
-					padding: calc(var(--spacing) * 0.4) calc(var(--spacing) * 0.5) 0;
-					color: color-mix(in srgb, var(--fg) 55%, transparent);
-					font-size: 0.75em;
-					font-weight: bold;
-				}
-			}
-
 			label.device-detail {
-				padding: 0 calc(var(--spacing) * 0.35);
+				padding: calc(var(--padding) * 0.2) calc(var(--padding) * 0.7);
 				border-radius: calc(var(--radius) / 2);
 				background-color: color-mix(in srgb, var(--fg) 10%, transparent);
 				color: color-mix(in srgb, var(--fg) 70%, transparent);

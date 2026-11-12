@@ -795,7 +795,7 @@ test("a pairing that fails is reported with the bluez reason alone", async () =>
 	}
 })
 
-test("bluetooth entries list named devices first with paired battery details", async () => {
+test("bluetooth entries list paired first with paired battery details", async () => {
 	const b = await bluetooth_fixture()
 	b.bluetooth.devices = [
 		bluetooth_device({ name: "", address: "11", paired: false }),
@@ -813,10 +813,8 @@ test("bluetooth entries list named devices first with paired battery details", a
 			),
 	)
 	assert.deepEqual(
-		nodes(tree)
-			.filter((node) => node.props.class === "section-title")
-			.map((node) => read(node.props.label)),
-		["Paired", "Available"],
+		nodes(tree).filter((node) => node.props.class === "section-title"),
+		[],
 	)
 	const labels = entries.map((entry) =>
 		nodes(entry)
@@ -825,10 +823,10 @@ test("bluetooth entries list named devices first with paired battery details", a
 	)
 	assert.deepEqual(labels, [
 		["Keyboard", "46%"],
-		["Mouse", ""],
-		["  ", ""],
+		["Mouse", "Paired"],
+		["  ", "Paired"],
 		["33", "46%"],
-		["11", "Pair"],
+		["11", ""],
 	])
 	assert.deepEqual(
 		entries.map((entry) => [entry.props.class(), entry.props.tooltipText()]),
@@ -843,7 +841,14 @@ test("bluetooth entries list named devices first with paired battery details", a
 	const details = entries.map((entry) =>
 		find(entry, (node) => node.props.class === "device-detail").props.visible(),
 	)
-	assert.deepEqual(details, [true, false, false, true, true])
+	assert.deepEqual(details, [true, true, true, true, false])
+	assert.ok(
+		entries.every(
+			(entry) =>
+				find(entry, (node) => node.props.class === "device-detail").props
+					.valign === 1,
+		),
+	)
 	assert.equal(
 		find(entries[3], (node) => node.type === "spinner").props.visible(),
 		true,
@@ -852,6 +857,31 @@ test("bluetooth entries list named devices first with paired battery details", a
 		find(entries[0], (node) => node.type === "image").props.iconName(),
 		"audio-headset-symbolic",
 	)
+})
+
+test("bluetooth tags react to pairing and preserve connection and battery details", async () => {
+	const b = await bluetooth_fixture()
+	const device = bluetooth_device({
+		paired: false,
+		batteryPercentage: undefined,
+	})
+	b.bluetooth.devices = [device]
+	const tree = b.Bluetooth.Selector()
+	const detail = find(tree, (node) => node.props.class === "device-detail")
+	assert.equal(detail.props.visible(), false)
+	assert.equal(read(detail.props.label), "")
+	device.paired = true
+	assert.equal(detail.props.visible(), true)
+	assert.equal(read(detail.props.label), "Paired")
+	device.connected = true
+	assert.equal(read(detail.props.label), "Connected")
+	device.batteryPercentage = 0
+	assert.equal(read(detail.props.label), "0%")
+	device.batteryPercentage = 1
+	assert.equal(read(detail.props.label), "100%")
+	device.paired = false
+	assert.equal(detail.props.visible(), false)
+	assert.equal(read(detail.props.label), "")
 })
 
 test("bluetooth scans it started stop when the menu or window closes", async () => {

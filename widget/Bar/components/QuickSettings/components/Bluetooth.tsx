@@ -1,6 +1,5 @@
 import { Gtk, Gdk } from "ags/gtk4"
 import {
-	type Accessor,
 	createBinding,
 	createComputed,
 	createState,
@@ -116,13 +115,11 @@ export namespace Bluetooth {
 		const devices = createBinding(bluetooth, "devices").as((list) =>
 			(list ?? [])
 				.slice()
-				.sort((a, b) => Number(has_name(b)) - Number(has_name(a))),
-		)
-		const paired_devices = devices.as((list) =>
-			list.filter((device) => device.paired),
-		)
-		const available_devices = devices.as((list) =>
-			list.filter((device) => !device.paired),
+				.sort(
+					(a, b) =>
+						Number(b.paired) - Number(a.paired) ||
+						Number(has_name(b)) - Number(has_name(a)),
+				),
 		)
 
 		return (
@@ -185,8 +182,9 @@ export namespace Bluetooth {
 								>
 									<Gtk.ScrolledWindow class="device-scroll" vexpand>
 										<box orientation={VERTICAL} vexpand hexpand>
-											<Section title="Paired" devices={paired_devices} />
-											<Section title="Available" devices={available_devices} />
+											<For each={devices}>
+												{(device) => <Entry device={device} />}
+											</For>
 										</box>
 									</Gtk.ScrolledWindow>
 								</revealer>
@@ -309,27 +307,6 @@ export namespace Bluetooth {
 		)
 	}
 
-	function Section({
-		title,
-		devices,
-	}: {
-		title: string
-		devices: Accessor<AstalBluetooth.Device[]>
-	}) {
-		return (
-			<box
-				class="device-section vertical"
-				orientation={VERTICAL}
-				visible={devices.as((list) => list.length > 0)}
-			>
-				<label class="section-title" label={title} xalign={0} />
-				<For each={devices}>
-					{(device: AstalBluetooth.Device) => <Entry device={device} />}
-				</For>
-			</box>
-		)
-	}
-
 	function Entry({ device }: { device: AstalBluetooth.Device }) {
 		const connecting = createBinding(device, "connecting")
 		const connected = createBinding(device, "connected")
@@ -339,10 +316,11 @@ export namespace Bluetooth {
 		const paired = createBinding(device, "paired")
 		const label = createComputed(() => name() || address())
 		const detail = createComputed(() => {
-			if (!paired()) return "Pair"
+			if (!paired()) return ""
 			const level = battery()
 			if (level != undefined && level >= 0) return `${Math.round(level * 100)}%`
-			return connected() ? "Connected" : ""
+			if (connected()) return "Connected"
+			return "Paired"
 		})
 
 		return (
@@ -370,6 +348,7 @@ export namespace Bluetooth {
 					<box hexpand />
 					<label
 						class="device-detail"
+						valign={CENTER}
 						label={detail}
 						visible={detail.as((value) => value.length > 0)}
 					/>

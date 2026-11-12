@@ -330,10 +330,15 @@ export namespace Network {
 						<box hexpand />
 						<label
 							class="device-detail security-warning"
+							valign={CENTER}
 							label={security}
 							visible={security.length > 0}
 						/>
-						<label class="device-detail" label={frequency_band(ap.frequency)} />
+						<label
+							class="device-detail"
+							valign={CENTER}
+							label={frequency_band(ap.frequency)}
+						/>
 						<image
 							iconName={icons.ui.tick}
 							halign={END}
